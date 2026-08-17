@@ -15,11 +15,23 @@ const categories = [
 ];
 
 const dates = [
-  { value: "upcoming", label: "Upcoming" },
-  { value: "today", label: "Today" },
-  { value: "weekend", label: "This Weekend" },
-  { value: "week", label: "This Week" },
-  { value: "month", label: "This Month" },
+  { label: "Upcoming", value: "upcoming" },
+  { label: "Today", value: "today" },
+  { label: "This Weekend", value: "weekend" },
+  { label: "This Week", value: "week" },
+  { label: "This Month", value: "month" },
+];
+
+const cities = [
+  "All Cities",
+  "Nairobi",
+  "Mombasa",
+  "Diani",
+  "Kilifi`n    Mtwapa",
+  "Malindi",
+  "Zanzibar",
+  "Kampala",
+  "Dar es Salaam",
 ];
 
 export default function EventFilters() {
@@ -32,40 +44,60 @@ export default function EventFilters() {
   const currentWhen =
     searchParams.get("when") || "upcoming";
 
+  const currentCity =
+    searchParams.get("city") || "All Cities";
+
   function updateFilter(
-    key: "category" | "when",
+    name: string,
     value: string
   ) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(
+      searchParams.toString()
+    );
 
     if (
-      (key === "category" && value === "All Events") ||
-      (key === "when" && value === "upcoming")
+      !value ||
+      value === "All Events" ||
+      value === "All Cities" ||
+      value === "upcoming"
     ) {
-      params.delete(key);
+      params.delete(name);
     } else {
-      params.set(key, value);
+      params.set(name, value);
     }
 
     router.push(`/events?${params.toString()}`);
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-
-      {/* CATEGORY */}
+    <div className="mx-auto grid max-w-7xl gap-4 px-6 py-6 md:grid-cols-3">
 
       <div>
+        <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
+          City
+        </label>
 
-        <label
-          htmlFor="event-category"
-          className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400"
+        <select
+          value={currentCity}
+          onChange={(event) =>
+            updateFilter("city", event.target.value)
+          }
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none focus:border-orange-500"
         >
+          {cities.map((city) => (
+            <option key={city} value={city}>
+              {city}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
           Category
         </label>
 
         <select
-          id="event-category"
           value={currentCategory}
           onChange={(event) =>
             updateFilter(
@@ -73,7 +105,7 @@ export default function EventFilters() {
               event.target.value
             )
           }
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none focus:border-orange-500"
         >
           {categories.map((category) => (
             <option
@@ -84,22 +116,14 @@ export default function EventFilters() {
             </option>
           ))}
         </select>
-
       </div>
 
-      {/* WHEN */}
-
       <div>
-
-        <label
-          htmlFor="event-when"
-          className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400"
-        >
+        <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
           When
         </label>
 
         <select
-          id="event-when"
           value={currentWhen}
           onChange={(event) =>
             updateFilter(
@@ -107,7 +131,7 @@ export default function EventFilters() {
               event.target.value
             )
           }
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none focus:border-orange-500"
         >
           {dates.map((date) => (
             <option
@@ -118,7 +142,6 @@ export default function EventFilters() {
             </option>
           ))}
         </select>
-
       </div>
 
     </div>
