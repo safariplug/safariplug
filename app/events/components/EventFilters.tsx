@@ -27,7 +27,8 @@ const cities = [
   "Nairobi",
   "Mombasa",
   "Diani",
-  "Kilifi`n    Mtwapa",
+  "Kilifi",
+  "Mtwapa",
   "Malindi",
   "Zanzibar",
   "Kampala",
@@ -47,13 +48,8 @@ export default function EventFilters() {
   const currentCity =
     searchParams.get("city") || "All Cities";
 
-  function updateFilter(
-    name: string,
-    value: string
-  ) {
-    const params = new URLSearchParams(
-      searchParams.toString()
-    );
+  function updateFilter(name: string, value: string) {
+    const params = new URLSearchParams(searchParams.toString());
 
     if (
       !value ||
@@ -66,11 +62,19 @@ export default function EventFilters() {
       params.set(name, value);
     }
 
-    router.push(`/events?${params.toString()}`);
+    const queryString = params.toString();
+
+    router.push(
+      queryString
+        ? `/events?${queryString}`
+        : "/events"
+    );
   }
 
   return (
     <div className="mx-auto grid max-w-7xl gap-4 px-6 py-6 md:grid-cols-3">
+
+      {/* CITY */}
 
       <div>
         <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
@@ -82,15 +86,20 @@ export default function EventFilters() {
           onChange={(event) =>
             updateFilter("city", event.target.value)
           }
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none focus:border-orange-500"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
         >
           {cities.map((city) => (
-            <option key={city} value={city}>
+            <option
+              key={city}
+              value={city}
+            >
               {city}
             </option>
           ))}
         </select>
       </div>
+
+      {/* CATEGORY */}
 
       <div>
         <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
@@ -105,7 +114,7 @@ export default function EventFilters() {
               event.target.value
             )
           }
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none focus:border-orange-500"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
         >
           {categories.map((category) => (
             <option
@@ -117,6 +126,8 @@ export default function EventFilters() {
           ))}
         </select>
       </div>
+
+      {/* WHEN */}
 
       <div>
         <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
@@ -131,7 +142,7 @@ export default function EventFilters() {
               event.target.value
             )
           }
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none focus:border-orange-500"
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
         >
           {dates.map((date) => (
             <option
