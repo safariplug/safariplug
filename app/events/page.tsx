@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type Event = {
@@ -35,7 +36,9 @@ function formatTime(dateString: string) {
 }
 
 function formatPrice(price: number | null, currency: string | null) {
-  if (price === null) return "Free";
+  if (price === null) {
+    return "Free";
+  }
 
   return new Intl.NumberFormat("en-KE", {
     style: "currency",
@@ -64,8 +67,15 @@ export default async function EventsPage() {
       `
     )
     .eq("status", "approved")
+    .gte("start_at", new Date().toISOString())
     .order("featured", { ascending: false })
     .order("start_at", { ascending: true });
+
+  if (error) {
+    console.error("Error loading events:", error);
+  }
+
+  const eventList = (events || []) as Event[];
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -74,25 +84,30 @@ export default async function EventsPage() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
 
-          <a href="/" className="text-2xl font-black tracking-tight">
+          <Link
+            href="/"
+            className="text-2xl font-black tracking-tight"
+          >
             Safari<span className="text-orange-500">Plug</span>
-          </a>
+          </Link>
 
-          <div className="flex items-center gap-4">
-            <a
+          <nav className="flex items-center gap-5">
+
+            <Link
               href="/"
               className="hidden text-sm font-semibold text-slate-600 hover:text-orange-500 sm:block"
             >
               Home
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/submit"
               className="rounded-full bg-orange-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
             >
               List Your Event
-            </a>
-          </div>
+            </Link>
+
+          </nav>
 
         </div>
       </header>
@@ -101,11 +116,11 @@ export default async function EventsPage() {
       <section className="bg-slate-950">
         <div className="mx-auto max-w-7xl px-6 py-16 md:py-20">
 
-          <p className="font-bold uppercase tracking-widest text-orange-400">
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-400">
             SafariPlug Events
           </p>
 
-          <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight text-white md:text-6xl">
+          <h1 className="mt-4 max-w-3xl text-4xl font-black tracking-tight text-white md:text-6xl">
             Find something happening.
           </h1>
 
@@ -114,119 +129,119 @@ export default async function EventsPage() {
             cultural experiences and more across East Africa.
           </p>
 
-          {/* FILTERS */}
-          <div className="mt-10 grid gap-3 md:grid-cols-3">
+        </div>
+      </section>
 
-            <div className="rounded-xl bg-white px-5 py-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                City
-              </div>
-              <div className="mt-1 font-semibold">
-                Nairobi
-              </div>
+      {/* FILTER BAR */}
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-4 px-6 py-6 md:grid-cols-3">
+
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
+              City
+            </label>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold">
+              Nairobi
             </div>
+          </div>
 
-            <div className="rounded-xl bg-white px-5 py-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Category
-              </div>
-              <div className="mt-1 font-semibold">
-                All Events
-              </div>
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
+              Category
+            </label>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold">
+              All Events
             </div>
+          </div>
 
-            <div className="rounded-xl bg-white px-5 py-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                When
-              </div>
-              <div className="mt-1 font-semibold">
-                Upcoming
-              </div>
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
+              When
+            </label>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold">
+              Upcoming
             </div>
-
           </div>
 
         </div>
       </section>
 
       {/* EVENTS */}
-      <section className="mx-auto max-w-7xl px-6 py-16">
+      <section className="mx-auto max-w-7xl px-6 py-14">
 
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex items-end justify-between gap-5">
+
           <div>
-            <p className="font-bold uppercase tracking-widest text-orange-500">
+            <p className="text-sm font-bold uppercase tracking-widest text-orange-500">
               Upcoming
             </p>
 
-            <h2 className="mt-2 text-3xl font-black tracking-tight">
+            <h2 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
               Events worth checking out
             </h2>
           </div>
 
-          <div className="hidden text-sm text-slate-500 sm:block">
-            {events?.length || 0} event{events?.length === 1 ? "" : "s"}
+          <div className="hidden text-sm font-semibold text-slate-500 sm:block">
+            {eventList.length}{" "}
+            {eventList.length === 1 ? "event" : "events"}
           </div>
+
         </div>
 
-        {/* DATABASE ERROR */}
-        {error && (
-          <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
-            <div className="font-bold">
-              Unable to load events
+        {eventList.length === 0 ? (
+
+          <div className="mt-10 rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
+
+            <div className="text-5xl">
+              🎉
             </div>
-
-            <div className="mt-2 text-sm">
-              {error.message}
-            </div>
-          </div>
-        )}
-
-        {/* EMPTY STATE */}
-        {!error && (!events || events.length === 0) && (
-          <div className="mt-10 rounded-3xl border border-dashed border-slate-300 bg-white p-16 text-center">
-
-            <div className="text-5xl">🎉</div>
 
             <h3 className="mt-5 text-2xl font-black">
-              Nothing listed yet
+              Nothing upcoming yet
             </h3>
 
-            <p className="mx-auto mt-3 max-w-md text-slate-500">
-              We're discovering what's happening around the city.
-              Check back soon or submit your own event.
+            <p className="mx-auto mt-3 max-w-lg text-slate-500">
+              Check back soon for concerts, parties, festivals,
+              experiences and other things happening around East Africa.
             </p>
 
-            <a
+            <Link
               href="/submit"
-              className="mt-7 inline-block rounded-full bg-orange-500 px-7 py-3 font-bold text-white hover:bg-orange-600"
+              className="mt-7 inline-flex rounded-full bg-orange-500 px-6 py-3 font-bold text-white hover:bg-orange-600"
             >
-              Submit an Event
-            </a>
+              List an Event
+            </Link>
 
           </div>
-        )}
 
-        {/* EVENT GRID */}
-        {!error && events && events.length > 0 && (
-          <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        ) : (
 
-            {events.map((event: Event) => (
+          <div className="mt-10 grid gap-7 md:grid-cols-2 lg:grid-cols-3">
+
+            {eventList.map((event) => (
+
               <article
                 key={event.id}
-                className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
               >
 
                 {/* IMAGE */}
-                <div className="relative flex h-56 items-center justify-center overflow-hidden bg-slate-200">
+                <div className="relative flex h-56 items-center justify-center overflow-hidden bg-slate-900">
 
                   {event.image_url ? (
+
                     <img
                       src={event.image_url}
                       alt={event.title}
                       className="h-full w-full object-cover"
                     />
+
                   ) : (
-                    <div className="text-6xl">
+
+                    <div className="text-7xl">
                       {event.category === "Nightlife"
                         ? "🎵"
                         : event.category === "Food"
@@ -235,6 +250,7 @@ export default async function EventsPage() {
                             ? "🧗"
                             : "🎉"}
                     </div>
+
                   )}
 
                   {event.featured && (
@@ -243,90 +259,112 @@ export default async function EventsPage() {
                     </div>
                   )}
 
-                  <div className="absolute bottom-4 left-4 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow">
-                    {event.category}
-                  </div>
-
                 </div>
 
                 {/* CONTENT */}
                 <div className="p-6">
 
-                  <h3 className="text-xl font-black leading-tight">
+                  <div className="flex items-center justify-between gap-3">
+
+                    <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-orange-600">
+                      {event.category}
+                    </span>
+
+                    <span className="text-xs font-semibold text-slate-400">
+                      Nairobi
+                    </span>
+
+                  </div>
+
+                  <h3 className="mt-4 text-xl font-black leading-tight">
                     {event.title}
                   </h3>
 
-                  {event.description && (
-                    <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-500">
-                      {event.description}
-                    </p>
-                  )}
+                  <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-500">
+                    {event.description ||
+                      "Discover this event on SafariPlug."}
+                  </p>
 
-                  <div className="mt-5 space-y-3 text-sm">
+                  {/* DATE */}
+                  <div className="mt-5 flex gap-3">
 
-                    <div className="flex gap-3">
-                      <span>📅</span>
-
-                      <div>
-                        <div className="font-semibold">
-                          {formatDate(event.start_at)}
-                        </div>
-
-                        <div className="text-slate-500">
-                          {formatTime(event.start_at)}
-                        </div>
-                      </div>
+                    <div className="text-lg">
+                      📅
                     </div>
 
-                    {event.venue_name && (
-                      <div className="flex gap-3">
-                        <span>📍</span>
-
-                        <div>
-                          <div className="font-semibold">
-                            {event.venue_name}
-                          </div>
-
-                          {event.venue_address && (
-                            <div className="text-slate-500">
-                              {event.venue_address}
-                            </div>
-                          )}
-                        </div>
+                    <div>
+                      <div className="text-sm font-bold">
+                        {formatDate(event.start_at)}
                       </div>
-                    )}
 
-                    <div className="flex gap-3">
-                      <span>💰</span>
-
-                      <div className="font-bold">
-                        {formatPrice(event.price, event.currency)}
+                      <div className="text-xs text-slate-500">
+                        {formatTime(event.start_at)}
                       </div>
                     </div>
 
                   </div>
 
-                  <button className="mt-6 w-full rounded-xl border border-slate-200 py-3 text-sm font-bold hover:border-orange-500 hover:bg-orange-50 hover:text-orange-600">
+                  {/* VENUE */}
+                  <div className="mt-4 flex gap-3">
+
+                    <div className="text-lg">
+                      📍
+                    </div>
+
+                    <div>
+                      <div className="text-sm font-bold">
+                        {event.venue_name || "Venue to be announced"}
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        {event.venue_address || "Nairobi, Kenya"}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* PRICE */}
+                  <div className="mt-4 flex gap-3">
+
+                    <div className="text-lg">
+                      💰
+                    </div>
+
+                    <div className="text-sm font-bold">
+                      {formatPrice(event.price, event.currency)}
+                    </div>
+
+                  </div>
+
+                  {/* VIEW EVENT */}
+                  <Link
+                    href={`/events/${event.id}`}
+                    className="mt-7 flex w-full items-center justify-center rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white transition hover:bg-orange-600"
+                  >
                     View Event
-                  </button>
+                  </Link>
 
                 </div>
 
               </article>
+
             ))}
 
           </div>
+
         )}
 
       </section>
 
-      {/* BUSINESS CTA */}
+      {/* ORGANIZER CTA */}
       <section className="bg-orange-500">
+
         <div className="mx-auto max-w-7xl px-6 py-16">
 
           <div className="flex flex-col justify-between gap-8 md:flex-row md:items-center">
 
             <div>
+
               <p className="font-bold uppercase tracking-widest text-orange-100">
                 Event organizers
               </p>
@@ -336,35 +374,43 @@ export default async function EventsPage() {
               </h2>
 
               <p className="mt-3 max-w-xl text-orange-50">
-                List it on SafariPlug and get discovered by people looking
-                for something to do.
+                List it on SafariPlug and get discovered by people
+                looking for something to do.
               </p>
+
             </div>
 
-            <a
+            <Link
               href="/submit"
               className="rounded-full bg-white px-7 py-3.5 text-center font-bold text-orange-600 hover:bg-orange-50"
             >
               Submit Your Event
-            </a>
+            </Link>
 
           </div>
 
         </div>
+
       </section>
 
       {/* FOOTER */}
       <footer className="bg-white">
+
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 px-6 py-10 md:flex-row">
 
           <div>
-            <a href="/" className="text-xl font-black">
+
+            <Link
+              href="/"
+              className="text-xl font-black"
+            >
               Safari<span className="text-orange-500">Plug</span>
-            </a>
+            </Link>
 
             <p className="mt-2 text-sm text-slate-500">
               Discover more. Experience more.
             </p>
+
           </div>
 
           <div className="text-sm text-slate-500">
@@ -372,6 +418,7 @@ export default async function EventsPage() {
           </div>
 
         </div>
+
       </footer>
 
     </main>
