@@ -1,13 +1,42 @@
-```tsx
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type PageProps = {
   params: Promise<{
     id: string;
   }>;
+};
+
+type City = {
+  id: string;
+  name: string;
+  slug: string;
+  country: string | null;
+};
+
+type Event = {
+  id: string;
+  title: string;
+  slug: string | null;
+  description: string | null;
+  venue_name: string | null;
+  venue_address: string | null;
+  category: string;
+  start_at: string;
+  end_at: string | null;
+  price: number | null;
+  currency: string | null;
+  image_url: string | null;
+  booking_url: string | null;
+  source_url: string | null;
+  organizer_name: string | null;
+  organizer_contact: string | null;
+  featured: boolean;
+  status: string;
+  city_id: string | null;
+  cities: City | City[] | null;
 };
 
 function formatDate(value: string) {
@@ -49,7 +78,7 @@ export default async function EventDetailPage({
 }: PageProps) {
   const { id } = await params;
 
-  const { data: event, error } = await supabase
+  const { data, error } = await supabase
     .from("events")
     .select(`
       id,
@@ -82,10 +111,12 @@ export default async function EventDetailPage({
     .eq("status", "approved")
     .single();
 
-  if (error || !event) {
+  if (error || !data) {
     console.error("Error loading event:", error);
     notFound();
   }
+
+  const event = data as Event;
 
   const city = Array.isArray(event.cities)
     ? event.cities[0]
@@ -105,35 +136,20 @@ export default async function EventDetailPage({
 
   const requestHeaders = await headers();
 
-  const forwardedHost =
-    requestHeaders.get("x-forwarded-host");
-
-  const regularHost =
-    requestHeaders.get("host");
-
   const host =
-    forwardedHost ||
-    regularHost ||
+    requestHeaders.get("x-forwarded-host") ||
+    requestHeaders.get("host") ||
     "localhost:3000";
 
-  const forwardedProtocol =
-    requestHeaders.get("x-forwarded-proto");
-
   const protocol =
-    forwardedProtocol ||
+    requestHeaders.get("x-forwarded-proto") ||
     (host.includes("localhost") ? "http" : "https");
 
   const publicUrl =
-    protocol +
-    "://" +
-    host +
-    "/events/" +
-    event.id;
+    `${protocol}://${host}/events/${event.id}`;
 
   const shareText =
-    event.title +
-    " - " +
-    publicUrl;
+    `${event.title} - ${publicUrl}`;
 
   const locationParts = [
     event.venue_name,
@@ -142,14 +158,13 @@ export default async function EventDetailPage({
     city?.country,
   ].filter(Boolean);
 
-  const locationText =
-    locationParts.join(", ");
+  const locationText = locationParts.join(", ");
 
-  const mapUrl =
-    locationText
-      ? "https://www.google.com/maps/search/?api=1&query=" +
-        encodeURIComponent(locationText)
-      : null;
+  const mapUrl = locationText
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        locationText
+      )}`
+    : null;
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -173,7 +188,7 @@ export default async function EventDetailPage({
 
             <Link
               href="/events"
-              className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              className="hidden rounded-full border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 sm:block"
             >
               All Events
             </Link>
@@ -190,9 +205,11 @@ export default async function EventDetailPage({
         </div>
       </header>
 
-      {/* PAGE */}
+      {/* MAIN */}
 
       <section className="mx-auto max-w-6xl px-6 py-10">
+
+        {/* BACK */}
 
         <Link
           href="/events"
@@ -208,13 +225,11 @@ export default async function EventDetailPage({
           {event.image_url ? (
 
             <div className="h-72 w-full overflow-hidden bg-slate-100 md:h-96">
-
               <img
                 src={event.image_url}
                 alt={event.title}
                 className="h-full w-full object-cover"
               />
-
             </div>
 
           ) : (
@@ -222,7 +237,7 @@ export default async function EventDetailPage({
             <div className="flex h-64 items-center justify-center bg-gradient-to-br from-orange-100 via-white to-slate-100 md:h-80">
 
               <div className="text-7xl">
-                🎵
+                🎉
               </div>
 
             </div>
@@ -239,7 +254,7 @@ export default async function EventDetailPage({
 
               {event.featured && (
                 <span className="rounded-full bg-yellow-100 px-4 py-2 text-xs font-black uppercase tracking-wide text-yellow-700">
-                  ⭐ Featured
+                  Featured
                 </span>
               )}
 
@@ -255,18 +270,33 @@ export default async function EventDetailPage({
               {event.title}
             </h1>
 
-            <p className="mt-5 text-lg font-medium text-slate-500">
-              📅 {formattedDate}
-              <span className="mx-2">•</span>
-              {formattedTime}
+            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-lg font-medium text-slate-500">
+
+              <span>
+                {formattedDate}
+              </span>
+
+              <span className="text-slate-300">
+                •
+              </span>
+
+              <span>
+                {formattedTime}
+              </span>
 
               {formattedEndTime && (
                 <>
-                  {" – "}
-                  {formattedEndTime}
+                  <span className="text-slate-300">
+                    –
+                  </span>
+
+                  <span>
+                    {formattedEndTime}
+                  </span>
                 </>
               )}
-            </p>
+
+            </div>
 
           </div>
 
@@ -316,7 +346,7 @@ export default async function EventDetailPage({
 
               <div className="mt-6 flex gap-4">
 
-                <div className="text-2xl">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-50 text-xl">
                   📍
                 </div>
 
@@ -336,12 +366,9 @@ export default async function EventDetailPage({
                   {city?.name && (
                     <p className="mt-1 text-slate-500">
                       {city.name}
-                      {city.country && (
-                        <>
-                          {", "}
-                          {city.country}
-                        </>
-                      )}
+                      {city.country
+                        ? `, ${city.country}`
+                        : ""}
                     </p>
                   )}
 
@@ -354,9 +381,9 @@ export default async function EventDetailPage({
                   href={mapUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-6 flex h-24 items-center justify-center rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+                  className="mt-6 block rounded-2xl bg-slate-100 px-5 py-4 text-center text-sm font-black text-slate-700 hover:bg-slate-200"
                 >
-                  📍 Open location in Google Maps
+                  Open Location in Google Maps
                 </a>
               )}
 
@@ -377,10 +404,9 @@ export default async function EventDetailPage({
               <div className="mt-5 flex flex-wrap gap-3">
 
                 <a
-                  href={
-                    "https://wa.me/?text=" +
-                    encodeURIComponent(shareText)
-                  }
+                  href={`https://wa.me/?text=${encodeURIComponent(
+                    shareText
+                  )}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700"
@@ -395,7 +421,7 @@ export default async function EventDetailPage({
                     rel="noopener noreferrer"
                     className="rounded-full border border-slate-200 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
                   >
-                    More Information
+                    Original Event
                   </a>
                 )}
 
@@ -436,7 +462,6 @@ export default async function EventDetailPage({
                       {formattedEndTime}
                     </>
                   )}
-
                 </p>
 
               </div>
@@ -463,12 +488,9 @@ export default async function EventDetailPage({
                 {city?.name && (
                   <p className="mt-1 text-slate-500">
                     {city.name}
-                    {city.country && (
-                      <>
-                        {", "}
-                        {city.country}
-                      </>
-                    )}
+                    {city.country
+                      ? `, ${city.country}`
+                      : ""}
                   </p>
                 )}
 
@@ -591,4 +613,3 @@ export default async function EventDetailPage({
     </main>
   );
 }
-```
