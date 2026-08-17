@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { EVENT_CATEGORIES } from "@/lib/constants/events";
 
 type City = {
   id: string;
@@ -10,22 +11,7 @@ type City = {
   slug: string;
 };
 
-const categories = [
-  "Music & Nightlife",
-  "Events",
-  "Food & Drink",
-  "Culture",
-  "Adventure",
-  "Safari & Wildlife",
-  "Water Activities",
-  "Wellness",
-  "Romantic",
-  "Family",
-  "Sports",
-  "Comedy",
-  "Festival",
-  "Other",
-];
+const categories = EVENT_CATEGORIES;
 
 export default function SubmitEventPage() {
   const [cities, setCities] = useState<City[]>([]);

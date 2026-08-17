@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { EVENT_CATEGORIES } from "@/lib/constants/events";
 import EventFilters from "./components/EventFilters";
 import EventSearch from "./components/EventSearch";
 
@@ -40,17 +41,7 @@ const CITY_OPTIONS = [
   "Dar es Salaam",
 ];
 
-const CATEGORY_OPTIONS = [
-  "Music & Nightlife",
-  "Food & Drink",
-  "Comedy",
-  "Culture",
-  "Adventure",
-  "Sports",
-  "Family",
-  "Business",
-];
-
+const CATEGORY_OPTIONS = EVENT_CATEGORIES;
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-KE", {
     timeZone: "Africa/Nairobi",
@@ -415,7 +406,7 @@ const selectedSearch =
 
     <EventFilters
             cities={CITY_OPTIONS}
-            categories={CATEGORY_OPTIONS}
+            categories={[...CATEGORY_OPTIONS]}
             selectedCity={selectedCity}
             selectedCategory={selectedCategory}
             selectedWhen={selectedWhen}

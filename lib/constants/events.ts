@@ -1,0 +1,16 @@
+export const EVENT_CATEGORIES = [ 
+  "Music & Nightlife", 
+  "Food & Drink", 
+  "Festivals", 
+  "Culture & Arts", 
+  "Comedy", 
+  "Adventure", 
+  "Safari & Wildlife", 
+  "Water Activities", 
+  "Sports", 
+  "Family", 
+  "Wellness", 
+  "Business", 
+  "Romantic", 
+  "Other", 
+] as const;
