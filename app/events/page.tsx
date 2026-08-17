@@ -47,6 +47,262 @@ function formatPrice(price: number | null, currency: string | null) {
   }).format(price);
 }
 
+function categoryIcon(category: string) {
+  const value = category.toLowerCase();
+
+  if (
+    value.includes("nightlife") ||
+    value.includes("music") ||
+    value.includes("concert")
+  ) {
+    return "🎵";
+  }
+
+  if (value.includes("food")) {
+    return "🍽️";
+  }
+
+  if (
+    value.includes("adventure") ||
+    value.includes("sport")
+  ) {
+    return "🧗";
+  }
+
+  if (value.includes("comedy")) {
+    return "😂";
+  }
+
+  if (value.includes("culture")) {
+    return "🎭";
+  }
+
+  return "🎉";
+}
+
+function EventImage({
+  event,
+  large = false,
+}: {
+  event: Event;
+  large?: boolean;
+}) {
+  return (
+    <div
+      className={`relative flex items-center justify-center overflow-hidden bg-slate-900 ${
+        large ? "h-72 md:h-96" : "h-56"
+      }`}
+    >
+      {event.image_url ? (
+        <img
+          src={event.image_url}
+          alt={event.title}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className={large ? "text-8xl" : "text-7xl"}>
+          {categoryIcon(event.category)}
+        </div>
+      )}
+
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+      {event.featured && (
+        <div className="absolute left-5 top-5 rounded-full bg-orange-500 px-4 py-2 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+          ⭐ Featured
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EventCard({ event }: { event: Event }) {
+  return (
+    <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+
+      <EventImage event={event} />
+
+      <div className="p-6">
+
+        <div className="flex items-center justify-between gap-3">
+
+          <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-orange-600">
+            {event.category}
+          </span>
+
+          <span className="text-xs font-semibold text-slate-400">
+            Nairobi
+          </span>
+
+        </div>
+
+        <h3 className="mt-4 text-xl font-black leading-tight">
+          {event.title}
+        </h3>
+
+        <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-500">
+          {event.description || "Discover this event on SafariPlug."}
+        </p>
+
+        <div className="mt-5 flex gap-3">
+
+          <div className="text-lg">
+            📅
+          </div>
+
+          <div>
+            <div className="text-sm font-bold">
+              {formatDate(event.start_at)}
+            </div>
+
+            <div className="text-xs text-slate-500">
+              {formatTime(event.start_at)}
+            </div>
+          </div>
+
+        </div>
+
+        <div className="mt-4 flex gap-3">
+
+          <div className="text-lg">
+            📍
+          </div>
+
+          <div>
+            <div className="text-sm font-bold">
+              {event.venue_name || "Venue to be announced"}
+            </div>
+
+            <div className="text-xs text-slate-500">
+              {event.venue_address || "Nairobi, Kenya"}
+            </div>
+          </div>
+
+        </div>
+
+        <div className="mt-4 flex gap-3">
+
+          <div className="text-lg">
+            💰
+          </div>
+
+          <div className="text-sm font-bold">
+            {formatPrice(event.price, event.currency)}
+          </div>
+
+        </div>
+
+        <Link
+          href={`/events/${event.id}`}
+          className="mt-7 flex w-full items-center justify-center rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white transition hover:bg-orange-600"
+        >
+          View Event
+        </Link>
+
+      </div>
+
+    </article>
+  );
+}
+
+function FeaturedEventCard({ event }: { event: Event }) {
+  return (
+    <article className="overflow-hidden rounded-3xl border border-orange-200 bg-white shadow-lg transition hover:-translate-y-1 hover:shadow-xl">
+
+      <div className="grid md:grid-cols-2">
+
+        <EventImage event={event} large />
+
+        <div className="flex flex-col justify-center p-7 md:p-10">
+
+          <div className="flex flex-wrap items-center gap-2">
+
+            <span className="rounded-full bg-orange-100 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-orange-700">
+              {event.category}
+            </span>
+
+            <span className="rounded-full bg-yellow-100 px-3 py-1.5 text-xs font-black text-yellow-700">
+              ⭐ Featured Event
+            </span>
+
+          </div>
+
+          <h3 className="mt-5 text-3xl font-black leading-tight md:text-4xl">
+            {event.title}
+          </h3>
+
+          <p className="mt-4 line-clamp-3 leading-7 text-slate-500">
+            {event.description ||
+              "Discover this featured event on SafariPlug."}
+          </p>
+
+          <div className="mt-6 space-y-4">
+
+            <div className="flex gap-3">
+
+              <div className="text-xl">
+                📅
+              </div>
+
+              <div>
+                <div className="text-sm font-black">
+                  {formatDate(event.start_at)}
+                </div>
+
+                <div className="text-sm text-slate-500">
+                  {formatTime(event.start_at)}
+                </div>
+              </div>
+
+            </div>
+
+            <div className="flex gap-3">
+
+              <div className="text-xl">
+                📍
+              </div>
+
+              <div>
+                <div className="text-sm font-black">
+                  {event.venue_name || "Venue to be announced"}
+                </div>
+
+                <div className="text-sm text-slate-500">
+                  {event.venue_address || "Nairobi, Kenya"}
+                </div>
+              </div>
+
+            </div>
+
+            <div className="flex gap-3">
+
+              <div className="text-xl">
+                💰
+              </div>
+
+              <div className="text-sm font-black">
+                {formatPrice(event.price, event.currency)}
+              </div>
+
+            </div>
+
+          </div>
+
+          <Link
+            href={`/events/${event.id}`}
+            className="mt-8 inline-flex items-center justify-center rounded-xl bg-orange-500 px-6 py-4 text-sm font-black text-white transition hover:bg-orange-600"
+          >
+            View Featured Event
+          </Link>
+
+        </div>
+
+      </div>
+
+    </article>
+  );
+}
+
 export default async function EventsPage() {
   const { data: events, error } = await supabase
     .from("events")
@@ -68,7 +324,6 @@ export default async function EventsPage() {
     )
     .eq("status", "approved")
     .gte("start_at", new Date().toISOString())
-    .order("featured", { ascending: false })
     .order("start_at", { ascending: true });
 
   if (error) {
@@ -77,11 +332,21 @@ export default async function EventsPage() {
 
   const eventList = (events || []) as Event[];
 
+  const featuredEvents = eventList.filter(
+    (event) => event.featured
+  );
+
+  const regularEvents = eventList.filter(
+    (event) => !event.featured
+  );
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
 
       {/* HEADER */}
+
       <header className="border-b border-slate-200 bg-white">
+
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
 
           <Link
@@ -110,10 +375,13 @@ export default async function EventsPage() {
           </nav>
 
         </div>
+
       </header>
 
       {/* HERO */}
+
       <section className="bg-slate-950">
+
         <div className="mx-auto max-w-7xl px-6 py-16 md:py-20">
 
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-400">
@@ -130,13 +398,17 @@ export default async function EventsPage() {
           </p>
 
         </div>
+
       </section>
 
       {/* FILTER BAR */}
+
       <section className="border-b border-slate-200 bg-white">
+
         <div className="mx-auto grid max-w-7xl gap-4 px-6 py-6 md:grid-cols-3">
 
           <div>
+
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
               City
             </label>
@@ -144,9 +416,11 @@ export default async function EventsPage() {
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold">
               Nairobi
             </div>
+
           </div>
 
           <div>
+
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
               Category
             </label>
@@ -154,9 +428,11 @@ export default async function EventsPage() {
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold">
               All Events
             </div>
+
           </div>
 
           <div>
+
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
               When
             </label>
@@ -164,199 +440,146 @@ export default async function EventsPage() {
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold">
               Upcoming
             </div>
+
           </div>
 
         </div>
+
       </section>
 
       {/* EVENTS */}
+
       <section className="mx-auto max-w-7xl px-6 py-14">
 
-        <div className="flex items-end justify-between gap-5">
+        {/* FEATURED */}
+
+        {featuredEvents.length > 0 && (
 
           <div>
-            <p className="text-sm font-bold uppercase tracking-widest text-orange-500">
-              Upcoming
-            </p>
 
-            <h2 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
-              Events worth checking out
-            </h2>
-          </div>
+            <div className="mb-7">
 
-          <div className="hidden text-sm font-semibold text-slate-500 sm:block">
-            {eventList.length}{" "}
-            {eventList.length === 1 ? "event" : "events"}
-          </div>
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-500">
+                ⭐ Don't miss these
+              </p>
 
-        </div>
+              <h2 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
+                Featured Events
+              </h2>
 
-        {eventList.length === 0 ? (
+              <p className="mt-3 max-w-2xl text-slate-500">
+                Hand-picked events getting extra attention on SafariPlug.
+              </p>
 
-          <div className="mt-10 rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
-
-            <div className="text-5xl">
-              🎉
             </div>
 
-            <h3 className="mt-5 text-2xl font-black">
-              Nothing upcoming yet
-            </h3>
+            <div className="space-y-7">
 
-            <p className="mx-auto mt-3 max-w-lg text-slate-500">
-              Check back soon for concerts, parties, festivals,
-              experiences and other things happening around East Africa.
-            </p>
+              {featuredEvents.map((event) => (
+                <FeaturedEventCard
+                  key={event.id}
+                  event={event}
+                />
+              ))}
 
-            <Link
-              href="/submit"
-              className="mt-7 inline-flex rounded-full bg-orange-500 px-6 py-3 font-bold text-white hover:bg-orange-600"
-            >
-              List an Event
-            </Link>
-
-          </div>
-
-        ) : (
-
-          <div className="mt-10 grid gap-7 md:grid-cols-2 lg:grid-cols-3">
-
-            {eventList.map((event) => (
-
-              <article
-                key={event.id}
-                className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-              >
-
-                {/* IMAGE */}
-                <div className="relative flex h-56 items-center justify-center overflow-hidden bg-slate-900">
-
-                  {event.image_url ? (
-
-                    <img
-                      src={event.image_url}
-                      alt={event.title}
-                      className="h-full w-full object-cover"
-                    />
-
-                  ) : (
-
-                    <div className="text-7xl">
-                      {event.category === "Nightlife"
-                        ? "🎵"
-                        : event.category === "Food"
-                          ? "🍽️"
-                          : event.category === "Adventure"
-                            ? "🧗"
-                            : "🎉"}
-                    </div>
-
-                  )}
-
-                  {event.featured && (
-                    <div className="absolute left-4 top-4 rounded-full bg-orange-500 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white">
-                      Featured
-                    </div>
-                  )}
-
-                </div>
-
-                {/* CONTENT */}
-                <div className="p-6">
-
-                  <div className="flex items-center justify-between gap-3">
-
-                    <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-orange-600">
-                      {event.category}
-                    </span>
-
-                    <span className="text-xs font-semibold text-slate-400">
-                      Nairobi
-                    </span>
-
-                  </div>
-
-                  <h3 className="mt-4 text-xl font-black leading-tight">
-                    {event.title}
-                  </h3>
-
-                  <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-500">
-                    {event.description ||
-                      "Discover this event on SafariPlug."}
-                  </p>
-
-                  {/* DATE */}
-                  <div className="mt-5 flex gap-3">
-
-                    <div className="text-lg">
-                      📅
-                    </div>
-
-                    <div>
-                      <div className="text-sm font-bold">
-                        {formatDate(event.start_at)}
-                      </div>
-
-                      <div className="text-xs text-slate-500">
-                        {formatTime(event.start_at)}
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* VENUE */}
-                  <div className="mt-4 flex gap-3">
-
-                    <div className="text-lg">
-                      📍
-                    </div>
-
-                    <div>
-                      <div className="text-sm font-bold">
-                        {event.venue_name || "Venue to be announced"}
-                      </div>
-
-                      <div className="text-xs text-slate-500">
-                        {event.venue_address || "Nairobi, Kenya"}
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* PRICE */}
-                  <div className="mt-4 flex gap-3">
-
-                    <div className="text-lg">
-                      💰
-                    </div>
-
-                    <div className="text-sm font-bold">
-                      {formatPrice(event.price, event.currency)}
-                    </div>
-
-                  </div>
-
-                  {/* VIEW EVENT */}
-                  <Link
-                    href={`/events/${event.id}`}
-                    className="mt-7 flex w-full items-center justify-center rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white transition hover:bg-orange-600"
-                  >
-                    View Event
-                  </Link>
-
-                </div>
-
-              </article>
-
-            ))}
+            </div>
 
           </div>
 
         )}
 
+        {/* REGULAR EVENTS */}
+
+        <div className={featuredEvents.length > 0 ? "mt-16" : ""}>
+
+          <div className="flex items-end justify-between gap-5">
+
+            <div>
+
+              <p className="text-sm font-bold uppercase tracking-widest text-orange-500">
+                Upcoming
+              </p>
+
+              <h2 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
+                {featuredEvents.length > 0
+                  ? "More events to explore"
+                  : "Events worth checking out"}
+              </h2>
+
+            </div>
+
+            <div className="hidden text-sm font-semibold text-slate-500 sm:block">
+              {eventList.length}{" "}
+              {eventList.length === 1 ? "event" : "events"}
+            </div>
+
+          </div>
+
+          {eventList.length === 0 ? (
+
+            <div className="mt-10 rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
+
+              <div className="text-5xl">
+                🎉
+              </div>
+
+              <h3 className="mt-5 text-2xl font-black">
+                Nothing upcoming yet
+              </h3>
+
+              <p className="mx-auto mt-3 max-w-lg text-slate-500">
+                Check back soon for concerts, parties, festivals,
+                experiences and other things happening around East Africa.
+              </p>
+
+              <Link
+                href="/submit"
+                className="mt-7 inline-flex rounded-full bg-orange-500 px-6 py-3 font-bold text-white hover:bg-orange-600"
+              >
+                List an Event
+              </Link>
+
+            </div>
+
+          ) : regularEvents.length === 0 ? (
+
+            <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-10 text-center">
+
+              <div className="text-4xl">
+                ⭐
+              </div>
+
+              <h3 className="mt-4 text-xl font-black">
+                You're all caught up
+              </h3>
+
+              <p className="mt-2 text-slate-500">
+                All current upcoming events are featured.
+              </p>
+
+            </div>
+
+          ) : (
+
+            <div className="mt-10 grid gap-7 md:grid-cols-2 lg:grid-cols-3">
+
+              {regularEvents.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                />
+              ))}
+
+            </div>
+
+          )}
+
+        </div>
+
       </section>
 
       {/* ORGANIZER CTA */}
+
       <section className="bg-orange-500">
 
         <div className="mx-auto max-w-7xl px-6 py-16">
@@ -394,6 +617,7 @@ export default async function EventsPage() {
       </section>
 
       {/* FOOTER */}
+
       <footer className="bg-white">
 
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 px-6 py-10 md:flex-row">
