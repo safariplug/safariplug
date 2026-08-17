@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import EventFilters from "./components/EventFilters";
+import EventSearch from "./components/EventSearch";
 
 type City = {
   id: string;
@@ -94,7 +95,25 @@ function matchesCity(event: Event, city: string) {
     event.city?.name?.toLowerCase() === city.toLowerCase()
   );
 }
+function matchesSearch(event: Event, search: string) {
+  if (!search) {
+    return true;
+  }
 
+  const searchText = [
+    event.title,
+    event.description || "",
+    event.category,
+    event.venue_name || "",
+    event.venue_address || "",
+    event.city?.name || "",
+    event.city?.country || "",
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return searchText.includes(search.toLowerCase());
+}
 function matchesCategory(event: Event, category: string) {
   if (!category || category === "all") {
     return true;
@@ -178,11 +197,12 @@ export default async function EventsPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    city?: string;
-    category?: string;
-    when?: string;
-  }>;
-}) {
+  city?: string;
+  category?: string;
+  when?: string;
+  search?: string;
+}>;
+  }) {
   const params = await searchParams;
 
   const selectedCity =
@@ -193,7 +213,8 @@ export default async function EventsPage({
 
   const selectedWhen =
     params.when || "upcoming";
-
+const selectedSearch =
+  params.search?.trim() || "";
   /*
    * LOAD ACTIVE CITIES
    */
@@ -295,22 +316,26 @@ export default async function EventsPage({
    * APPLY FILTERS
    */
   const eventList =
-    allEvents.filter((event) => {
-      return (
-        matchesCity(
-          event,
-          selectedCity
-        ) &&
-        matchesCategory(
-          event,
-          selectedCategory
-        ) &&
-        matchesWhen(
-          event,
-          selectedWhen
-        )
-      );
-    });
+  allEvents.filter((event) => {
+    return (
+      matchesSearch(
+        event,
+        selectedSearch
+      ) &&
+      matchesCity(
+        event,
+        selectedCity
+      ) &&
+      matchesCategory(
+        event,
+        selectedCategory
+      ) &&
+      matchesWhen(
+        event,
+        selectedWhen
+      )
+    );
+  });
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -382,9 +407,13 @@ export default async function EventsPage({
 
       <section className="border-b border-slate-200 bg-white">
 
-        <div className="mx-auto max-w-7xl px-6 py-6">
+  <div className="mx-auto max-w-7xl space-y-5 px-6 py-6">
 
-          <EventFilters
+    <EventSearch
+      initialSearch={selectedSearch}
+    />
+
+    <EventFilters
             cities={CITY_OPTIONS}
             categories={CATEGORY_OPTIONS}
             selectedCity={selectedCity}

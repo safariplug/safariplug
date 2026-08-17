@@ -1,31 +1,46 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function EventSearch() {
+type EventSearchProps = {
+  initialSearch?: string;
+};
+
+export default function EventSearch({
+  initialSearch = "",
+}: EventSearchProps) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(initialSearch);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const value = search.trim();
 
+    const params = new URLSearchParams(searchParams.toString());
+
     if (!value) {
-      router.push("/events");
-      return;
+      params.delete("search");
+    } else {
+      params.set("search", value);
     }
 
-    const params = new URLSearchParams();
-    params.set("search", value);
+    const query = params.toString();
 
-    router.push(`/events?${params.toString()}`);
+    router.push(query ? `/events?${query}` : "/events");
   }
 
   function clearSearch() {
     setSearch("");
-    router.push("/events");
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+
+    const query = params.toString();
+
+    router.push(query ? `/events?${query}` : "/events");
   }
 
   return (
