@@ -1,5 +1,7 @@
+```tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { supabase } from "@/lib/supabase";
 
 type PageProps = {
@@ -8,7 +10,43 @@ type PageProps = {
   }>;
 };
 
-export default async function EventDetailPage({ params }: PageProps) {
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-KE", {
+    timeZone: "Africa/Nairobi",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("en-KE", {
+    timeZone: "Africa/Nairobi",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(value));
+}
+
+function formatPrice(
+  price: number | null,
+  currency: string | null
+) {
+  if (price === null) {
+    return "Free";
+  }
+
+  return new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: currency || "KES",
+    maximumFractionDigits: 0,
+  }).format(Number(price));
+}
+
+export default async function EventDetailPage({
+  params,
+}: PageProps) {
   const { id } = await params;
 
   const { data: event, error } = await supabase
@@ -36,7 +74,8 @@ export default async function EventDetailPage({ params }: PageProps) {
       cities (
         id,
         name,
-        slug
+        slug,
+        country
       )
     `)
     .eq("id", id)
@@ -52,38 +91,70 @@ export default async function EventDetailPage({ params }: PageProps) {
     ? event.cities[0]
     : event.cities;
 
-  const startDate = new Date(event.start_at);
-
-  const formattedDate = startDate.toLocaleDateString("en-KE", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
-  const formattedTime = startDate.toLocaleTimeString("en-KE", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const formattedDate = formatDate(event.start_at);
+  const formattedTime = formatTime(event.start_at);
 
   const formattedEndTime = event.end_at
-    ? new Date(event.end_at).toLocaleTimeString("en-KE", {
-        hour: "numeric",
-        minute: "2-digit",
-      })
+    ? formatTime(event.end_at)
     : null;
 
-  const formattedPrice =
-    event.price === null
-      ? "Free"
-      : `${event.currency || "KES"} ${Number(event.price).toLocaleString(
-          "en-KE"
-        )}`;
+  const formattedPrice = formatPrice(
+    event.price,
+    event.currency
+  );
 
-  const publicUrl = `http://localhost:3000/events/${event.id}`;
+  const requestHeaders = await headers();
+
+  const forwardedHost =
+    requestHeaders.get("x-forwarded-host");
+
+  const regularHost =
+    requestHeaders.get("host");
+
+  const host =
+    forwardedHost ||
+    regularHost ||
+    "localhost:3000";
+
+  const forwardedProtocol =
+    requestHeaders.get("x-forwarded-proto");
+
+  const protocol =
+    forwardedProtocol ||
+    (host.includes("localhost") ? "http" : "https");
+
+  const publicUrl =
+    protocol +
+    "://" +
+    host +
+    "/events/" +
+    event.id;
+
+  const shareText =
+    event.title +
+    " - " +
+    publicUrl;
+
+  const locationParts = [
+    event.venue_name,
+    event.venue_address,
+    city?.name,
+    city?.country,
+  ].filter(Boolean);
+
+  const locationText =
+    locationParts.join(", ");
+
+  const mapUrl =
+    locationText
+      ? "https://www.google.com/maps/search/?api=1&query=" +
+        encodeURIComponent(locationText)
+      : null;
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
+
+      {/* HEADER */}
 
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
@@ -92,7 +163,10 @@ export default async function EventDetailPage({ params }: PageProps) {
             href="/"
             className="text-2xl font-black tracking-tight"
           >
-            Safari<span className="text-orange-500">Plug</span>
+            Safari
+            <span className="text-orange-500">
+              Plug
+            </span>
           </Link>
 
           <nav className="flex items-center gap-3">
@@ -116,6 +190,8 @@ export default async function EventDetailPage({ params }: PageProps) {
         </div>
       </header>
 
+      {/* PAGE */}
+
       <section className="mx-auto max-w-6xl px-6 py-10">
 
         <Link
@@ -125,22 +201,32 @@ export default async function EventDetailPage({ params }: PageProps) {
           ← Back to events
         </Link>
 
+        {/* HERO */}
+
         <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
 
           {event.image_url ? (
+
             <div className="h-72 w-full overflow-hidden bg-slate-100 md:h-96">
+
               <img
                 src={event.image_url}
                 alt={event.title}
                 className="h-full w-full object-cover"
               />
+
             </div>
+
           ) : (
+
             <div className="flex h-64 items-center justify-center bg-gradient-to-br from-orange-100 via-white to-slate-100 md:h-80">
+
               <div className="text-7xl">
                 🎵
               </div>
+
             </div>
+
           )}
 
           <div className="p-7 md:p-10">
@@ -173,16 +259,26 @@ export default async function EventDetailPage({ params }: PageProps) {
               📅 {formattedDate}
               <span className="mx-2">•</span>
               {formattedTime}
-              {formattedEndTime && ` – ${formattedEndTime}`}
+
+              {formattedEndTime && (
+                <>
+                  {" – "}
+                  {formattedEndTime}
+                </>
+              )}
             </p>
 
           </div>
 
         </div>
 
+        {/* CONTENT */}
+
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
 
           <div className="space-y-8">
+
+            {/* ABOUT */}
 
             <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm md:p-8">
 
@@ -193,19 +289,24 @@ export default async function EventDetailPage({ params }: PageProps) {
               <div className="mt-5">
 
                 {event.description ? (
+
                   <p className="whitespace-pre-line leading-8 text-slate-600">
                     {event.description}
                   </p>
+
                 ) : (
+
                   <p className="text-slate-500">
-                    More information about this event will be available
-                    soon.
+                    More information about this event will be available soon.
                   </p>
+
                 )}
 
               </div>
 
             </section>
+
+            {/* LOCATION */}
 
             <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm md:p-8">
 
@@ -222,7 +323,8 @@ export default async function EventDetailPage({ params }: PageProps) {
                 <div>
 
                   <h3 className="font-black">
-                    {event.venue_name || "Venue to be announced"}
+                    {event.venue_name ||
+                      "Venue to be announced"}
                   </h3>
 
                   {event.venue_address && (
@@ -233,7 +335,13 @@ export default async function EventDetailPage({ params }: PageProps) {
 
                   {city?.name && (
                     <p className="mt-1 text-slate-500">
-                      {city.name}, Kenya
+                      {city.name}
+                      {city.country && (
+                        <>
+                          {", "}
+                          {city.country}
+                        </>
+                      )}
                     </p>
                   )}
 
@@ -241,11 +349,20 @@ export default async function EventDetailPage({ params }: PageProps) {
 
               </div>
 
-              <div className="mt-6 flex h-48 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-400">
-                🗺️ Map coming soon
-              </div>
+              {mapUrl && (
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 flex h-24 items-center justify-center rounded-2xl bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+                >
+                  📍 Open location in Google Maps
+                </a>
+              )}
 
             </section>
+
+            {/* SHARE */}
 
             <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm md:p-8">
 
@@ -257,24 +374,38 @@ export default async function EventDetailPage({ params }: PageProps) {
                 Let your friends know about something happening.
               </p>
 
-              <div className="mt-5">
+              <div className="mt-5 flex flex-wrap gap-3">
 
                 <a
-                  href={`https://wa.me/?text=${encodeURIComponent(
-                    `${event.title} - ${publicUrl}`
-                  )}`}
+                  href={
+                    "https://wa.me/?text=" +
+                    encodeURIComponent(shareText)
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700"
+                  className="rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700"
                 >
-                  WhatsApp
+                  Share on WhatsApp
                 </a>
+
+                {event.source_url && (
+                  <a
+                    href={event.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full border border-slate-200 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  >
+                    More Information
+                  </a>
+                )}
 
               </div>
 
             </section>
 
           </div>
+
+          {/* SIDEBAR */}
 
           <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
 
@@ -283,6 +414,8 @@ export default async function EventDetailPage({ params }: PageProps) {
             </h2>
 
             <div className="mt-6 space-y-6">
+
+              {/* DATE */}
 
               <div>
 
@@ -296,10 +429,19 @@ export default async function EventDetailPage({ params }: PageProps) {
 
                 <p className="mt-1 text-slate-500">
                   {formattedTime}
-                  {formattedEndTime && ` – ${formattedEndTime}`}
+
+                  {formattedEndTime && (
+                    <>
+                      {" – "}
+                      {formattedEndTime}
+                    </>
+                  )}
+
                 </p>
 
               </div>
+
+              {/* VENUE */}
 
               <div>
 
@@ -308,7 +450,8 @@ export default async function EventDetailPage({ params }: PageProps) {
                 </p>
 
                 <p className="mt-2 font-bold">
-                  {event.venue_name || "To be announced"}
+                  {event.venue_name ||
+                    "To be announced"}
                 </p>
 
                 {event.venue_address && (
@@ -319,11 +462,19 @@ export default async function EventDetailPage({ params }: PageProps) {
 
                 {city?.name && (
                   <p className="mt-1 text-slate-500">
-                    {city.name}, Kenya
+                    {city.name}
+                    {city.country && (
+                      <>
+                        {", "}
+                        {city.country}
+                      </>
+                    )}
                   </p>
                 )}
 
               </div>
+
+              {/* PRICE */}
 
               <div>
 
@@ -337,7 +488,10 @@ export default async function EventDetailPage({ params }: PageProps) {
 
               </div>
 
+              {/* ORGANIZER */}
+
               {event.organizer_name && (
+
                 <div>
 
                   <p className="text-xs font-black uppercase tracking-wide text-slate-400">
@@ -355,9 +509,13 @@ export default async function EventDetailPage({ params }: PageProps) {
                   )}
 
                 </div>
+
               )}
 
+              {/* BOOKING */}
+
               {event.booking_url && (
+
                 <a
                   href={event.booking_url}
                   target="_blank"
@@ -366,6 +524,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                 >
                   Get Tickets / Book
                 </a>
+
               )}
 
             </div>
@@ -374,6 +533,8 @@ export default async function EventDetailPage({ params }: PageProps) {
 
         </div>
 
+        {/* ORGANIZER CTA */}
+
         <section className="mt-10 rounded-3xl bg-slate-900 p-8 text-white md:p-10">
 
           <h2 className="text-3xl font-black">
@@ -381,8 +542,7 @@ export default async function EventDetailPage({ params }: PageProps) {
           </h2>
 
           <p className="mt-3 max-w-2xl leading-7 text-slate-300">
-            List your event on SafariPlug and reach people actively looking
-            for something to do.
+            List your event on SafariPlug and reach people actively looking for something to do.
           </p>
 
           <Link
@@ -396,6 +556,8 @@ export default async function EventDetailPage({ params }: PageProps) {
 
       </section>
 
+      {/* FOOTER */}
+
       <footer className="mt-12 border-t border-slate-200 bg-white">
 
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 px-6 py-10 md:flex-row">
@@ -406,7 +568,10 @@ export default async function EventDetailPage({ params }: PageProps) {
               href="/"
               className="text-xl font-black"
             >
-              Safari<span className="text-orange-500">Plug</span>
+              Safari
+              <span className="text-orange-500">
+                Plug
+              </span>
             </Link>
 
             <p className="mt-2 text-sm text-slate-500">
@@ -426,3 +591,4 @@ export default async function EventDetailPage({ params }: PageProps) {
     </main>
   );
 }
+```
