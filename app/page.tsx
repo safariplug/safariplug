@@ -22,12 +22,10 @@ const interests = [
 ];
 
 export default async function HomePage() {
-  const kenyaNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Nairobi" }));
-  const startOfTonight = new Date(kenyaNow);
-  startOfTonight.setHours(18, 0, 0, 0);
+  const kenyaDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" }).format(new Date());
 
-  const endOfTonight = new Date(kenyaNow);
-  endOfTonight.setHours(23, 59, 59, 999);
+  const startOfTonight = new Date(`${kenyaDate}T18:00:00+03:00`);
+  const endOfTonight = new Date(`${kenyaDate}T23:59:59+03:00`);
 
   const { data: featuredEvent } = await supabase
     .from("events")
@@ -569,6 +567,9 @@ export default async function HomePage() {
     </main>
   );
 }
+
+
+
 
 
 
