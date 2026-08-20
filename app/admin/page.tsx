@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -410,7 +410,7 @@ export default function AdminPage() {
           <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center">
 
             <div className="text-5xl">
-              🎉
+              ðŸŽ‰
             </div>
 
             <h2 className="mt-5 text-2xl font-black">
@@ -426,7 +426,6 @@ export default function AdminPage() {
         ) : (
 
           <div className="space-y-5">
-
             {events.map((event) => (
 
               <article
@@ -573,7 +572,7 @@ export default function AdminPage() {
                         >
                           {actionId === event.id
                             ? "Working..."
-                            : "✓ Approve Event"}
+                            : "âœ“ Approve Event"}
                         </button>
 
                       )}
@@ -592,7 +591,7 @@ export default function AdminPage() {
                         >
                           {actionId === event.id
                             ? "Working..."
-                            : "✕ Reject Event"}
+                            : "âœ• Reject Event"}
                         </button>
 
                       )}
@@ -610,8 +609,8 @@ export default function AdminPage() {
                           className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600 disabled:opacity-50"
                         >
                           {event.featured
-                            ? "★ Unfeature"
-                            : "★ Feature Event"}
+                            ? "â˜… Unfeature"
+                            : "â˜… Feature Event"}
                         </button>
 
                       )}

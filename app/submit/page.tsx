@@ -1,14 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { EVENT_CATEGORIES } from "@/lib/constants/events";
 
 type City = {
   id: string;
   name: string;
-  slug: string;
+  country: string;
 };
 
 const categories = EVENT_CATEGORIES;
@@ -17,18 +17,23 @@ export default function SubmitEventPage() {
   const [cities, setCities] = useState<City[]>([]);
   const [loadingCities, setLoadingCities] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
 
   const [form, setForm] = useState({
     title: "",
     description: "",
+    image_url: "",
     city_id: "",
-    venue_name: "",
-    venue_address: "",
     category: "",
     start_at: "",
     end_at: "",
+    venue_name: "",
+    venue_address: "",
     price: "",
     currency: "KES",
     booking_url: "",
@@ -39,125 +44,130 @@ export default function SubmitEventPage() {
 
   useEffect(() => {
     async function loadCities() {
-      setLoadingCities(true);
-
       const { data, error } = await supabase
         .from("cities")
-        .select("id, name, slug")
-        .order("name", { ascending: true });
+        .select("id,name,country")
+        .eq("active", true)
+        .order("name");
 
       if (error) {
-        console.error("Error loading cities:", error);
-        setError("Unable to load cities. Please refresh and try again.");
-      } else {
-        setCities((data || []) as City[]);
+        console.error(error);
       }
 
+      setCities(data || []);
       setLoadingCities(false);
     }
 
     loadCities();
   }, []);
 
-  function updateField(field: keyof typeof form, value: string) {
+  function updateField(
+    field: keyof typeof form,
+    value: string
+  ) {
     setForm((current) => ({
       ...current,
       [field]: value,
     }));
   }
 
-  function createSlug(title: string) {
-    return (
-      title
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-") +
-      "-" +
-      Date.now()
-    );
+  function handleImageChange(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     setSubmitting(true);
     setError("");
     setSuccess(false);
 
-    if (!form.title.trim()) {
-      setError("Please enter an event title.");
-      setSubmitting(false);
-      return;
-    }
-
-    if (!form.city_id) {
-      setError("Please select a city.");
-      setSubmitting(false);
-      return;
-    }
-
-    if (!form.category) {
-      setError("Please select a category.");
-      setSubmitting(false);
-      return;
-    }
-
-    if (!form.start_at) {
-      setError("Please select the event date and time.");
-      setSubmitting(false);
-      return;
-    }
-
-    if (!form.venue_name.trim()) {
-      setError("Please enter the venue name.");
-      setSubmitting(false);
-      return;
-    }
-
-    if (!form.organizer_name.trim()) {
-      setError("Please enter the organizer name.");
-      setSubmitting(false);
-      return;
-    }
-
-    const numericPrice =
-      form.price.trim() === "" ? null : Number(form.price);
-
-    if (
-      numericPrice !== null &&
-      (Number.isNaN(numericPrice) || numericPrice < 0)
-    ) {
-      setError("Please enter a valid price.");
-      setSubmitting(false);
-      return;
-    }
-
     try {
-      const { error: insertError } = await supabase
-        .from("events")
-        .insert({
-          title: form.title.trim(),
-          slug: createSlug(form.title),
-          description: form.description.trim() || null,
-          city_id: form.city_id,
-          venue_name: form.venue_name.trim(),
-          venue_address: form.venue_address.trim() || null,
-          category: form.category,
-          start_at: new Date(form.start_at).toISOString(),
-          end_at: form.end_at
-            ? new Date(form.end_at).toISOString()
-            : null,
-          price: numericPrice,
-          currency: form.currency,
-          booking_url: form.booking_url.trim() || null,
-          source_url: form.source_url.trim() || null,
-          organizer_name: form.organizer_name.trim(),
-          organizer_contact: form.organizer_contact.trim() || null,
-          status: "pending",
-          featured: false,
-        });
+      let imageUrl = "";
+
+if (imageFile) {
+  const fileExt =
+    imageFile.name.split(".").pop();
+
+  const filename =
+    `${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2)}.${fileExt}`;
+
+  console.log("Uploading image:", filename);
+
+  const { data: uploadData, error: uploadError } =
+    await supabase.storage
+      .from("event-images")
+      .upload(filename, imageFile, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+  if (uploadError) {
+    console.error("Storage upload failed:", uploadError);
+    throw new Error(
+      `Image upload failed: ${uploadError.message}`
+    );
+  }
+
+  console.log("Upload successful:", uploadData);
+
+  const { data: publicUrlData } =
+    supabase.storage
+      .from("event-images")
+      .getPublicUrl(filename);
+
+  imageUrl = publicUrlData.publicUrl;
+
+  console.log("Public image URL:", imageUrl);
+}
+
+      const numericPrice = form.price
+        ? Number(form.price)
+        : null;
+const slug = `${form.title
+  .toLowerCase()
+  .trim()
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-|-$/g, "")}-${Date.now()}`;
+      const { error: insertError } =
+        await supabase
+          .from("events")
+          .insert({slug,
+            title: form.title,
+            description: form.description || null,
+            image_url: imageUrl || null,
+            city_id: form.city_id || null,
+            category: form.category,
+            start_at: form.start_at,
+            end_at: form.end_at || null,
+            venue_name: form.venue_name,
+            venue_address:
+              form.venue_address || null,
+            price: numericPrice,
+            currency: form.currency,
+            booking_url:
+              form.booking_url || null,
+            source_url:
+              form.source_url || null,
+            organizer_name:
+              form.organizer_name,
+            organizer_contact:
+              form.organizer_contact || null,
+            status: "pending",
+          });
 
       if (insertError) {
         throw new Error(insertError.message);
@@ -168,12 +178,13 @@ export default function SubmitEventPage() {
       setForm({
         title: "",
         description: "",
+        image_url: "",
         city_id: "",
-        venue_name: "",
-        venue_address: "",
         category: "",
         start_at: "",
         end_at: "",
+        venue_name: "",
+        venue_address: "",
         price: "",
         currency: "KES",
         booking_url: "",
@@ -181,145 +192,111 @@ export default function SubmitEventPage() {
         organizer_name: "",
         organizer_contact: "",
       });
+
+      setImageFile(null);
+      setImagePreview("");
+
     } catch (err) {
       console.error(err);
 
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to submit your event."
+          : "Unable to submit event."
       );
+
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="min-h-screen bg-[#fffaf5] text-slate-950">
 
-      <header className="border-b border-slate-200 bg-white">
+      <header className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
 
           <Link
             href="/"
-            className="text-2xl font-black tracking-tight"
+            className="text-2xl font-black"
           >
-            Safari<span className="text-orange-500">Plug</span>
+            Safari<span className="text-orange-500">
+              Plug
+            </span>
           </Link>
 
-          <div className="flex items-center gap-3">
-
-            <Link
-              href="/events"
-              className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
-            >
-              Browse Events
-            </Link>
-
-            <Link
-              href="/"
-              className="hidden rounded-full bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-800 sm:block"
-            >
-              Home
-            </Link>
-
-          </div>
+          <Link
+            href="/events"
+            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white"
+          >
+            Browse Events
+          </Link>
 
         </div>
       </header>
 
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-4xl px-6 py-14">
 
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-orange-500">
-            For Event Organizers
+      <section className="bg-slate-950 px-6 py-16 text-white">
+
+        <div className="mx-auto max-w-5xl">
+
+          <p className="text-sm font-black uppercase tracking-[0.2em] text-orange-400">
+            Event Organizers
           </p>
 
-          <h1 className="mt-3 text-4xl font-black tracking-tight md:text-5xl">
-            List Your Event
+          <h1 className="mt-4 text-5xl font-black leading-tight">
+            Put your experience in front of East Africa.
           </h1>
 
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-500">
-            Put your event in front of people looking for something to do
-            across East Africa.
+          <p className="mt-5 max-w-2xl text-lg text-slate-300">
+            Submit concerts, nightlife, food experiences,
+            adventures and events happening across the region.
           </p>
 
         </div>
-      </section>
 
-      <section className="mx-auto max-w-4xl px-6 py-10">
+      </section>
+      <section className="mx-auto max-w-5xl px-6 py-12">
 
         {success && (
           <div className="mb-8 rounded-3xl border border-green-200 bg-green-50 p-6">
 
-            <div className="flex gap-4">
+            <h2 className="text-xl font-black text-green-800">
+              Event submitted successfully 🎉
+            </h2>
 
-              <div className="text-3xl">
-                🎉
-              </div>
-
-              <div>
-
-                <h2 className="text-xl font-black text-green-800">
-                  Event submitted successfully!
-                </h2>
-
-                <p className="mt-2 leading-7 text-green-700">
-                  Your event has been submitted to SafariPlug and is now
-                  waiting for review. It will appear publicly once approved
-                  by our team.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-
-                  <Link
-                    href="/events"
-                    className="rounded-full bg-green-700 px-5 py-2.5 text-sm font-black text-white hover:bg-green-800"
-                  >
-                    Browse Events
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={() => setSuccess(false)}
-                    className="rounded-full border border-green-300 px-5 py-2.5 text-sm font-bold text-green-800 hover:bg-green-100"
-                  >
-                    Submit Another Event
-                  </button>
-
-                </div>
-
-              </div>
-
-            </div>
+            <p className="mt-2 text-green-700">
+              Your event is now waiting for SafariPlug review.
+            </p>
 
           </div>
         )}
 
         {error && (
-          <div className="mb-8 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">
+          <div className="mb-8 rounded-2xl border border-red-200 bg-red-50 p-5 font-semibold text-red-700">
             {error}
           </div>
         )}
 
+
         <form
           onSubmit={handleSubmit}
-          className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-xl"
         >
 
-          <div className="border-b border-slate-200 p-6 md:p-8">
+          <div className="space-y-8 p-6 md:p-10">
 
-            <h2 className="text-2xl font-black">
-              Event information
-            </h2>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Tell people what is happening.
-            </p>
+            <div>
+              <h2 className="text-3xl font-black">
+                Event details
+              </h2>
 
-          </div>
+              <p className="mt-2 text-slate-500">
+                Tell people what makes your event special.
+              </p>
+            </div>
 
-          <div className="space-y-7 p-6 md:p-8">
 
             <div>
 
@@ -328,35 +305,66 @@ export default function SubmitEventPage() {
               </label>
 
               <input
-                type="text"
+                required
                 value={form.title}
                 onChange={(e) =>
                   updateField("title", e.target.value)
                 }
-                placeholder="e.g. Nairobi Weekend Party"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                required
+                placeholder="Example: Mombasa Beach Festival"
+                className="w-full rounded-xl border px-4 py-3 outline-none focus:border-orange-500"
               />
 
             </div>
+
 
             <div>
 
               <label className="mb-2 block text-sm font-black">
-                Description
+                Event description
               </label>
 
               <textarea
+                rows={5}
                 value={form.description}
                 onChange={(e) =>
-                  updateField("description", e.target.value)
+                  updateField(
+                    "description",
+                    e.target.value
+                  )
                 }
-                placeholder="Tell people what they can expect..."
-                rows={5}
-                className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                placeholder="Describe the experience..."
+                className="w-full rounded-xl border px-4 py-3 outline-none focus:border-orange-500"
               />
 
             </div>
+
+
+            <div>
+
+              <label className="mb-2 block text-sm font-black">
+                Event cover image
+              </label>
+
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="w-full rounded-xl border px-4 py-3"
+              />
+
+
+              {imagePreview && (
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="mt-5 h-64 w-full rounded-2xl object-cover"
+                />
+              )}
+
+            </div>
+
+
 
             <div className="grid gap-6 md:grid-cols-2">
 
@@ -367,19 +375,21 @@ export default function SubmitEventPage() {
                 </label>
 
                 <select
+                  required
                   value={form.city_id}
                   onChange={(e) =>
-                    updateField("city_id", e.target.value)
+                    updateField(
+                      "city_id",
+                      e.target.value
+                    )
                   }
-                  disabled={loadingCities}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                  required
+                  className="w-full rounded-xl border px-4 py-3"
                 >
 
                   <option value="">
                     {loadingCities
                       ? "Loading cities..."
-                      : "Select a city"}
+                      : "Select city"}
                   </option>
 
                   {cities.map((city) => (
@@ -395,6 +405,8 @@ export default function SubmitEventPage() {
 
               </div>
 
+
+
               <div>
 
                 <label className="mb-2 block text-sm font-black">
@@ -402,16 +414,19 @@ export default function SubmitEventPage() {
                 </label>
 
                 <select
+                  required
                   value={form.category}
                   onChange={(e) =>
-                    updateField("category", e.target.value)
+                    updateField(
+                      "category",
+                      e.target.value
+                    )
                   }
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                  required
+                  className="w-full rounded-xl border px-4 py-3"
                 >
 
                   <option value="">
-                    Select a category
+                    Select category
                   </option>
 
                   {categories.map((category) => (
@@ -429,297 +444,166 @@ export default function SubmitEventPage() {
 
             </div>
 
-          </div>
 
-          <div className="border-y border-slate-200 bg-slate-50 p-6 md:p-8">
 
-            <h2 className="text-2xl font-black">
-              Date & location
+            <hr />
+
+            <h2 className="text-3xl font-black">
+              Date & Venue
             </h2>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Help people know when and where to find you.
-            </p>
 
-            <div className="mt-7 space-y-6">
 
-              <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-2">
 
-                <div>
+              <input
+                required
+                type="datetime-local"
+                value={form.start_at}
+                onChange={(e) =>
+                  updateField(
+                    "start_at",
+                    e.target.value
+                  )
+                }
+                className="rounded-xl border px-4 py-3"
+              />
 
-                  <label className="mb-2 block text-sm font-black">
-                    Start date & time *
-                  </label>
 
-                  <input
-                    type="datetime-local"
-                    value={form.start_at}
-                    onChange={(e) =>
-                      updateField("start_at", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                    required
-                  />
-
-                </div>
-
-                <div>
-
-                  <label className="mb-2 block text-sm font-black">
-                    End date & time
-                  </label>
-
-                  <input
-                    type="datetime-local"
-                    value={form.end_at}
-                    onChange={(e) =>
-                      updateField("end_at", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                  />
-
-                </div>
-
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2">
-
-                <div>
-
-                  <label className="mb-2 block text-sm font-black">
-                    Venue name *
-                  </label>
-
-                  <input
-                    type="text"
-                    value={form.venue_name}
-                    onChange={(e) =>
-                      updateField("venue_name", e.target.value)
-                    }
-                    placeholder="e.g. The Alchemist"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                    required
-                  />
-
-                </div>
-
-                <div>
-
-                  <label className="mb-2 block text-sm font-black">
-                    Venue address
-                  </label>
-
-                  <input
-                    type="text"
-                    value={form.venue_address}
-                    onChange={(e) =>
-                      updateField(
-                        "venue_address",
-                        e.target.value
-                      )
-                    }
-                    placeholder="Street, area or landmark"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                  />
-
-                </div>
-
-              </div>
+              <input
+                type="datetime-local"
+                value={form.end_at}
+                onChange={(e) =>
+                  updateField(
+                    "end_at",
+                    e.target.value
+                  )
+                }
+                className="rounded-xl border px-4 py-3"
+              />
 
             </div>
 
-          </div>
 
-          <div className="border-b border-slate-200 p-6 md:p-8">
+            <input
+              required
+              value={form.venue_name}
+              onChange={(e) =>
+                updateField(
+                  "venue_name",
+                  e.target.value
+                )
+              }
+              placeholder="Venue name"
+              className="w-full rounded-xl border px-4 py-3"
+            />
 
-            <h2 className="text-2xl font-black">
-              Pricing & booking
+
+            <input
+              value={form.venue_address}
+              onChange={(e) =>
+                updateField(
+                  "venue_address",
+                  e.target.value
+                )
+              }
+              placeholder="Venue address"
+              className="w-full rounded-xl border px-4 py-3"
+            />
+
+
+
+            <hr />
+
+
+            <h2 className="text-3xl font-black">
+              Pricing & Organizer
             </h2>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Tell visitors how much it costs and where they can book.
-            </p>
 
-            <div className="mt-7 space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
 
-              <div className="grid gap-6 md:grid-cols-2">
+              <input
+                type="number"
+                value={form.price}
+                onChange={(e) =>
+                  updateField(
+                    "price",
+                    e.target.value
+                  )
+                }
+                placeholder="Ticket price"
+                className="rounded-xl border px-4 py-3"
+              />
 
-                <div>
 
-                  <label className="mb-2 block text-sm font-black">
-                    Price
-                  </label>
+              <select
+                value={form.currency}
+                onChange={(e) =>
+                  updateField(
+                    "currency",
+                    e.target.value
+                  )
+                }
+                className="rounded-xl border px-4 py-3"
+              >
 
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.price}
-                    onChange={(e) =>
-                      updateField("price", e.target.value)
-                    }
-                    placeholder="e.g. 1000"
-                    className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                  />
+                <option value="KES">
+                  KES
+                </option>
 
-                </div>
+                <option value="USD">
+                  USD
+                </option>
 
-                <div>
+                <option value="TZS">
+                  TZS
+                </option>
 
-                  <label className="mb-2 block text-sm font-black">
-                    Currency
-                  </label>
-
-                  <select
-                    value={form.currency}
-                    onChange={(e) =>
-                      updateField("currency", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                  >
-
-                    <option value="KES">
-                      KES — Kenyan Shilling
-                    </option>
-
-                    <option value="TZS">
-                      TZS — Tanzanian Shilling
-                    </option>
-
-                    <option value="UGX">
-                      UGX — Ugandan Shilling
-                    </option>
-
-                    <option value="RWF">
-                      RWF — Rwandan Franc
-                    </option>
-
-                    <option value="USD">
-                      USD — US Dollar
-                    </option>
-
-                  </select>
-
-                </div>
-
-              </div>
-
-              <div>
-
-                <label className="mb-2 block text-sm font-black">
-                  Booking / ticket link
-                </label>
-
-                <input
-                  type="url"
-                  value={form.booking_url}
-                  onChange={(e) =>
-                    updateField("booking_url", e.target.value)
-                  }
-                  placeholder="https://..."
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                />
-
-              </div>
-
-              <div>
-
-                <label className="mb-2 block text-sm font-black">
-                  Event website / source link
-                </label>
-
-                <input
-                  type="url"
-                  value={form.source_url}
-                  onChange={(e) =>
-                    updateField("source_url", e.target.value)
-                  }
-                  placeholder="https://..."
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                />
-
-              </div>
+              </select>
 
             </div>
 
-          </div>
 
-          <div className="p-6 md:p-8">
 
-            <h2 className="text-2xl font-black">
-              Organizer information
-            </h2>
+            <input
+              required
+              value={form.organizer_name}
+              onChange={(e) =>
+                updateField(
+                  "organizer_name",
+                  e.target.value
+                )
+              }
+              placeholder="Organizer / business name"
+              className="w-full rounded-xl border px-4 py-3"
+            />
 
-            <p className="mt-2 text-sm text-slate-500">
-              Give SafariPlug a way to contact you about your submission.
-            </p>
 
-            <div className="mt-7 grid gap-6 md:grid-cols-2">
+            <input
+              value={form.organizer_contact}
+              onChange={(e) =>
+                updateField(
+                  "organizer_contact",
+                  e.target.value
+                )
+              }
+              placeholder="Phone / WhatsApp / Email"
+              className="w-full rounded-xl border px-4 py-3"
+            />
 
-              <div>
-
-                <label className="mb-2 block text-sm font-black">
-                  Organizer / business name *
-                </label>
-
-                <input
-                  type="text"
-                  value={form.organizer_name}
-                  onChange={(e) =>
-                    updateField(
-                      "organizer_name",
-                      e.target.value
-                    )
-                  }
-                  placeholder="e.g. SafariPlug Events"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                  required
-                />
-
-              </div>
-
-              <div>
-
-                <label className="mb-2 block text-sm font-black">
-                  Contact information
-                </label>
-
-                <input
-                  type="text"
-                  value={form.organizer_contact}
-                  onChange={(e) =>
-                    updateField(
-                      "organizer_contact",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Phone, WhatsApp or email"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                />
-
-              </div>
-
-            </div>
-
-            <div className="mt-8 rounded-2xl border border-orange-100 bg-orange-50 p-5">
-
-              <p className="text-sm leading-6 text-orange-800">
-                <strong>Important:</strong> Submitting an event does not
-                automatically publish it. Every event is reviewed by the
-                SafariPlug team before it appears publicly.
-              </p>
-
-            </div>
 
             <button
-              type="submit"
-              disabled={submitting || loadingCities}
-              className="mt-8 w-full rounded-2xl bg-orange-500 px-6 py-4 text-base font-black text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={submitting}
+              className="w-full rounded-2xl bg-orange-500 px-6 py-4 text-lg font-black text-white hover:bg-orange-600 disabled:opacity-50"
             >
+
               {submitting
-                ? "Submitting Event..."
-                : "Submit Event for Review"}
+                ? "Submitting..."
+                : "Submit Event"}
+
             </button>
+
 
           </div>
 
@@ -727,32 +611,25 @@ export default function SubmitEventPage() {
 
       </section>
 
-      <footer className="border-t border-slate-200 bg-white">
 
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 px-6 py-10 md:flex-row">
+      <footer className="border-t bg-white px-6 py-10">
 
-          <div>
+        <div className="mx-auto max-w-7xl">
 
-            <Link
-              href="/"
-              className="text-xl font-black"
-            >
-              Safari<span className="text-orange-500">Plug</span>
-            </Link>
+          <p className="font-black">
+            Safari<span className="text-orange-500">
+              Plug
+            </span>
+          </p>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Discover more. Experience more.
-            </p>
-
-          </div>
-
-          <p className="text-sm text-slate-400">
-            © 2026 SafariPlug
+          <p className="mt-2 text-sm text-slate-500">
+            Discover more. Experience more.
           </p>
 
         </div>
 
       </footer>
+
 
     </main>
   );
