@@ -29,6 +29,15 @@ export default async function HomePage() {
   const endOfTonight = new Date(now);
   endOfTonight.setHours(23, 59, 59, 999);
 
+  const { data: featuredEvent } = await supabase
+    .from("events")
+    .select("id, title, description, category, start_at, venue_name, price, currency")
+    .eq("status", "approved")
+    .eq("featured", true)
+    .order("start_at", { ascending: true })
+    .limit(1)
+    .single();
+
   const { data: tonightEvents } = await supabase
     .from("events")
     .select("id, title, description, start_at, venue_name, price, currency")
@@ -323,15 +332,15 @@ export default async function HomePage() {
 
               <div>
                 <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-white/40">
-                  Music &amp; Nightlife
+                  {featuredEvent?.category || "Featured Experience"}
                 </p>
 
                 <h3 className="max-w-xl text-4xl font-black leading-tight tracking-[-0.04em] text-white sm:text-5xl">
-                  Friday Night DJ Experience
+                  {featuredEvent?.title || "Friday Night DJ Experience"}
                 </h3>
 
                 <p className="mt-5 max-w-lg leading-7 text-white/60">
-                  House music and coastal nightlife experience.
+                  {featuredEvent?.description || "An experience worth discovering across East Africa."}
                 </p>
               </div>
             </div>
@@ -343,19 +352,19 @@ export default async function HomePage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8a7251]">
                   When
                 </p>
-                <p className="mt-2 font-bold">Fri 21 Aug · 13:00</p>
+                <p className="mt-2 font-bold">{featuredEvent ? new Date(featuredEvent.start_at).toLocaleString("en-GB", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Coming soon"}</p>
               </div>
 
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8a7251]">
                   Where
                 </p>
-                <p className="mt-2 font-bold">Tapas</p>
+                <p className="mt-2 font-bold">{featuredEvent?.venue_name || "East Africa"}</p>
               </div>
             </div>
 
             <div className="mt-12 flex items-center justify-between border-t border-black/10 pt-6">
-              <span className="text-lg font-black">KES 500</span>
+              <span className="text-lg font-black">{featuredEvent?.currency || "KES"} {featuredEvent?.price || ""}</span>
               <span className="font-black transition group-hover:translate-x-1">
                 Explore →
               </span>
