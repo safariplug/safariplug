@@ -22,11 +22,11 @@ const interests = [
 ];
 
 export default async function HomePage() {
-  const now = new Date();
-  const startOfTonight = new Date(now);
+  const kenyaNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Nairobi" }));
+  const startOfTonight = new Date(kenyaNow);
   startOfTonight.setHours(18, 0, 0, 0);
 
-  const endOfTonight = new Date(now);
+  const endOfTonight = new Date(kenyaNow);
   endOfTonight.setHours(23, 59, 59, 999);
 
   const { data: featuredEvent } = await supabase
@@ -569,3 +569,6 @@ export default async function HomePage() {
     </main>
   );
 }
+
+
+
