@@ -317,7 +317,7 @@ export default async function HomePage() {
         </div>
 
         <Link
-          href="/events/b78cf968-c2b3-441c-8e70-c4bfd082a753"
+          href={featuredEvent ? `/events/${featuredEvent.id}` : "/events"}
           className="group mt-10 grid overflow-hidden rounded-[2rem] bg-[#e8e4db] md:grid-cols-[1.05fr_0.95fr]"
         >
           <div className="min-h-[420px] bg-[#24382b] p-8 sm:p-12">
