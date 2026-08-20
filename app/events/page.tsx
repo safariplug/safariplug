@@ -123,6 +123,16 @@ function matchesWhen(event: Event, when: string) {
   const now = new Date();
   const eventDate = new Date(event.start_at);
 
+  if (when === "tonight") {
+    const start = new Date(now);
+    start.setHours(18, 0, 0, 0);
+
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+
+    return eventDate >= start && eventDate <= end;
+  }
+
   if (when === "today") {
     return (
       eventDate.getFullYear() === now.getFullYear() &&

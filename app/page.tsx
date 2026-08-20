@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 const locations = [
   ["Nairobi", "City energy", "city=Nairobi"],
@@ -20,7 +21,23 @@ const interests = [
   ["Culture", "Art, heritage, communities and local life", "Culture"],
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const now = new Date();
+  const startOfTonight = new Date(now);
+  startOfTonight.setHours(18, 0, 0, 0);
+
+  const endOfTonight = new Date(now);
+  endOfTonight.setHours(23, 59, 59, 999);
+
+  const { data: tonightEvents } = await supabase
+    .from("events")
+    .select("id, title, description, start_at, venue_name, price, currency")
+    .eq("status", "approved")
+    .gte("start_at", startOfTonight.toISOString())
+    .lte("start_at", endOfTonight.toISOString())
+    .order("start_at", { ascending: true })
+    .limit(3);
+
   return (
     <main className="min-h-screen bg-[#f5f2eb] text-[#17231d]">
       {/* NAVIGATION */}
@@ -185,14 +202,27 @@ export default function HomePage() {
                 ✦
               </div>
 
-              <h3 className="text-2xl font-black">
-                Nothing listed for tonight yet.
-              </h3>
+              {tonightEvents && tonightEvents.length > 0 ? (
+                <>
+                  <h3 className="text-2xl font-black">
+                    {tonightEvents[0].title}
+                  </h3>
 
-              <p className="mt-3 max-w-xl leading-7 text-[#687269]">
-                Check upcoming events or explore experiences happening across
-                East Africa.
-              </p>
+                  <p className="mt-3 max-w-xl leading-7 text-[#687269]">
+                    {tonightEvents[0].description || "Worth experiencing across East Africa."}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-2xl font-black">
+                    Nothing listed for tonight yet.
+                  </h3>
+
+                  <p className="mt-3 max-w-xl leading-7 text-[#687269]">
+                    Check upcoming events or explore experiences happening across East Africa.
+                  </p>
+                </>
+              )}
             </div>
 
             <Link
