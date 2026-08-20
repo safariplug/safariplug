@@ -364,7 +364,11 @@ export default async function HomePage() {
             </div>
 
             <div className="mt-12 flex items-center justify-between border-t border-black/10 pt-6">
-              <span className="text-lg font-black">{featuredEvent?.currency || "KES"} {featuredEvent?.price || ""}</span>
+              <span className="text-lg font-black">
+  {featuredEvent?.price
+    ? `${featuredEvent.currency || "KES"} ${featuredEvent.price}`
+    : "Free / Check details"}
+</span>
               <span className="font-black transition group-hover:translate-x-1">
                 Explore →
               </span>
