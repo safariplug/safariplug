@@ -44,7 +44,13 @@ export default async function HomePage() {
     .lte("start_at", endOfTonight.toISOString())
     .order("start_at", { ascending: true })
     .limit(3);
-
+const { data: upcomingEvents } = await supabase
+  .from("events")
+  .select("id, title, description, start_at, venue_name, price, currency")
+  .eq("status", "approved")
+  .gte("start_at", new Date().toISOString())
+  .order("start_at", { ascending: true })
+  .limit(3);
   return (
     <main className="min-h-screen bg-[#f5f2eb] text-[#17231d]">
       {/* NAVIGATION */}
@@ -219,14 +225,15 @@ export default async function HomePage() {
                     {tonightEvents[0].description || "Worth experiencing across East Africa."}
                   </p>
                 </>
-              ) : (
+                            ) : (
                 <>
                   <h3 className="text-2xl font-black">
-                    Nothing listed for tonight yet.
+                    {upcomingEvents?.[0]?.title || "Nothing listed for tonight yet."}
                   </h3>
 
                   <p className="mt-3 max-w-xl leading-7 text-[#687269]">
-                    Check upcoming events or explore experiences happening across East Africa.
+                    {upcomingEvents?.[0]?.description ||
+                      "Check upcoming events or explore experiences happening across East Africa."}
                   </p>
                 </>
               )}
