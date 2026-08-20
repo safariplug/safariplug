@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Local investigation scripts
+*.cjs
+inspect-*.js
+cleanup-ai-events.js
+test-*.js
+
+# Local generated assets
+safariplug-*.png
