@@ -116,85 +116,122 @@ function matchesCategory(event: Event, category: string) {
 }
 
 function matchesWhen(event: Event, when: string) {
+  const eventDate = new Date(event.start_at);
+
+  const kenyaParts = new Intl.DateTimeFormat("en-KE", {
+    timeZone: "Africa/Nairobi",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+  }).formatToParts(new Date());
+
+  const nowParts = Object.fromEntries(
+    kenyaParts.map((p) => [p.type, p.value])
+  );
+
+  const kenyaNow = {
+    year: Number(nowParts.year),
+    month: Number(nowParts.month),
+    day: Number(nowParts.day),
+  };
+
+  const eventParts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-KE", {
+      timeZone: "Africa/Nairobi",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+    })
+      .formatToParts(eventDate)
+      .map((p) => [p.type, p.value])
+  );
+
+  const eventKenya = {
+    year: Number(eventParts.year),
+    month: Number(eventParts.month),
+    day: Number(eventParts.day),
+    hour: Number(eventParts.hour),
+  };
+
   if (when === "upcoming") {
     return true;
   }
 
-  const now = new Date();
-  const eventDate = new Date(event.start_at);
-
   if (when === "tonight") {
-    const start = new Date(now);
-    start.setHours(18, 0, 0, 0);
+  const eventDateKey =
+    `${eventKenya.year}-${eventKenya.month}-${eventKenya.day}`;
 
-    const end = new Date(now);
-    end.setHours(23, 59, 59, 999);
+  const todayKey =
+    `${kenyaNow.year}-${kenyaNow.month}-${kenyaNow.day}`;
 
-    return eventDate >= start && eventDate <= end;
-  }
-
-  if (when === "today") {
-    return (
-      eventDate.getFullYear() === now.getFullYear() &&
-      eventDate.getMonth() === now.getMonth() &&
-      eventDate.getDate() === now.getDate()
-    );
-  }
-
-  const startOfWeek = new Date(now);
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  const day = startOfWeek.getDay();
-  const difference = day === 0 ? 6 : day - 1;
-
-  startOfWeek.setDate(
-    startOfWeek.getDate() - difference
+  const tomorrow = new Date(
+    `${kenyaNow.year}-${String(kenyaNow.month).padStart(2,"0")}-${String(kenyaNow.day).padStart(2,"0")}T00:00:00+03:00`
   );
 
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(
-    startOfWeek.getDate() + 7
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const tomorrowParts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-KE", {
+      timeZone: "Africa/Nairobi",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    })
+      .formatToParts(tomorrow)
+      .map((p) => [p.type, p.value])
   );
 
-  if (when === "this-week") {
-    return (
-      eventDate >= startOfWeek &&
-      eventDate < endOfWeek
-    );
-  }
+  const tomorrowKey =
+    `${Number(tomorrowParts.year)}-${Number(tomorrowParts.month)}-${Number(tomorrowParts.day)}`;
 
-  if (when === "this-weekend") {
-    const saturday = new Date(startOfWeek);
-
-    saturday.setDate(
-      startOfWeek.getDate() + 5
-    );
-
-    saturday.setHours(0, 0, 0, 0);
-
-    const monday = new Date(saturday);
-
-    monday.setDate(
-      saturday.getDate() + 2
-    );
-
-    return (
-      eventDate >= saturday &&
-      eventDate < monday
-    );
-  }
+  return (
+    (eventDateKey === todayKey ||
+      eventDateKey === tomorrowKey) &&
+    eventKenya.hour >= 18
+  );
+}
 
   if (when === "this-month") {
     return (
-      eventDate.getFullYear() === now.getFullYear() &&
-      eventDate.getMonth() === now.getMonth()
+      eventKenya.year === kenyaNow.year &&
+      eventKenya.month === kenyaNow.month
     );
   }
 
-  return true;
+  if (when === "this-week") {
+    const today = new Date(
+      `${kenyaNow.year}-${String(kenyaNow.month).padStart(2,"0")}-${String(kenyaNow.day).padStart(2,"0")}T00:00:00+03:00`
+    );
+
+    const eventDay = new Date(
+      `${eventKenya.year}-${String(eventKenya.month).padStart(2,"0")}-${String(eventKenya.day).padStart(2,"0")}T00:00:00+03:00`
+    );
+
+    const diff =
+      (eventDay.getTime() - today.getTime()) /
+      (1000 * 60 * 60 * 24);
+
+    return diff >= 0 && diff <= 7;
+  }
+
+  if (when === "this-weekend") {
+  const eventDay = new Date(
+    `${eventKenya.year}-${String(eventKenya.month).padStart(2,"0")}-${String(eventKenya.day).padStart(2,"0")}T00:00:00+03:00`
+  );
+
+  const day = eventDay.getDay();
+
+  return day === 6 || day === 0;
+}
+
+    return true;
 }
 
 export default async function EventsPage({
+  
   searchParams,
 }: {
   searchParams: Promise<{
@@ -282,12 +319,8 @@ const selectedSearch =
         featured,
         city_id
       `
-    )
+            )
     .eq("status", "approved")
-    .gte(
-      "start_at",
-      new Date().toISOString()
-    )
     .order("featured", {
       ascending: false,
     })
