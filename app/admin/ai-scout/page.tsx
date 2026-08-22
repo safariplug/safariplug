@@ -55,7 +55,7 @@ export default async function AIScoutPage() {
   const scanStatus = latestRun?.status ?? "not_started";
 
   return (
-    <main className="min-h-screen bg-[#fffaf5] p-8">
+    <main className="min-h-screen bg-[#fffaf5] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl">
 
         {/* Header */}
@@ -94,9 +94,9 @@ export default async function AIScoutPage() {
           </p>
 
           <form
-            action={runAIScout}
-            className="mt-8 grid gap-5 md:grid-cols-3"
-          >
+  action={runAIScout}
+  className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+>
             <div>
               <label className="mb-2 block text-sm font-black">
                 Location
@@ -252,7 +252,7 @@ export default async function AIScoutPage() {
             AI Scout Roadmap
           </h2>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
             <div className="rounded-2xl bg-white/10 p-5">
               <p className="font-black">
