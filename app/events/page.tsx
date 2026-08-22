@@ -344,22 +344,22 @@ export default async function EventsPage({
   } = await supabase
     .from("events")
     .select(
-      `
-        id,
-        title,
-        description,
-        category,
-        start_at,
-        end_at,
-        venue_name,
-        venue_address,
-        price,
-        currency,
-        image_url,
-        featured,
-        city_id
-      `
-    )
+`
+id,
+title,
+description,
+category,
+currency,
+price,
+image_url,
+featured,
+city_id,
+start_at,
+end_at,
+venue_name,
+venue_address
+`
+)
     .eq("status", "approved")
     .order("featured", {
       ascending: false,
