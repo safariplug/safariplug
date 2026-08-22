@@ -45,7 +45,13 @@ export default async function EditAIEventPage({
   const formatDateTimeLocal = (value: string | null) => {
     if (!value) return "";
 
-    const date = new Date(value);
+    const trimmed = value.trim();
+
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(trimmed)) {
+      return trimmed.slice(0, 16);
+    }
+
+    const date = new Date(trimmed);
 
     if (Number.isNaN(date.getTime())) {
       return "";

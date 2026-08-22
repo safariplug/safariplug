@@ -1,16 +1,32 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { LOCATIONS } from "@/lib/constants/locations";
 
-const locations = [
-  ["Nairobi", "City energy", "city=Nairobi"],
-  ["Mombasa", "Coastal culture", "city=Mombasa"],
-  ["Diani", "Beach life", "city=Diani"],
-  ["Mtwapa", "Coastal nights", "city=Mtwapa"],
-  ["Kilifi", "Slow coastal living", "city=Kilifi"],
-  ["Watamu", "Ocean escapes", "city=Watamu"],
-  ["Malindi", "Indian Ocean charm", "city=Malindi"],
-  ["Lamu", "Old-world magic", "city=Lamu"],
-];
+const locations = LOCATIONS.map((location) => [
+  location.name,
+  location.description,
+  location.query,
+]);
+
+const interestImages: Record<string, string> = {
+  "Music & Nightlife": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=85",
+  "Food & Drink": "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=85",
+  "Beach": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85",
+  "Safari": "https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&w=1200&q=85",
+  "Adventure": "https://images.unsplash.com/photo-1533130061792-64b345e4a833?auto=format&fit=crop&w=1200&q=85",
+  "Culture": "https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?auto=format&fit=crop&w=1200&q=85",
+};
+
+const destinationImages: Record<string, string> = {
+  "Nairobi": "https://images.unsplash.com/photo-1610296669228-602fa827fc1f?auto=format&fit=crop&w=1200&q=85",
+  "Mombasa": "https://images.unsplash.com/photo-1565552629473-3c5c6f5b7f3f?auto=format&fit=crop&w=1200&q=85",
+  "Diani": "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=85",
+  "Mtwapa": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=85",
+  "Kilifi": "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=85",
+  "Watamu": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85",
+  "Malindi": "https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=1200&q=85",
+  "Lamu": "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=85",
+};
 
 const interests = [
   ["Music & Nightlife", "DJs, live music, parties and late nights", "Music%20%26%20Nightlife"],
@@ -29,7 +45,7 @@ export default async function HomePage() {
 
   const { data: featuredEvent } = await supabase
     .from("events")
-    .select("id, title, description, category, start_at, venue_name, price, currency")
+    .select("id, title, description, category, start_at, venue_name, price, currency, image_url")
     .eq("status", "approved")
     .eq("featured", true)
     .order("start_at", { ascending: true })
@@ -38,7 +54,7 @@ export default async function HomePage() {
 
   const { data: tonightEvents } = await supabase
     .from("events")
-    .select("id, title, description, start_at, venue_name, price, currency")
+    .select("id, title, description, category, start_at, venue_name, price, currency, image_url")
     .eq("status", "approved")
     .gte("start_at", startOfTonight.toISOString())
     .lte("start_at", endOfTonight.toISOString())
@@ -46,7 +62,7 @@ export default async function HomePage() {
     .limit(3);
 const { data: upcomingEvents } = await supabase
   .from("events")
-  .select("id, title, description, start_at, venue_name, price, currency")
+  .select("id, title, description, category, start_at, venue_name, price, currency, image_url")
   .eq("status", "approved")
   .gte("start_at", new Date().toISOString())
   .order("start_at", { ascending: true })
@@ -57,18 +73,7 @@ const { data: upcomingEvents } = await supabase
       <header className="absolute left-0 right-0 top-0 z-50">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-10">
           <Link href="/" className="group flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-black shadow-sm">
-              S
-            </span>
-
-            <div>
-              <div className="text-lg font-black tracking-tight text-white">
-                SafariPlug
-              </div>
-              <div className="hidden text-[9px] font-bold uppercase tracking-[0.28em] text-white/60 sm:block">
-                East Africa Experience Platform
-              </div>
-            </div>
+            <img src="/brand/safariplug-wordmark-light.png" alt="SafariPlug" className="h-9 w-auto object-contain" />
           </Link>
 
           <nav className="hidden items-center gap-8 md:flex">
@@ -104,61 +109,29 @@ const { data: upcomingEvents } = await supabase
       </header>
 
       {/* HERO */}
-      <section className="relative flex min-h-[760px] items-end overflow-hidden bg-[#1b2a21]">
+      <section className="relative flex min-h-[780px] items-end overflow-hidden bg-[#111914]">
         <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=2200&q=90"
-            alt="African landscape"
-            className="h-full w-full object-cover"
-          />
+          <img src="https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=2200&q=90" alt="African landscape" className="h-full w-full scale-[1.02] object-cover" />
         </div>
-
-        <div className="absolute inset-0 bg-black/35" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#111914] via-black/10 to-black/20" />
-
-        <div className="relative mx-auto w-full max-w-7xl px-6 pb-20 pt-40 lg:px-10 lg:pb-28">
-          <div className="max-w-4xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/20 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-white backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-white" />
-              East Africa, discovered differently
+        <div className="absolute inset-0 bg-black/30" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#06100a]/90 via-[#06100a]/45 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#111914] via-[#111914]/15 to-black/10" />
+        <div className="relative mx-auto w-full max-w-7xl px-6 pb-24 pt-44 lg:px-10 lg:pb-32">
+          <div className="max-w-5xl">
+            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-white backdrop-blur-md">
+              <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)]" />
+              East Africa's discovery platform
             </div>
-
-            <h1 className="max-w-4xl text-6xl font-black leading-[0.92] tracking-[-0.055em] text-white sm:text-7xl lg:text-[92px]">
-              Discover more.
-              <br />
-              <span className="text-white/70">Experience more.</span>
-            </h1>
-
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-white/80 sm:text-xl">
-              Find what is happening, where to go and what is worth
-              experiencing across East Africa.
-            </p>
-
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/events"
-                className="rounded-full bg-white px-7 py-4 text-center text-sm font-black text-[#17231d] shadow-xl transition hover:-translate-y-0.5 hover:bg-[#f4eee3]"
-              >
-                Explore East Africa →
-              </Link>
-
-              <Link
-                href="/events?when=tonight"
-                className="rounded-full border border-white/30 bg-white/10 px-7 py-4 text-center text-sm font-bold text-white backdrop-blur transition hover:bg-white/20"
-              >
-                What's happening tonight
-              </Link>
+            <h1 className="max-w-5xl text-6xl font-black leading-[0.86] tracking-[-0.07em] text-white sm:text-7xl lg:text-[104px]">D</h1>
+            <p className="mt-8 max-w-2xl text-lg leading-8 text-white/80 sm:text-xl">Events, experiences and places worth knowing — across East Africa.</p>
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+              <Link href="/events" className="rounded-full bg-white px-8 py-4 text-center text-sm font-black text-[#17231d] shadow-2xl transition duration-300 hover:-translate-y-1 hover:bg-[#f4eee3]">Explore what's happening —</Link>
+              <Link href="/events?when=tonight" className="rounded-full border border-white/25 bg-white/10 px-8 py-4 text-center text-sm font-bold text-white backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:bg-white/20">What's happening tonight</Link>
             </div>
           </div>
         </div>
-
-        <div className="absolute bottom-6 right-6 hidden text-right text-[10px] font-bold uppercase tracking-[0.25em] text-white/50 lg:block lg:right-10">
-          Find your next thing
-          <br />
-          ↓
-        </div>
+        <div className='absolute bottom-7 right-6 hidden text-right text-[10px] font-black uppercase tracking-[0.28em] text-white/45 lg:block lg:right-10'>Find your next thing</div>
       </section>
-
       {/* QUICK DISCOVER */}
       <section className="border-b border-black/5 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-6 py-5 lg:px-10">
@@ -228,13 +201,31 @@ const { data: upcomingEvents } = await supabase
                             ) : (
                 <>
                   <h3 className="text-2xl font-black">
-                    {upcomingEvents?.[0]?.title || "Nothing listed for tonight yet."}
+                    Coming up next.
                   </h3>
 
                   <p className="mt-3 max-w-xl leading-7 text-[#687269]">
-                    {upcomingEvents?.[0]?.description ||
-                      "Check upcoming events or explore experiences happening across East Africa."}
+                    Nothing is happening tonight yet, but these are the next experiences worth planning for across East Africa.
                   </p>
+{upcomingEvents && upcomingEvents.length > 0 && (
+  <div className="mt-6 space-y-3">
+    {upcomingEvents.slice(0, 3).map((event) => (
+      <Link
+        key={event.id}
+        href={`/events/${event.id}`}
+        className="block rounded-2xl bg-white px-5 py-4 transition hover:-translate-y-0.5"
+      >
+        <div className="font-bold">
+          {event.title}
+        </div>
+
+        <div className="mt-1 text-sm text-[#687269]">
+          {event.venue_name}
+        </div>
+      </Link>
+    ))}
+  </div>
+)}
                 </>
               )}
             </div>
@@ -325,8 +316,14 @@ const { data: upcomingEvents } = await supabase
           href={featuredEvent ? `/events/${featuredEvent.id}` : "/events"}
           className="group mt-10 grid overflow-hidden rounded-[2rem] bg-[#e8e4db] md:grid-cols-[1.05fr_0.95fr]"
         >
-          <div className="min-h-[420px] bg-[#24382b] p-8 sm:p-12">
-            <div className="flex h-full flex-col justify-between">
+          <div className="relative min-h-[420px] overflow-hidden bg-[#24382b] p-8 sm:p-12">
+             {featuredEvent?.image_url ? (
+               <>
+                 <img src={featuredEvent.image_url} alt={featuredEvent.title || "Featured experience"} className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/20" />
+               </>
+             ) : null}
+            <div className="relative z-10 flex h-full flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="rounded-full bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white">
                   Featured
@@ -368,13 +365,13 @@ const { data: upcomingEvents } = await supabase
               </div>
             </div>
 
-            <div className="mt-12 flex items-center justify-between border-t border-black/10 pt-6">
-              <span className="text-lg font-black">
+            <div className="mt-12 flex items-center justify-between gap-6 border-t border-black/10 pt-6">
+              <span className="text-base font-black sm:text-lg">
   {featuredEvent?.price
     ? `${featuredEvent.currency || "KES"} ${featuredEvent.price}`
     : "Free / Check details"}
 </span>
-              <span className="font-black transition group-hover:translate-x-1">
+              <span className="shrink-0 rounded-full bg-[#17231d] px-5 py-2.5 text-sm font-black text-white transition group-hover:-translate-y-0.5 group-hover:bg-[#8a7251]">
                 Explore →
               </span>
             </div>
@@ -398,26 +395,63 @@ const { data: upcomingEvents } = await supabase
               <Link
                 key={title}
                 href={`/events?category=${category}`}
-                className="group rounded-[1.5rem] bg-white p-7 transition hover:-translate-y-1 hover:shadow-xl"
+                className="group relative min-h-[320px] overflow-hidden rounded-[1.5rem] bg-[#17231d] p-7 text-white transition hover:-translate-y-1 hover:shadow-2xl"
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-[#a08c70]">
-                    0{index + 1}
-                  </span>
-
-                  <span className="text-xl text-black/30 transition group-hover:translate-x-1 group-hover:text-black">
-                    →
-                  </span>
-                </div>
-
-                <h3 className="mt-14 text-2xl font-black">{title}</h3>
-
-                <p className="mt-2 max-w-xs text-sm leading-6 text-[#687269]">
-                  {description}
-                </p>
+                <div className="absolute inset-0"><img src={interestImages[title]} alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" /></div><div className="relative z-10 flex h-full flex-col"><div className="flex items-center justify-between"><span className="text-xs font-black text-white/60">0{index + 1}</span><span className="text-xl text-white/70 transition group-hover:translate-x-1">→</span></div><div className="mt-auto pt-14"><h3 className="text-2xl font-black">{title}</h3><p className="mt-2 max-w-xs text-sm leading-6 text-white/70">{description}</p></div></div>
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* UPCOMING */}
+      <section className="mx-auto max-w-7xl px-6 py-24 lg:px-10">
+        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+          <div>
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#8a7251]">
+              Upcoming
+            </p>
+            <h2 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">
+              Worth planning for.
+            </h2>
+            <p className="mt-4 max-w-xl leading-7 text-[#687269]">
+              Real events coming up across East Africa.
+            </p>
+          </div>
+            <Link
+              href="/events"
+              className="font-bold text-[#17231d] underline decoration-black/20 underline-offset-4"
+            >
+              See all upcoming →
+            </Link>
+        </div>
+
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {upcomingEvents && upcomingEvents.length > 0 ? (
+            upcomingEvents.map((event) => (
+              <Link
+                key={event.id}
+                href={`/events/${event.id}`}
+                className="group overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-xl">
+                <div className="relative h-56 overflow-hidden bg-[#e1ddd4]">
+                {event.image_url ? (
+                  <img src={event.image_url} alt={event.title || "Upcoming experience"} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+                  ) : null}
+                </div>
+                <div className="p-6">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8a7251]">{}</p>
+                  <h3 className="mt-2 text-xl font-black leading-tight">{event.title}</h3>
+                  <p>{event.description || "Worth discovering across East Africa."}</p>
+                  <p className="mt-4 text-sm font-bold">{event.venue_name || "Location to be announced"}</p>
+                </div>
+              </Link>
+            ))
+          ) : (
+            <div className="col-span-3 rounded-[1.5rem] bg-[#e8e4db] px-8 py-10">
+              <h3 className="text-xl font-black">No upcoming events yet.</h3>
+              <p className="mt-2 text-[#687269]">Check back soon for new experiences and events across East Africa.</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -451,22 +485,9 @@ const { data: upcomingEvents } = await supabase
             <Link
               href={`/events?${query}`}
               key={name}
-              className="group min-h-[190px] rounded-[1.5rem] border border-black/10 bg-white p-6 transition hover:-translate-y-1 hover:bg-[#17231d] hover:text-white"
+              className="group relative min-h-[250px] overflow-hidden rounded-[1.5rem] border border-black/10 bg-[#17231d] p-6 text-white transition hover:-translate-y-1 hover:shadow-2xl"
             >
-              <div className="flex items-start justify-between">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
-                  0{index + 1}
-                </span>
-
-                <span className="transition group-hover:translate-x-1">
-                  →
-                </span>
-              </div>
-
-              <div className="mt-16">
-                <h3 className="text-2xl font-black">{name}</h3>
-                <p className="mt-1 text-sm opacity-55">{description}</p>
-              </div>
+              <div className="absolute inset-0"><img src={destinationImages[name]} alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" /></div><div className="relative z-10 flex h-full flex-col"><div className="flex items-start justify-between"><span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">0{index + 1}</span><span className="text-white/70 transition group-hover:translate-x-1">→</span></div><div className="mt-auto pt-16"><h3 className="text-2xl font-black">{name}</h3><p className="mt-1 text-sm text-white/70">{description}</p></div></div>
             </Link>
           ))}
         </div>
@@ -536,13 +557,7 @@ const { data: upcomingEvents } = await supabase
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-12 md:grid-cols-[1fr_auto]">
             <div>
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-black text-[#17231d]">
-                  S
-                </span>
-
-                <span className="text-xl font-black">SafariPlug</span>
-              </div>
+              <div className="flex items-center gap-3"><img src="/brand/safariplug-wordmark-light.png" alt="SafariPlug" className="h-9 w-auto object-contain" /></div>
 
               <p className="mt-5 max-w-md text-sm leading-6 text-white/45">
                 Discover the places, people and experiences making East Africa
@@ -567,13 +582,31 @@ const { data: upcomingEvents } = await supabase
           </div>
 
           <div className="mt-12 border-t border-white/10 pt-6 text-xs text-white/30">
-            © 2026 SafariPlug. Discover more. Experience more.
+            © 2026 SafariPlug. Discover what's happening. Experience more.
           </div>
         </div>
       </footer>
     </main>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

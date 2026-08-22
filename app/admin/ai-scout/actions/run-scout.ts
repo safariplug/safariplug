@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -87,15 +87,45 @@ function normalizeDate(value: unknown): string | null {
     return null;
   }
 
-  const date = new Date(value);
+  const trimmed = value.trim();
 
-  if (Number.isNaN(date.getTime())) {
+  // Preserve explicit timezone information.
+  // If the source gives Z or an explicit +/- offset,
+  // normalize it to UTC.
+  if (
+    /Z$/i.test(trimmed) ||
+    /[+-]\d{2}:?\d{2}$/.test(trimmed)
+  ) {
+    const date = new Date(trimmed);
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date.toISOString();
+  }
+
+  // For timezone-less event datetimes, preserve the
+  // supplied local wall-clock time exactly.
+  const match = trimmed.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (!match) {
     return null;
   }
 
-  return date.toISOString();
+  const [
+    ,
+    year,
+    month,
+    day,
+    hours,
+    minutes,
+    seconds = "00",
+  ] = match;
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
-
 function normalizePrice(value: unknown): number | null {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -132,7 +162,7 @@ function normalizeText(value: unknown): string {
 function isGenericPlaceholderTitle(title: string): boolean {
   const normalized = title
     .toLowerCase()
-    .replace(/[–—]/g, "-")
+    .replace(/[\u2013\u2014]/g, "-")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -171,7 +201,15 @@ function isValidEvent(event: DiscoveredEvent): boolean {
   const confidence = normalizeConfidence(
     event.confidence_score
   );
+  const startAt = normalizeDate(event.start_at);
 
+  if (!startAt) {
+    console.warn(
+      "Skipping event without a valid start date:",
+      title
+    );
+    return false;
+  }
   if (!title) {
     console.warn(
       "Skipping event without title."
@@ -335,20 +373,111 @@ async function fetchEventImage(
   }
 }
 
+function normalizeEventIdentity(value: unknown): string {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeVenueIdentity(value: unknown): string {
+  return normalizeEventIdentity(value)
+    .replace(/\b(the|venue|grounds|centre|center)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getMeaningfulTitleTokens(value: unknown): string[] {
+  const stopWords = new Set([
+    "the",
+    "and",
+    "live",
+    "performance",
+    "event",
+    "festival",
+    "party",
+    "edition",
+    "2026",
+    "2027",
+  ]);
+
+  return normalizeEventIdentity(value)
+    .split(" ")
+    .filter(
+      (token) =>
+        token.length >= 4 &&
+        !stopWords.has(token)
+    );
+}
+
+function titlesShareMeaningfulIdentity(
+  first: unknown,
+  second: unknown
+): boolean {
+  const firstTokens =
+    getMeaningfulTitleTokens(first);
+
+  const secondTokens =
+    getMeaningfulTitleTokens(second);
+
+  if (
+    firstTokens.length === 0 ||
+    secondTokens.length === 0
+  ) {
+    return false;
+  }
+
+  const secondSet = new Set(secondTokens);
+
+  const sharedTokens =
+    firstTokens.filter((token) =>
+      secondSet.has(token)
+    );
+
+  const minimumSharedTokens =
+    Math.min(
+      firstTokens.length,
+      secondTokens.length
+    ) === 1
+      ? 1
+      : 2;
+
+  return (
+    sharedTokens.length >=
+    minimumSharedTokens
+  );
+}
+
 async function findExistingEvent(
   title: string,
-  sourceUrl: string
+  sourceUrl: string,
+  startAt: string | null,
+  venueName: string,
+  city: string
 ) {
-  const normalizedTitle = title
-    .trim()
-    .toLowerCase();
+  const normalizedTitle =
+    normalizeEventIdentity(title);
 
-  const { data, error } = await supabaseAdmin
-    .from("ai_discovered_events")
-    .select(
-      "id,title,source_url"
-    )
-    .limit(100);
+  const normalizedSource =
+    sourceUrl.trim().toLowerCase();
+
+  const normalizedVenue =
+    normalizeVenueIdentity(venueName);
+
+  const normalizedCity =
+    normalizeEventIdentity(city);
+
+  const { data, error } =
+    await supabaseAdmin
+      .from("ai_discovered_events")
+      .select(
+        "id,title,source_url,start_at,venue_name,city"
+      )
+      .limit(500);
 
   if (error) {
     console.error(
@@ -359,31 +488,84 @@ async function findExistingEvent(
     return null;
   }
 
-  const duplicate = (data || []).find(
-    (existing) => {
-      const existingTitle = String(
-        existing.title || ""
-      )
-        .trim()
-        .toLowerCase();
+  const duplicate =
+    (data || []).find(
+      (existing) => {
+        const existingTitle =
+          normalizeEventIdentity(
+            existing.title
+          );
 
-      const existingSource = String(
-        existing.source_url || ""
-      )
-        .trim()
-        .toLowerCase();
+        const existingSource =
+          String(
+            existing.source_url || ""
+          )
+            .trim()
+            .toLowerCase();
 
-      return (
-        existingTitle === normalizedTitle ||
-        existingSource ===
-          sourceUrl.toLowerCase()
-      );
-    }
-  );
+        const existingVenue =
+          normalizeVenueIdentity(
+            existing.venue_name
+          );
+
+        const existingCity =
+          normalizeEventIdentity(
+            existing.city
+          );
+
+        const sameSource =
+          existingSource ===
+          normalizedSource;
+
+        const sameTitle =
+          existingTitle ===
+          normalizedTitle;
+
+        const sameDate =
+          Boolean(startAt) &&
+          Boolean(existing.start_at) &&
+          String(
+            existing.start_at
+          ).slice(0, 10) ===
+            String(startAt).slice(0, 10);
+
+        const sameVenue =
+          Boolean(normalizedVenue) &&
+          Boolean(existingVenue) &&
+          existingVenue ===
+            normalizedVenue;
+
+        const sameCity =
+          Boolean(normalizedCity) &&
+          Boolean(existingCity) &&
+          existingCity ===
+            normalizedCity;
+
+        const sharedTitleIdentity =
+          titlesShareMeaningfulIdentity(
+            title,
+            existing.title
+          );
+
+        const sameEventIdentity =
+          sameDate &&
+          sameCity &&
+          sameVenue &&
+          (
+            sameTitle ||
+            sharedTitleIdentity
+          );
+
+        return (
+          sameSource ||
+          sameTitle ||
+          sameEventIdentity
+        );
+      }
+    );
 
   return duplicate || null;
 }
-
 export async function runAIScout(
   formData: FormData
 ) {
@@ -667,10 +849,23 @@ export async function runAIScout(
         continue;
       }
 
+      const startAt =
+        normalizeDate(
+          event.start_at
+        );
+
+      const endAt =
+        normalizeDate(
+          event.end_at
+        );
+
       const duplicate =
         await findExistingEvent(
           title,
-          sourceUrl
+          sourceUrl,
+          startAt,
+          venueName,
+          city
         );
 
       if (duplicate) {
@@ -681,16 +876,6 @@ export async function runAIScout(
 
         continue;
       }
-
-      const startAt =
-        normalizeDate(
-          event.start_at
-        );
-
-      const endAt =
-        normalizeDate(
-          event.end_at
-        );
 
       const price =
         normalizePrice(
@@ -825,3 +1010,5 @@ export async function runAIScout(
     throw error;
   }
 }
+
+

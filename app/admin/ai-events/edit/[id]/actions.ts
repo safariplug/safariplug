@@ -8,27 +8,67 @@ export async function updateAIEvent(
   id: string,
   formData: FormData
 ) {
-  const title = String(formData.get("title") ?? "");
-  const description = String(formData.get("description") ?? "");
-  const category = String(formData.get("category") ?? "");
-  const city = String(formData.get("city") ?? "");
-  const venueName = String(formData.get("venue_name") ?? "");
-  const priceRaw = String(formData.get("price") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim();
+  const city = String(formData.get("city") ?? "").trim();
+  const venueName = String(formData.get("venue_name") ?? "").trim();
+  const venueAddress = String(formData.get("venue_address") ?? "").trim();
+  const startAtRaw = String(formData.get("start_at") ?? "").trim();
+  const endAtRaw = String(formData.get("end_at") ?? "").trim();
+  const priceRaw = String(formData.get("price") ?? "").trim();
+  const currency = String(formData.get("currency") ?? "").trim();
+
+  if (!title) {
+    throw new Error("Title is required.");
+  }
+
+  if (!category) {
+    throw new Error("Category is required.");
+  }
+
+  if (!city) {
+    throw new Error("City is required.");
+  }
 
   const price =
-    priceRaw.trim() === ""
+    priceRaw === ""
       ? null
       : Number(priceRaw);
 
-  console.log("UPDATE AI EVENT");
-  console.log({
+  if (priceRaw !== "" && !Number.isFinite(price)) {
+    throw new Error("Price must be a valid number.");
+  }
+
+  const startAt =
+    startAtRaw === ""
+      ? null
+      : startAtRaw.length === 16
+        ? `${startAtRaw}:00`
+        : startAtRaw;
+
+  const endAt =
+    endAtRaw === ""
+      ? null
+      : endAtRaw.length === 16
+        ? `${endAtRaw}:00`
+        : endAtRaw;
+
+  if (!startAt) {
+    throw new Error("Start date and time are required.");
+  }
+
+  console.log("UPDATE AI EVENT", {
     id,
     title,
-    description,
     category,
     city,
     venueName,
+    venueAddress,
+    startAt,
+    endAt,
     price,
+    currency,
   });
 
   const { data, error } = await supabaseAdmin
@@ -38,16 +78,19 @@ export async function updateAIEvent(
       description,
       category,
       city,
-      venue_name: venueName,
+      venue_name: venueName || null,
+      venue_address: venueAddress || null,
+      start_at: startAt,
+      end_at: endAt,
       price,
+      currency: currency || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select()
     .single();
 
-  console.log("SUPABASE UPDATE RESULT");
-  console.log({
+  console.log("SUPABASE UPDATE RESULT", {
     data,
     error,
   });
@@ -89,5 +132,6 @@ export async function rejectAIEvent(id: string) {
   }
 
   revalidatePath("/admin/ai-events");
+
   redirect("/admin/ai-events");
 }

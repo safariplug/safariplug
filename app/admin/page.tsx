@@ -321,6 +321,20 @@ export default function AdminPage() {
             >
               View Public Events
             </Link>
+              <Link
+                href="/admin/ai-events"
+                className="rounded-full bg-orange-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
+              >
+                AI Event Pipeline
+              </Link>
+
+              <Link
+                href="/admin/ai-scout"
+                className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                AI Scout
+              </Link>
+
 
             <button
               onClick={handleLogout}
@@ -572,7 +586,7 @@ export default function AdminPage() {
                         >
                           {actionId === event.id
                             ? "Working..."
-                            : "âœ“ Approve Event"}
+                            : "Approve Event"}
                         </button>
 
                       )}
@@ -591,7 +605,7 @@ export default function AdminPage() {
                         >
                           {actionId === event.id
                             ? "Working..."
-                            : "âœ• Reject Event"}
+                            : "Reject Event"}
                         </button>
 
                       )}
@@ -609,8 +623,8 @@ export default function AdminPage() {
                           className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600 disabled:opacity-50"
                         >
                           {event.featured
-                            ? "â˜… Unfeature"
-                            : "â˜… Feature Event"}
+                            ? "Unfeature"
+                            : "Feature Event"}
                         </button>
 
                       )}
@@ -671,3 +685,4 @@ export default function AdminPage() {
     </main>
   );
 }
+

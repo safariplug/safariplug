@@ -12,6 +12,7 @@ type EventFiltersProps = {
 
 const WHEN_OPTIONS = [
   { value: "upcoming", label: "Upcoming" },
+  { value: "tonight", label: "Tonight" },
   { value: "today", label: "Today" },
   { value: "this-weekend", label: "This Weekend" },
   { value: "this-week", label: "This Week" },
@@ -42,9 +43,11 @@ export default function EventFilters({
 
     const query = params.toString();
 
-    router.push(
-      query ? `/events?${query}` : "/events"
-    );
+    if (query) {
+      router.push("/events?" + query);
+    } else {
+      router.push("/events");
+    }
   }
 
   function clearFilters() {
@@ -54,7 +57,6 @@ export default function EventFilters({
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-3">
-        {/* CITY */}
         <div>
           <label
             htmlFor="event-city"
@@ -74,17 +76,13 @@ export default function EventFilters({
             <option value="all">All Cities</option>
 
             {cities.map((city) => (
-              <option
-                key={city}
-                value={city}
-              >
+              <option key={city} value={city}>
                 {city}
               </option>
             ))}
           </select>
         </div>
 
-        {/* CATEGORY */}
         <div>
           <label
             htmlFor="event-category"
@@ -97,27 +95,20 @@ export default function EventFilters({
             id="event-category"
             value={selectedCategory}
             onChange={(event) =>
-              updateFilter(
-                "category",
-                event.target.value
-              )
+              updateFilter("category", event.target.value)
             }
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white"
           >
             <option value="all">All Events</option>
 
             {categories.map((category) => (
-              <option
-                key={category}
-                value={category}
-              >
+              <option key={category} value={category}>
                 {category}
               </option>
             ))}
           </select>
         </div>
 
-        {/* WHEN */}
         <div>
           <label
             htmlFor="event-when"
@@ -130,18 +121,12 @@ export default function EventFilters({
             id="event-when"
             value={selectedWhen}
             onChange={(event) =>
-              updateFilter(
-                "when",
-                event.target.value
-              )
+              updateFilter("when", event.target.value)
             }
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white"
           >
             {WHEN_OPTIONS.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-              >
+              <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
@@ -149,7 +134,6 @@ export default function EventFilters({
         </div>
       </div>
 
-      {/* ACTIVE FILTERS / CLEAR */}
       {(selectedCity !== "all" ||
         selectedCategory !== "all" ||
         selectedWhen !== "upcoming") && (
@@ -173,8 +157,7 @@ export default function EventFilters({
           {selectedWhen !== "upcoming" && (
             <span className="rounded-full bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-700">
               {WHEN_OPTIONS.find(
-                (option) =>
-                  option.value === selectedWhen
+                (option) => option.value === selectedWhen
               )?.label || selectedWhen}
             </span>
           )}

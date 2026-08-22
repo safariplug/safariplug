@@ -47,3 +47,12 @@ test-*.js
 
 # Local generated assets
 safariplug-*.png
+*.backup
+*.before-*
+*.corrupted
+*.working
+*.zip
+fix-*.js
+fix-*.ps1
+check-*.js
+insert-*.js

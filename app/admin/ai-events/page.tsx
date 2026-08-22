@@ -483,7 +483,7 @@ export default async function AIEventsPage() {
 
                           {/* CONFIDENCE */}
 
-                          <div className="shrink-0 rounded-2xl bg-slate-50 px-4 py-3 sm:min-w-[105px]">
+                          <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:min-w-[112px]">
 
                             <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">
                               Confidence
@@ -510,7 +510,7 @@ export default async function AIEventsPage() {
 
                         {/* EVENT META */}
 
-                        <div className="mt-6 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3">
+                        <div className="mt-6 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-3">
 
                           <MetaItem
                             label="When"

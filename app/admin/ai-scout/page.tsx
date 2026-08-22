@@ -1,17 +1,10 @@
-import { runAIScout } from "./actions/run-scout";
+﻿import { runAIScout } from "./actions/run-scout";
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { LOCATIONS } from "@/lib/constants/locations";
 
-const locations = [
-  "Mombasa",
-  "Diani",
-  "Kilifi",
-  "Malindi",
-  "Nairobi",
-  "Zanzibar",
-  "Kampala",
-  "Dar es Salaam",
-];
+const locations = LOCATIONS.map((location) => location.name);
+
 
 const categories = [
   "Music & Nightlife",
@@ -86,7 +79,7 @@ export default async function AIScoutPage() {
             href="/admin/ai-events"
             className="rounded-full bg-slate-950 px-7 py-3 font-black text-white"
           >
-            Review Discoveries →
+            Review Discoveries â†’
           </Link>
         </div>
 
@@ -145,7 +138,7 @@ export default async function AIScoutPage() {
                 type="submit"
                 className="w-full rounded-xl bg-orange-500 px-6 py-3 font-black text-white hover:bg-orange-600"
               >
-                🔎 Run AI Scout
+                ðŸ”Ž Run AI Scout
               </button>
             </div>
           </form>
@@ -188,7 +181,7 @@ export default async function AIScoutPage() {
 
             {latestRun && (
               <p className="mt-2 text-xs text-slate-400">
-                {latestRun.location} · {latestRun.category}
+                {latestRun.location} Â· {latestRun.category}
               </p>
             )}
           </div>
@@ -234,7 +227,7 @@ export default async function AIScoutPage() {
                 </p>
 
                 <h2 className="mt-2 text-2xl font-black">
-                  {latestRun.location} · {latestRun.category}
+                  {latestRun.location} Â· {latestRun.category}
                 </h2>
               </div>
 
@@ -308,3 +301,5 @@ export default async function AIScoutPage() {
     </main>
   );
 }
+
+

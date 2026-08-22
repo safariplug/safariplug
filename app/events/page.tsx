@@ -3,6 +3,8 @@ import { supabase } from "@/lib/supabase";
 import { EVENT_CATEGORIES } from "@/lib/constants/events";
 import EventFilters from "./components/EventFilters";
 import EventSearch from "./components/EventSearch";
+import EventCard from "./components/EventCard";
+import { LOCATIONS } from "@/lib/constants/locations";
 
 type City = {
   id: string;
@@ -29,63 +31,23 @@ type Event = {
   city: City | null;
 };
 
-const CITY_OPTIONS = [
-  "Nairobi",
-  "Mombasa",
-  "Diani",
-  "Kilifi",
-  "Mtwapa",
-  "Malindi",
-  "Zanzibar",
-  "Kampala",
-  "Dar es Salaam",
-];
+const CITY_OPTIONS = LOCATIONS.map((location) => location.name);
 
-const CATEGORY_OPTIONS = EVENT_CATEGORIES;
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-KE", {
-    timeZone: "Africa/Nairobi",
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat("en-KE", {
-    timeZone: "Africa/Nairobi",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(value));
-}
-
-function formatPrice(
-  price: number | null,
-  currency: string | null
-) {
-  if (price === null) {
-    return "Free";
-  }
-
-  return new Intl.NumberFormat("en-KE", {
-    style: "currency",
-    currency: currency || "KES",
-    maximumFractionDigits: 0,
-  }).format(price);
-}
+const CATEGORY_OPTIONS = [...EVENT_CATEGORIES];
 
 function matchesCity(event: Event, city: string) {
   if (!city || city === "all") {
     return true;
   }
 
+  const selected = city.toLowerCase();
+
   return (
-    event.city?.slug?.toLowerCase() === city.toLowerCase() ||
-    event.city?.name?.toLowerCase() === city.toLowerCase()
+    event.city?.slug?.toLowerCase() === selected ||
+    event.city?.name?.toLowerCase() === selected
   );
 }
+
 function matchesSearch(event: Event, search: string) {
   if (!search) {
     return true;
@@ -105,142 +67,224 @@ function matchesSearch(event: Event, search: string) {
 
   return searchText.includes(search.toLowerCase());
 }
+
 function matchesCategory(event: Event, category: string) {
   if (!category || category === "all") {
     return true;
   }
 
   return (
-    event.category.toLowerCase() === category.toLowerCase()
+    event.category.toLowerCase() ===
+    category.toLowerCase()
   );
 }
 
+/*
+ * DATE FILTERING
+ *
+ * All calendar calculations use Africa/Nairobi.
+ * This prevents the user's computer timezone from
+ * changing which events appear in date filters.
+ */
 function matchesWhen(event: Event, when: string) {
   const eventDate = new Date(event.start_at);
 
-  const kenyaParts = new Intl.DateTimeFormat("en-KE", {
-    timeZone: "Africa/Nairobi",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-  }).formatToParts(new Date());
-
-  const nowParts = Object.fromEntries(
-    kenyaParts.map((p) => [p.type, p.value])
-  );
-
-  const kenyaNow = {
-    year: Number(nowParts.year),
-    month: Number(nowParts.month),
-    day: Number(nowParts.day),
-  };
-
-  const eventParts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-KE", {
-      timeZone: "Africa/Nairobi",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-    })
-      .formatToParts(eventDate)
-      .map((p) => [p.type, p.value])
-  );
-
-  const eventKenya = {
-    year: Number(eventParts.year),
-    month: Number(eventParts.month),
-    day: Number(eventParts.day),
-    hour: Number(eventParts.hour),
-  };
-
-  if (when === "upcoming") {
-    return true;
+  if (Number.isNaN(eventDate.getTime())) {
+    return false;
   }
 
-  if (when === "tonight") {
-  const eventDateKey =
-    `${eventKenya.year}-${eventKenya.month}-${eventKenya.day}`;
+  const now = new Date();
 
-  const todayKey =
-    `${kenyaNow.year}-${kenyaNow.month}-${kenyaNow.day}`;
-
-  const tomorrow = new Date(
-    `${kenyaNow.year}-${String(kenyaNow.month).padStart(2,"0")}-${String(kenyaNow.day).padStart(2,"0")}T00:00:00+03:00`
-  );
-
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const tomorrowParts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-KE", {
+  const getNairobiParts = (date: Date) => {
+    const parts = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Africa/Nairobi",
       year: "numeric",
-      month: "numeric",
-      day: "numeric",
-    })
-      .formatToParts(tomorrow)
-      .map((p) => [p.type, p.value])
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date);
+
+    const get = (type: string) =>
+      Number(
+        parts.find((part) => part.type === type)?.value || 0
+      );
+
+    return {
+      year: get("year"),
+      month: get("month"),
+      day: get("day"),
+      hour: get("hour"),
+      minute: get("minute"),
+      second: get("second"),
+    };
+  };
+
+  const eventParts = getNairobiParts(eventDate);
+  const nowParts = getNairobiParts(now);
+
+  const dayNumber = (
+    year: number,
+    month: number,
+    day: number
+  ) => {
+    return Date.UTC(year, month - 1, day);
+  };
+
+  const eventDay = dayNumber(
+    eventParts.year,
+    eventParts.month,
+    eventParts.day
   );
 
-  const tomorrowKey =
-    `${Number(tomorrowParts.year)}-${Number(tomorrowParts.month)}-${Number(tomorrowParts.day)}`;
-
-  return (
-    (eventDateKey === todayKey ||
-      eventDateKey === tomorrowKey) &&
-    eventKenya.hour >= 18
+  const todayDay = dayNumber(
+    nowParts.year,
+    nowParts.month,
+    nowParts.day
   );
-}
 
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  /*
+   * UPCOMING
+   *
+   * Any event that has not started yet.
+   */
+  if (!when || when === "upcoming") {
+    return eventDate.getTime() >= now.getTime();
+  }
+
+  /*
+   * TODAY
+   *
+   * Today in Nairobi and not already started.
+   */
+  if (when === "today") {
+    return (
+      eventDay === todayDay &&
+      eventDate.getTime() >= now.getTime()
+    );
+  }
+
+  /*
+   * TONIGHT
+   *
+   * Today in Nairobi, starting at 5:00 PM,
+   * and the event has not already started.
+   */
+  if (when === "tonight") {
+    if (eventDay !== todayDay) {
+      return false;
+    }
+
+    const eventMinutes =
+      eventParts.hour * 60 +
+      eventParts.minute;
+
+    const tonightStart = 17 * 60;
+
+    return (
+      eventMinutes >= tonightStart &&
+      eventDate.getTime() >= now.getTime()
+    );
+  }
+
+  /*
+   * Determine today's weekday using the Nairobi
+   * calendar date.
+   *
+   * Sunday = 0
+   * Monday = 1
+   * ...
+   * Saturday = 6
+   */
+  const todayWeekday =
+    new Date(todayDay).getUTCDay();
+
+  /*
+   * THIS WEEKEND
+   *
+   * Saturday and Sunday of the upcoming/current
+   * weekend.
+   */
+  if (when === "this-weekend") {
+    let daysUntilSaturday =
+      (6 - todayWeekday + 7) % 7;
+
+    /*
+     * If today is Sunday, use the following Saturday.
+     */
+    if (todayWeekday === 0) {
+      daysUntilSaturday = 6;
+    }
+
+    const saturdayDay =
+      todayDay +
+      daysUntilSaturday * DAY_MS;
+
+    const sundayDay =
+      saturdayDay + DAY_MS;
+
+    return (
+      (eventDay === saturdayDay ||
+        eventDay === sundayDay) &&
+      eventDate.getTime() >= now.getTime()
+    );
+  }
+
+  /*
+   * THIS WEEK
+   *
+   * Sunday through Saturday based on the
+   * Nairobi calendar.
+   */
+  if (when === "this-week") {
+    const startOfWeekDay =
+      todayDay -
+      todayWeekday * DAY_MS;
+
+    const endOfWeekDay =
+      startOfWeekDay + 6 * DAY_MS;
+
+    return (
+      eventDay >= startOfWeekDay &&
+      eventDay <= endOfWeekDay &&
+      eventDate.getTime() >= now.getTime()
+    );
+  }
+
+  /*
+   * THIS MONTH
+   *
+   * Current Nairobi calendar month and future only.
+   */
   if (when === "this-month") {
     return (
-      eventKenya.year === kenyaNow.year &&
-      eventKenya.month === kenyaNow.month
+      eventParts.year === nowParts.year &&
+      eventParts.month === nowParts.month &&
+      eventDate.getTime() >= now.getTime()
     );
   }
 
-  if (when === "this-week") {
-    const today = new Date(
-      `${kenyaNow.year}-${String(kenyaNow.month).padStart(2,"0")}-${String(kenyaNow.day).padStart(2,"0")}T00:00:00+03:00`
-    );
-
-    const eventDay = new Date(
-      `${eventKenya.year}-${String(eventKenya.month).padStart(2,"0")}-${String(eventKenya.day).padStart(2,"0")}T00:00:00+03:00`
-    );
-
-    const diff =
-      (eventDay.getTime() - today.getTime()) /
-      (1000 * 60 * 60 * 24);
-
-    return diff >= 0 && diff <= 7;
-  }
-
-  if (when === "this-weekend") {
-  const eventDay = new Date(
-    `${eventKenya.year}-${String(eventKenya.month).padStart(2,"0")}-${String(eventKenya.day).padStart(2,"0")}T00:00:00+03:00`
-  );
-
-  const day = eventDay.getDay();
-
-  return day === 6 || day === 0;
-}
-
-    return true;
+  /*
+   * Unknown filter values must never mean
+   * "show everything."
+   */
+  return false;
 }
 
 export default async function EventsPage({
-  
   searchParams,
 }: {
   searchParams: Promise<{
-  city?: string;
-  category?: string;
-  when?: string;
-  search?: string;
-}>;
-  }) {
+    city?: string;
+    category?: string;
+    when?: string;
+    search?: string;
+  }>;
+}) {
   const params = await searchParams;
 
   const selectedCity =
@@ -251,8 +295,10 @@ export default async function EventsPage({
 
   const selectedWhen =
     params.when || "upcoming";
-const selectedSearch =
-  params.search?.trim() || "";
+
+  const selectedSearch =
+    params.search?.trim() || "";
+
   /*
    * LOAD ACTIVE CITIES
    */
@@ -281,12 +327,6 @@ const selectedSearch =
 
   /*
    * CREATE CITY LOOKUP
-   *
-   * This is the important fix.
-   *
-   * Events contain city_id.
-   * We resolve that ID to the actual
-   * city record before filtering/rendering.
    */
   const cityMap =
     new Map<string, City>();
@@ -296,11 +336,11 @@ const selectedSearch =
   });
 
   /*
-   * LOAD APPROVED EVENTS ONLY
+   * LOAD APPROVED EVENTS
    */
   const {
     data: events,
-    error,
+    error: eventsError,
   } = await supabase
     .from("events")
     .select(
@@ -319,7 +359,7 @@ const selectedSearch =
         featured,
         city_id
       `
-            )
+    )
     .eq("status", "approved")
     .order("featured", {
       ascending: false,
@@ -328,15 +368,15 @@ const selectedSearch =
       ascending: true,
     });
 
-  if (error) {
+  if (eventsError) {
     console.error(
       "Error loading events:",
-      error
+      eventsError
     );
   }
 
   /*
-   * ATTACH CITY OBJECT TO EVERY EVENT
+   * ATTACH CITY DATA
    */
   const allEvents: Event[] =
     (events || []).map((event) => ({
@@ -350,26 +390,25 @@ const selectedSearch =
    * APPLY FILTERS
    */
   const eventList =
-  allEvents.filter((event) => {
-    return (
-      matchesSearch(
-        event,
-        selectedSearch
-      ) &&
-      matchesCity(
-        event,
-        selectedCity
-      ) &&
-      matchesCategory(
-        event,
-        selectedCategory
-      ) &&
-      matchesWhen(
-        event,
-        selectedWhen
-      )
+    allEvents.filter(
+      (event) =>
+        matchesSearch(
+          event,
+          selectedSearch
+        ) &&
+        matchesCity(
+          event,
+          selectedCity
+        ) &&
+        matchesCategory(
+          event,
+          selectedCategory
+        ) &&
+        matchesWhen(
+          event,
+          selectedWhen
+        )
     );
-  });
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -377,7 +416,6 @@ const selectedSearch =
       {/* HEADER */}
 
       <header className="border-b border-slate-200 bg-white">
-
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
 
           <Link
@@ -409,13 +447,11 @@ const selectedSearch =
           </nav>
 
         </div>
-
       </header>
 
       {/* HERO */}
 
       <section className="bg-slate-950">
-
         <div className="mx-auto max-w-7xl px-6 py-16 md:py-20">
 
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-400">
@@ -434,22 +470,21 @@ const selectedSearch =
           </p>
 
         </div>
-
       </section>
 
       {/* FILTERS */}
 
       <section className="border-b border-slate-200 bg-white">
 
-  <div className="mx-auto max-w-7xl space-y-5 px-6 py-6">
+        <div className="mx-auto max-w-7xl space-y-5 px-6 py-6">
 
-    <EventSearch
-      initialSearch={selectedSearch}
-    />
+          <EventSearch
+            initialSearch={selectedSearch}
+          />
 
-    <EventFilters
+          <EventFilters
             cities={CITY_OPTIONS}
-            categories={[...CATEGORY_OPTIONS]}
+            categories={CATEGORY_OPTIONS}
             selectedCity={selectedCity}
             selectedCategory={selectedCategory}
             selectedWhen={selectedWhen}
@@ -483,18 +518,13 @@ const selectedSearch =
           </div>
 
           <div className="hidden text-sm font-semibold text-slate-500 sm:block">
-
             {eventList.length}{" "}
-
             {eventList.length === 1
               ? "event"
               : "events"}
-
           </div>
 
         </div>
-
-        {/* EVENTS */}
 
         {eventList.length === 0 ? (
 
@@ -528,176 +558,12 @@ const selectedSearch =
 
           <div className="mt-10 grid gap-7 md:grid-cols-2 lg:grid-cols-3">
 
-            {eventList.map(
-              (event) => (
-
-                <article
-                  key={event.id}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-                >
-
-                  {/* IMAGE */}
-
-                  <div className="relative flex h-56 items-center justify-center overflow-hidden bg-slate-900">
-
-                    {event.image_url ? (
-
-                      <img
-                        src={event.image_url}
-                        alt={event.title}
-                        className="h-full w-full object-cover"
-                      />
-
-                    ) : (
-
-                      <div className="text-7xl">
-
-                        {event.category ===
-                          "Music & Nightlife"
-                          ? "🎵"
-                          : event.category ===
-                              "Food & Drink"
-                            ? "🍽️"
-                            : event.category ===
-                                "Adventure"
-                              ? "🧗"
-                              : event.category ===
-                                  "Sports"
-                                ? "⚽"
-                                : event.category ===
-                                    "Comedy"
-                                  ? "😂"
-                                  : "🎉"}
-
-                      </div>
-
-                    )}
-
-                    {event.featured && (
-
-                      <div className="absolute left-4 top-4 rounded-full bg-orange-500 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white">
-                        Featured
-                      </div>
-
-                    )}
-
-                  </div>
-
-                  {/* CONTENT */}
-
-                  <div className="p-6">
-
-                    <div className="flex items-center justify-between gap-3">
-
-                      <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-orange-600">
-                        {event.category}
-                      </span>
-
-                      <span className="text-xs font-semibold text-slate-400">
-                        {event.city
-                          ? event.city.name
-                          : "East Africa"}
-                      </span>
-
-                    </div>
-
-                    <h3 className="mt-4 text-xl font-black leading-tight">
-                      {event.title}
-                    </h3>
-
-                    <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-500">
-                      {event.description ||
-                        "Discover this event on SafariPlug."}
-                    </p>
-
-                    {/* DATE */}
-
-                    <div className="mt-5 flex gap-3">
-
-                      <div className="text-lg">
-                        📅
-                      </div>
-
-                      <div>
-
-                        <div className="text-sm font-bold">
-                          {formatDate(
-                            event.start_at
-                          )}
-                        </div>
-
-                        <div className="text-xs text-slate-500">
-                          {formatTime(
-                            event.start_at
-                          )}
-                        </div>
-
-                      </div>
-
-                    </div>
-
-                    {/* VENUE */}
-
-                    <div className="mt-4 flex gap-3">
-
-                      <div className="text-lg">
-                        📍
-                      </div>
-
-                      <div>
-
-                        <div className="text-sm font-bold">
-                          {event.venue_name ||
-                            "Venue to be announced"}
-                        </div>
-
-                        <div className="text-xs text-slate-500">
-
-                          {event.venue_address ||
-                            (
-                              event.city
-                                ? `${event.city.name}, ${event.city.country}`
-                                : "East Africa"
-                            )}
-
-                        </div>
-
-                      </div>
-
-                    </div>
-
-                    {/* PRICE */}
-
-                    <div className="mt-4 flex gap-3">
-
-                      <div className="text-lg">
-                        💰
-                      </div>
-
-                      <div className="text-sm font-bold">
-                        {formatPrice(
-                          event.price,
-                          event.currency
-                        )}
-                      </div>
-
-                    </div>
-
-                    {/* VIEW EVENT */}
-
-                    <Link
-                      href={`/events/${event.id}`}
-                      className="mt-7 flex w-full items-center justify-center rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white transition hover:bg-orange-600"
-                    >
-                      View Event
-                    </Link>
-
-                  </div>
-
-                </article>
-
-              )
-            )}
+            {eventList.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+              />
+            ))}
 
           </div>
 
