@@ -4,124 +4,146 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
 
 function createSlug(title: string) {
-  return (
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "") +
-    "-" +
-    Date.now()
-  );
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 export async function approveAIEvent(id: string) {
-  const { data: aiEvent, error: aiError } = await supabaseAdmin
-    .from("ai_discovered_events")
-    .select("*")
-    .eq("id", id)
-    .single();
 
-  if (aiError || !aiEvent) {
-    throw new Error("AI event not found");
-  }
-
-  if (aiEvent.status === "approved") {
-    revalidatePath("/admin/ai-events");
-    revalidatePath("/events");
-    return;
-  }
-
-  const { data: city, error: cityError } = await supabaseAdmin
-    .from("cities")
-    .select("id")
-    .ilike("name", aiEvent.city)
-    .single();
-
-  if (cityError || !city) {
-    throw new Error("City not found: " + aiEvent.city);
-  }
-
-  const { data: existingEvent, error: duplicateCheckError } =
+  // Get AI discovery
+  const { data: aiEvent, error: fetchError } =
     await supabaseAdmin
-      .from("events")
-      .select("id")
-      .eq("source_url", aiEvent.source_url)
-      .eq("title", aiEvent.title)
-      .eq("start_at", aiEvent.start_at)
-      .maybeSingle();
+      .from("ai_discovered_events")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-  if (duplicateCheckError) {
+  if (fetchError || !aiEvent) {
     throw new Error(
-      "Duplicate check failed: " + duplicateCheckError.message
+      "AI event not found: " + fetchError?.message
     );
   }
 
-  if (existingEvent) {
-    const { error: statusError } = await supabaseAdmin
+
+  // Find city
+  const knownCities = [
+  "Nairobi",
+  "Mombasa",
+  "Diani",
+  "Kilifi",
+  "Mtwapa",
+  "Malindi",
+  "Zanzibar",
+  "Kampala",
+  "Dar es Salaam"
+];
+
+let cityName = aiEvent.city;
+
+const matchedCity = knownCities.find((city) =>
+  aiEvent.city
+    ?.toLowerCase()
+    .includes(city.toLowerCase())
+);
+
+if (matchedCity) {
+  cityName = matchedCity;
+}
+
+
+const { data: city, error: cityError } =
+    await supabaseAdmin
+      .from("cities")
+      .select("id")
+      .ilike("name", cityName)
+      .single();
+
+
+  if (cityError || !city) {
+    throw new Error(
+      "City not found: " + aiEvent.city
+    );
+  }
+const cleanCategory =
+  aiEvent.category
+    ?.replace(cityName, "")
+    .trim() || "Experiences";
+
+
+  // Create slug
+  const slug = createSlug(aiEvent.title);
+
+
+  // Create live event
+  const { error: insertError } =
+    await supabaseAdmin
+      .from("events")
+      .insert({
+        title: aiEvent.title,
+        slug,
+
+        description: aiEvent.description,
+
+        city_id: city.id,
+
+        category: cleanCategory,
+
+        venue_name: aiEvent.venue_name,
+        venue_address: aiEvent.venue_address,
+
+        start_at: aiEvent.start_at,
+        end_at: aiEvent.end_at,
+
+        price: aiEvent.price,
+        currency: aiEvent.currency || "KES",
+
+        image_url: aiEvent.image_url,
+
+        source_url: aiEvent.source_url,
+        source_type: "AI_SCOUT",
+
+        organizer_name: aiEvent.organizer_name,
+
+        status: "approved",
+
+        featured: false,
+
+        verified: true,
+        verified_at: new Date().toISOString(),
+
+        ai_confidence: aiEvent.confidence
+      });
+
+
+  if (insertError) {
+    throw new Error(
+      "Failed creating live event: " +
+      insertError.message
+    );
+  }
+
+
+  // Mark AI discovery approved
+  const { error: updateError } =
+    await supabaseAdmin
       .from("ai_discovered_events")
       .update({
         status: "approved",
-        updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .eq("id", id);
 
-    if (statusError) {
-      throw new Error(
-        "Failed to update AI event status: " + statusError.message
-      );
-    }
 
-    revalidatePath("/admin/ai-events");
-    revalidatePath("/events");
-
-    return;
-  }
-
-  const slug = createSlug(aiEvent.title);
-
-  const { error: insertError } = await supabaseAdmin
-    .from("events")
-    .insert({
-      title: aiEvent.title,
-      slug,
-      description: aiEvent.description,
-      city_id: city.id,
-      venue_name: aiEvent.venue_name,
-      venue_address: aiEvent.venue_address,
-      category: aiEvent.category,
-      start_at: aiEvent.start_at,
-      end_at: aiEvent.end_at,
-      price: aiEvent.price,
-      currency: aiEvent.currency,
-      image_url: aiEvent.image_url,
-      source_url: aiEvent.source_url,
-      organizer_name: aiEvent.source_name,
-      status: "approved",
-      featured: false,
-    });
-
-  if (insertError) {
-    console.error("PUBLISH ERROR", insertError);
-
+  if (updateError) {
     throw new Error(
-      "Failed to publish event: " + insertError.message
+      "Failed updating AI event: " +
+      updateError.message
     );
   }
 
-  const { error: statusError } = await supabaseAdmin
-    .from("ai_discovered_events")
-    .update({
-      status: "approved",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-
-  if (statusError) {
-    throw new Error(
-      "Event published, but AI status update failed: " +
-        statusError.message
-    );
-  }
 
   revalidatePath("/admin/ai-events");
   revalidatePath("/events");

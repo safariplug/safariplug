@@ -360,7 +360,7 @@ venue_name,
 venue_address
 `
 )
-    .eq("status", "approved")
+    .in("status", ["approved", "published"])
     .order("featured", {
       ascending: false,
     })

@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 type City = {
   name: string;
@@ -96,6 +96,28 @@ function categoryLabel(category: string) {
   }
 }
 
+function fallbackImage(category: string) {
+  switch (category) {
+    case "Music & Nightlife":
+      return "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=85";
+
+    case "Food & Drink":
+      return "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=85";
+
+    case "Safari & Wildlife":
+      return "https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&w=1200&q=85";
+
+    case "Water Activities":
+      return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85";
+
+    case "Adventure":
+      return "https://images.unsplash.com/photo-1533130061792-64b345e4a833?auto=format&fit=crop&w=1200&q=85";
+
+    default:
+      return "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=1200&q=85";
+  }
+}
+
 function isValidImageUrl(value: string | null | undefined) {
   if (!value) {
     return false;
@@ -113,53 +135,111 @@ function isValidImageUrl(value: string | null | undefined) {
   }
 }
 
+function eventBadge(date: string) {
+  const eventDate = new Date(date);
+  const now = new Date();
+
+  const eventDay = new Date(
+    eventDate.getFullYear(),
+    eventDate.getMonth(),
+    eventDate.getDate()
+  );
+
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+
+  const diffDays = Math.round(
+    (eventDay.getTime() - today.getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays === 0) {
+    return "Tonight";
+  }
+
+  if (diffDays === 1) {
+    return "Tomorrow";
+  }
+
+  if (diffDays >= 2 && diffDays <= 6) {
+    return "This Week";
+  }
+
+  return "Upcoming";
+}
+
 export default function EventCard({
   event,
 }: {
   event: Event;
 }) {
-  const hasImage = isValidImageUrl(event.image_url);
+  const imageSource = isValidImageUrl(event.image_url)
+    ? event.image_url || fallbackImage(event.category)
+    : fallbackImage(event.category);
+
+  const timingBadge = eventBadge(event.start_at);
 
   return (
-    <article className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+    <article className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-2xl">
 
-      <div className="relative flex h-56 items-center justify-center overflow-hidden bg-slate-950">
+      <div className="relative h-64 overflow-hidden bg-slate-950">
 
-        {hasImage ? (
-          <img
-            src={event.image_url || ""}
-            alt={event.title}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <span className="rounded-full border border-slate-700 px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-400">
-              {categoryLabel(event.category)}
-            </span>
+        <img
+          src={imageSource}
+          alt={event.title}
+          className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+          loading="lazy"
+        />
+
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/10" />
+
+        <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+
+          <span className="rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-900 shadow-lg backdrop-blur">
+            {categoryLabel(event.category)}
+          </span>
+
+          {event.featured && (
+  <span className="rounded-full bg-orange-500 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+    ★ Featured
+  </span>
+)}
+
+        </div>
+
+        <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
+
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+              {event.city?.name || "East Africa"}
+            </div>
+
+            <div className="mt-1 text-sm font-bold text-white">
+              {timingBadge}
+            </div>
           </div>
-        )}
 
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          <span className="rounded-full bg-black/45 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white backdrop-blur">
+            SafariPlug
+          </span>
 
-        {event.featured && (
-          <div className="absolute left-4 top-4 rounded-full bg-orange-500 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white shadow-sm">
-            Featured
-          </div>
-        )}
+        </div>
 
       </div>
 
       <div className="p-6">
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
 
-          <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-orange-600">
-            {event.category}
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+            ✓ Verified
           </span>
 
-          <span className="truncate text-xs font-semibold text-slate-400">
-            {event.city?.name || "East Africa"}
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+            ✦ Discovery
           </span>
 
         </div>
@@ -173,70 +253,64 @@ export default function EventCard({
             "Discover this event on SafariPlug."}
         </p>
 
-        <div className="mt-5 flex gap-3">
-
-          <div className="text-lg">
-            Date
-          </div>
+        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-slate-100 pt-5">
 
           <div>
-            <div className="text-sm font-bold text-slate-900">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Date
+            </div>
+
+            <div className="mt-1 text-sm font-bold text-slate-900">
               {formatDate(event.start_at)}
             </div>
 
-            <div className="text-xs text-slate-500">
+            <div className="mt-0.5 text-xs font-medium text-slate-500">
               {formatTime(event.start_at)}
             </div>
           </div>
 
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Price
+            </div>
+
+            <div className="mt-1 text-sm font-bold text-slate-900">
+              {formatPrice(
+                event.price,
+                event.currency
+              )}
+            </div>
+          </div>
+
         </div>
 
-        <div className="mt-4 flex gap-3">
+        <div className="mt-5">
 
-          <div className="text-lg">
+          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
             Venue
           </div>
 
-          <div className="min-w-0">
-
-            <div className="truncate text-sm font-bold text-slate-900">
-              {event.venue_name ||
-                "Venue to be announced"}
-            </div>
-
-            <div className="truncate text-xs text-slate-500">
-              {event.venue_address ||
-                (event.city
-                  ? event.city.name +
-                    ", " +
-                    event.city.country
-                  : "East Africa")}
-            </div>
-
+          <div className="mt-1 truncate text-sm font-bold text-slate-900">
+            {event.venue_name ||
+              "Venue to be announced"}
           </div>
 
-        </div>
-
-        <div className="mt-4 flex gap-3">
-
-          <div className="text-lg">
-            Price
-          </div>
-
-          <div className="text-sm font-bold text-slate-900">
-            {formatPrice(
-              event.price,
-              event.currency
-            )}
+          <div className="mt-0.5 truncate text-xs text-slate-500">
+            {event.venue_address ||
+              (event.city
+                ? event.city.name +
+                  ", " +
+                  event.city.country
+                : "East Africa")}
           </div>
 
         </div>
 
         <Link
           href={"/events/" + event.id}
-          className="mt-7 flex w-full items-center justify-center rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white transition hover:bg-orange-600"
+          className="mt-7 flex w-full items-center justify-center rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-orange-600 hover:shadow-lg"
         >
-          View Event
+          View Event →
         </Link>
 
       </div>

@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 import Link from "next/link";
+import AIEventFilter from "@/components/admin/AIEventFilter";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { approveAIEvent } from "./actions/approve";
+import { rejectAIEvent } from "./actions/reject";
 
 const categories = [
   "All",
@@ -134,8 +136,11 @@ export default async function AIEventsPage() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("AI EVENTS PAGE ERROR:", error);
-  }
+  console.error(
+    "AI EVENTS PAGE ERROR:",
+    JSON.stringify(error, null, 2)
+  );
+}
 
   const allEvents = events || [];
 
@@ -335,27 +340,10 @@ export default async function AIEventsPage() {
 
           </div>
 
+</section>
 
-          {/* CATEGORY FILTER VISUAL */}
 
-          <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
-
-            {categories.map((category, index) => (
-              <span
-                key={category}
-                className={`shrink-0 rounded-full border px-4 py-2.5 text-xs font-black ${
-                  index === 0
-                    ? "border-slate-950 bg-slate-950 text-white"
-                    : "border-slate-200 bg-white text-slate-600"
-                }`}
-              >
-                {category}
-              </span>
-            ))}
-
-          </div>
-
-        </section>
+          
 
 
         {/* EVENTS */}
@@ -499,8 +487,8 @@ export default async function AIEventsPage() {
 
                             <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">
                               {confidenceLabel(
-                                event.confidence_score
-                              )}
+  event.confidence_score
+)}
                             </div>
 
                           </div>
@@ -606,6 +594,21 @@ export default async function AIEventsPage() {
                             </button>
                           </form>
                         )}
+{event.status === "pending_review" && (
+  <form
+    action={rejectAIEvent.bind(
+      null,
+      event.id
+    )}
+  >
+    <button
+      type="submit"
+      className="w-full rounded-xl border border-red-300 bg-white px-5 py-3 text-sm font-black text-red-600 transition hover:bg-red-50"
+    >
+      Reject
+    </button>
+  </form>
+)}
 
 
                         {event.status === "approved" && (
@@ -825,3 +828,6 @@ function EmptyState() {
     </div>
   );
 }
+
+
+

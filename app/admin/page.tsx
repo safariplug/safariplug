@@ -449,6 +449,17 @@ export default function AdminPage() {
 
                 <div className="p-6 md:p-8">
 
+                  {event.image_url && (
+                    <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                      <img
+                        src={event.image_url}
+                        alt={event.title}
+                        className="h-56 w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+
                   <div className="flex flex-col justify-between gap-6 lg:flex-row">
 
                     <div className="min-w-0 flex-1">

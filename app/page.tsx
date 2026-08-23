@@ -122,7 +122,9 @@ const { data: upcomingEvents } = await supabase
               <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)]" />
               East Africa's discovery platform
             </div>
-            <h1 className="max-w-5xl text-6xl font-black leading-[0.86] tracking-[-0.07em] text-white sm:text-7xl lg:text-[104px]">D</h1>
+            <h1 className="max-w-5xl text-6xl font-black leading-[0.86] tracking-[-0.07em] text-white sm:text-7xl lg:text-[104px]">
+  Find what&apos;s happening.
+</h1>
             <p className="mt-8 max-w-2xl text-lg leading-8 text-white/80 sm:text-xl">Events, experiences and places worth knowing — across East Africa.</p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <Link href="/events" className="rounded-full bg-white px-8 py-4 text-center text-sm font-black text-[#17231d] shadow-2xl transition duration-300 hover:-translate-y-1 hover:bg-[#f4eee3]">Explore what's happening —</Link>
@@ -205,7 +207,7 @@ const { data: upcomingEvents } = await supabase
                   </h3>
 
                   <p className="mt-3 max-w-xl leading-7 text-[#687269]">
-                    Nothing is happening tonight yet, but these are the next experiences worth planning for across East Africa.
+                    No events confirmed for tonight yet. Explore upcoming experiences worth planning for across East Africa.
                   </p>
 {upcomingEvents && upcomingEvents.length > 0 && (
   <div className="mt-6 space-y-3">
@@ -334,11 +336,11 @@ const { data: upcomingEvents } = await supabase
 
               <div>
                 <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-white/40">
-                  {featuredEvent?.category || "Featured Experience"}
+                  {featuredEvent?.title}
                 </p>
 
                 <h3 className="max-w-xl text-4xl font-black leading-tight tracking-[-0.04em] text-white sm:text-5xl">
-                  {featuredEvent?.title || "Friday Night DJ Experience"}
+                  {featuredEvent?.title}
                 </h3>
 
                 <p className="mt-5 max-w-lg leading-7 text-white/60">

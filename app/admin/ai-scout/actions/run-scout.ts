@@ -928,7 +928,7 @@ export async function runAIScout(
             confidence_score:
               confidence,
             status:
-              "pending_review",
+  "pending",
           });
 
       if (eventError) {
