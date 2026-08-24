@@ -26,6 +26,14 @@ export async function approveAIEvent(id: string) {
       "AI event not found: " + fetchError?.message
     );
   }
+  // Quality Gate
+  const reviewScore = aiEvent.review_score ?? 0;
+
+  if (reviewScore < 80) {
+    throw new Error(
+      `Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 80%.`
+    );
+  }
 
 
   // Find city
@@ -126,12 +134,27 @@ const cleanCategory =
   }
 
 
-  // Mark AI discovery approved
+    // Mark AI discovery approved + save review tracking
+
+  
   const { error: updateError } =
     await supabaseAdmin
       .from("ai_discovered_events")
       .update({
         status: "approved",
+
+        review_status: "approved",
+
+        review_score: reviewScore,
+
+        image_verified: Boolean(aiEvent.image_url),
+
+        reviewed_at: new Date().toISOString(),
+
+        review_notes: aiEvent.image_url
+          ? "Human approved. Official image available."
+          : "Human approved. Category fallback image used.",
+
         updated_at: new Date().toISOString()
       })
       .eq("id", id);

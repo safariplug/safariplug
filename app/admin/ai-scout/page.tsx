@@ -1,305 +1,284 @@
-﻿import { runAIScout } from "./actions/run-scout";
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { LOCATIONS } from "@/lib/constants/locations";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
+import RunScoutButton from "./components/RunScoutButton";
+import ScoutRunHistory from "./components/ScoutRunHistory";
 
-const locations = LOCATIONS.map((location) => location.name);
-
-
-const categories = [
-  "Music & Nightlife",
-  "Food & Drink",
-  "Beach",
-  "Safari",
-  "Adventure",
-  "Culture",
-  "Wellness",
-];
-
-async function getScoutStats() {
-  const { data: latestRun } = await supabaseAdmin
-    .from("ai_scout_runs")
-    .select("id, location, category, events_found, status, created_at, completed_at")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { count: waitingReview } = await supabaseAdmin
-    .from("ai_discovered_events")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "pending_review");
-
-  return {
-    latestRun,
-    waitingReview: waitingReview ?? 0,
-  };
-}
-
-function formatScanDate(date: string | null | undefined) {
-  if (!date) return "Not Started";
-
-  return new Date(date).toLocaleString("en-KE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default async function AIScoutPage() {
-  const { latestRun, waitingReview } = await getScoutStats();
 
-  const eventsFound = latestRun?.events_found ?? 0;
+  const supabase = await createSupabaseServerClient();
 
-  const scanStatus = latestRun?.status ?? "not_started";
+
+  const { data: runs } = await supabase
+    .from("ai_scout_runs")
+    .select("*")
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(10);
+
+
+
+  const { data: discoveries } = await supabase
+    .from("ai_discovered_events")
+    .select(
+      "id,title,status,source_name,confidence_score,created_at"
+    )
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(10);
+
+
+
+  const totalRuns = runs?.length || 0;
+
+
+  const pending =
+    discoveries?.filter(
+      (item) =>
+        item.status === "pending_review"
+    ).length || 0;
+
+
+
+  const approved =
+    discoveries?.filter(
+      (item) =>
+        item.status === "approved"
+    ).length || 0;
+
+
+
+  const confidence =
+    discoveries && discoveries.length
+      ? Math.round(
+          discoveries.reduce(
+            (total, item) =>
+              total +
+              (item.confidence_score || 0),
+            0
+          ) / discoveries.length
+        )
+      : 0;
+
+
 
   return (
-    <main className="min-h-screen bg-[#fffaf5] p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-6xl">
 
-        {/* Header */}
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-          <div>
-            <p className="text-sm font-black uppercase tracking-widest text-orange-500">
-              SafariPlug Intelligence
-            </p>
+    <main className="min-h-screen bg-[#f5f1e8] text-[#17231d]">
 
-            <h1 className="mt-3 text-5xl font-black">
-              AI Event Scout
-            </h1>
 
-            <p className="mt-3 max-w-xl text-slate-500">
-              Discover events, experiences and hidden gems across East Africa
-              before they appear on SafariPlug.
-            </p>
-          </div>
+      <header className="border-b bg-white">
+
+        <div className="mx-auto max-w-7xl px-6 py-8">
 
           <Link
-            href="/admin/ai-events"
-            className="rounded-full bg-slate-950 px-7 py-3 font-black text-white"
+            href="/admin"
+            className="text-sm font-bold text-gray-500"
           >
-            Review Discoveries â†’
+            ← Back to Admin
           </Link>
-        </div>
 
-        {/* Scout Form */}
-        <section className="mt-10 rounded-[32px] bg-white p-8 shadow">
-          <h2 className="text-3xl font-black">
-            Start Discovery Scan
-          </h2>
 
-          <p className="mt-2 text-slate-500">
-            Choose where the AI should search.
+          <h1 className="mt-5 text-5xl font-black">
+            SafariPlug AI Scout
+          </h1>
+
+
+          <p className="mt-3 text-gray-600">
+            Discovery intelligence engine monitoring East Africa experiences.
           </p>
 
-          <form
-  action={runAIScout}
-  className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
->
-            <div>
-              <label className="mb-2 block text-sm font-black">
-                Location
-              </label>
+        </div>
 
-              <select
-                name="location"
-                className="w-full rounded-xl border px-4 py-3 font-bold"
-                defaultValue="Mombasa"
-              >
-                {locations.map((location) => (
-                  <option key={location} value={location}>
-                    {location}
-                  </option>
-                ))}
-              </select>
-            </div>
+      </header>
 
-            <div>
-              <label className="mb-2 block text-sm font-black">
-                Category
-              </label>
 
-              <select
-                name="category"
-                className="w-full rounded-xl border px-4 py-3 font-bold"
-                defaultValue="Music & Nightlife"
-              >
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-orange-500 px-6 py-3 font-black text-white hover:bg-orange-600"
-              >
-                ðŸ”Ž Run AI Scout
-              </button>
-            </div>
-          </form>
-        </section>
+      <section className="mx-auto max-w-7xl px-6 py-10">
 
-        {/* Statistics */}
-        <section className="mt-10 grid gap-6 md:grid-cols-3">
 
-          {/* Last Scan */}
-          <div className="rounded-3xl bg-white p-6 shadow">
-            <p className="text-sm font-bold text-slate-400">
-              Last Scan
-            </p>
 
-            <p className="mt-3 text-2xl font-black">
-              {latestRun
-                ? formatScanDate(latestRun.created_at)
-                : "Not Started"}
-            </p>
+        <div className="grid gap-5 md:grid-cols-5">
 
-            {latestRun && (
-              <div className="mt-3 flex items-center gap-2">
-                <span
-                  className={`h-2.5 w-2.5 rounded-full ${
-                    scanStatus === "completed"
-                      ? "bg-green-500"
-                      : scanStatus === "running"
-                      ? "bg-orange-500"
-                      : scanStatus === "failed"
-                      ? "bg-red-500"
-                      : "bg-slate-400"
-                  }`}
-                />
 
-                <span className="text-sm font-bold capitalize text-slate-500">
-                  {scanStatus}
-                </span>
-              </div>
-            )}
+          <Metric
+            label="Scout Runs"
+            value={totalRuns}
+          />
 
-            {latestRun && (
-              <p className="mt-2 text-xs text-slate-400">
-                {latestRun.location} Â· {latestRun.category}
-              </p>
-            )}
-          </div>
 
-          {/* Events Found */}
-          <div className="rounded-3xl bg-white p-6 shadow">
-            <p className="text-sm font-bold text-slate-400">
-              Events Found
-            </p>
+          <Metric
+            label="Discoveries"
+            value={discoveries?.length || 0}
+          />
 
-            <p className="mt-3 text-4xl font-black">
-              {eventsFound}
-            </p>
 
-            <p className="mt-2 text-sm text-slate-400">
-              From the latest Scout scan
-            </p>
-          </div>
+          <Metric
+            label="Pending Review"
+            value={pending}
+          />
 
-          {/* Waiting Review */}
-          <div className="rounded-3xl bg-white p-6 shadow">
-            <p className="text-sm font-bold text-slate-400">
-              Waiting Review
-            </p>
 
-            <p className="mt-3 text-4xl font-black">
-              {waitingReview}
-            </p>
+          <Metric
+            label="Approved"
+            value={approved}
+          />
 
-            <p className="mt-2 text-sm text-slate-400">
-              AI discoveries awaiting approval
-            </p>
-          </div>
-        </section>
 
-        {/* Latest Run Details */}
-        {latestRun && (
-          <section className="mt-8 rounded-3xl bg-white p-6 shadow">
-            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-widest text-orange-500">
-                  Latest Scout Run
-                </p>
+          <Metric
+            label="Confidence"
+            value={`${confidence}%`}
+          />
 
-                <h2 className="mt-2 text-2xl font-black">
-                  {latestRun.location} Â· {latestRun.category}
-                </h2>
-              </div>
 
-              <div className="text-left md:text-right">
-                <p className="text-sm text-slate-400">
-                  Completed
-                </p>
+        </div>
 
-                <p className="font-bold">
-                  {latestRun.completed_at
-                    ? formatScanDate(latestRun.completed_at)
-                    : "Still running"}
-                </p>
-              </div>
-            </div>
-          </section>
-        )}
 
-        {/* Roadmap */}
-        <section className="mt-10 rounded-3xl bg-slate-950 p-8 text-white">
+
+
+
+        <div className="mt-10 rounded-3xl bg-white p-8 shadow-sm">
+
+
           <h2 className="text-3xl font-black">
-            AI Scout Roadmap
+            Scout Control
           </h2>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-            <div className="rounded-2xl bg-white/10 p-5">
-              <p className="font-black">
-                1. Discover
-              </p>
+          <p className="mt-2 text-gray-600">
+            Start a discovery run and send findings into human review.
+          </p>
 
-              <p className="mt-2 text-sm text-slate-300">
-                Find events and experiences.
-              </p>
-            </div>
 
-            <div className="rounded-2xl bg-white/10 p-5">
-              <p className="font-black">
-                2. Verify
-              </p>
 
-              <p className="mt-2 text-sm text-slate-300">
-                Score quality and reliability.
-              </p>
-            </div>
+          <div className="mt-6 flex gap-4">
 
-            <div className="rounded-2xl bg-white/10 p-5">
-              <p className="font-black">
-                3. Prepare
-              </p>
+            <RunScoutButton />
 
-              <p className="mt-2 text-sm text-slate-300">
-                Generate descriptions and content.
-              </p>
-            </div>
 
-            <div className="rounded-2xl bg-white/10 p-5">
-              <p className="font-black">
-                4. Publish
-              </p>
+            <Link
+              href="/admin/ai-events?tab=pending"
+              className="rounded-full bg-black px-6 py-3 font-bold text-white"
+            >
+              Review Queue
+            </Link>
 
-              <p className="mt-2 text-sm text-slate-300">
-                Human approval first.
-              </p>
-            </div>
 
           </div>
-        </section>
 
-      </div>
+
+        </div>
+
+
+
+
+
+        <div className="mt-10 rounded-3xl bg-white p-8 shadow-sm">
+
+
+          <h2 className="text-3xl font-black">
+            Latest Discoveries
+          </h2>
+
+
+
+          <div className="mt-6 space-y-4">
+
+
+            {discoveries?.map((item)=>(
+              
+              <div
+                key={item.id}
+                className="rounded-2xl bg-[#f5f1e8] p-5"
+              >
+
+                <h3 className="font-black">
+                  {item.title}
+                </h3>
+
+
+                <p className="text-sm text-gray-600">
+                  Source: {item.source_name || "Unknown"}
+                </p>
+
+
+                <p className="text-sm">
+                  Status: {item.status}
+                </p>
+
+
+                <p className="text-sm">
+                  Confidence: {item.confidence_score || 0}%
+                </p>
+
+
+              </div>
+
+            ))}
+
+
+          </div>
+
+
+        </div>
+
+
+
+
+
+        <div className="mt-10">
+
+          <ScoutRunHistory
+            runs={runs || []}
+          />
+
+        </div>
+
+
+
+
+      </section>
+
+
     </main>
+
   );
+
 }
 
 
+
+
+
+function Metric({
+  label,
+  value,
+}:{
+  label:string;
+  value:string|number;
+}) {
+
+
+  return (
+
+    <div className="rounded-3xl bg-white p-6 shadow-sm">
+
+      <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+        {label}
+      </p>
+
+
+      <p className="mt-3 text-3xl font-black">
+        {value}
+      </p>
+
+
+    </div>
+
+  );
+
+}

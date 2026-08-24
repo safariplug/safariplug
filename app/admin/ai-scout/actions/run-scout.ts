@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -292,9 +292,17 @@ async function fetchEventImage(
     }
 
     const html = await response.text();
-
     const candidates: string[] = [];
 
+    const addCandidate = (value: unknown) => {
+      if (typeof value !== "string" || !value.trim()) {
+        return;
+      }
+
+      candidates.push(value.trim());
+    };
+
+    // 1. Open Graph and Twitter card images.
     const metaPatterns = [
       /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
       /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
@@ -306,20 +314,92 @@ async function fetchEventImage(
       const match = html.match(pattern);
 
       if (match?.[1]) {
-        candidates.push(match[1]);
+        addCandidate(match[1]);
       }
     }
 
+    // 2. JSON-LD structured data.
+    const jsonLdMatches = html.matchAll(
+      /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+    );
+
+    const collectJsonImages = (value: unknown) => {
+      if (!value) {
+        return;
+      }
+
+      if (typeof value === "string") {
+        if (/^https?:\/\//i.test(value.trim())) {
+          addCandidate(value);
+        }
+
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          collectJsonImages(item);
+        }
+
+        return;
+      }
+
+      if (typeof value === "object") {
+        const obj = value as Record<string, unknown>;
+
+        if (typeof obj.image === "string") {
+          addCandidate(obj.image);
+        } else if (obj.image) {
+          collectJsonImages(obj.image);
+        }
+      }
+    };
+
+    for (const match of jsonLdMatches) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        collectJsonImages(parsed);
+      } catch {
+        continue;
+      }
+    }
+
+    // 3. Standard and lazy-loaded image elements.
     const imageMatches = html.matchAll(
-      /<img[^>]+(?:src|data-src|data-lazy-src)=["']([^"']+)["']/gi
+      /<img[^>]+(?:src|data-src|data-lazy-src|data-original)=["']([^"']+)["']/gi
     );
 
     for (const match of imageMatches) {
       if (match[1]) {
-        candidates.push(match[1]);
+        addCandidate(match[1]);
       }
     }
 
+    // 4. Responsive image sources.
+    const srcsetMatches = html.matchAll(
+      /(?:srcset|data-srcset)=["']([^"']+)["']/gi
+    );
+
+    for (const match of srcsetMatches) {
+      if (!match[1]) {
+        continue;
+      }
+
+      const entries = match[1]
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
+      for (const entry of entries) {
+        const parts = entry.split(/\s+/);
+
+        if (parts[0]) {
+          addCandidate(parts[0]);
+        }
+      }
+    }
+
+    // Validate candidates without inventing or generating images.
     for (const rawCandidate of candidates) {
       try {
         const imageUrl = new URL(
@@ -632,12 +712,20 @@ export async function runAIScout(
       "Search broadly across the live web.",
       "",
       "PRIORITY SOURCES:",
-      "1. Official event websites.",
-      "2. Official venue websites.",
-      "3. Official organizer websites.",
+      "1. Official organizer social accounts or public event pages.",
+      "2. Official event websites.",
+      "3. Official venue websites or public venue social accounts.",
       "4. Official ticketing platforms.",
       "5. Reputable event directories.",
       "6. Reputable local publications.",
+      "",
+      "SOCIAL MEDIA DISCOVERY:",
+      "Search public social-media sources when relevant, especially Instagram, Facebook, TikTok, and X.",
+      "Look for official organizer accounts, official venue accounts, event-specific posts, event posters, and public event announcements.",
+      "Prefer official organizer or venue social accounts over reposts.",
+      "A public social-media source may be used when it clearly identifies the event and supports its major details.",
+      "Do not treat random reposts, comments, or unverified accounts as sufficient evidence.",
+      "When a social post is used, preserve its direct public URL as source_url.",
       "",
       "Avoid low-quality pages when stronger evidence exists.",
       "",
@@ -928,7 +1016,7 @@ export async function runAIScout(
             confidence_score:
               confidence,
             status:
-  "pending",
+  "pending_review",
           });
 
       if (eventError) {

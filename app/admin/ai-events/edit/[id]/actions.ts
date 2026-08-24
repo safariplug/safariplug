@@ -19,6 +19,10 @@ export async function updateAIEvent(
   const priceRaw = String(formData.get("price") ?? "").trim();
   const currency = String(formData.get("currency") ?? "").trim();
 
+  const reviewScore = Number(
+    formData.get("review_score") ?? 0
+  );
+
   if (!title) {
     throw new Error("Title is required.");
   }
@@ -58,20 +62,7 @@ export async function updateAIEvent(
     throw new Error("Start date and time are required.");
   }
 
-  console.log("UPDATE AI EVENT", {
-    id,
-    title,
-    category,
-    city,
-    venueName,
-    venueAddress,
-    startAt,
-    endAt,
-    price,
-    currency,
-  });
-
-  const { data, error } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from("ai_discovered_events")
     .update({
       title,
@@ -84,16 +75,12 @@ export async function updateAIEvent(
       end_at: endAt,
       price,
       currency: currency || null,
+
+      review_score: reviewScore,
+
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id)
-    .select()
-    .single();
-
-  console.log("SUPABASE UPDATE RESULT", {
-    data,
-    error,
-  });
+    .eq("id", id);
 
   if (error) {
     throw new Error(
@@ -107,6 +94,7 @@ export async function updateAIEvent(
   redirect(`/admin/ai-events/edit/${id}`);
 }
 
+
 export async function publishAIEvent(id: string) {
   const { approveAIEvent } =
     await import("../../actions/approve");
@@ -116,11 +104,13 @@ export async function publishAIEvent(id: string) {
   redirect("/admin/ai-events");
 }
 
+
 export async function rejectAIEvent(id: string) {
   const { error } = await supabaseAdmin
     .from("ai_discovered_events")
     .update({
       status: "rejected",
+      review_status: "rejected",
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

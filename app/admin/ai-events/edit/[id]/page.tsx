@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { fallbackImage } from "@/lib/constants/event-images";
 import {
   updateAIEvent,
   publishAIEvent,
@@ -10,8 +11,7 @@ export default async function EditAIEventPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const resolvedParams = await params;
-  const id = resolvedParams.id;
+  const { id } = await params;
 
   const { data: event, error } = await supabaseAdmin
     .from("ai_discovered_events")
@@ -27,31 +27,52 @@ export default async function EditAIEventPage({
             Event not found
           </h1>
 
-          <div className="mt-6 rounded-2xl bg-slate-100 p-5 font-mono text-sm">
-            <p>
-              <strong>ID:</strong> {id}
-            </p>
-
-            <p className="mt-2">
-              <strong>Error:</strong>{" "}
-              {error ? JSON.stringify(error) : "none"}
-            </p>
-          </div>
+          <p className="mt-4 text-slate-600">
+            {error ? JSON.stringify(error) : "No event found."}
+          </p>
         </div>
       </main>
     );
   }
 
+  const reviewChecks = [
+    {
+      label: event.image_url
+        ? "Official image found"
+        : "Fallback image only",
+      passed: Boolean(event.image_url),
+    },
+    {
+      label: "Description found",
+      passed: Boolean(event.description),
+    },
+    {
+      label: "Date found",
+      passed: Boolean(event.start_at),
+    },
+    {
+      label: "Venue found",
+      passed: Boolean(event.venue_name),
+    },
+    {
+      label: "Source verified",
+      passed: Boolean(event.source_url),
+    },
+  ];
+
+  const readinessScore = Math.round(
+    (reviewChecks.filter((check) => check.passed).length /
+      reviewChecks.length) *
+      100
+  );
+const missingChecks = reviewChecks.filter(
+  (check) => !check.passed
+);
+
   const formatDateTimeLocal = (value: string | null) => {
     if (!value) return "";
 
-    const trimmed = value.trim();
-
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(trimmed)) {
-      return trimmed.slice(0, 16);
-    }
-
-    const date = new Date(trimmed);
+    const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
       return "";
@@ -71,37 +92,48 @@ export default async function EditAIEventPage({
       <div className="mx-auto max-w-5xl">
 
         <h1 className="text-5xl font-black">
-          Edit AI Discovery
+          AI Discovery Review
         </h1>
 
         <p className="mt-3 text-slate-500">
-          Review and improve AI generated event details before publishing.
+          Review, improve, and approve AI discovered events before publishing.
         </p>
 
+
         <form
-          action={updateAIEvent.bind(null, event.id)}
-          className="mt-10 rounded-3xl bg-white p-8 shadow"
-        >
-          <div className="grid gap-6">
+  action={updateAIEvent.bind(null, event.id)}
+  className="mt-10 rounded-3xl bg-white p-8 shadow"
+>
 
-            <input
-              type="hidden"
-              name="id"
-              value={event.id}
-            />
+  <input
+    type="hidden"
+    name="review_score"
+    value={readinessScore}
+  />
 
-            <div>
-              <label className="font-black">
-                Title
-              </label>
+  <div className="grid gap-6">
 
-              <input
-                name="title"
-                defaultValue={event.title ?? ""}
-                className="mt-2 w-full rounded-xl border p-3"
-                required
-              />
-            </div>
+            {[
+              ["title", "Title", event.title],
+              ["category", "Category", event.category],
+              ["city", "City", event.city],
+              ["venue_name", "Venue", event.venue_name],
+              ["venue_address", "Venue Address", event.venue_address],
+              ["currency", "Currency", event.currency],
+            ].map(([name, label, value]) => (
+              <div key={name}>
+                <label className="font-black">
+                  {label}
+                </label>
+
+                <input
+                  name={name}
+                  defaultValue={value ?? ""}
+                  className="mt-2 w-full rounded-xl border p-3"
+                />
+              </div>
+            ))}
+
 
             <div>
               <label className="font-black">
@@ -115,63 +147,6 @@ export default async function EditAIEventPage({
               />
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-
-              <div>
-                <label className="font-black">
-                  Category
-                </label>
-
-                <input
-                  name="category"
-                  defaultValue={event.category ?? ""}
-                  className="mt-2 w-full rounded-xl border p-3"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="font-black">
-                  City
-                </label>
-
-                <input
-                  name="city"
-                  defaultValue={event.city ?? ""}
-                  className="mt-2 w-full rounded-xl border p-3"
-                  required
-                />
-              </div>
-
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-
-              <div>
-                <label className="font-black">
-                  Venue
-                </label>
-
-                <input
-                  name="venue_name"
-                  defaultValue={event.venue_name ?? ""}
-                  className="mt-2 w-full rounded-xl border p-3"
-                />
-              </div>
-
-              <div>
-                <label className="font-black">
-                  Venue Address
-                </label>
-
-                <input
-                  name="venue_address"
-                  defaultValue={event.venue_address ?? ""}
-                  className="mt-2 w-full rounded-xl border p-3"
-                />
-              </div>
-
-            </div>
 
             <div className="grid gap-5 md:grid-cols-2">
 
@@ -188,6 +163,7 @@ export default async function EditAIEventPage({
                 />
               </div>
 
+
               <div>
                 <label className="font-black">
                   End
@@ -203,38 +179,20 @@ export default async function EditAIEventPage({
 
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
 
-              <div>
-                <label className="font-black">
-                  Price
-                </label>
+            <div>
+              <label className="font-black">
+                Price
+              </label>
 
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  name="price"
-                  defaultValue={event.price ?? ""}
-                  className="mt-2 w-full rounded-xl border p-3"
-                  placeholder="Leave blank if free / TBA"
-                />
-              </div>
-
-              <div>
-                <label className="font-black">
-                  Currency
-                </label>
-
-                <input
-                  name="currency"
-                  defaultValue={event.currency ?? ""}
-                  className="mt-2 w-full rounded-xl border p-3"
-                  placeholder="KES"
-                />
-              </div>
-
+              <input
+                type="number"
+                name="price"
+                defaultValue={event.price ?? ""}
+                className="mt-2 w-full rounded-xl border p-3"
+              />
             </div>
+
 
             <button
               type="submit"
@@ -244,13 +202,16 @@ export default async function EditAIEventPage({
             </button>
 
           </div>
+
         </form>
 
-        <div className="mt-8 rounded-3xl bg-slate-950 p-8 text-white">
+
+        <section className="mt-8 rounded-3xl bg-slate-950 p-8 text-white">
 
           <h2 className="text-2xl font-black">
             AI Verification
           </h2>
+
 
           <div className="mt-4 space-y-2">
 
@@ -266,24 +227,125 @@ export default async function EditAIEventPage({
               Status: {event.status}
             </p>
 
+            <p className="text-xl font-black">
+              Readiness Score: {readinessScore}%
+            </p>
+
           </div>
 
-        </div>
 
+          <div className="mt-6 space-y-3">
+
+            {reviewChecks.map((check) => (
+              <div
+                key={check.label}
+                className="flex justify-between rounded-xl bg-white/10 p-4"
+              >
+
+                <span>
+                  {check.label}
+                </span>
+
+                <span>
+                  {check.passed
+                    ? "✓ Ready"
+                    : "⚠ Review"}
+                </span>
+
+              </div>
+            ))}
+
+          </div>
+
+        </section>
+
+
+        <section className="mt-8 rounded-3xl bg-white p-8 shadow">
+
+          <h2 className="text-2xl font-black">
+            Source Evidence
+          </h2>
+
+
+          <p className="mt-4 font-bold">
+            {event.source_name}
+          </p>
+
+
+          {event.source_url && (
+            <a
+              href={event.source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-block text-orange-600 font-black"
+            >
+              Open Source →
+            </a>
+          )}
+
+
+          <div className="mt-6">
+
+            <h3 className="font-black">
+              Event Image
+            </h3>
+
+
+            <img
+              src={
+                event.image_url ||
+                fallbackImage(event.category || "")
+              }
+              alt={event.title}
+              className="mt-3 h-64 w-full rounded-2xl object-cover"
+            />
+
+
+            {!event.image_url && (
+              <p className="mt-3 text-sm text-slate-500">
+                No official image found. Category fallback displayed.
+              </p>
+            )}
+
+          </div>
+
+        </section>
+
+{missingChecks.length > 0 && (
+  <div className="mt-8 rounded-3xl bg-amber-50 p-6 text-amber-900">
+    <h3 className="font-black">
+      Review Items Before Publishing
+    </h3>
+
+    <ul className="mt-3 list-disc pl-5">
+      {missingChecks.map((check) => (
+        <li key={check.label}>
+          {check.label}
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
         <div className="mt-8 flex gap-4">
 
           <form action={publishAIEvent.bind(null, event.id)}>
-            <button
-              type="submit"
-              className="rounded-xl bg-green-600 px-8 py-4 font-black text-white"
-            >
-              Publish Event
-            </button>
-          </form>
+  <button
+    disabled={readinessScore < 80}
+    className={
+      readinessScore < 80
+        ? "rounded-xl bg-gray-400 px-8 py-4 font-black text-white cursor-not-allowed"
+        : "rounded-xl bg-green-600 px-8 py-4 font-black text-white"
+    }
+  >
+    {readinessScore < 80
+      ? "Needs Review"
+      : "Publish Event"}
+  </button>
+</form>
+
 
           <form action={rejectAIEvent.bind(null, event.id)}>
             <button
-              type="submit"
               className="rounded-xl bg-red-600 px-8 py-4 font-black text-white"
             >
               Reject
@@ -291,6 +353,7 @@ export default async function EditAIEventPage({
           </form>
 
         </div>
+
 
       </div>
     </main>

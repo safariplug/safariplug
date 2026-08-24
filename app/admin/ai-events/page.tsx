@@ -110,7 +110,13 @@ function isSuspiciousSource(
   );
 }
 
-export default async function AIEventsPage() {
+export default async function AIEventsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const params = await searchParams;
+  const tab = params.tab || "all";
   const { data: events, error } = await supabaseAdmin
     .from("ai_discovered_events")
     .select(`
@@ -155,6 +161,14 @@ export default async function AIEventsPage() {
   const rejectedEvents = allEvents.filter(
     (event) => event.status === "rejected"
   );
+const displayedEvents =
+  tab === "pending"
+    ? pendingEvents
+    : tab === "approved"
+    ? approvedEvents
+    : tab === "rejected"
+    ? rejectedEvents
+    : allEvents;
 
   const realDiscoveries = allEvents.filter(
     (event) =>
@@ -337,6 +351,37 @@ export default async function AIEventsPage() {
             <div className="rounded-full bg-white px-4 py-2 text-xs font-black text-slate-500 shadow-sm ring-1 ring-slate-200">
               {pendingEvents.length} waiting for review
             </div>
+<div className="flex flex-wrap gap-3 mt-5">
+
+  <Link
+    href="/admin/ai-events"
+    className="rounded-full bg-slate-950 px-5 py-2 text-xs font-black text-white"
+  >
+    All ({allEvents.length})
+  </Link>
+
+  <Link
+    href="/admin/ai-events?tab=pending"
+    className="rounded-full bg-orange-500 px-5 py-2 text-xs font-black text-white"
+  >
+    Needs Review ({pendingEvents.length})
+  </Link>
+
+  <Link
+    href="/admin/ai-events?tab=approved"
+    className="rounded-full bg-green-600 px-5 py-2 text-xs font-black text-white"
+  >
+    Published ({approvedEvents.length})
+  </Link>
+
+  <Link
+    href="/admin/ai-events?tab=rejected"
+    className="rounded-full bg-red-600 px-5 py-2 text-xs font-black text-white"
+  >
+    Rejected ({rejectedEvents.length})
+  </Link>
+
+</div>
 
           </div>
 
@@ -358,7 +403,7 @@ export default async function AIEventsPage() {
 
             <div className="space-y-5">
 
-              {allEvents.map((event) => {
+              {displayedEvents.map((event) => {
 
                 const suspicious = isSuspiciousSource(
                   event.source_name,

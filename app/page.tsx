@@ -1,617 +1,296 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { LOCATIONS } from "@/lib/constants/locations";
 
-const locations = LOCATIONS.map((location) => [
-  location.name,
-  location.description,
-  location.query,
-]);
-
-const interestImages: Record<string, string> = {
-  "Music & Nightlife": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=85",
-  "Food & Drink": "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=85",
-  "Beach": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85",
-  "Safari": "https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&w=1200&q=85",
-  "Adventure": "https://images.unsplash.com/photo-1533130061792-64b345e4a833?auto=format&fit=crop&w=1200&q=85",
-  "Culture": "https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?auto=format&fit=crop&w=1200&q=85",
-};
-
-const destinationImages: Record<string, string> = {
-  "Nairobi": "https://images.unsplash.com/photo-1610296669228-602fa827fc1f?auto=format&fit=crop&w=1200&q=85",
-  "Mombasa": "https://images.unsplash.com/photo-1565552629473-3c5c6f5b7f3f?auto=format&fit=crop&w=1200&q=85",
-  "Diani": "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=85",
-  "Mtwapa": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=85",
-  "Kilifi": "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=85",
-  "Watamu": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85",
-  "Malindi": "https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=1200&q=85",
-  "Lamu": "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=85",
-};
-
-const interests = [
-  ["Music & Nightlife", "DJs, live music, parties and late nights", "Music%20%26%20Nightlife"],
-  ["Food & Drink", "Restaurants, dinners, cocktails and food spots", "Food%20%26%20Drink"],
-  ["Beach", "Beach clubs, ocean days and coastal escapes", "Beach"],
-  ["Safari", "Wildlife, lodges and unforgettable escapes", "Safari"],
-  ["Adventure", "Outdoor experiences, nature and adrenaline", "Adventure"],
-  ["Culture", "Art, heritage, communities and local life", "Culture"],
+const categories = [
+  {
+    title: "Music & Nightlife",
+    text: "DJs, live music, parties and late nights",
+    image:
+      "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    title: "Food & Drink",
+    text: "Restaurants, cocktails and local favourites",
+    image:
+      "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    title: "Beach",
+    text: "Coastal escapes and ocean experiences",
+    image:
+      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
+  },
 ];
 
 export default async function HomePage() {
-  const kenyaDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" }).format(new Date());
-
-  const startOfTonight = new Date(`${kenyaDate}T18:00:00+03:00`);
-  const endOfTonight = new Date(`${kenyaDate}T23:59:59+03:00`);
-
-  const { data: featuredEvent } = await supabase
+  const { data: featured } = await supabase
     .from("events")
-    .select("id, title, description, category, start_at, venue_name, price, currency, image_url")
+    .select(
+      "id,title,description,image_url,venue_name,start_at,price,currency"
+    )
     .eq("status", "approved")
-    .eq("featured", true)
+    .order("featured", { ascending: false })
     .order("start_at", { ascending: true })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  const { data: tonightEvents } = await supabase
+  const { data: upcoming } = await supabase
     .from("events")
-    .select("id, title, description, category, start_at, venue_name, price, currency, image_url")
+    .select(
+      "id,title,description,image_url,venue_name,start_at"
+    )
     .eq("status", "approved")
-    .gte("start_at", startOfTonight.toISOString())
-    .lte("start_at", endOfTonight.toISOString())
+    .gte("start_at", new Date().toISOString())
     .order("start_at", { ascending: true })
     .limit(3);
-const { data: upcomingEvents } = await supabase
-  .from("events")
-  .select("id, title, description, category, start_at, venue_name, price, currency, image_url")
-  .eq("status", "approved")
-  .gte("start_at", new Date().toISOString())
-  .order("start_at", { ascending: true })
-  .limit(3);
+
   return (
-    <main className="min-h-screen bg-[#f5f2eb] text-[#17231d]">
-      {/* NAVIGATION */}
-      <header className="absolute left-0 right-0 top-0 z-50">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-10">
-          <Link href="/" className="group flex items-center gap-3">
-            <img src="/brand/safariplug-wordmark-light.png" alt="SafariPlug" className="h-9 w-auto object-contain" />
+    <main className="min-h-screen bg-[#f5f1e8] text-[#17231d]">
+
+      <header className="absolute top-0 z-50 w-full">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
+
+          <Link href="/">
+            <img
+              src="/brand/safariplug-wordmark-light.png"
+              alt="SafariPlug"
+              className="h-10"
+            />
           </Link>
 
-          <nav className="hidden items-center gap-8 md:flex">
-            <Link
-              href="/"
-              className="text-sm font-semibold text-white transition hover:text-white/70"
-            >
-              Home
-            </Link>
+          <nav className="hidden gap-8 md:flex">
 
             <Link
               href="/events"
-              className="text-sm font-semibold text-white/80 transition hover:text-white"
+              className="font-semibold text-white"
             >
               Discover
             </Link>
 
             <Link
               href="/submit"
-              className="rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white hover:text-[#17231d]"
+              className="rounded-full bg-white px-5 py-2 font-bold"
             >
-              List Your Experience
+              List Experience
             </Link>
+
           </nav>
 
-          <Link
-            href="/events"
-            className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-[#17231d] shadow-lg md:hidden"
-          >
-            Discover
-          </Link>
         </div>
       </header>
 
-      {/* HERO */}
-      <section className="relative flex min-h-[780px] items-end overflow-hidden bg-[#111914]">
-        <div className="absolute inset-0">
-          <img src="https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=2200&q=90" alt="African landscape" className="h-full w-full scale-[1.02] object-cover" />
-        </div>
-        <div className="absolute inset-0 bg-black/30" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#06100a]/90 via-[#06100a]/45 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#111914] via-[#111914]/15 to-black/10" />
-        <div className="relative mx-auto w-full max-w-7xl px-6 pb-24 pt-44 lg:px-10 lg:pb-32">
-          <div className="max-w-5xl">
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-white backdrop-blur-md">
-              <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)]" />
-              East Africa's discovery platform
-            </div>
-            <h1 className="max-w-5xl text-6xl font-black leading-[0.86] tracking-[-0.07em] text-white sm:text-7xl lg:text-[104px]">
-  Find what&apos;s happening.
-</h1>
-            <p className="mt-8 max-w-2xl text-lg leading-8 text-white/80 sm:text-xl">Events, experiences and places worth knowing — across East Africa.</p>
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-              <Link href="/events" className="rounded-full bg-white px-8 py-4 text-center text-sm font-black text-[#17231d] shadow-2xl transition duration-300 hover:-translate-y-1 hover:bg-[#f4eee3]">Explore what's happening —</Link>
-              <Link href="/events?when=tonight" className="rounded-full border border-white/25 bg-white/10 px-8 py-4 text-center text-sm font-bold text-white backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:bg-white/20">What's happening tonight</Link>
-            </div>
-          </div>
-        </div>
-        <div className='absolute bottom-7 right-6 hidden text-right text-[10px] font-black uppercase tracking-[0.28em] text-white/45 lg:block lg:right-10'>Find your next thing</div>
-      </section>
-      {/* QUICK DISCOVER */}
-      <section className="border-b border-black/5 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-6 py-5 lg:px-10">
-          <span className="mr-2 text-xs font-black uppercase tracking-[0.2em] text-[#687269]">
-            Quick discover
-          </span>
 
-          {[
-            ["Tonight", "/events?when=tonight"],
-            ["This weekend", "/events?when=this-weekend"],
-            ["Experiences", "/events?type=experiences"],
-            ["Hidden gems", "/events?type=hidden-gems"],
-          ].map(([label, href]) => (
-            <Link
-              key={label}
-              href={href}
-              className="rounded-full border border-black/10 px-5 py-2.5 text-sm font-semibold transition hover:border-[#17231d] hover:bg-[#17231d] hover:text-white"
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
-      </section>
+      <section className="relative flex min-h-[760px] items-end overflow-hidden">
 
-      {/* TONIGHT */}
-      <section className="mx-auto max-w-7xl px-6 py-24 lg:px-10">
-        <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
-          <div>
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#8a7251]">
-              Happening now
-            </p>
+        <img
+          src="https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=2200&q=90"
+          alt="East Africa"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
 
-            <h2 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">
-              What&apos;s on tonight?
-            </h2>
+        <div className="absolute inset-0 bg-black/50" />
 
-            <p className="mt-4 max-w-xl text-base leading-7 text-[#687269]">
-              Find something worth getting out for tonight.
-            </p>
-          </div>
 
-          <Link
-            href="/events?when=tonight"
-            className="font-bold text-[#17231d] underline decoration-black/20 underline-offset-4"
-          >
-            See everything tonight →
-          </Link>
-        </div>
+        <div className="relative mx-auto max-w-7xl px-6 pb-32">
 
-        <div className="mt-10 overflow-hidden rounded-[2rem] bg-[#e8e4db]">
-          <div className="grid min-h-[280px] items-center gap-8 p-8 sm:p-12 md:grid-cols-[1fr_auto]">
-            <div>
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl">
-                ✦
-              </div>
-
-              {tonightEvents && tonightEvents.length > 0 ? (
-                <>
-                  <h3 className="text-2xl font-black">
-                    {tonightEvents[0].title}
-                  </h3>
-
-                  <p className="mt-3 max-w-xl leading-7 text-[#687269]">
-                    {tonightEvents[0].description || "Worth experiencing across East Africa."}
-                  </p>
-                </>
-                            ) : (
-                <>
-                  <h3 className="text-2xl font-black">
-                    Coming up next.
-                  </h3>
-
-                  <p className="mt-3 max-w-xl leading-7 text-[#687269]">
-                    No events confirmed for tonight yet. Explore upcoming experiences worth planning for across East Africa.
-                  </p>
-{upcomingEvents && upcomingEvents.length > 0 && (
-  <div className="mt-6 space-y-3">
-    {upcomingEvents.slice(0, 3).map((event) => (
-      <Link
-        key={event.id}
-        href={`/events/${event.id}`}
-        className="block rounded-2xl bg-white px-5 py-4 transition hover:-translate-y-0.5"
-      >
-        <div className="font-bold">
-          {event.title}
-        </div>
-
-        <div className="mt-1 text-sm text-[#687269]">
-          {event.venue_name}
-        </div>
-      </Link>
-    ))}
-  </div>
-)}
-                </>
-              )}
-            </div>
-
-            <Link
-              href="/events"
-              className="rounded-full bg-[#17231d] px-6 py-3.5 text-center text-sm font-bold text-white transition hover:opacity-90"
-            >
-              Explore upcoming →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* EXPLORE CARDS */}
-      <section className="bg-[#17231d] py-24 text-white">
-        <div className="mx-auto max-w-7xl px-6 lg:px-10">
-          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div>
-              <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-white/40">
-                Start exploring
-              </p>
-
-              <h2 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">
-                Find your next thing.
-              </h2>
-            </div>
-
-            <Link
-              href="/events"
-              className="text-sm font-bold text-white/70 transition hover:text-white"
-            >
-              Explore everything →
-            </Link>
-          </div>
-
-          <div className="mt-12 grid gap-px overflow-hidden rounded-[2rem] bg-white/10 md:grid-cols-4">
-            {[
-              ["01", "Tonight", "What's happening right now", "/events?when=tonight"],
-              ["02", "Events", "Music, culture and nightlife", "/events?type=events"],
-              ["03", "Experiences", "Things worth getting out for", "/events?type=experiences"],
-              ["04", "Hidden Gems", "Places most people miss", "/events?type=hidden-gems"],
-            ].map(([number, title, text, href]) => (
-              <Link
-                href={href}
-                key={number}
-                className="group flex min-h-[250px] flex-col justify-between bg-[#1f3026] p-7 transition hover:bg-[#294031]"
-              >
-                <div className="text-xs font-black tracking-[0.2em] text-white/35">
-                  {number}
-                </div>
-
-                <div>
-                  <h3 className="text-2xl font-black">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-white/55">
-                    {text}
-                  </p>
-                </div>
-
-                <div className="text-right text-xl text-white/40 transition group-hover:translate-x-1 group-hover:text-white">
-                  →
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* FEATURED */}
-      <section className="mx-auto max-w-7xl px-6 py-24 lg:px-10">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#8a7251]">
-              Editor&apos;s pick
-            </p>
-
-            <h2 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">
-              Worth knowing about.
-            </h2>
-          </div>
-
-          <span className="text-sm font-semibold text-[#687269]">
-            Selected by SafariPlug
-          </span>
-        </div>
-
-        <Link
-          href={featuredEvent ? `/events/${featuredEvent.id}` : "/events"}
-          className="group mt-10 grid overflow-hidden rounded-[2rem] bg-[#e8e4db] md:grid-cols-[1.05fr_0.95fr]"
-        >
-          <div className="relative min-h-[420px] overflow-hidden bg-[#24382b] p-8 sm:p-12">
-             {featuredEvent?.image_url ? (
-               <>
-                 <img src={featuredEvent.image_url} alt={featuredEvent.title || "Featured experience"} className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105" />
-                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/20" />
-               </>
-             ) : null}
-            <div className="relative z-10 flex h-full flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="rounded-full bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white">
-                  Featured
-                </span>
-
-                <span className="text-sm text-white/50">01</span>
-              </div>
-
-              <div>
-                <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-white/40">
-                  {featuredEvent?.title}
-                </p>
-
-                <h3 className="max-w-xl text-4xl font-black leading-tight tracking-[-0.04em] text-white sm:text-5xl">
-                  {featuredEvent?.title}
-                </h3>
-
-                <p className="mt-5 max-w-lg leading-7 text-white/60">
-                  {featuredEvent?.description || "An experience worth discovering across East Africa."}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col justify-between p-8 sm:p-12">
-            <div className="grid gap-7 sm:grid-cols-2">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8a7251]">
-                  When
-                </p>
-                <p className="mt-2 font-bold">{featuredEvent ? new Date(featuredEvent.start_at).toLocaleString("en-GB", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Coming soon"}</p>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8a7251]">
-                  Where
-                </p>
-                <p className="mt-2 font-bold">{featuredEvent?.venue_name || "East Africa"}</p>
-              </div>
-            </div>
-
-            <div className="mt-12 flex items-center justify-between gap-6 border-t border-black/10 pt-6">
-              <span className="text-base font-black sm:text-lg">
-  {featuredEvent?.price
-    ? `${featuredEvent.currency || "KES"} ${featuredEvent.price}`
-    : "Free / Check details"}
-</span>
-              <span className="shrink-0 rounded-full bg-[#17231d] px-5 py-2.5 text-sm font-black text-white transition group-hover:-translate-y-0.5 group-hover:bg-[#8a7251]">
-                Explore →
-              </span>
-            </div>
-          </div>
-        </Link>
-      </section>
-
-      {/* INTERESTS */}
-      <section className="bg-[#e9e4d9] py-24">
-        <div className="mx-auto max-w-7xl px-6 lg:px-10">
-          <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#8a7251]">
-            Explore by interest
+          <p className="mb-6 text-xs font-black uppercase tracking-[0.3em] text-white/70">
+            East Africa Discovery Platform
           </p>
 
-          <h2 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">
-            What are you into?
-          </h2>
 
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {interests.map(([title, description, category], index) => (
-              <Link
-                key={title}
-                href={`/events?category=${category}`}
-                className="group relative min-h-[320px] overflow-hidden rounded-[1.5rem] bg-[#17231d] p-7 text-white transition hover:-translate-y-1 hover:shadow-2xl"
-              >
-                <div className="absolute inset-0"><img src={interestImages[title]} alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" /></div><div className="relative z-10 flex h-full flex-col"><div className="flex items-center justify-between"><span className="text-xs font-black text-white/60">0{index + 1}</span><span className="text-xl text-white/70 transition group-hover:translate-x-1">→</span></div><div className="mt-auto pt-14"><h3 className="text-2xl font-black">{title}</h3><p className="mt-2 max-w-xs text-sm leading-6 text-white/70">{description}</p></div></div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+          <h1 className="max-w-5xl text-6xl font-black leading-none tracking-tight text-white md:text-8xl">
+            Find what's happening.
+          </h1>
 
-      {/* UPCOMING */}
-      <section className="mx-auto max-w-7xl px-6 py-24 lg:px-10">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#8a7251]">
-              Upcoming
-            </p>
-            <h2 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">
-              Worth planning for.
-            </h2>
-            <p className="mt-4 max-w-xl leading-7 text-[#687269]">
-              Real events coming up across East Africa.
-            </p>
-          </div>
+
+          <p className="mt-8 max-w-2xl text-xl text-white/80">
+            Events, experiences and places worth discovering across East Africa.
+          </p>
+
+
+          <div className="mt-10 flex gap-4">
+
             <Link
               href="/events"
-              className="font-bold text-[#17231d] underline decoration-black/20 underline-offset-4"
+              className="rounded-full bg-white px-8 py-4 font-black"
             >
-              See all upcoming →
+              Explore Events
             </Link>
-        </div>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {upcomingEvents && upcomingEvents.length > 0 ? (
-            upcomingEvents.map((event) => (
-              <Link
-                key={event.id}
-                href={`/events/${event.id}`}
-                className="group overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-xl">
-                <div className="relative h-56 overflow-hidden bg-[#e1ddd4]">
-                {event.image_url ? (
-                  <img src={event.image_url} alt={event.title || "Upcoming experience"} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
-                  ) : null}
-                </div>
-                <div className="p-6">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8a7251]">{}</p>
-                  <h3 className="mt-2 text-xl font-black leading-tight">{event.title}</h3>
-                  <p>{event.description || "Worth discovering across East Africa."}</p>
-                  <p className="mt-4 text-sm font-bold">{event.venue_name || "Location to be announced"}</p>
-                </div>
-              </Link>
-            ))
-          ) : (
-            <div className="col-span-3 rounded-[1.5rem] bg-[#e8e4db] px-8 py-10">
-              <h3 className="text-xl font-black">No upcoming events yet.</h3>
-              <p className="mt-2 text-[#687269]">Check back soon for new experiences and events across East Africa.</p>
-            </div>
-          )}
-        </div>
-      </section>
 
-      {/* DESTINATIONS */}
-      <section className="mx-auto max-w-7xl px-6 py-24 lg:px-10">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#8a7251]">
-              Explore by destination
-            </p>
+            <Link
+              href="/events?when=tonight"
+              className="rounded-full border border-white/40 px-8 py-4 font-bold text-white"
+            >
+              Tonight
+            </Link>
 
-            <h2 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">
-              Where are you going?
-            </h2>
-
-            <p className="mt-4 max-w-xl leading-7 text-[#687269]">
-              Choose a destination and see what is happening there.
-            </p>
           </div>
 
-          <Link
-            href="/events"
-            className="font-bold underline decoration-black/20 underline-offset-4"
-          >
-            View all destinations →
-          </Link>
         </div>
 
-        <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {locations.map(([name, description, query], index) => (
-            <Link
-              href={`/events?${query}`}
-              key={name}
-              className="group relative min-h-[250px] overflow-hidden rounded-[1.5rem] border border-black/10 bg-[#17231d] p-6 text-white transition hover:-translate-y-1 hover:shadow-2xl"
-            >
-              <div className="absolute inset-0"><img src={destinationImages[name]} alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" /></div><div className="relative z-10 flex h-full flex-col"><div className="flex items-start justify-between"><span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">0{index + 1}</span><span className="text-white/70 transition group-hover:translate-x-1">→</span></div><div className="mt-auto pt-16"><h3 className="text-2xl font-black">{name}</h3><p className="mt-1 text-sm text-white/70">{description}</p></div></div>
-            </Link>
-          ))}
-        </div>
       </section>
 
-      {/* INTELLIGENCE */}
-      <section className="bg-[#c8bca5] py-24">
-        <div className="mx-auto max-w-7xl px-6 lg:px-10">
-          <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-            <div>
-              <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#5c584f]">
-                SafariPlug Intelligence
+
+
+      <section className="mx-auto max-w-7xl px-6 py-20">
+
+        <p className="text-xs font-black uppercase tracking-widest text-[#8a7251]">
+          Featured
+        </p>
+
+
+        <h2 className="mt-3 text-5xl font-black">
+          Worth knowing about.
+        </h2>
+
+
+        {featured && (
+
+          <Link
+            href={`/events/${featured.id}`}
+            className="mt-10 block overflow-hidden rounded-[2rem] bg-white shadow-xl"
+          >
+
+            {featured.image_url && (
+              <img
+                src={featured.image_url}
+                alt={featured.title}
+                className="h-[420px] w-full object-cover"
+              />
+            )}
+
+            <div className="p-10">
+
+              <h3 className="text-4xl font-black">
+                {featured.title}
+              </h3>
+
+              <p className="mt-4 text-lg text-gray-600">
+                {featured.description}
               </p>
 
-              <h2 className="text-4xl font-black leading-[0.95] tracking-[-0.05em] sm:text-6xl">
-                The internet is noisy.
-                <br />
-                <span className="opacity-55">We find what&apos;s worth doing.</span>
-              </h2>
+              <p className="mt-5 font-bold">
+                {featured.venue_name}
+              </p>
+
             </div>
 
-            <div>
-              <p className="max-w-2xl text-lg leading-8 text-[#4d514a]">
-                SafariPlug Intelligence continuously discovers events,
-                experiences and emerging places across East Africa, helping
-                surface the things that are easy to miss.
-              </p>
+          </Link>
 
+        )}
+
+      </section>
+
+
+
+      <section className="bg-[#17231d] py-20 text-white">
+
+        <div className="mx-auto max-w-7xl px-6">
+
+          <h2 className="text-5xl font-black">
+            Explore your way.
+          </h2>
+
+
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+
+            {categories.map((item)=>(
               <Link
                 href="/events"
-                className="mt-8 inline-flex rounded-full bg-[#17231d] px-7 py-4 text-sm font-bold text-white transition hover:opacity-90"
+                key={item.title}
+                className="relative h-80 overflow-hidden rounded-3xl"
               >
-                Explore the discoveries →
+
+                <img
+                  src={item.image}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+
+                <div className="absolute inset-0 bg-black/50"/>
+
+                <div className="relative flex h-full flex-col justify-end p-8">
+
+                  <h3 className="text-3xl font-black">
+                    {item.title}
+                  </h3>
+
+                  <p className="mt-2 text-white/70">
+                    {item.text}
+                  </p>
+
+                </div>
+
               </Link>
-            </div>
+            ))}
+
           </div>
+
         </div>
+
       </section>
 
-      {/* BUSINESS CTA */}
-      <section className="bg-[#17231d] py-24 text-white">
-        <div className="mx-auto max-w-5xl px-6 text-center lg:px-10">
-          <p className="text-xs font-black uppercase tracking-[0.25em] text-white/40">
-            For businesses, hosts and creators
-          </p>
 
-          <h2 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-6xl">
-            Have something worth discovering?
-          </h2>
 
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">
-            Put your event, restaurant, hotel, tour, beach club or experience
-            in front of people looking for their next thing to do.
-          </p>
+      <section className="mx-auto max-w-7xl px-6 py-20">
+
+        <h2 className="text-5xl font-black">
+          Upcoming
+        </h2>
+
+
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+
+        {upcoming?.map(event=>(
 
           <Link
-            href="/submit"
-            className="mt-9 inline-flex rounded-full bg-white px-8 py-4 text-sm font-black text-[#17231d] transition hover:bg-[#f4eee3]"
+            key={event.id}
+            href={`/events/${event.id}`}
+            className="rounded-3xl bg-white p-6 shadow"
           >
-            List Your Experience →
+
+            <h3 className="text-2xl font-black">
+              {event.title}
+            </h3>
+
+            <p className="mt-3 text-gray-600">
+              {event.venue_name}
+            </p>
+
           </Link>
+
+        ))}
+
         </div>
+
       </section>
 
-      {/* FOOTER */}
-      <footer className="bg-[#101812] px-6 py-14 text-white lg:px-10">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-12 md:grid-cols-[1fr_auto]">
-            <div>
-              <div className="flex items-center gap-3"><img src="/brand/safariplug-wordmark-light.png" alt="SafariPlug" className="h-9 w-auto object-contain" /></div>
 
-              <p className="mt-5 max-w-md text-sm leading-6 text-white/45">
-                Discover the places, people and experiences making East Africa
-                worth exploring.
-              </p>
-            </div>
 
-            <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold text-white/60">
-              <Link href="/" className="hover:text-white">
-                Home
-              </Link>
-              <Link href="/events" className="hover:text-white">
-                Discover
-              </Link>
-              <Link href="/submit" className="hover:text-white">
-                Submit
-              </Link>
-              <Link href="/admin/login" className="hover:text-white">
-                Admin
-              </Link>
-            </div>
-          </div>
+      <section className="bg-[#17231d] py-20 text-center text-white">
 
-          <div className="mt-12 border-t border-white/10 pt-6 text-xs text-white/30">
-            © 2026 SafariPlug. Discover what's happening. Experience more.
-          </div>
-        </div>
+        <h2 className="text-5xl font-black">
+          Have something worth discovering?
+        </h2>
+
+        <Link
+          href="/submit"
+          className="mt-8 inline-block rounded-full bg-white px-8 py-4 font-black text-[#17231d]"
+        >
+          List Your Experience
+        </Link>
+
+      </section>
+
+
+      <footer className="bg-black px-6 py-10 text-white/60">
+
+        © 2026 SafariPlug — Discover more. Experience more.
+
       </footer>
+
+
     </main>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
