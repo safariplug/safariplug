@@ -653,6 +653,9 @@ export async function runAIScout(
     throw new Error(
       "OPENAI_API_KEY is not configured"
     );
+console.log(
+  "RUNNING CURRENT AI SCOUT VERSION"
+);
   }
 
   const openai = new OpenAI({
@@ -891,9 +894,21 @@ export async function runAIScout(
         5
       )
     ) {
-      if (!isValidEvent(event)) {
-        continue;
-      }
+      console.log(
+  "CHECKING EVENT:",
+  event.title,
+  event.confidence_score,
+  event.source_name,
+  event.source_url
+);
+
+if (!isValidEvent(event)) {
+  console.log(
+    "BLOCKED:",
+    event.title
+  );
+  continue;
+}
 
       const title =
         normalizeText(event.title);

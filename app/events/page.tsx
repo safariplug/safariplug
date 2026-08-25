@@ -152,9 +152,9 @@ function matchesWhen(event: Event, when: string) {
    *
    * Any event that has not started yet.
    */
-  if (!when || when === "upcoming") {
-    return eventDate.getTime() >= now.getTime();
-  }
+  if (!when || when === "all") {
+  return true;
+}
 
   /*
    * TODAY
@@ -294,7 +294,7 @@ export default async function EventsPage({
     params.category || "all";
 
   const selectedWhen =
-    params.when || "upcoming";
+    params.when || "all";
 
   const selectedSearch =
     params.search?.trim() || "";

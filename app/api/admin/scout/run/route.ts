@@ -1,34 +1,45 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { runAIScout } from "@/app/admin/ai-scout/actions/run-scout";
 
-export async function POST() {
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
 
-  const { data, error } = await supabaseAdmin
-    .from("scout_runs")
-    .insert({
-      status: "running",
-      discoveries_found: 0,
-      notes: "Manual AI Scout discovery run started"
-    })
-    .select()
-    .single();
+    const formData = new FormData();
 
+    formData.append(
+      "location",
+      body.location || "Nairobi"
+    );
 
-  if (error) {
+    formData.append(
+      "category",
+      body.category || "Events & Experiences"
+    );
+
+    await runAIScout(formData);
+
+    return NextResponse.json({
+      success: true,
+      message: "AI Scout completed successfully.",
+    });
+
+  } catch (error: any) {
+
+    console.error(
+      "SCOUT RUN ERROR:",
+      error
+    );
+
     return NextResponse.json(
       {
-        error: error.message
+        error:
+          error.message ||
+          "Scout failed"
       },
       {
         status: 500
       }
     );
   }
-
-
-  return NextResponse.json({
-    success: true,
-    run: data
-  });
-
 }

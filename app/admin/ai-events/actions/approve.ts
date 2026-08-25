@@ -27,13 +27,16 @@ export async function approveAIEvent(id: string) {
     );
   }
   // Quality Gate
-  const reviewScore = aiEvent.review_score ?? 0;
+  const reviewScore =
+  aiEvent.review_score ??
+  aiEvent.confidence_score ??
+  0;
 
-  if (reviewScore < 80) {
-    throw new Error(
-      `Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 80%.`
-    );
-  }
+if (reviewScore < 80) {
+  throw new Error(
+    `Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 80%.`
+  );
+}
 
 
   // Find city
@@ -80,9 +83,24 @@ const cleanCategory =
     ?.replace(cityName, "")
     .trim() || "Experiences";
 
+const { data: existingEvent } =
+  await supabaseAdmin
+    .from("events")
+    .select("id,title")
+    .ilike("title", aiEvent.title)
+    .limit(1)
+    .maybeSingle();
 
+if (existingEvent) {
+  throw new Error(
+    `Duplicate event already exists: ${existingEvent.title}`
+  );
+}
   // Create slug
-  const slug = createSlug(aiEvent.title);
+  const baseSlug = createSlug(aiEvent.title);
+
+const slug =
+  `${baseSlug}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
 
   // Create live event
@@ -122,7 +140,7 @@ const cleanCategory =
         verified: true,
         verified_at: new Date().toISOString(),
 
-        ai_confidence: aiEvent.confidence
+        ai_confidence: aiEvent.confidence_score
       });
 
 
