@@ -17,24 +17,46 @@ const categories = [
   "Wellness",
 ];
 
+function parseEventDate(date: string): Date {
+  const trimmed = date.trim();
+
+  if (/Z$/i.test(trimmed) || /[+-]\d{2}:?\d{2}$/.test(trimmed)) {
+    return new Date(trimmed);
+  }
+
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+
+  if (!match) return new Date(trimmed);
+
+  const [, year, month, day, hours, minutes, seconds = "00"] = match;
+
+  return new Date(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes), Number(seconds));
+}
+
 function formatDate(date: string | null) {
   if (!date) return "Date TBA";
 
+  const parsed = parseEventDate(date);
+
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: 'Africa/Nairobi',
     weekday: "short",
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(new Date(date));
+  }).format(parsed);
 }
 
 function formatTime(date: string | null) {
   if (!date) return "Time TBA";
 
+  const parsed = parseEventDate(date);
+
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: 'Africa/Nairobi',
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(date));
+  }).format(parsed);
 }
 
 function statusStyle(status: string | null) {
@@ -549,7 +571,7 @@ const displayedEvents =
                             label="When"
                             value={
                               event.start_at
-                                ? `${formatDate(event.start_at)} · ${formatTime(event.start_at)}`
+                                ? `${formatDate(event.start_at)} · ${formatTime(event.start_at)}${event.end_at ? `–${formatTime(event.end_at)}` : ""}`
                                 : "Date TBA"
                             }
                           />

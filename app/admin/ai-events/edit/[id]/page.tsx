@@ -55,6 +55,25 @@ export default async function EditAIEventPage({
       passed: Boolean(event.venue_name),
     },
     {
+      label: "Venue address found",
+      passed: Boolean(event.venue_address),
+    },
+    {
+      label: "Price found",
+      passed:
+        event.price !== null &&
+        event.price !== undefined &&
+        event.price !== "",
+    },
+    {
+      label: "Organizer found",
+      passed: Boolean(event.organizer_name),
+    },
+    {
+      label: "End date found",
+      passed: Boolean(event.end_at),
+    },
+    {
       label: "Source verified",
       passed: Boolean(event.source_url),
     },
@@ -104,14 +123,7 @@ const missingChecks = reviewChecks.filter(
   action={updateAIEvent.bind(null, event.id)}
   className="mt-10 rounded-3xl bg-white p-8 shadow"
 >
-
-  <input
-    type="hidden"
-    name="review_score"
-    value={readinessScore}
-  />
-
-  <div className="grid gap-6">
+<div className="grid gap-6">
 
             {[
               ["title", "Title", event.title],
@@ -248,8 +260,8 @@ const missingChecks = reviewChecks.filter(
 
                 <span>
                   {check.passed
-                    ? "✓ Ready"
-                    : "⚠ Review"}
+                    ? "âœ“ Ready"
+                    : "âš  Review"}
                 </span>
 
               </div>
@@ -279,7 +291,7 @@ const missingChecks = reviewChecks.filter(
               rel="noreferrer"
               className="mt-3 inline-block text-orange-600 font-black"
             >
-              Open Source →
+              Open Source â†’
             </a>
           )}
 

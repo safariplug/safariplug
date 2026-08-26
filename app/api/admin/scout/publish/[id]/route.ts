@@ -44,7 +44,34 @@ export async function POST(
       }
     );
   }
+  const title = typeof discovery.title === "string" ? discovery.title.trim() : "";
+  const description = typeof discovery.description === "string" ? discovery.description.trim() : "";
+  const sourceUrl = typeof discovery.source_url === "string" ? discovery.source_url.trim() : "";
+  const cityName = typeof discovery.city === "string" ? discovery.city.trim() : "";
+  const startAt = typeof discovery.start_at === "string" ? discovery.start_at.trim() : "";
 
+  if (!title || !description || !sourceUrl || !cityName || !startAt) {
+    return NextResponse.json(
+      { error: "Discovery is missing required publish data." },
+      { status: 400 }
+    );
+  }
+
+  const startDate = new Date(startAt);
+
+  if (Number.isNaN(startDate.getTime())) {
+    return NextResponse.json(
+      { error: "Discovery has an invalid start date." },
+      { status: 400 }
+    );
+  }
+
+  if (startDate.getTime() <= Date.now()) {
+    return NextResponse.json(
+      { error: "Cannot publish an expired event." },
+      { status: 400 }
+    );
+  }
 
   // Convert AI city name into database city
   const normalizedCity =
@@ -93,33 +120,23 @@ export async function POST(
     city_id: city.id,
 
 
-    venue_name:
-      discovery.venue_name ??
-      "To be verified",
+    venue_name: discovery.venue_name ?? null,
 
 
     category:
       discovery.category,
 
 
-    start_at:
-      discovery.start_at ??
-      new Date().toISOString(),
+    start_at: discovery.start_at,
 
 
-    end_at:
-      discovery.end_at ??
-      new Date(
-        Date.now() + 3 * 60 * 60 * 1000
-      ).toISOString(),
+    end_at: discovery.end_at ?? null,
 
 
-    price:
-      discovery.price ?? 0,
+    price: discovery.price ?? null,
 
 
-    currency:
-      discovery.currency ?? "KES",
+    currency: discovery.currency ?? null,
 
 
     image_url:

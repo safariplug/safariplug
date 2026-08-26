@@ -27,12 +27,9 @@ export async function approveAIEvent(id: string) {
     );
   }
   // Quality Gate
-  const reviewScore =
-  aiEvent.review_score ??
-  aiEvent.confidence_score ??
-  0;
+  const reviewScore = Number(aiEvent.review_score);
 
-if (reviewScore < 80) {
+  if (!Number.isFinite(reviewScore) || reviewScore < 80) {
   throw new Error(
     `Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 80%.`
   );

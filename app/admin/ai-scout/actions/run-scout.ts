@@ -124,7 +124,7 @@ function normalizeDate(value: unknown): string | null {
     minutes,
     seconds = "00",
   ] = match;
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  return new Date(`${year}-${month}-${day}T${hours}:${minutes}:${seconds}+03:00`).toISOString();
 }
 function normalizePrice(value: unknown): number | null {
   if (value === null || value === undefined || value === "") {
@@ -207,6 +207,17 @@ function isValidEvent(event: DiscoveredEvent): boolean {
     console.warn(
       "Skipping event without a valid start date:",
       title
+    );
+    return false;
+  }
+
+  const startDate = new Date(startAt);
+
+  if (startDate.getTime() <= Date.now()) {
+    console.warn(
+      "Skipping expired event:",
+      title,
+      startAt
     );
     return false;
   }
@@ -653,10 +664,11 @@ export async function runAIScout(
     throw new Error(
       "OPENAI_API_KEY is not configured"
     );
-console.log(
-  "RUNNING CURRENT AI SCOUT VERSION"
-);
   }
+
+
+
+
 
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -713,6 +725,12 @@ console.log(
       "Never create an event merely because the category exists.",
       "",
       "Search broadly across the live web.",
+      "DATE-FIRST DISCOVERY:",
+      "Prioritize events whose actual upcoming date and time can be explicitly verified from a credible source.",
+      "Before returning an event, verify that its upcoming start date is supported by the source.",
+      "Do not return announced events with missing, TBA, tentative, or unverified dates.",
+      "Prefer date-confirmed events over events with stronger general information but no confirmed date.",
+      "",
       "",
       "PRIORITY SOURCES:",
       "1. Official organizer social accounts or public event pages.",
@@ -1014,9 +1032,7 @@ if (!isValidEvent(event)) {
             description,
             category,
             city,
-            venue_name:
-              venueName ||
-              "To be verified",
+            venue_name: venueName || null,
             venue_address:
               venueAddress || null,
             start_at: startAt,
@@ -1025,9 +1041,7 @@ if (!isValidEvent(event)) {
             currency,
             image_url: imageUrl,
             source_url: sourceUrl,
-            source_name:
-              sourceName ||
-              "Web Source",
+            source_name: sourceName || null,
             confidence_score:
               confidence,
             status:

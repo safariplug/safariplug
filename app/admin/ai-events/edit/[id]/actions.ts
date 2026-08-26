@@ -18,10 +18,15 @@ export async function updateAIEvent(
   const endAtRaw = String(formData.get("end_at") ?? "").trim();
   const priceRaw = String(formData.get("price") ?? "").trim();
   const currency = String(formData.get("currency") ?? "").trim();
+  const { data: existingEvent, error: existingEventError } = await supabaseAdmin
+    .from("ai_discovered_events")
+    .select("organizer_name, source_url")
+    .eq("id", id)
+    .single();
 
-  const reviewScore = Number(
-    formData.get("review_score") ?? 0
-  );
+  if (existingEventError || !existingEvent) {
+    throw new Error("AI event not found: " + (existingEventError?.message ?? "unknown error"));
+  }
 
   if (!title) {
     throw new Error("Title is required.");
@@ -61,6 +66,22 @@ export async function updateAIEvent(
   if (!startAt) {
     throw new Error("Start date and time are required.");
   }
+
+  const reviewChecks = [
+    Boolean(description),
+    Boolean(startAt),
+    Boolean(venueName),
+    Boolean(venueAddress),
+    price !== null && Number.isFinite(price),
+    Boolean(existingEvent.organizer_name),
+    Boolean(endAt),
+    Boolean(existingEvent.source_url),
+  ];
+
+  const reviewScore = Math.round(
+    (reviewChecks.filter(Boolean).length / reviewChecks.length) * 100
+  );
+
 
   const { error } = await supabaseAdmin
     .from("ai_discovered_events")
