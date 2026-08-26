@@ -131,6 +131,7 @@ const missingChecks = reviewChecks.filter(
               ["city", "City", event.city],
               ["venue_name", "Venue", event.venue_name],
               ["venue_address", "Venue Address", event.venue_address],
+              ["organizer_name", "Organizer", event.organizer_name],
               ["currency", "Currency", event.currency],
             ].map(([name, label, value]) => (
               <div key={name}>

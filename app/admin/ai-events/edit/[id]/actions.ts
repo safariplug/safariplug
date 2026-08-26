@@ -14,13 +14,14 @@ export async function updateAIEvent(
   const city = String(formData.get("city") ?? "").trim();
   const venueName = String(formData.get("venue_name") ?? "").trim();
   const venueAddress = String(formData.get("venue_address") ?? "").trim();
+  const organizerName = String(formData.get("organizer_name") ?? "").trim();
   const startAtRaw = String(formData.get("start_at") ?? "").trim();
   const endAtRaw = String(formData.get("end_at") ?? "").trim();
   const priceRaw = String(formData.get("price") ?? "").trim();
   const currency = String(formData.get("currency") ?? "").trim();
   const { data: existingEvent, error: existingEventError } = await supabaseAdmin
     .from("ai_discovered_events")
-    .select("organizer_name, source_url")
+    .select("organizer_name, source_url, image_url")
     .eq("id", id)
     .single();
 
@@ -68,12 +69,13 @@ export async function updateAIEvent(
   }
 
   const reviewChecks = [
+    Boolean(existingEvent.image_url),
     Boolean(description),
     Boolean(startAt),
     Boolean(venueName),
     Boolean(venueAddress),
     price !== null && Number.isFinite(price),
-    Boolean(existingEvent.organizer_name),
+    Boolean(organizerName),
     Boolean(endAt),
     Boolean(existingEvent.source_url),
   ];
@@ -92,6 +94,7 @@ export async function updateAIEvent(
       city,
       venue_name: venueName || null,
       venue_address: venueAddress || null,
+      organizer_name: organizerName || null,
       start_at: startAt,
       end_at: endAt,
       price,
