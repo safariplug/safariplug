@@ -119,6 +119,15 @@ const missingChecks = reviewChecks.filter(
         </p>
 
 
+        <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-6 shadow-md mb-6">
+          <label className="flex items-center gap-4 cursor-pointer">
+            <input type="checkbox" name="is_featured" defaultChecked={event.is_featured} className="h-6 w-6 rounded border-emerald-400 text-[#10b981] focus:ring-[#10b981]" />
+            <div>
+              <span className="block text-base font-black text-slate-900">Featured Sponsor Placement</span>
+              <span className="block text-xs text-slate-700 font-medium">Toggle ON to feature this event in the rotating homepage paid sponsor carousel.</span>
+            </div>
+          </label>
+        </div>
         <form
   action={updateAIEvent.bind(null, event.id)}
   className="mt-10 rounded-3xl bg-white p-8 shadow"
