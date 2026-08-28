@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EVENT_CATEGORIES } from "@/lib/constants/events";
 
 const locations = [
   "Nairobi",
@@ -15,19 +16,9 @@ const locations = [
   "Dar es Salaam",
 ];
 
-const categories = [
-  "Events & Experiences",
-  "Music & Nightlife",
-  "Food & Drink",
-  "Beach",
-  "Safari",
-  "Adventure",
-  "Culture",
-];
-
 export default function ScoutControls() {
   const [location, setLocation] = useState("Nairobi");
-  const [category, setCategory] = useState("Events & Experiences");
+  const [category, setCategory] = useState("Music & Nightlife");
   const [loading, setLoading] = useState(false);
 
   async function runScout() {
@@ -66,7 +57,7 @@ export default function ScoutControls() {
         onChange={(e) => setCategory(e.target.value)}
         className="rounded-xl border px-4 py-3"
       >
-        {categories.map((item) => (
+        {EVENT_CATEGORIES.map((item) => (
           <option key={item}>{item}</option>
         ))}
       </select>

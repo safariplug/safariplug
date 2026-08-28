@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { runAIScout } from "@/app/admin/ai-scout/actions/run-scout";
+import {
+  AdminAuthError,
+  requireAdmin,
+} from "@/lib/auth/require-admin";
 
 export async function POST(request: Request) {
   try {
+    await requireAdmin();
+
     const body = await request.json();
 
     const formData = new FormData();
@@ -24,18 +30,25 @@ export async function POST(request: Request) {
       message: "AI Scout completed successfully.",
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof AdminAuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
 
     console.error(
       "SCOUT RUN ERROR:",
       error
     );
 
+    const message =
+      error instanceof Error ? error.message : "Scout failed";
+
     return NextResponse.json(
       {
-        error:
-          error.message ||
-          "Scout failed"
+        error: message
       },
       {
         status: 500

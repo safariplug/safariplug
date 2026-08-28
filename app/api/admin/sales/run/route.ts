@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runSalesScout } from "@/app/admin/ai-sales/actions/run-sales-scout";
+import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 
 
 export async function POST(
@@ -7,6 +8,8 @@ export async function POST(
 ) {
 
   try {
+
+    await requireAdmin();
 
     const body =
       await request.json();
@@ -47,7 +50,11 @@ export async function POST(
     });
 
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+
+    if (error instanceof AdminAuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
 
 
     console.error(
@@ -59,9 +66,7 @@ export async function POST(
     return NextResponse.json(
 
       {
-        error:
-          error.message ||
-          "Sales Scout failed",
+        error: error instanceof Error ? error.message : "Sales Scout failed",
       },
 
       {

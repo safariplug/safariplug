@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 
 type DiscoveredPartner = {
   venue_or_promoter_name: string;
@@ -39,6 +40,8 @@ const discoveredPartners: DiscoveredPartner[] = [
 
 export async function POST() {
   try {
+    await requireAdmin();
+
     let insertedCount = 0;
 
     for (const partner of discoveredPartners) {
@@ -84,7 +87,10 @@ export async function POST() {
       count: discoveredPartners.length,
       insertedCount,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof AdminAuthError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     const message = error instanceof Error ? error.message : "Partner discovery failed.";
     console.error("Partner discovery error:", message);
     return NextResponse.json({ success: false, error: message }, { status: 500 });

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { EVENT_CATEGORIES } from "@/lib/constants/events";
 
 
 export default function ScoutButton() {
   const [location, setLocation] = useState("Nairobi");
-  const [category, setCategory] = useState("Events & Experiences");
+  const [category, setCategory] = useState("Music & Nightlife");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -83,13 +84,11 @@ if (!response.ok) {
         }
         className="rounded-lg border p-3"
       >
-        <option>Events & Experiences</option>
-        <option>Music & Nightlife</option>
-        <option>Food & Drink</option>
-        <option>Beach</option>
-        <option>Safari</option>
-        <option>Adventure</option>
-        <option>Culture</option>
+        {EVENT_CATEGORIES.map((item) => (
+          <option key={item} value={item}>
+            {item}
+          </option>
+        ))}
       </select>
 
       <button

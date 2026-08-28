@@ -2,6 +2,7 @@
 
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { EVENT_CATEGORIES } from "@/lib/constants/events";
 import { revalidatePath } from "next/cache";
 
 type DiscoveredEvent = {
@@ -678,13 +679,23 @@ export async function runAIScout(
     formData.get("location") || ""
   ).trim();
 
-  const category = String(
+  const submittedCategory = String(
     formData.get("category") || ""
   ).trim();
 
-  if (!location || !category) {
+  const category = EVENT_CATEGORIES.find(
+    (value) => value === submittedCategory
+  );
+
+  if (!location || !submittedCategory) {
     throw new Error(
       "Missing location or category"
+    );
+  }
+
+  if (!category) {
+    throw new Error(
+      `Unsupported Scout category "${submittedCategory}". Use a canonical EVENT_CATEGORIES value.`
     );
   }
 

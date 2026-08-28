@@ -57,7 +57,7 @@ const interests = [
     "Food%20%26%20Drink",
   ],
   ["Beach", "Beach clubs, ocean days and coastal escapes", "Beach"],
-  ["Safari", "Wildlife, lodges and unforgettable escapes", "Safari"],
+  ["Safari", "Wildlife, lodges and unforgettable escapes", "Safari%20%26%20Wildlife"],
   [
     "Adventure",
     "Outdoor experiences, nature and adrenaline",
@@ -66,7 +66,7 @@ const interests = [
   [
     "Culture",
     "Art, heritage, communities and local life",
-    "Culture",
+    "Culture%20%26%20Arts",
   ],
 ];
 

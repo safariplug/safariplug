@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 
 export async function POST(request: Request) {
   try {
+    await requireAdmin();
+
     const body = (await request.json()) as {
       to?: unknown;
       subject?: unknown;
@@ -39,7 +42,10 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof AdminAuthError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     const message = error instanceof Error ? error.message : "Unable to send outreach email.";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

@@ -1,10 +1,24 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
+    await requireAdmin();
+  } catch (error: unknown) {
+    if (error instanceof AdminAuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    console.error("ADMIN ROUTE AUTH ERROR:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Request failed" },
+      { status: 500 }
+    );
+  }
+
   const { id } = await params;
 
   const pathname = new URL(request.url).pathname;

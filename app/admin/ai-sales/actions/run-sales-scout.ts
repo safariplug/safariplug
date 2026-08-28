@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
+import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 import { discoverBusinesses } from "./discovery";
 import { scoreProspect } from "./scoring";
 
@@ -19,6 +20,18 @@ function cleanText(value: unknown) {
 export async function runSalesScout(
   formData: FormData
 ) {
+  try {
+    await requireAdmin();
+  } catch (error: unknown) {
+    if (error instanceof AdminAuthError) {
+      throw new Error(error.message);
+    }
+
+    console.error("SALES ACTION AUTH ERROR:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Request failed"
+    );
+  }
 
   const city =
     cleanText(
@@ -34,7 +47,7 @@ export async function runSalesScout(
 
 
   const prospects =
-    discoverBusinesses(
+    await discoverBusinesses(
       city,
       category
     );
@@ -116,7 +129,12 @@ export async function runSalesScout(
 
 
           notes:
-            `${intelligence.priority} priority. ${intelligence.reason}`,
+            [
+              `${intelligence.priority} priority. ${intelligence.reason}`,
+              prospect.notes,
+            ]
+              .filter(Boolean)
+              .join("\n"),
 
 
           status:

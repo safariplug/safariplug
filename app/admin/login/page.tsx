@@ -31,6 +31,21 @@ export default function AdminLoginPage() {
       return;
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const { data: isAdmin } = await supabase.rpc("is_admin");
+
+    if (!user || !isAdmin) {
+      await supabase.auth.signOut();
+      setError(
+        "Access denied. This account is not authorized for SafariPlug Administration."
+      );
+      setLoading(false);
+      return;
+    }
+
     router.replace("/admin");
     router.refresh();
   }
