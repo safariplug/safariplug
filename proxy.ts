@@ -22,9 +22,24 @@ export async function proxy(request: NextRequest) {
     }
   );
 
+  const pathname = request.nextUrl.pathname;
+  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+  const isLoginRoute = pathname === '/admin/login';
+
+  if (!isAdminRoute || isLoginRoute) return response;
+
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user && request.nextUrl.pathname.startsWith('/admin') && request.nextUrl.pathname !== '/admin/login') {
+  if (!user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/admin/login';
+    return NextResponse.redirect(url);
+  }
+
+  const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin');
+
+  if (adminError || isAdmin !== true) {
+    await supabase.auth.signOut();
     const url = request.nextUrl.clone();
     url.pathname = '/admin/login';
     return NextResponse.redirect(url);

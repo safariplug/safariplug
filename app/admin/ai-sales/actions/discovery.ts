@@ -9,6 +9,8 @@ export type DiscoveryResult = {
   facebook?: string;
   contact_email?: string;
   phone?: string;
+  source_url?: string;
+  source_name?: string;
   description: string;
   notes?: string;
 };
@@ -107,6 +109,8 @@ function normalizeProspect(
     facebook: normalizeOptionalText(value.facebook),
     contact_email: normalizeOptionalText(value.contact_email),
     phone: normalizeOptionalText(value.phone),
+    source_url: sourceUrl,
+    source_name: sourceName,
     description,
     notes,
   };

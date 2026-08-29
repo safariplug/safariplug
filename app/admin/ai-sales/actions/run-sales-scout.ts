@@ -119,6 +119,20 @@ export async function runSalesScout(
           instagram:
             prospect.instagram,
 
+          facebook:
+            prospect.facebook,
+
+          contact_email:
+            prospect.contact_email,
+
+          phone:
+            prospect.phone,
+
+          source_url:
+            prospect.source_url,
+
+          source_name:
+            prospect.source_name,
 
           description:
             prospect.description,
