@@ -3,10 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   approveOutreach,
   markReadyToContact,
-  markContacted,
   markFollowUpRequired,
   updateFollowUpDetails,
 } from "./actions";
+import SendOutreachButton from "./SendOutreachButton";
 
 
 export default async function OutreachPage() {
@@ -31,6 +31,9 @@ ai_sales_prospects (
     city,
     category,
     opportunity_score
+    ,status
+    ,review_status
+    ,contact_email
   )
   `
 )
@@ -212,21 +215,11 @@ ai_sales_prospects (
   )}
 {item.status === "ready_to_contact" && (
 
-<form action={markContacted}>
-
-<input
-type="hidden"
-name="id"
-value={item.id}
+<SendOutreachButton
+  outreachId={item.id}
+  businessName={item.ai_sales_prospects?.business_name || "Partner"}
+  contactEmail={item.ai_sales_prospects?.contact_email || ""}
 />
-
-<button
-className="rounded-xl bg-blue-600 px-4 py-2 text-white"
->
-Mark Contacted
-</button>
-
-</form>
 
 )}
 {item.status === "contacted" && (

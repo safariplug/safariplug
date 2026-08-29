@@ -65,37 +65,6 @@ export async function markReadyToContact(
 
 
 
-export async function markContacted(
-  formData: FormData
-) {
-  await requireAdmin();
-
-  const id = formData.get("id") as string;
-
-
-  const { error } =
-    await supabaseAdmin
-      .from("ai_sales_outreach")
-      .update({
-        status: "contacted",
-        sent_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-
-  revalidatePath(
-    "/admin/ai-sales/outreach"
-  );
-
-}
-
-
-
 export async function markFollowUpRequired(
   formData: FormData
 ) {
