@@ -3,11 +3,13 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 
 export async function approveSalesProspect(
   id: string
 ) {
+  await requireAdmin();
 
   const { error } =
     await supabaseAdmin
@@ -42,6 +44,7 @@ export async function approveSalesProspect(
 export async function rejectSalesProspect(
   id: string
 ) {
+  await requireAdmin();
 
   const { error } =
     await supabaseAdmin

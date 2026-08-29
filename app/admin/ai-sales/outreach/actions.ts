@@ -2,11 +2,13 @@
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 
 export async function approveOutreach(
   formData: FormData
 ) {
+  await requireAdmin();
 
   const id = formData.get("id") as string;
 
@@ -36,6 +38,7 @@ export async function approveOutreach(
 export async function markReadyToContact(
   formData: FormData
 ) {
+  await requireAdmin();
 
   const id = formData.get("id") as string;
 
@@ -65,6 +68,7 @@ export async function markReadyToContact(
 export async function markContacted(
   formData: FormData
 ) {
+  await requireAdmin();
 
   const id = formData.get("id") as string;
 
@@ -95,6 +99,7 @@ export async function markContacted(
 export async function markFollowUpRequired(
   formData: FormData
 ) {
+  await requireAdmin();
 
   const id = formData.get("id") as string;
 
@@ -131,6 +136,7 @@ export async function markFollowUpRequired(
 export async function updateFollowUpDetails(
   formData: FormData
 ) {
+  await requireAdmin();
 
   const id =
     formData.get("id") as string;
