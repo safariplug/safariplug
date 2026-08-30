@@ -28,9 +28,9 @@ export async function proxy(request: NextRequest) {
 
   if (!isAdminRoute || isLoginRoute) return response;
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: claims } = await supabase.auth.getClaims();
 
-  if (!user) {
+  if (!claims) {
     const url = request.nextUrl.clone();
     url.pathname = '/admin/login';
     return NextResponse.redirect(url);
