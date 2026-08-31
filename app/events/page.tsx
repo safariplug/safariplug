@@ -62,7 +62,7 @@ export default async function EventsPage({
   );
 
   let eventsQuery = supabase
-    .from("ai_discovered_events")
+    .from("events")
     .select("id, title, description, category, city, venue_name, price, currency, image_url, start_at, is_featured, status")
     .eq("status", "approved")
     .order("is_featured", { ascending: false })
