@@ -88,7 +88,7 @@ export default async function HomePage() {
   );
 
   let { data: featuredEvent } = await supabase
-    .from("ai_discovered_events")
+    .from("events")
     .select(
       "id,title,description,category,start_at,end_at,venue_name,price,currency,image_url"
     )
@@ -101,7 +101,7 @@ export default async function HomePage() {
 
   if (!featuredEvent) {
     const { data: nextUpcomingEvent } = await supabase
-      .from("ai_discovered_events")
+      .from("events")
       .select(
         "id,title,description,category,start_at,end_at,venue_name,price,currency,image_url"
       )
@@ -224,7 +224,7 @@ export default async function HomePage() {
               href="/events"
               className="rounded-full bg-[#e7c98d] px-9 py-4 text-center text-sm font-black text-[#070708] shadow-[0_12px_40px_rgba(201,168,106,0.2)] hover:-translate-y-1 hover:bg-[#f0d9a4]"
             >
-              Explore discoveries →
+              Explore discoveries â†’
             </Link>
 
 
@@ -331,7 +331,7 @@ export default async function HomePage() {
           href="/events?when=tonight"
           className="font-bold text-[#e7c98d] underline decoration-[#c9a86a]/50 underline-offset-4"
         >
-          View tonight →
+          View tonight â†’
         </Link>
 
       </div>
@@ -354,7 +354,7 @@ export default async function HomePage() {
             <div>
 
               <div className="mb-5 flex items-center gap-3">
-                ✦
+                âœ¦
                 <span className="text-[10px] font-black uppercase tracking-[0.28em] text-[#e7c98d]">
                   {tonightEvents[0].category || "Curated experience"}
                 </span>
@@ -379,7 +379,7 @@ export default async function HomePage() {
               href={`/events/${tonightEvents[0].id}`}
               className="rounded-full border border-[#c9a86a]/50 bg-[#c9a86a]/10 px-7 py-4 text-center text-sm font-black text-[#e7c98d] hover:bg-[#c9a86a] hover:text-[#070708]"
             >
-              View event →
+              View event â†’
             </Link>
 
           </div>
@@ -389,7 +389,7 @@ export default async function HomePage() {
           <div className="relative z-10">
 
             <div className="mb-5 text-3xl">
-              ✦
+              âœ¦
             </div>
 
             <h3 className="font-serif text-3xl font-medium text-white">
@@ -728,7 +728,7 @@ export default async function HomePage() {
               href="/events"
               className="mt-8 inline-flex rounded-full bg-[#e7c98d] px-8 py-4 font-bold text-[#070708] hover:bg-[#f0d9a4]"
             >
-              Explore discoveries →
+              Explore discoveries â†’
             </Link>
 
           </div>
@@ -770,7 +770,7 @@ export default async function HomePage() {
           href="/submit"
           className="mt-10 inline-flex rounded-full bg-[#e7c98d] px-9 py-4 font-black text-[#070708] hover:bg-[#f0d9a4]"
         >
-          List Your Experience →
+          List Your Experience â†’
         </Link>
 
       </div>
@@ -808,7 +808,7 @@ export default async function HomePage() {
 
         <div className="mt-10 border-t border-white/10 pt-6 text-xs uppercase tracking-[0.2em] text-white/25">
 
-          © 2026 SafariPlug. Discover what&apos;s happening. Experience more.
+          Â© 2026 SafariPlug. Discover what&apos;s happening. Experience more.
 
         </div>
 

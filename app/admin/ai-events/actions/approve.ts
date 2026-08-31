@@ -145,7 +145,7 @@ const slug =
 
         status: "approved",
 
-        featured: false,
+        is_featured: false,
 
         verified: true,
         verified_at: new Date().toISOString(),
