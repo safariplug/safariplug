@@ -74,11 +74,12 @@ export default function PartnerSignupPage() {
       .insert({
         owner_id: user.id,
         name: form.business_name,
+        slug: form.business_name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Date.now(),
         business_type: form.business_type,
         phone: form.phone,
         whatsapp: form.phone,
         email: form.email,
-        status: "pending",
+        status: "ACTIVE",
         verified: false,
         claimed: false,
       });

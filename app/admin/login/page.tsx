@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const isAdmin = true;
+    const isAdmin = user?.app_metadata?.role === "admin";
 
     if (!user || !isAdmin) {
       await supabase.auth.signOut();
