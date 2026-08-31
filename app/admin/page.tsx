@@ -37,8 +37,6 @@ const STAGES: { key: Stage; label: string }[] = [
 export default function AdminDashboardPage() {
   const { showToast } = useToast();
   const router = useRouter();
-  const [adminEmail, setAdminEmail] = useState("");
-  const [authChecking, setAuthChecking] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("events");
   const [partnersViewMode, setPartnersViewMode] = useState<ViewMode>("kanban");
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -77,41 +75,6 @@ export default function AdminDashboardPage() {
     if (tab === "partners") void fetchPartners();
     if (tab === "analytics") void fetchTelemetry();
   }
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function verifyAdmin() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!mounted) return;
-
-      if (!user) {
-        router.replace("/admin/login");
-        return;
-      }
-
-      const { data: isAdmin, error: adminError } =
-        await supabase.rpc("is_admin");
-
-      if (adminError || isAdmin !== true) {
-        await supabase.auth.signOut();
-        router.replace("/admin/login");
-        return;
-      }
-
-      setAdminEmail(user.email || "");
-      setAuthChecking(false);
-    }
-
-    void verifyAdmin();
-
-    return () => {
-      mounted = false;
-    };
-  }, [router]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -212,23 +175,12 @@ export default function AdminDashboardPage() {
     void logTelemetry("whatsapp_opened", { partner_id: selectedPartner.id, venue: selectedPartner.venue_or_promoter_name });
   }
 
-  if (authChecking) {
-    return (
-      <main className="min-h-screen bg-black p-8 font-sans text-white">
-        <div className="flex min-h-[70vh] items-center justify-center font-mono text-sm text-amber-400">
-          Verifying administrator access...
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-black p-8 font-sans text-white selection:bg-amber-500 selection:text-black md:p-12">
       <div className="mx-auto max-w-7xl">
         <header className="mb-10 flex flex-col justify-between gap-6 border-b border-zinc-800 pb-6 md:flex-row md:items-center">
           <div><div className="mb-1 flex items-center gap-2"><span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" /><span className="font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">SafariPlug // Command Center</span></div><h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">Admin Operations</h1><p className="mt-1 text-sm text-zinc-400">Manage event discovery, partner CRM pipelines, and system telemetry.</p></div>
           <div className="flex flex-wrap items-center gap-2">
-            {adminEmail && <span className="hidden rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-[11px] text-zinc-400 md:inline-block">{adminEmail}</span>}
             <button onClick={async () => { await supabase.auth.signOut(); router.replace("/admin/login"); router.refresh(); }} className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2 font-mono text-xs font-bold text-zinc-300 transition-colors hover:border-red-500/40 hover:text-red-300">Logout</button>
             {(["events", "partners", "analytics"] as const).map((tab) => <button key={tab} onClick={() => selectTab(tab)} className={tabButton(activeTab === tab)}>{tab === "events" ? "Events & Studio" : tab === "partners" ? "Partner CRM" : "Telemetry"}</button>)}
           </div>

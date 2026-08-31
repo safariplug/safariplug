@@ -23,23 +23,17 @@ export async function proxy(request: NextRequest) {
   );
 
   const pathname = request.nextUrl.pathname;
-  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+  const isAdminRoute =
+    pathname === '/admin' || pathname.startsWith('/admin/');
   const isLoginRoute = pathname === '/admin/login';
 
-  if (!isAdminRoute || isLoginRoute) return response;
-
-  const { data: claims } = await supabase.auth.getClaims();
-
-  if (!claims) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/admin/login';
-    return NextResponse.redirect(url);
+  if (!isAdminRoute || isLoginRoute) {
+    return response;
   }
 
-  const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin');
+  const { data } = await supabase.auth.getClaims();
 
-  if (adminError || isAdmin !== true) {
-    await supabase.auth.signOut();
+  if (!data?.claims) {
     const url = request.nextUrl.clone();
     url.pathname = '/admin/login';
     return NextResponse.redirect(url);
