@@ -1,13 +1,25 @@
 import { NextResponse } from "next/server";
 import { runAIScout } from "@/app/admin/ai-scout/actions/run-scout";
-import {
-  AdminAuthError,
-  requireAdmin,
-} from "@/lib/auth/require-admin";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    const supabase = await createSupabaseServerClient();
+    const { data } = await supabase.auth.getClaims();
+
+    if (!data?.claims) {
+      return NextResponse.json(
+        { error: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    if (data.claims.app_metadata?.role !== "admin") {
+      return NextResponse.json(
+        { error: "Admin access required." },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
 
@@ -31,13 +43,6 @@ export async function POST(request: Request) {
     });
 
   } catch (error: unknown) {
-    if (error instanceof AdminAuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.status }
-      );
-    }
-
     console.error(
       "SCOUT RUN ERROR:",
       error
