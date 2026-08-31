@@ -44,9 +44,9 @@ export async function approveAIEvent(id: string) {
  (reviewChecks.filter(Boolean).length / reviewChecks.length) * 100
  );
 
- if (!Number.isFinite(reviewScore) || reviewScore < 80) {
+ if (!Number.isFinite(reviewScore) || reviewScore < 60) {
  throw new Error(
- `Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 80%.`
+ `Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 60%.`
  );
  }
   // Find city
