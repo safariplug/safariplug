@@ -56,11 +56,21 @@ export async function generateMetadata({
 
  const {id}=await params;
 
- const {data}=await supabase
+ let {data}=await supabase
  .from("ai_discovered_events")
  .select("title,description,image_url")
  .eq("id",id)
- .single();
+ .maybeSingle();
+
+ if(!data){
+  const {data: event}=await supabase
+  .from("events")
+  .select("title,description,image_url")
+  .eq("id",id)
+  .maybeSingle();
+
+  data=event;
+ }
 
 
  if(!data){
@@ -95,11 +105,22 @@ export default async function EventPage({
 
  console.log("Attempting to fetch event with ID:", eventId);
 
- const {data,error}=await supabase
+ let {data,error}=await supabase
  .from("ai_discovered_events")
  .select("id, title, description, category, venue_name, price, currency, image_url, start_at, status")
  .eq("id",eventId)
- .single();
+ .maybeSingle();
+
+ if(!data && !error){
+  const eventResult=await supabase
+  .from("events")
+  .select("id, title, description, category, venue_name, price, currency, image_url, start_at, status")
+  .eq("id",eventId)
+  .maybeSingle();
+
+  data=eventResult.data;
+  error=eventResult.error;
+ }
 
 
  if(error || !data){
