@@ -1,5 +1,6 @@
 "use server";
 
+import { approveAIEvent } from "../../actions/approve";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -121,23 +122,15 @@ export async function updateAIEvent(
 
 
 export async function publishAIEvent(id: string) {
-  const { data: ev, error: fetchError } = await supabaseAdmin.from('ai_discovered_events').select('review_score').eq('id', id).single();
-  if (fetchError || !ev) {
-    throw new Error('Event not found.');
-  }
-  const score = ev.review_score || 0;
-  if (score < 80) {
-    throw new Error(`Guardrail blocked: Event score is ${score}%. Must be at least 80% to publish.`);
-  }
-  const { error } = await supabaseAdmin.from('ai_discovered_events').update({ status: 'approved', review_status: 'approved', updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) {
-    throw new Error(`Failed to publish AI event: ${error.message}`);
-  }
-  revalidatePath('/admin/ai-events');
-  revalidatePath(`/admin/ai-events/edit/${id}`);
-  redirect('/admin/ai-events');
-}
+ // Use the same authoritative publishing path as Approve & Publish.
+ // This performs the server-side quality gate, duplicate check,
+ // live events insert, and AI discovery approval in one place.
+ await approveAIEvent(id);
 
+  revalidatePath("/admin/ai-events");
+ revalidatePath(`/admin/ai-events/edit/${id}`);
+  redirect("/admin/ai-events");
+}
 export async function rejectAIEvent(id: string) {
   const { error } = await supabaseAdmin
     .from("ai_discovered_events")

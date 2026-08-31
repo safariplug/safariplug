@@ -27,15 +27,28 @@ export async function approveAIEvent(id: string) {
     );
   }
   // Quality Gate
-  const reviewScore = Number(aiEvent.review_score);
+  // Calculate the authoritative score from the same 9 checks shown on the edit page.
+  const reviewChecks = [
+    Boolean(aiEvent.image_url),
+    Boolean(aiEvent.description),
+    Boolean(aiEvent.start_at),
+    Boolean(aiEvent.venue_name),
+    Boolean(aiEvent.venue_address),
+    aiEvent.price !== null && aiEvent.price !== undefined && aiEvent.price !== '' && Number.isFinite(Number(aiEvent.price)),
+ Boolean(aiEvent.organizer_name),
+ Boolean(aiEvent.end_at),
+ Boolean(aiEvent.source_url),
+ ];
 
-  if (!Number.isFinite(reviewScore) || reviewScore < 80) {
-  throw new Error(
-    `Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 80%.`
-  );
-}
+ const reviewScore = Math.round(
+ (reviewChecks.filter(Boolean).length / reviewChecks.length) * 100
+ );
 
-
+ if (!Number.isFinite(reviewScore) || reviewScore < 80) {
+ throw new Error(
+ `Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 80%.`
+ );
+ }
   // Find city
   const knownCities = [
   "Nairobi",

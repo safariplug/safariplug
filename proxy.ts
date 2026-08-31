@@ -32,13 +32,18 @@ export async function proxy(request: NextRequest) {
   }
 
   const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims as
+    | { app_metadata?: { role?: string } }
+    | undefined;
 
-  if (!data?.claims) {
+  if (claims?.app_metadata?.role !== 'admin') {
     const url = request.nextUrl.clone();
     url.pathname = '/admin/login';
+    url.search = '';
     return NextResponse.redirect(url);
   }
 
+  response.headers.set('Cache-Control', 'private, no-store');
   return response;
 }
 
