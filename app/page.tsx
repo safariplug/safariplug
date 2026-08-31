@@ -3,6 +3,8 @@ import { supabase } from "@/lib/supabase";
 import { LOCATIONS } from "@/lib/constants/locations";
 import LuxuryImage from "@/components/LuxuryImage";
 
+export const dynamic = "force-dynamic";
+
 const locations = LOCATIONS.map((location) => [
   location.name,
   location.description,
@@ -71,6 +73,8 @@ const interests = [
 ];
 
 export default async function HomePage() {
+  const now = new Date().toISOString();
+  const effectiveValidityFilter = `end_at.gte.${now},and(end_at.is.null,start_at.gte.${now})`;
   const kenyaDate = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Africa/Nairobi",
   }).format(new Date());
@@ -86,10 +90,11 @@ export default async function HomePage() {
   let { data: featuredEvent } = await supabase
     .from("ai_discovered_events")
     .select(
-      "id,title,description,category,start_at,venue_name,price,currency,image_url"
+      "id,title,description,category,start_at,end_at,venue_name,price,currency,image_url"
     )
     .eq("status", "approved")
     .eq("is_featured", true)
+    .or(effectiveValidityFilter)
     .order("start_at", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -98,10 +103,10 @@ export default async function HomePage() {
     const { data: nextUpcomingEvent } = await supabase
       .from("ai_discovered_events")
       .select(
-        "id,title,description,category,start_at,venue_name,price,currency,image_url"
+        "id,title,description,category,start_at,end_at,venue_name,price,currency,image_url"
       )
       .eq("status", "approved")
-      .gte("start_at", new Date().toISOString())
+      .or(effectiveValidityFilter)
       .order("start_at", { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -112,21 +117,22 @@ export default async function HomePage() {
   const { data: tonightEvents } = await supabase
     .from("events")
     .select(
-      "id,title,description,category,start_at,venue_name,price,currency,image_url"
+      "id,title,description,category,start_at,end_at,venue_name,price,currency,image_url"
     )
     .eq("status", "approved")
     .gte("start_at", startOfTonight.toISOString())
     .lte("start_at", endOfTonight.toISOString())
+    .or(effectiveValidityFilter)
     .order("start_at", { ascending: true })
     .limit(3);
 
   const { data: upcomingEvents } = await supabase
     .from("events")
     .select(
-      "id,title,description,category,start_at,venue_name,price,currency,image_url"
+      "id,title,description,category,start_at,end_at,venue_name,price,currency,image_url"
     )
     .eq("status", "approved")
-    .gte("start_at", new Date().toISOString())
+    .or(effectiveValidityFilter)
     .order("start_at", { ascending: true })
     .limit(3);
 
