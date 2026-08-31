@@ -35,6 +35,9 @@ export default async function EditAIEventPage({
     );
   }
 
+  const organizerFound = Boolean(event.organizer_name || event.source_name);
+  const effectiveEndAt = event.end_at || event.start_at;
+
   const reviewChecks = [
     {
       label: event.image_url
@@ -67,11 +70,11 @@ export default async function EditAIEventPage({
     },
     {
       label: "Organizer found",
-      passed: Boolean(event.organizer_name),
+      passed: organizerFound,
     },
     {
       label: "End date found",
-      passed: Boolean(event.end_at),
+      passed: Boolean(effectiveEndAt),
     },
     {
       label: "Source verified",
@@ -97,13 +100,20 @@ const missingChecks = reviewChecks.filter(
       return "";
     }
 
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Nairobi",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date);
+    const values = Object.fromEntries(
+      parts.map(({ type, value }) => [type, value])
+    );
 
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
   };
 
   return (
@@ -270,8 +280,8 @@ const missingChecks = reviewChecks.filter(
 
                 <span>
                   {check.passed
-                    ? "âœ“ Ready"
-                    : "âš  Review"}
+                    ? "✓ Ready"
+                    : "⚠ Review"}
                 </span>
 
               </div>
@@ -301,7 +311,7 @@ const missingChecks = reviewChecks.filter(
               rel="noreferrer"
               className="mt-3 inline-block text-orange-600 font-black"
             >
-              Open Source â†’
+              Open Source →
             </a>
           )}
 

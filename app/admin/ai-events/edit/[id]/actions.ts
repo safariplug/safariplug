@@ -22,7 +22,7 @@ export async function updateAIEvent(
   const currency = String(formData.get("currency") ?? "").trim();
   const { data: existingEvent, error: existingEventError } = await supabaseAdmin
     .from("ai_discovered_events")
-    .select("organizer_name, source_url, image_url")
+    .select("source_name, source_url, image_url")
     .eq("id", id)
     .single();
 
@@ -69,6 +69,9 @@ export async function updateAIEvent(
     throw new Error("Start date and time are required.");
   }
 
+  const organizerFound = Boolean(organizerName || existingEvent.source_name);
+  const effectiveEndAt = endAt || startAt;
+
   const reviewChecks = [
     Boolean(existingEvent.image_url),
     Boolean(description),
@@ -76,8 +79,8 @@ export async function updateAIEvent(
     Boolean(venueName),
     Boolean(venueAddress),
     price !== null && Number.isFinite(price),
-    Boolean(organizerName),
-    Boolean(endAt),
+    organizerFound,
+    Boolean(effectiveEndAt),
     Boolean(existingEvent.source_url),
   ];
 

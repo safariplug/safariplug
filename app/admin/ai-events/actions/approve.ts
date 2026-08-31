@@ -97,14 +97,36 @@ const { data: existingEvent } =
   await supabaseAdmin
     .from("events")
     .select("id,title")
-    .ilike("title", aiEvent.title)
+    .eq("source_url", aiEvent.source_url)
     .limit(1)
     .maybeSingle();
 
 if (existingEvent) {
-  throw new Error(
-    `Duplicate event already exists: ${existingEvent.title}`
-  );
+  const { error: updateError } =
+    await supabaseAdmin
+      .from("ai_discovered_events")
+      .update({
+        status: "approved",
+        review_status: "approved",
+        review_score: reviewScore,
+        image_verified: Boolean(aiEvent.image_url),
+        reviewed_at: new Date().toISOString(),
+        review_notes: "Already published. Existing event reused.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+  if (updateError) {
+    throw new Error(
+      "Failed updating AI event: " +
+        updateError.message
+    );
+  }
+
+  revalidatePath("/admin/ai-events");
+  revalidatePath("/events");
+
+  return existingEvent.id;
 }
   // Create slug
   const baseSlug = createSlug(aiEvent.title);
