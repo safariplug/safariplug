@@ -248,8 +248,7 @@ const displayedEvents =
 
             <Link
               href="/events"
-              target="_blank"
-              className="rounded-full bg-slate-950 px-4 py-2.5 text-xs font-black text-white transition hover:bg-orange-500 sm:px-5 sm:text-sm"
+                            className="rounded-full bg-slate-950 px-4 py-2.5 text-xs font-black text-white transition hover:bg-orange-500 sm:px-5 sm:text-sm"
             >
               View Events
             </Link>
