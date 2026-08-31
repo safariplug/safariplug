@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+﻿import { createClient } from "@supabase/supabase-js";
 import EventCard from "@/components/EventCard";
 import { EVENT_CATEGORIES } from "@/lib/constants/events";
 
@@ -63,7 +63,7 @@ export default async function EventsPage({
 
   let eventsQuery = supabase
     .from("events")
-    .select("id, title, description, category, city, venue_name, price, currency, image_url, start_at, is_featured, status")
+    .select("id, title, description, category, venue_name, price, currency, image_url, start_at, is_featured, status, cities ( name )")
     .eq("status", "approved")
     .order("is_featured", { ascending: false })
     .order("start_at", { ascending: true });
@@ -91,7 +91,12 @@ export default async function EventsPage({
 
   const { data: events, error } = await eventsQuery;
 
-  const filteredEvents = (events || []).filter((event) => {
+  const normalizedEvents = (events || []).map((event) => ({
+    ...event,
+    city: event.cities?.[0]?.name || ""
+  }));
+
+  const filteredEvents = normalizedEvents.filter((event) => {
     const eventCity = String(event.city || "").toLowerCase();
     const searchText = [
       event.title,
