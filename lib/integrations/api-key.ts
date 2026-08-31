@@ -1,8 +1,8 @@
-export function validateIntegrationKey(
+﻿export function validateIntegrationKey(
   request: Request
 ): boolean {
   const providedKey = request.headers.get("x-api-key");
-  const expectedKey = process.env.AURELIAN_API_KEY;
+  const expectedKey = process.env.SAFARIPLUG_AURELIAN_API_KEY;
 
   if (!providedKey || !expectedKey) {
     return false;
@@ -20,3 +20,4 @@ export function validateIntegrationKey(
 
   return result === 0;
 }
+
