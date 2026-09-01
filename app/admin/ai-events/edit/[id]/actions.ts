@@ -5,10 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-export async function updateAIEvent(
-  id: string,
-  formData: FormData
-) {
+export async function updateAIEvent(id: string, formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
@@ -20,6 +17,8 @@ export async function updateAIEvent(
   const endAtRaw = String(formData.get("end_at") ?? "").trim();
   const priceRaw = String(formData.get("price") ?? "").trim();
   const currency = String(formData.get("currency") ?? "").trim();
+  const isFeatured = formData.get("is_featured") === "on";
+
   const { data: existingEvent, error: existingEventError } = await supabaseAdmin
     .from("ai_discovered_events")
     .select("source_name, source_url, image_url")
@@ -30,48 +29,19 @@ export async function updateAIEvent(
     throw new Error("AI event not found: " + (existingEventError?.message ?? "unknown error"));
   }
 
-  if (!title) {
-    throw new Error("Title is required.");
-  }
+  if (!title) throw new Error("Title is required.");
+  if (!category) throw new Error("Category is required.");
+  if (!city) throw new Error("City is required.");
 
-  if (!category) {
-    throw new Error("Category is required.");
-  }
+  const price = priceRaw === "" ? null : Number(priceRaw);
+  if (priceRaw !== "" && !Number.isFinite(price)) throw new Error("Price must be a valid number.");
 
-  if (!city) {
-    throw new Error("City is required.");
-  }
-
-  const price =
-    priceRaw === ""
-      ? null
-      : Number(priceRaw);
-
-  if (priceRaw !== "" && !Number.isFinite(price)) {
-    throw new Error("Price must be a valid number.");
-  }
-
-  const startAt =
-    startAtRaw === ""
-      ? null
-      : startAtRaw.length === 16
-        ? `${startAtRaw}:00`
-        : startAtRaw;
-
-  const endAt =
-    endAtRaw === ""
-      ? null
-      : endAtRaw.length === 16
-        ? `${endAtRaw}:00`
-        : endAtRaw;
-
-  if (!startAt) {
-    throw new Error("Start date and time are required.");
-  }
+  const startAt = startAtRaw === "" ? null : startAtRaw.length === 16 ? `${startAtRaw}:00` : startAtRaw;
+  const endAt = endAtRaw === "" ? null : endAtRaw.length === 16 ? `${endAtRaw}:00` : endAtRaw;
+  if (!startAt) throw new Error("Start date and time are required.");
 
   const organizerFound = Boolean(organizerName || existingEvent.source_name);
   const effectiveEndAt = endAt || startAt;
-
   const reviewChecks = [
     Boolean(existingEvent.image_url),
     Boolean(description),
@@ -83,16 +53,12 @@ export async function updateAIEvent(
     Boolean(effectiveEndAt),
     Boolean(existingEvent.source_url),
   ];
-
-  const reviewScore = Math.round(
-    (reviewChecks.filter(Boolean).length / reviewChecks.length) * 100
-  );
-
+  const reviewScore = Math.round((reviewChecks.filter(Boolean).length / reviewChecks.length) * 100);
 
   const { error } = await supabaseAdmin
     .from("ai_discovered_events")
     .update({
-      is_featured: formData.get("is_featured") === "on",
+      is_featured: isFeatured,
       title,
       description,
       category,
@@ -104,54 +70,33 @@ export async function updateAIEvent(
       end_at: endAt,
       price,
       currency: currency || null,
-
       review_score: reviewScore,
-
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
 
-  if (error) {
-    throw new Error(
-      `Failed to update AI event: ${error.message}`
-    );
-  }
+  if (error) throw new Error(`Failed to update AI event: ${error.message}`);
 
   revalidatePath("/admin/ai-events");
   revalidatePath(`/admin/ai-events/edit/${id}`);
-
   redirect(`/admin/ai-events/edit/${id}`);
 }
 
-
 export async function publishAIEvent(id: string) {
- // Use the same authoritative publishing path as Approve & Publish.
- // This performs the server-side quality gate, duplicate check,
- // live events insert, and AI discovery approval in one place.
- await approveAIEvent(id);
-
+  await approveAIEvent(id);
   revalidatePath("/admin/ai-events");
- revalidatePath(`/admin/ai-events/edit/${id}`);
+  revalidatePath(`/admin/ai-events/edit/${id}`);
   redirect("/admin/ai-events");
 }
+
 export async function rejectAIEvent(id: string) {
   const { error } = await supabaseAdmin
     .from("ai_discovered_events")
-    .update({
-      status: "rejected",
-      review_status: "rejected",
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: "rejected", review_status: "rejected", updated_at: new Date().toISOString() })
     .eq("id", id);
 
-  if (error) {
-    throw new Error(
-      `Failed to reject AI event: ${error.message}`
-    );
-  }
+  if (error) throw new Error(`Failed to reject AI event: ${error.message}`);
 
   revalidatePath("/admin/ai-events");
-
   redirect("/admin/ai-events");
 }
-
