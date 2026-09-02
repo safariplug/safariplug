@@ -8,8 +8,10 @@ import {
 } from "@/lib/metricool";
 import { revalidatePath } from "next/cache";
 
-export async function publishMarketingDraft(id: number, scheduledAt?: string) {
+export async function publishMarketingDraft(id: number, formData: FormData): Promise<void> {
   await requireAdmin();
+
+  const scheduledAtValue = String(formData.get("scheduledAt") ?? "").trim();
 
   const { data: draft, error: fetchError } = await supabaseAdmin
     .from("marketing_drafts")
@@ -49,8 +51,8 @@ export async function publishMarketingDraft(id: number, scheduledAt?: string) {
     throw new Error("TikTok publishing requires a rendered video URL.");
   }
 
-  const targetTime = scheduledAt
-    ? new Date(scheduledAt)
+  const targetTime = scheduledAtValue
+    ? new Date(scheduledAtValue)
     : new Date(Date.now() + 5 * 60 * 1000);
 
   if (Number.isNaN(targetTime.getTime())) {
@@ -91,12 +93,7 @@ export async function publishMarketingDraft(id: number, scheduledAt?: string) {
     }
 
     revalidatePath("/admin/marketing");
-
-    return {
-      success: true,
-      scheduledAt: targetTime.toISOString(),
-      metricoolPostId: result.postId,
-    };
+    revalidatePath("/admin/marketing/media");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Metricool publishing failed.";
 
