@@ -3,6 +3,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { openai } from "@/lib/openai";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 type ApprovedEvent = {
   id: string;
@@ -89,6 +90,8 @@ function formatEvent(event: ApprovedEvent): string {
 }
 
 export async function generateMarketingDrafts(eventId: string) {
+  await requireAdmin();
+
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
@@ -266,6 +269,8 @@ export async function generateMarketingDraft({
   platform: SingleDraftPlatform;
 }) {
   try {
+    await requireAdmin();
+
     const { data: event, error } = await supabaseAdmin
       .from("ai_discovered_events")
       .select("title, description, category, venue_name, price, currency, start_at, status")
