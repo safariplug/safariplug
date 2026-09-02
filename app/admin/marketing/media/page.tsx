@@ -97,14 +97,16 @@ export default async function MarketingMediaPage() {
 
               {(draft.platform === "instagram" || draft.platform === "tiktok") && (
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <form action={generateMarketingVideo.bind(null, draft.id)}>
+                  <form action={generateMarketingVideo}>
+                    <input type="hidden" name="id" value={draft.id} />
                     <button type="submit" className="rounded-xl bg-amber-500 px-6 py-3 text-sm font-black text-black">
                       {draft.video_job_id ? "Regenerate Video" : "Generate Video"}
                     </button>
                   </form>
 
                   {draft.video_job_id && !draft.video_url && (
-                    <form action={refreshMarketingVideo.bind(null, draft.id)}>
+                    <form action={refreshMarketingVideo}>
+                      <input type="hidden" name="id" value={draft.id} />
                       <button type="submit" className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-black text-white">
                         Check / Render Video
                       </button>
@@ -112,7 +114,8 @@ export default async function MarketingMediaPage() {
                   )}
 
                   {!draft.metricool_post_id && draft.publish_status === "ready_to_publish" && (
-                    <form action={publishMarketingDraft.bind(null, draft.id)}>
+                    <form action={publishMarketingDraft}>
+                      <input type="hidden" name="id" value={draft.id} />
                       <button type="submit" className="rounded-xl bg-emerald-500 px-6 py-3 text-sm font-black text-black">
                         Send to Metricool
                       </button>
