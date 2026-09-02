@@ -19,6 +19,30 @@ export async function generateMarketingDraft({
     if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
     if (!eventId?.trim()) throw new Error("Missing event ID");
 
+    // One active campaign per event + platform. Rejected campaigns may be regenerated.
+    const { data: existingDraft, error: existingDraftError } = await supabaseAdmin
+      .from("marketing_drafts")
+      .select("id, status, publish_status, metricool_status")
+      .eq("event_id", eventId)
+      .eq("platform", platform)
+      .neq("status", "rejected")
+      .maybeSingle();
+
+    if (existingDraftError) throw new Error(existingDraftError.message);
+
+    if (existingDraft) {
+      const state = existingDraft.metricool_status === "scheduled"
+        ? "scheduled"
+        : existingDraft.status === "approved"
+          ? "approved"
+          : "already created";
+      return {
+        success: false as const,
+        error: `A ${platform} campaign for this event is ${state} (campaign #${existingDraft.id}). Open the existing campaign instead of creating another one.`,
+        existingDraftId: existingDraft.id,
+      };
+    }
+
     const { data: event, error } = await supabaseAdmin
       .from("ai_discovered_events")
       .select("id, title, description, category, city, venue_name, price, currency, start_at, image_url, source_url, status")
@@ -104,7 +128,16 @@ export async function generateMarketingDraft({
       .select("id")
       .single();
 
-    if (insertError) throw new Error(insertError.message);
+    if (insertError) {
+      // Protect against two simultaneous requests that both passed the pre-check.
+      if (insertError.code === "23505") {
+        return {
+          success: false as const,
+          error: `A ${platform} campaign for this event was created by another request. Please open the existing campaign instead.`,
+        };
+      }
+      throw new Error(insertError.message);
+    }
 
     revalidatePath("/admin/marketing");
 
