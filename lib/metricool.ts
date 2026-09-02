@@ -14,6 +14,22 @@ function requireMetricoolConfig() {
   return { userToken, userId, blogId };
 }
 
+function formatNairobiDateTime(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Nairobi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}`;
+}
+
 export async function scheduleMetricoolInstagramPost({
   text,
   imageUrl,
@@ -53,7 +69,7 @@ export async function scheduleMetricoolInstagramPost({
       },
       body: JSON.stringify({
         publicationDate: {
-          dateTime: scheduledAt.toISOString().slice(0, 19),
+          dateTime: formatNairobiDateTime(scheduledAt),
           timezone: "Africa/Nairobi",
         },
         text,
