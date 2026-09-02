@@ -13,6 +13,12 @@ function requireOpenAIKey() {
   return key;
 }
 
+function getId(formData: FormData) {
+  const value = Number(formData.get("id"));
+  if (!Number.isInteger(value) || value <= 0) throw new Error("Invalid marketing draft ID.");
+  return value;
+}
+
 async function getDraft(id: number) {
   const { data, error } = await supabaseAdmin
     .from("marketing_drafts")
@@ -46,8 +52,9 @@ function buildPrompt(draft: {
   ].join("\n");
 }
 
-export async function generateMarketingVideo(id: number, _formData: FormData): Promise<void> {
+export async function generateMarketingVideo(formData: FormData): Promise<void> {
   await requireAdmin();
+  const id = getId(formData);
   const key = requireOpenAIKey();
   const draft = await getDraft(id);
 
@@ -102,8 +109,9 @@ export async function generateMarketingVideo(id: number, _formData: FormData): P
   revalidatePath("/admin/marketing/media");
 }
 
-export async function refreshMarketingVideo(id: number, _formData: FormData): Promise<void> {
+export async function refreshMarketingVideo(formData: FormData): Promise<void> {
   await requireAdmin();
+  const id = getId(formData);
   const key = requireOpenAIKey();
   const draft = await getDraft(id);
 
