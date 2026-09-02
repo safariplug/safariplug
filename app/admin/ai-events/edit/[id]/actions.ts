@@ -2,10 +2,13 @@
 
 import { approveAIEvent } from "../../actions/approve";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 export async function updateAIEvent(id: string, formData: FormData) {
+  await requireAdmin();
+
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
@@ -43,15 +46,9 @@ export async function updateAIEvent(id: string, formData: FormData) {
   const organizerFound = Boolean(organizerName || existingEvent.source_name);
   const effectiveEndAt = endAt || startAt;
   const reviewChecks = [
-    Boolean(existingEvent.image_url),
-    Boolean(description),
-    Boolean(startAt),
-    Boolean(venueName),
-    Boolean(venueAddress),
-    price !== null && Number.isFinite(price),
-    organizerFound,
-    Boolean(effectiveEndAt),
-    Boolean(existingEvent.source_url),
+    Boolean(existingEvent.image_url), Boolean(description), Boolean(startAt),
+    Boolean(venueName), Boolean(venueAddress), price !== null && Number.isFinite(price),
+    organizerFound, Boolean(effectiveEndAt), Boolean(existingEvent.source_url),
   ];
   const reviewScore = Math.round((reviewChecks.filter(Boolean).length / reviewChecks.length) * 100);
 
@@ -59,16 +56,11 @@ export async function updateAIEvent(id: string, formData: FormData) {
     .from("ai_discovered_events")
     .update({
       is_featured: isFeatured,
-      title,
-      description,
-      category,
-      city,
+      title, description, category, city,
       venue_name: venueName || null,
       venue_address: venueAddress || null,
       organizer_name: organizerName || null,
-      start_at: startAt,
-      end_at: endAt,
-      price,
+      start_at: startAt, end_at: endAt, price,
       currency: currency || null,
       review_score: reviewScore,
       updated_at: new Date().toISOString(),
@@ -83,6 +75,7 @@ export async function updateAIEvent(id: string, formData: FormData) {
 }
 
 export async function publishAIEvent(id: string) {
+  await requireAdmin();
   await approveAIEvent(id);
   revalidatePath("/admin/ai-events");
   revalidatePath(`/admin/ai-events/edit/${id}`);
@@ -90,6 +83,8 @@ export async function publishAIEvent(id: string) {
 }
 
 export async function rejectAIEvent(id: string) {
+  await requireAdmin();
+
   const { error } = await supabaseAdmin
     .from("ai_discovered_events")
     .update({ status: "rejected", review_status: "rejected", updated_at: new Date().toISOString() })
