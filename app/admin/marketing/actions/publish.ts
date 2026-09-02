@@ -8,9 +8,16 @@ import {
 } from "@/lib/metricool";
 import { revalidatePath } from "next/cache";
 
-export async function publishMarketingDraft(id: number, formData: FormData): Promise<void> {
+function getId(formData: FormData) {
+  const value = Number(formData.get("id"));
+  if (!Number.isInteger(value) || value <= 0) throw new Error("Invalid marketing draft ID.");
+  return value;
+}
+
+export async function publishMarketingDraft(formData: FormData): Promise<void> {
   await requireAdmin();
 
+  const id = getId(formData);
   const scheduledAtValue = String(formData.get("scheduledAt") ?? "").trim();
 
   const { data: draft, error: fetchError } = await supabaseAdmin
