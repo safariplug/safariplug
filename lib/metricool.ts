@@ -47,25 +47,13 @@ async function scheduleMetricoolPost({
 }) {
   const { userToken, userId, blogId } = requireMetricoolConfig();
 
-  if (!text.trim()) {
-    throw new Error(`${network} post text is empty.`);
-  }
+  if (!text.trim()) throw new Error(`${network} post text is empty.`);
+  if (!imageUrl && !videoUrl) throw new Error(`${network} publishing requires an image or video URL.`);
+  if (network === "tiktok" && !videoUrl) throw new Error("TikTok publishing requires a video URL.");
+  if (scheduledAt.getTime() <= Date.now()) throw new Error("Metricool publication time must be in the future.");
 
-  if (!imageUrl && !videoUrl) {
-    throw new Error(`${network} publishing requires an image or video URL.`);
-  }
-
-  if (network === "tiktok" && !videoUrl) {
-    throw new Error("TikTok publishing requires a video URL.");
-  }
-
-  if (scheduledAt.getTime() <= Date.now()) {
-    throw new Error("Metricool publication time must be in the future.");
-  }
-
-  const media = [imageUrl, videoUrl].filter(
-    (value): value is string => Boolean(value?.trim())
-  );
+  const media = [imageUrl, videoUrl].filter((value): value is string => Boolean(value?.trim()));
+  const isAiVideo = Boolean(videoUrl);
 
   const body: Record<string, unknown> = {
     publicationDate: {
@@ -84,6 +72,13 @@ async function scheduleMetricoolPost({
   if (network === "instagram") {
     body.instagramData = {
       type: instagramType || (videoUrl ? "REEL" : "POST"),
+      isAiGenerated: isAiVideo,
+    };
+  }
+
+  if (network === "tiktok") {
+    body.tiktokData = {
+      isAigc: isAiVideo,
     };
   }
 
@@ -91,10 +86,7 @@ async function scheduleMetricoolPost({
     `${METRICOOL_BASE_URL}/v2/scheduler/posts?blogId=${encodeURIComponent(blogId)}&userId=${encodeURIComponent(userId)}`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Mc-Auth": userToken,
-      },
+      headers: { "Content-Type": "application/json", "X-Mc-Auth": userToken },
       body: JSON.stringify(body),
       cache: "no-store",
     }
@@ -102,7 +94,6 @@ async function scheduleMetricoolPost({
 
   const raw = await response.text();
   let data: unknown = null;
-
   try {
     data = raw ? JSON.parse(raw) : null;
   } catch {
@@ -114,11 +105,7 @@ async function scheduleMetricoolPost({
     throw new Error(`Metricool API ${response.status}: ${detail}`);
   }
 
-  const result =
-    typeof data === "object" && data !== null
-      ? (data as Record<string, unknown>)
-      : {};
-
+  const result = typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
   const postId =
     typeof result.id === "string" || typeof result.id === "number"
       ? String(result.id)
@@ -140,13 +127,7 @@ export async function scheduleMetricoolInstagramPost({
   videoUrl?: string | null;
   scheduledAt: Date;
 }) {
-  return scheduleMetricoolPost({
-    network: "instagram",
-    text,
-    imageUrl,
-    videoUrl,
-    scheduledAt,
-  });
+  return scheduleMetricoolPost({ network: "instagram", text, imageUrl, videoUrl, scheduledAt });
 }
 
 export async function scheduleMetricoolTikTokPost({
@@ -158,10 +139,5 @@ export async function scheduleMetricoolTikTokPost({
   videoUrl: string;
   scheduledAt: Date;
 }) {
-  return scheduleMetricoolPost({
-    network: "tiktok",
-    text,
-    videoUrl,
-    scheduledAt,
-  });
+  return scheduleMetricoolPost({ network: "tiktok", text, videoUrl, scheduledAt });
 }
