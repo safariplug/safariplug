@@ -2,7 +2,10 @@
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireAdmin } from "@/lib/auth/require-admin";
-import { scheduleMetricoolInstagramPost } from "@/lib/metricool";
+import {
+  scheduleMetricoolInstagramPost,
+  scheduleMetricoolTikTokPost,
+} from "@/lib/metricool";
 import { revalidatePath } from "next/cache";
 
 export async function publishMarketingDraft(id: number, scheduledAt?: string) {
@@ -11,7 +14,7 @@ export async function publishMarketingDraft(id: number, scheduledAt?: string) {
   const { data: draft, error: fetchError } = await supabaseAdmin
     .from("marketing_drafts")
     .select(
-      "id,status,publish_status,platform,draft_content,image_url,video_url,scheduled_at,metricool_post_id"
+      "id,status,publish_status,platform,content_type,draft_content,image_url,video_url,scheduled_at,metricool_post_id"
     )
     .eq("id", id)
     .maybeSingle();
@@ -30,12 +33,20 @@ export async function publishMarketingDraft(id: number, scheduledAt?: string) {
     );
   }
 
-  if (draft.platform !== "instagram") {
-    throw new Error("Only Instagram drafts are currently connected to Metricool.");
+  if (draft.platform !== "instagram" && draft.platform !== "tiktok") {
+    throw new Error("Only Instagram and TikTok drafts are currently connected to Metricool.");
   }
 
   if (draft.metricool_post_id) {
     throw new Error("This draft has already been sent to Metricool.");
+  }
+
+  if ((draft.platform === "instagram" || draft.platform === "tiktok") && !draft.video_url && draft.content_type === "video_reel") {
+    throw new Error("This video campaign is approved but has no rendered video URL yet.");
+  }
+
+  if (draft.platform === "tiktok" && !draft.video_url) {
+    throw new Error("TikTok publishing requires a rendered video URL.");
   }
 
   const targetTime = scheduledAt
@@ -47,17 +58,24 @@ export async function publishMarketingDraft(id: number, scheduledAt?: string) {
   }
 
   try {
-    const result = await scheduleMetricoolInstagramPost({
-      text: draft.draft_content,
-      imageUrl: draft.image_url,
-      videoUrl: draft.video_url,
-      scheduledAt: targetTime,
-    });
+    const result =
+      draft.platform === "instagram"
+        ? await scheduleMetricoolInstagramPost({
+            text: draft.draft_content,
+            imageUrl: draft.video_url ? null : draft.image_url,
+            videoUrl: draft.video_url,
+            scheduledAt: targetTime,
+          })
+        : await scheduleMetricoolTikTokPost({
+            text: draft.draft_content,
+            videoUrl: draft.video_url!,
+            scheduledAt: targetTime,
+          });
 
     const { error: updateError } = await supabaseAdmin
       .from("marketing_drafts")
       .update({
-        publish_status: "published",
+        publish_status: "scheduled",
         scheduled_at: targetTime.toISOString(),
         published_at: null,
         metricool_post_id: result.postId,
