@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { generateMarketingDraft } from "./actions/generate";
+import { listMarketingDrafts } from "./actions/list";
+import { approveMarketingDraft, rejectMarketingDraft } from "./actions/approve";
 import LuxuryImage from "@/components/LuxuryImage";
 
 const supabase = createClient(
@@ -24,15 +26,47 @@ type EventItem = {
   image_url: string | null;
 };
 
+type MarketingDraft = {
+  id: number;
+  event_id: string | null;
+  event_name: string;
+  city: string | null;
+  platform: string;
+  draft_content: string;
+  image_url: string | null;
+  video_url: string | null;
+  external_url: string | null;
+  status: string;
+  publish_status: string | null;
+  approved_at: string | null;
+  metricool_status: string | null;
+  publish_error: string | null;
+};
+
 type Platform = "instagram" | "whatsapp" | "newsletter";
 
 export default function MarketingStudioPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [drafts, setDrafts] = useState<MarketingDraft[]>([]);
   const [loading, setLoading] = useState(true);
+  const [draftsLoading, setDraftsLoading] = useState(true);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<number | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>("instagram");
   const [activeDraft, setActiveDraft] = useState<{ title: string; copy: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  async function refreshDrafts() {
+    setDraftsLoading(true);
+    try {
+      const result = await listMarketingDrafts();
+      setDrafts((result.drafts || []) as MarketingDraft[]);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Failed to load marketing drafts.");
+    } finally {
+      setDraftsLoading(false);
+    }
+  }
 
   useEffect(() => {
     async function fetchEvents() {
@@ -43,6 +77,7 @@ export default function MarketingStudioPage() {
 
       if (error) {
         console.error("Error fetching studio events:", error.message);
+        setErrorMsg(error.message);
       } else {
         setEvents((data || []) as EventItem[]);
       }
@@ -50,6 +85,7 @@ export default function MarketingStudioPage() {
     }
 
     fetchEvents();
+    refreshDrafts();
   }, []);
 
   const handleGenerate = async (eventId: string, eventTitle: string) => {
@@ -63,6 +99,7 @@ export default function MarketingStudioPage() {
       });
       if (result.success && result.generatedCopy) {
         setActiveDraft({ title: eventTitle, copy: result.generatedCopy });
+        await refreshDrafts();
       } else {
         setErrorMsg(result.error || "Failed to generate draft.");
       }
@@ -73,10 +110,38 @@ export default function MarketingStudioPage() {
     }
   };
 
+  const handleApprove = async (id: number) => {
+    setActionId(id);
+    setErrorMsg(null);
+    try {
+      await approveMarketingDraft(id);
+      await refreshDrafts();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Failed to approve draft.");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    setActionId(id);
+    setErrorMsg(null);
+    try {
+      await rejectMarketingDraft(id);
+      await refreshDrafts();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Failed to reject draft.");
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const approved = events.filter((event) => event.status === "approved");
   const needsReview = events.filter(
     (event) => event.status === "pending_review" || !event.status
   );
+  const reviewDrafts = drafts.filter((draft) => draft.status === "draft");
+  const approvedDrafts = drafts.filter((draft) => draft.status === "approved");
 
   return (
     <main className="min-h-screen bg-black p-8 font-sans text-white selection:bg-amber-500 selection:text-black md:p-12">
@@ -91,7 +156,7 @@ export default function MarketingStudioPage() {
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">Marketing Studio</h1>
             <p className="mt-1 text-sm text-zinc-400">
-              Autonomous promotional generation for approved experiences.
+              Generate, review, approve and prepare promotional campaigns.
             </p>
           </div>
           <Link
@@ -108,7 +173,7 @@ export default function MarketingStudioPage() {
           <Metric label="Pending Review" value={needsReview.length} />
         </div>
 
-        <div className="mb-8 flex flex-col items-start justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center">
+        <div className="mb-10 flex flex-col items-start justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center">
           <div className="flex flex-wrap items-center gap-3">
             <span className="font-mono text-xs uppercase tracking-wider text-zinc-400">Target Channel:</span>
             {(["instagram", "whatsapp", "newsletter"] as const).map((platform) => (
@@ -131,6 +196,58 @@ export default function MarketingStudioPage() {
             </span>
           )}
         </div>
+
+        <section className="mb-12 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-mono text-lg font-bold tracking-wide text-zinc-200">
+              {"// MARKETING DRAFT REVIEW QUEUE"}
+            </h2>
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 font-mono text-xs text-amber-400">
+              {reviewDrafts.length} awaiting approval
+            </span>
+          </div>
+
+          {draftsLoading ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 py-16 text-center font-mono text-sm text-zinc-500">
+              Loading campaign drafts...
+            </div>
+          ) : reviewDrafts.length === 0 ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 py-16 text-center font-mono text-sm text-zinc-500">
+              No marketing drafts awaiting approval.
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {reviewDrafts.map((draft) => (
+                <DraftReviewCard
+                  key={draft.id}
+                  draft={draft}
+                  busy={actionId === draft.id}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                />
+              ))}
+            </div>
+          )}
+
+          {approvedDrafts.length > 0 && (
+            <div className="rounded-2xl border border-emerald-900/50 bg-emerald-950/20 p-5">
+              <div className="mb-3 font-mono text-xs font-bold uppercase tracking-wider text-emerald-400">
+                Approved / Ready to Publish: {approvedDrafts.length}
+              </div>
+              <div className="space-y-2">
+                {approvedDrafts.map((draft) => (
+                  <div key={draft.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                    <div>
+                      <span className="font-semibold text-white">{draft.event_name}</span>
+                      <span className="ml-2 font-mono text-xs uppercase text-zinc-500">{draft.platform}</span>
+                    </div>
+                    <span className="font-mono text-xs text-emerald-400">READY TO PUBLISH</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="space-y-6">
           <h2 className="flex items-center gap-2 font-mono text-lg font-bold tracking-wide text-zinc-200">
@@ -171,31 +288,32 @@ export default function MarketingStudioPage() {
                     )}
                   </div>
                   <div className="flex flex-grow flex-col justify-between p-6">
-                    <div className="mb-4 flex items-center justify-between gap-2">
-                      <span className="rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-amber-400">
-                        {event.category || "General"}
+                    <div>
+                      <div className="mb-4 flex items-center justify-between gap-2">
+                        <span className="rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                          {event.category || "General"}
+                        </span>
+                      </div>
+                      <h3 className="line-clamp-1 text-lg font-bold tracking-tight transition-colors group-hover:text-amber-300">
+                        {event.title}
+                      </h3>
+                      <div className="mt-3 space-y-1.5 font-mono text-xs text-zinc-400">
+                        <p>📍 {event.venue_name || "Location TBD"}</p>
+                        <p>📅 {new Date(event.start_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                      </div>
+                    </div>
+                    <div className="mt-8 flex items-center justify-between border-t border-zinc-900 pt-4">
+                      <span className="font-mono text-xs font-bold text-emerald-400">
+                        {event.price && event.price > 0 ? `${event.currency || "KES"} ${event.price}` : "Free"}
                       </span>
+                      <button
+                        onClick={() => handleGenerate(event.id, event.title)}
+                        disabled={generatingId === event.id}
+                        className="flex items-center gap-2 rounded-xl bg-amber-500 px-3.5 py-2 font-mono text-xs font-bold text-black shadow-md shadow-amber-500/10 transition-all hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-500"
+                      >
+                        {generatingId === event.id ? "Generating..." : `Generate ${selectedPlatform}`}
+                      </button>
                     </div>
-                    <h3 className="line-clamp-1 text-lg font-bold tracking-tight transition-colors group-hover:text-amber-300">
-                      {event.title}
-                    </h3>
-                    <div className="mt-3 space-y-1.5 font-mono text-xs text-zinc-400">
-                      <p>📍 {event.venue_name || "Location TBD"}</p>
-                      <p>📅 {new Date(event.start_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-8 flex items-center justify-between border-t border-zinc-900 pt-4">
-                    <span className="font-mono text-xs font-bold text-emerald-400">
-                      {event.price && event.price > 0 ? `${event.currency || "KES"} ${event.price}` : "Free"}
-                    </span>
-                    <button
-                      onClick={() => handleGenerate(event.id, event.title)}
-                      disabled={generatingId === event.id}
-                      className="flex items-center gap-2 rounded-xl bg-amber-500 px-3.5 py-2 font-mono text-xs font-bold text-black shadow-md shadow-amber-500/10 transition-all hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-500"
-                    >
-                      {generatingId === event.id ? "Generating..." : `Generate ${selectedPlatform}`}
-                    </button>
                   </div>
                 </div>
               ))}
@@ -234,6 +352,78 @@ export default function MarketingStudioPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function DraftReviewCard({
+  draft,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  draft: MarketingDraft;
+  busy: boolean;
+  onApprove: (id: number) => void;
+  onReject: (id: number) => void;
+}) {
+  return (
+    <article className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
+      <div className="grid md:grid-cols-[280px_1fr]">
+        <div className="relative min-h-56 bg-zinc-900">
+          {draft.image_url ? (
+            <img src={draft.image_url} alt={draft.event_name} className="h-full min-h-56 w-full object-cover" />
+          ) : draft.video_url ? (
+            <video controls className="h-full min-h-56 w-full object-cover"><source src={draft.video_url} /></video>
+          ) : (
+            <div className="flex h-full min-h-56 items-center justify-center font-mono text-xs text-zinc-600">NO MEDIA ATTACHED</div>
+          )}
+        </div>
+        <div className="p-6 md:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-amber-500 px-2 py-1 font-mono text-[10px] font-extrabold uppercase text-black">{draft.platform}</span>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">Draft #{draft.id}</span>
+              </div>
+              <h3 className="text-2xl font-bold">{draft.event_name}</h3>
+              <p className="mt-1 font-mono text-xs text-zinc-500">{draft.city || "Location TBD"}</p>
+            </div>
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 font-mono text-[10px] font-bold uppercase text-amber-400">
+              Needs approval
+            </span>
+          </div>
+
+          <div className="mt-6 whitespace-pre-wrap rounded-xl border border-zinc-900 bg-black p-5 font-mono text-xs leading-relaxed text-zinc-300">
+            {draft.draft_content}
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-900 pt-5">
+            <div className="font-mono text-[10px] text-zinc-500">
+              {draft.image_url ? "IMAGE ATTACHED" : "NO IMAGE"}
+              {draft.external_url ? " · EXPERIENCE LINK ATTACHED" : " · NO EXPERIENCE LINK"}
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => onReject(draft.id)}
+                disabled={busy}
+                className="rounded-xl border border-red-900 bg-red-950/40 px-4 py-2.5 font-mono text-xs font-bold text-red-400 hover:bg-red-950 disabled:opacity-50"
+              >
+                {busy ? "Working..." : "Reject"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onApprove(draft.id)}
+                disabled={busy}
+                className="rounded-xl bg-emerald-500 px-5 py-2.5 font-mono text-xs font-extrabold text-black hover:bg-emerald-400 disabled:opacity-50"
+              >
+                {busy ? "Approving..." : "Approve Campaign"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
