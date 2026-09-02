@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidatePath } from "next/cache";
 
 function createSlug(title: string) {
@@ -6,6 +7,8 @@ function createSlug(title: string) {
 }
 
 export async function approveAIEvent(id: string) {
+  await requireAdmin();
+
   const { data: aiEvent, error: fetchError } = await supabaseAdmin
     .from("ai_discovered_events")
     .select("*")
