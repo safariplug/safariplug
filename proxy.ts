@@ -31,12 +31,24 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims as
-    | { app_metadata?: { role?: string } }
-    | undefined;
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  if (claims?.app_metadata?.role !== 'admin') {
+  if (userError || !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/admin/login';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  // Keep the proxy in sync with the canonical server-side admin check.
+  // Admin access is stored in public.admin_users and verified by the
+  // SECURITY DEFINER public.is_admin() RPC, not by JWT app_metadata.
+  const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin');
+
+  if (adminError || isAdmin !== true) {
     const url = request.nextUrl.clone();
     url.pathname = '/admin/login';
     url.search = '';
