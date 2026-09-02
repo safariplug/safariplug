@@ -46,7 +46,7 @@ function buildPrompt(draft: {
   ].join("\n");
 }
 
-export async function generateMarketingVideo(id: number): Promise<void> {
+export async function generateMarketingVideo(id: number, _formData: FormData): Promise<void> {
   await requireAdmin();
   const key = requireOpenAIKey();
   const draft = await getDraft(id);
@@ -102,7 +102,7 @@ export async function generateMarketingVideo(id: number): Promise<void> {
   revalidatePath("/admin/marketing/media");
 }
 
-export async function refreshMarketingVideo(id: number): Promise<void> {
+export async function refreshMarketingVideo(id: number, _formData: FormData): Promise<void> {
   await requireAdmin();
   const key = requireOpenAIKey();
   const draft = await getDraft(id);
