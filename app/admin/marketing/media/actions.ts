@@ -4,12 +4,16 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidatePath } from "next/cache";
 
-export async function updateMarketingMedia(
-  id: number,
-  formData: FormData
-) {
+function getId(formData: FormData) {
+  const value = Number(formData.get("id"));
+  if (!Number.isInteger(value) || value <= 0) throw new Error("Invalid marketing draft ID.");
+  return value;
+}
+
+export async function updateMarketingMedia(formData: FormData): Promise<void> {
   await requireAdmin();
 
+  const id = getId(formData);
   const image_url = String(formData.get("image_url") ?? "").trim();
   const video_url = String(formData.get("video_url") ?? "").trim();
   const external_url = String(formData.get("external_url") ?? "").trim();
