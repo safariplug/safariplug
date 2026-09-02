@@ -137,7 +137,8 @@ export default async function MarketingMediaPage() {
                 </div>
               )}
 
-              <form action={updateMarketingMedia.bind(null, draft.id)} className="mt-6 space-y-3">
+              <form action={updateMarketingMedia} className="mt-6 space-y-3">
+                <input type="hidden" name="id" value={draft.id} />
                 <input name="image_url" placeholder="Image URL" defaultValue={draft.image_url ?? ""} className="w-full rounded-xl border px-4 py-3" />
                 <input name="video_url" placeholder="Video URL" defaultValue={draft.video_url ?? ""} className="w-full rounded-xl border px-4 py-3" />
                 <input name="external_url" placeholder="Experience URL" defaultValue={draft.external_url ?? ""} className="w-full rounded-xl border px-4 py-3" />
