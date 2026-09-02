@@ -5,7 +5,7 @@ import { openai } from "@/lib/openai";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/require-admin";
 
-type SingleDraftPlatform = "instagram" | "whatsapp" | "newsletter";
+type SingleDraftPlatform = "instagram" | "whatsapp" | "newsletter" | "journal";
 
 export async function generateMarketingDraft({
   eventId,
@@ -32,23 +32,44 @@ export async function generateMarketingDraft({
     const venue = event.venue_name || "Information needs verification";
     const priceText = event.price && event.price > 0 ? `${event.currency || "KES"} ${event.price}` : "Free";
     const dateText = event.start_at
-      ? new Date(event.start_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      ? new Date(event.start_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
       : "Information needs verification";
     const description = event.description || "Information needs verification.";
 
-    const prompt = [
-      `Create one ${platform} marketing draft for this approved SafariPlug event.`,
-      "Use only the supplied event information. Never invent dates, prices, venues, performers, sponsors, links, or claims.",
-      "Write polished, concise social copy suitable for the selected platform.",
-      "Do not publish anything. This is a draft requiring human approval.",
-      `EVENT: ${title}`,
-      `Category: ${event.category || "Information needs verification"}`,
-      `City: ${event.city || "Information needs verification"}`,
-      `Venue: ${venue}`,
-      `Date: ${dateText}`,
-      `Price: ${priceText}`,
-      `Description: ${description}`,
-    ].join("\n");
+    const isJournal = platform === "journal";
+    const prompt = isJournal
+      ? [
+          "Create a SafariPlug Journal article draft about this approved event.",
+          "The article will become a public, indexable editorial page after human approval.",
+          "Use only the supplied event information. Never invent dates, prices, venues, performers, sponsors, links, or claims.",
+          "Write useful, natural, people-first travel/event content rather than keyword stuffing.",
+          "Return exactly these sections, with the labels shown:",
+          "SEO TITLE:",
+          "META DESCRIPTION:",
+          "EXCERPT:",
+          "ARTICLE:",
+          "The ARTICLE should be 450-700 words, readable on mobile, and include a useful introduction, what to know, practical details, and a clear closing suggestion to discover more on SafariPlug.",
+          `EVENT: ${title}`,
+          `Category: ${event.category || "Information needs verification"}`,
+          `City: ${event.city || "Information needs verification"}`,
+          `Venue: ${venue}`,
+          `Date: ${dateText}`,
+          `Price: ${priceText}`,
+          `Description: ${description}`,
+        ].join("\n")
+      : [
+          `Create one ${platform} marketing draft for this approved SafariPlug event.`,
+          "Use only the supplied event information. Never invent dates, prices, venues, performers, sponsors, links, or claims.",
+          "Write polished, concise copy suitable for the selected platform.",
+          "Do not publish anything. This is a draft requiring human approval.",
+          `EVENT: ${title}`,
+          `Category: ${event.category || "Information needs verification"}`,
+          `City: ${event.city || "Information needs verification"}`,
+          `Venue: ${venue}`,
+          `Date: ${dateText}`,
+          `Price: ${priceText}`,
+          `Description: ${description}`,
+        ].join("\n");
 
     const response = await openai.responses.create({
       model: "gpt-5.6-luna",
