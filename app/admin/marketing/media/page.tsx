@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { updateMarketingMedia } from "./actions";
 import { generateMarketingVideo, refreshMarketingVideo } from "./video-actions";
+import { publishMarketingDraft } from "../actions/publish";
 
 type MediaDraft = {
   id: number;
@@ -15,6 +16,9 @@ type MediaDraft = {
   video_error: string | null;
   external_url: string | null;
   publish_status: string;
+  metricool_post_id: string | null;
+  metricool_status: string | null;
+  publish_error: string | null;
 };
 
 export default async function MarketingMediaPage() {
@@ -31,12 +35,13 @@ export default async function MarketingMediaPage() {
       video_status,
       video_error,
       external_url,
-      publish_status
+      publish_status,
+      metricool_post_id,
+      metricool_status,
+      publish_error
     `)
     .eq("status", "approved")
-    .order("id", {
-      ascending: false,
-    });
+    .order("id", { ascending: false });
 
   const drafts = (data || []) as MediaDraft[];
 
@@ -49,7 +54,7 @@ export default async function MarketingMediaPage() {
 
         <h1 className="mt-6 text-4xl font-black">Marketing Media Queue</h1>
         <p className="mt-3 text-slate-500">
-          Attach photos, generate short-form video, and add booking links before publishing.
+          Attach photos, generate short-form video, and send approved campaigns to Metricool.
         </p>
 
         <div className="mt-10 space-y-8">
@@ -93,24 +98,39 @@ export default async function MarketingMediaPage() {
               {(draft.platform === "instagram" || draft.platform === "tiktok") && (
                 <div className="mt-6 flex flex-wrap gap-3">
                   <form action={generateMarketingVideo.bind(null, draft.id)}>
-                    <button
-                      type="submit"
-                      className="rounded-xl bg-amber-500 px-6 py-3 text-sm font-black text-black"
-                    >
+                    <button type="submit" className="rounded-xl bg-amber-500 px-6 py-3 text-sm font-black text-black">
                       {draft.video_job_id ? "Regenerate Video" : "Generate Video"}
                     </button>
                   </form>
 
                   {draft.video_job_id && !draft.video_url && (
                     <form action={refreshMarketingVideo.bind(null, draft.id)}>
-                      <button
-                        type="submit"
-                        className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-black text-white"
-                      >
+                      <button type="submit" className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-black text-white">
                         Check / Render Video
                       </button>
                     </form>
                   )}
+
+                  {!draft.metricool_post_id && draft.publish_status === "ready_to_publish" && (
+                    <form action={publishMarketingDraft.bind(null, draft.id)}>
+                      <button type="submit" className="rounded-xl bg-emerald-500 px-6 py-3 text-sm font-black text-black">
+                        Send to Metricool
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {draft.metricool_status && (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
+                  <strong>Metricool:</strong> {draft.metricool_status}
+                  {draft.metricool_post_id ? ` · Post ${draft.metricool_post_id}` : ""}
+                </div>
+              )}
+
+              {draft.publish_error && (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                  Metricool error: {draft.publish_error}
                 </div>
               )}
 
