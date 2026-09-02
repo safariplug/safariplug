@@ -26,3 +26,25 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes safariplug-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.safariplug-page-transition {
+  min-height: 100%;
+  animation: safariplug-page-enter 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .safariplug-page-transition {
+    animation: none;
+  }
+}
