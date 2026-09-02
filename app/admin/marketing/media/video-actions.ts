@@ -46,7 +46,7 @@ function buildPrompt(draft: {
   ].join("\n");
 }
 
-export async function generateMarketingVideo(id: number) {
+export async function generateMarketingVideo(id: number): Promise<void> {
   await requireAdmin();
   const key = requireOpenAIKey();
   const draft = await getDraft(id);
@@ -100,11 +100,9 @@ export async function generateMarketingVideo(id: number) {
 
   if (error) throw new Error(error.message);
   revalidatePath("/admin/marketing/media");
-
-  return { success: true, jobId, status: typeof data.status === "string" ? data.status : "queued" };
 }
 
-export async function refreshMarketingVideo(id: number) {
+export async function refreshMarketingVideo(id: number): Promise<void> {
   await requireAdmin();
   const key = requireOpenAIKey();
   const draft = await getDraft(id);
@@ -133,7 +131,7 @@ export async function refreshMarketingVideo(id: number) {
       .update({ video_status: status === "failed" ? "error" : "processing", video_error: status === "failed" ? JSON.stringify(data.error || {}) : null })
       .eq("id", id);
     revalidatePath("/admin/marketing/media");
-    return { success: true, status };
+    return;
   }
 
   const contentResponse = await fetch(`${OPENAI_VIDEOS_URL}/${encodeURIComponent(draft.video_job_id)}/content`, {
@@ -167,5 +165,4 @@ export async function refreshMarketingVideo(id: number) {
 
   revalidatePath("/admin/marketing/media");
   revalidatePath("/admin/marketing");
-  return { success: true, status: "completed", videoUrl: publicUrl.publicUrl };
 }
