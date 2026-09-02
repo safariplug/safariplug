@@ -29,13 +29,12 @@ export async function approveMarketingDraft(id: number) {
 export async function rejectMarketingDraft(id: number) {
   await requireAdmin();
 
+  // Rejection means the campaign is discarded, not retained as a rejected record.
+  // Only a current draft can be deleted; approved/scheduled/published campaigns
+  // are intentionally protected from this action.
   const { error } = await supabaseAdmin
     .from("marketing_drafts")
-    .update({
-      status: "rejected",
-      publish_status: "not_ready",
-      publish_error: null,
-    })
+    .delete()
     .eq("id", id)
     .eq("status", "draft");
 
