@@ -8,8 +8,11 @@ function createSlug(title: string) {
   return title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-export async function approveAIEvent(id: string) {
+export async function approveAIEvent(formData: FormData): Promise<void> {
   await requireAdmin();
+
+  const id = String(formData.get("id") || "").trim();
+  if (!id) throw new Error("AI event ID is missing.");
 
   const { data: aiEvent, error: fetchError } = await supabaseAdmin
     .from("ai_discovered_events")
@@ -75,7 +78,7 @@ export async function approveAIEvent(id: string) {
     revalidatePath("/admin/ai-events");
     revalidatePath("/events");
     revalidatePath("/");
-    return existingEvent.id;
+    return;
   }
 
   const slug = `${createSlug(aiEvent.title)}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
