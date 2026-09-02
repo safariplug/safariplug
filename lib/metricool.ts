@@ -30,25 +30,33 @@ function formatNairobiDateTime(date: Date): string {
   return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}`;
 }
 
-export async function scheduleMetricoolInstagramPost({
+async function scheduleMetricoolPost({
+  network,
   text,
   imageUrl,
   videoUrl,
   scheduledAt,
+  instagramType,
 }: {
+  network: "instagram" | "tiktok";
   text: string;
   imageUrl?: string | null;
   videoUrl?: string | null;
   scheduledAt: Date;
+  instagramType?: "POST" | "REEL";
 }) {
   const { userToken, userId, blogId } = requireMetricoolConfig();
 
   if (!text.trim()) {
-    throw new Error("Instagram post text is empty.");
+    throw new Error(`${network} post text is empty.`);
   }
 
   if (!imageUrl && !videoUrl) {
-    throw new Error("Instagram publishing requires an image or video URL.");
+    throw new Error(`${network} publishing requires an image or video URL.`);
+  }
+
+  if (network === "tiktok" && !videoUrl) {
+    throw new Error("TikTok publishing requires a video URL.");
   }
 
   if (scheduledAt.getTime() <= Date.now()) {
@@ -59,6 +67,26 @@ export async function scheduleMetricoolInstagramPost({
     (value): value is string => Boolean(value?.trim())
   );
 
+  const body: Record<string, unknown> = {
+    publicationDate: {
+      dateTime: formatNairobiDateTime(scheduledAt),
+      timezone: "Africa/Nairobi",
+    },
+    text,
+    providers: [{ network }],
+    autoPublish: true,
+    draft: false,
+    shortener: false,
+    media,
+    saveExternalMediaFiles: true,
+  };
+
+  if (network === "instagram") {
+    body.instagramData = {
+      type: instagramType || (videoUrl ? "REEL" : "POST"),
+    };
+  }
+
   const response = await fetch(
     `${METRICOOL_BASE_URL}/v2/scheduler/posts?blogId=${encodeURIComponent(blogId)}&userId=${encodeURIComponent(userId)}`,
     {
@@ -67,22 +95,7 @@ export async function scheduleMetricoolInstagramPost({
         "Content-Type": "application/json",
         "X-Mc-Auth": userToken,
       },
-      body: JSON.stringify({
-        publicationDate: {
-          dateTime: formatNairobiDateTime(scheduledAt),
-          timezone: "Africa/Nairobi",
-        },
-        text,
-        providers: [{ network: "instagram" }],
-        autoPublish: true,
-        draft: false,
-        shortener: false,
-        media,
-        saveExternalMediaFiles: true,
-        instagramData: {
-          type: videoUrl ? "REEL" : "POST",
-        },
-      }),
+      body: JSON.stringify(body),
       cache: "no-store",
     }
   );
@@ -97,8 +110,7 @@ export async function scheduleMetricoolInstagramPost({
   }
 
   if (!response.ok) {
-    const detail =
-      typeof data === "string" ? data : JSON.stringify(data || {});
+    const detail = typeof data === "string" ? data : JSON.stringify(data || {});
     throw new Error(`Metricool API ${response.status}: ${detail}`);
   }
 
@@ -115,4 +127,41 @@ export async function scheduleMetricoolInstagramPost({
         : null;
 
   return { postId, response: data };
+}
+
+export async function scheduleMetricoolInstagramPost({
+  text,
+  imageUrl,
+  videoUrl,
+  scheduledAt,
+}: {
+  text: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  scheduledAt: Date;
+}) {
+  return scheduleMetricoolPost({
+    network: "instagram",
+    text,
+    imageUrl,
+    videoUrl,
+    scheduledAt,
+  });
+}
+
+export async function scheduleMetricoolTikTokPost({
+  text,
+  videoUrl,
+  scheduledAt,
+}: {
+  text: string;
+  videoUrl: string;
+  scheduledAt: Date;
+}) {
+  return scheduleMetricoolPost({
+    network: "tiktok",
+    text,
+    videoUrl,
+    scheduledAt,
+  });
 }
