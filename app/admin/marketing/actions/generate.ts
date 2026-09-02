@@ -27,15 +27,10 @@ type MarketingDraft = {
   platform: string;
   content_type: string;
   draft_content: string;
+  creative_brief: string | null;
 };
 
-const PLATFORMS = [
-  "instagram",
-  "tiktok",
-  "facebook",
-  "linkedin",
-  "x"
-] as const;
+const PLATFORMS = ["instagram", "tiktok", "facebook", "linkedin", "x"] as const;
 
 function cleanText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -49,21 +44,16 @@ function safeJsonParse(value: string): MarketingDraft[] {
     .trim();
 
   const parsed: unknown = JSON.parse(cleaned);
-
-  if (!Array.isArray(parsed)) {
-    throw new Error("Amani response was not an array");
-  }
+  if (!Array.isArray(parsed)) throw new Error("Amani response was not an array");
 
   return parsed.map((item) => {
-    const draft =
-      typeof item === "object" && item !== null
-        ? (item as Record<string, unknown>)
-        : {};
-
+    const draft = typeof item === "object" && item !== null ? (item as Record<string, unknown>) : {};
+    const brief = cleanText(draft.creative_brief);
     return {
       platform: cleanText(draft.platform).toLowerCase(),
       content_type: cleanText(draft.content_type),
       draft_content: cleanText(draft.draft_content),
+      creative_brief: brief || null,
     };
   });
 }
@@ -78,11 +68,7 @@ function formatEvent(event: ApprovedEvent): string {
     `Venue address: ${event.venue_address || "Information needs verification."}`,
     `Start: ${event.start_at || "Information needs verification."}`,
     `End: ${event.end_at || "Information needs verification."}`,
-    `Price: ${
-      event.price === null || event.price === undefined
-        ? "Information needs verification."
-        : `${event.currency || "KES"} ${event.price}`
-    }`,
+    `Price: ${event.price === null || event.price === undefined ? "Information needs verification." : `${event.currency || "KES"} ${event.price}`}`,
     `Image URL: ${event.image_url || "Information needs verification."}`,
     `Source URL: ${event.source_url || "Information needs verification."}`,
     `Source name: ${event.source_name || "Information needs verification."}`,
@@ -91,127 +77,56 @@ function formatEvent(event: ApprovedEvent): string {
 
 export async function generateMarketingDrafts(eventId: string) {
   await requireAdmin();
-
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
-
-  if (!eventId?.trim()) {
-    throw new Error("Missing event ID");
-  }
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+  if (!eventId?.trim()) throw new Error("Missing event ID");
 
   const { data: event, error: eventError } = await supabaseAdmin
     .from("ai_discovered_events")
-    .select(`
-      id,
-      title,
-      description,
-      category,
-      city,
-      venue_name,
-      venue_address,
-      start_at,
-      end_at,
-      price,
-      currency,
-      image_url,
-      source_url,
-      source_name,
-      status
-    `)
+    .select(`id,title,description,category,city,venue_name,venue_address,start_at,end_at,price,currency,image_url,source_url,source_name,status`)
     .eq("id", eventId)
     .eq("status", "approved")
     .single();
 
-  if (eventError || !event) {
-    console.error("MARKETING EVENT ERROR:", eventError);
-    throw new Error("Could not load approved event");
-  }
-
+  if (eventError || !event) throw new Error("Could not load approved event");
   const approvedEvent = event as ApprovedEvent;
 
   const prompt = [
-    "Create SafariPlug marketing drafts for this approved event.",
-    "",
-    "SafariPlug voice:",
-    "- Local",
-    "- Exciting",
-    "- Experience-driven",
-    "- Discovery-focused",
-    "- Social",
-    "- Action-oriented",
-    "",
-    "Lead phrases when natural:",
-    "- What are you doing tonight?",
-    "- Weekend plans",
-    "- Discover something new",
-    "- Hidden gems",
-    "- Experience more",
-    "",
-    "Rules:",
-    "- Use only information supplied about the event.",
-    "- Never invent dates, prices, venues, performers, sponsors, links, or claims.",
-    "- Never imply an event is free unless the supplied information says price is zero/free.",
-    "- If information is missing, write exactly: Information needs verification.",
-    "- Do not publish anything.",
-    "- These are drafts requiring human approval.",
-    "",
-    "Create exactly one draft for each platform:",
-    ...PLATFORMS.map((platform) => `- ${platform}`),
-    "",
-    "Use an appropriate content_type for each platform.",
-    "",
-    "Return ONLY a JSON array with exactly this structure:",
-    "[",
-    '  {"platform":"instagram","content_type":"post","draft_content":"..."},',
-    '  {"platform":"tiktok","content_type":"caption","draft_content":"..."},',
-    '  {"platform":"facebook","content_type":"post","draft_content":"..."},',
-    '  {"platform":"linkedin","content_type":"post","draft_content":"..."},',
-    '  {"platform":"x","content_type":"post","draft_content":"..."}',
-    "]",
-    "",
+    "Create SafariPlug marketing campaigns for this approved event.",
+    "Instagram and TikTok must be short-form VIDEO campaigns. Facebook, LinkedIn and X remain text/image campaigns.",
+    "For each Instagram/TikTok video campaign, create a practical production brief for a vertical 9:16 video: hook, 5-8 scene beats, on-screen text, voiceover, music direction, CTA, approximate duration (15-45 seconds), and shot guidance. Do not claim that a video file has been rendered.",
+    "The draft_content field is the social caption only. The creative_brief field is the production plan only.",
+    "Use only information supplied about the event.",
+    "Never invent dates, prices, venues, performers, sponsors, links, or claims.",
+    "If information is missing, write exactly: Information needs verification.",
+    "Do not publish anything. These are drafts requiring human approval.",
+    "Create exactly one draft for each platform: instagram, tiktok, facebook, linkedin, x.",
+    "For instagram and tiktok use content_type: video_reel. For other platforms use an appropriate text/image content_type.",
+    "Return ONLY a JSON array with objects containing platform, content_type, draft_content, creative_brief.",
+    "For non-video campaigns, creative_brief must be null.",
     "EVENT:",
     formatEvent(approvedEvent),
-  ].join("\n");
+  ].join("\n\n");
 
   const response = await openai.responses.create({
     model: "gpt-5.6-luna",
     input: [
       {
         role: "system",
-        content: [
-          "You are Amani, SafariPlug's Marketing & Growth AI Director.",
-          "You create marketing drafts only.",
-          "You never publish, send, approve, or trigger external actions.",
-          "Use only evidence-backed event information supplied in the prompt.",
-          "Never invent missing facts.",
-          "Return only valid JSON.",
-        ].join(" "),
+        content: "You are Amani, SafariPlug's Marketing & Growth AI Director. Create evidence-backed marketing drafts and production briefs only. Never publish or trigger external actions. Return only valid JSON.",
       },
-      {
-        role: "user",
-        content: prompt,
-      },
+      { role: "user", content: prompt },
     ],
   });
 
   const text = response.output_text?.trim();
-
-  if (!text) {
-    throw new Error("Amani returned an empty response");
-  }
+  if (!text) throw new Error("Amani returned an empty response");
 
   let drafts: MarketingDraft[];
-
   try {
     drafts = safeJsonParse(text);
   } catch (error) {
     console.error("AMANI JSON ERROR:", text);
-    throw new Error(
-      error instanceof Error
-        ? error.message
-        : "Amani returned invalid marketing data"
-    );
+    throw new Error(error instanceof Error ? error.message : "Amani returned invalid marketing data");
   }
 
   const validDrafts = drafts.filter(
@@ -221,9 +136,7 @@ export async function generateMarketingDrafts(eventId: string) {
       cleanText(draft.draft_content)
   );
 
-  if (validDrafts.length === 0) {
-    throw new Error("Amani returned no valid marketing drafts");
-  }
+  if (validDrafts.length === 0) throw new Error("Amani returned no valid marketing drafts");
 
   const rows = validDrafts.map((draft) => ({
     event_id: approvedEvent.id,
@@ -232,6 +145,7 @@ export async function generateMarketingDrafts(eventId: string) {
     platform: draft.platform,
     content_type: draft.content_type,
     draft_content: draft.draft_content,
+    creative_brief: draft.creative_brief,
     status: "draft",
     publish_status: "not_ready",
     image_url: approvedEvent.image_url,
@@ -242,13 +156,9 @@ export async function generateMarketingDrafts(eventId: string) {
   const { data: inserted, error: insertError } = await supabaseAdmin
     .from("marketing_drafts")
     .insert(rows)
-    .select("id, platform, content_type");
+    .select("id,platform,content_type");
 
-  if (insertError) {
-    console.error("MARKETING INSERT ERROR:", insertError);
-    throw new Error(insertError.message);
-  }
-
+  if (insertError) throw new Error(insertError.message);
   revalidatePath("/admin/marketing");
 
   return {
@@ -270,7 +180,6 @@ export async function generateMarketingDraft({
 }) {
   try {
     await requireAdmin();
-
     const { data: event, error } = await supabaseAdmin
       .from("ai_discovered_events")
       .select("title, description, category, venue_name, price, currency, start_at, status")
@@ -278,22 +187,13 @@ export async function generateMarketingDraft({
       .eq("status", "approved")
       .single();
 
-    if (error || !event) {
-      throw new Error(error?.message || "Event not found.");
-    }
+    if (error || !event) throw new Error(error?.message || "Event not found.");
 
     const title = event.title || "Untitled Experience";
     const venue = event.venue_name || "Information needs verification";
-    const priceText =
-      event.price && event.price > 0
-        ? `${event.currency || "KES"} ${event.price}`
-        : "Free";
+    const priceText = event.price && event.price > 0 ? `${event.currency || "KES"} ${event.price}` : "Free";
     const dateText = event.start_at
-      ? new Date(event.start_at).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })
+      ? new Date(event.start_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
       : "Information needs verification";
     const description = event.description || "Information needs verification.";
 
@@ -306,10 +206,6 @@ export async function generateMarketingDraft({
   } catch (error) {
     const message = error instanceof Error ? error.message : "Marketing generation failed.";
     console.error("Marketing generation error:", message);
-
-    return {
-      success: false as const,
-      error: message,
-    };
+    return { success: false as const, error: message };
   }
 }
