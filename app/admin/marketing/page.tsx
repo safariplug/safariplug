@@ -45,6 +45,12 @@ type MarketingDraft = {
 
 type Platform = "instagram" | "whatsapp" | "newsletter";
 
+const platformMeta: Record<Platform, { label: string; description: string; icon: string }> = {
+  instagram: { label: "Instagram", description: "Posts & Reels", icon: "◎" },
+  whatsapp: { label: "WhatsApp", description: "Direct campaigns", icon: "◌" },
+  newsletter: { label: "Newsletter", description: "Editorial send", icon: "✉" },
+};
+
 export default function MarketingStudioPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [drafts, setDrafts] = useState<MarketingDraft[]>([]);
@@ -74,16 +80,10 @@ export default function MarketingStudioPage() {
         .from("ai_discovered_events")
         .select("id, title, category, venue_name, price, currency, start_at, status, is_featured, image_url")
         .order("start_at", { ascending: true });
-
-      if (error) {
-        console.error("Error fetching studio events:", error.message);
-        setErrorMsg(error.message);
-      } else {
-        setEvents((data || []) as EventItem[]);
-      }
+      if (error) setErrorMsg(error.message);
+      else setEvents((data || []) as EventItem[]);
       setLoading(false);
     }
-
     fetchEvents();
     refreshDrafts();
   }, []);
@@ -91,18 +91,12 @@ export default function MarketingStudioPage() {
   const handleGenerate = async (eventId: string, eventTitle: string) => {
     setGeneratingId(eventId);
     setErrorMsg(null);
-
     try {
-      const result = await generateMarketingDraft({
-        eventId,
-        platform: selectedPlatform,
-      });
+      const result = await generateMarketingDraft({ eventId, platform: selectedPlatform });
       if (result.success && result.generatedCopy) {
         setActiveDraft({ title: eventTitle, copy: result.generatedCopy });
         await refreshDrafts();
-      } else {
-        setErrorMsg(result.error || "Failed to generate draft.");
-      }
+      } else setErrorMsg(result.error || "Failed to generate draft.");
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : "An unexpected error occurred.");
     } finally {
@@ -111,328 +105,111 @@ export default function MarketingStudioPage() {
   };
 
   const handleApprove = async (id: number) => {
-    setActionId(id);
-    setErrorMsg(null);
-    try {
-      await approveMarketingDraft(id);
-      await refreshDrafts();
-    } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : "Failed to approve draft.");
-    } finally {
-      setActionId(null);
-    }
+    setActionId(id); setErrorMsg(null);
+    try { await approveMarketingDraft(id); await refreshDrafts(); }
+    catch (error) { setErrorMsg(error instanceof Error ? error.message : "Failed to approve draft."); }
+    finally { setActionId(null); }
   };
 
   const handleReject = async (id: number) => {
-    setActionId(id);
-    setErrorMsg(null);
-    try {
-      await rejectMarketingDraft(id);
-      await refreshDrafts();
-    } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : "Failed to reject draft.");
-    } finally {
-      setActionId(null);
-    }
+    setActionId(id); setErrorMsg(null);
+    try { await rejectMarketingDraft(id); await refreshDrafts(); }
+    catch (error) { setErrorMsg(error instanceof Error ? error.message : "Failed to reject draft."); }
+    finally { setActionId(null); }
   };
 
   const approved = events.filter((event) => event.status === "approved");
-  const needsReview = events.filter(
-    (event) => event.status === "pending_review" || !event.status
-  );
+  const needsReview = events.filter((event) => event.status === "pending_review" || !event.status);
   const reviewDrafts = drafts.filter((draft) => draft.status === "draft");
   const approvedDrafts = drafts.filter((draft) => draft.status === "approved");
+  const scheduledDrafts = drafts.filter((draft) => draft.metricool_status === "scheduled");
 
   return (
-    <main className="min-h-screen bg-black p-8 font-sans text-white selection:bg-amber-500 selection:text-black md:p-12">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-10 flex flex-col justify-between gap-6 border-b border-zinc-800 pb-6 md:flex-row md:items-center">
-          <div>
-            <div className="mb-1 flex items-center gap-2">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-              <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">
-                Amani Engine // V2.6
-              </span>
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">Marketing Studio</h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              Generate, review, approve and prepare promotional campaigns.
-            </p>
-          </div>
-          <Link
-            href="/admin/ai-events"
-            className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium transition-colors hover:border-amber-500"
-          >
-            &larr; Curation Dashboard
-          </Link>
-        </div>
-
-        <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Metric label="Total Monitored" value={events.length} />
-          <Metric label="Approved Ready" value={approved.length} highlighted />
-          <Metric label="Pending Review" value={needsReview.length} />
-        </div>
-
-        <div className="mb-10 flex flex-col items-start justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="font-mono text-xs uppercase tracking-wider text-zinc-400">Target Channel:</span>
-            {(["instagram", "whatsapp", "newsletter"] as const).map((platform) => (
-              <button
-                key={platform}
-                onClick={() => setSelectedPlatform(platform)}
-                className={`rounded-lg px-3 py-1.5 font-mono text-xs capitalize transition-all ${
-                  selectedPlatform === platform
-                    ? "bg-amber-500 font-bold text-black shadow-lg shadow-amber-500/20"
-                    : "border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white"
-                }`}
-              >
-                {platform}
-              </button>
-            ))}
-          </div>
-          {errorMsg && (
-            <span className="rounded-lg border border-red-900 bg-red-950/50 px-3 py-1 font-mono text-xs text-red-400">
-              Error: {errorMsg}
-            </span>
-          )}
-        </div>
-
-        <section className="mb-12 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-mono text-lg font-bold tracking-wide text-zinc-200">
-              {"// MARKETING DRAFT REVIEW QUEUE"}
-            </h2>
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 font-mono text-xs text-amber-400">
-              {reviewDrafts.length} awaiting approval
-            </span>
-          </div>
-
-          {draftsLoading ? (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 py-16 text-center font-mono text-sm text-zinc-500">
-              Loading campaign drafts...
-            </div>
-          ) : reviewDrafts.length === 0 ? (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 py-16 text-center font-mono text-sm text-zinc-500">
-              No marketing drafts awaiting approval.
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {reviewDrafts.map((draft) => (
-                <DraftReviewCard
-                  key={draft.id}
-                  draft={draft}
-                  busy={actionId === draft.id}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                />
-              ))}
-            </div>
-          )}
-
-          {approvedDrafts.length > 0 && (
-            <div className="rounded-2xl border border-emerald-900/50 bg-emerald-950/20 p-5">
-              <div className="mb-3 font-mono text-xs font-bold uppercase tracking-wider text-emerald-400">
-                Approved / Ready to Publish: {approvedDrafts.length}
-              </div>
-              <div className="space-y-2">
-                {approvedDrafts.map((draft) => (
-                  <div key={draft.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                    <div>
-                      <span className="font-semibold text-white">{draft.event_name}</span>
-                      <span className="ml-2 font-mono text-xs uppercase text-zinc-500">{draft.platform}</span>
-                    </div>
-                    <span className="font-mono text-xs text-emerald-400">READY TO PUBLISH</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-6">
-          <h2 className="flex items-center gap-2 font-mono text-lg font-bold tracking-wide text-zinc-200">
-            {"// APPROVED EXPERIENCES REQUIRING CAMPAIGNS"}
-          </h2>
-
-          {loading ? (
-            <div className="animate-pulse rounded-2xl border border-zinc-800 bg-zinc-950 py-24 text-center font-mono text-sm text-zinc-500">
-              Initializing studio telemetry...
-            </div>
-          ) : approved.length === 0 ? (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 py-20 text-center">
-              <p className="font-mono text-sm text-zinc-400">No approved experiences available for marketing generation.</p>
-              <Link href="/admin/ai-events" className="mt-4 inline-block font-mono text-xs text-amber-400 underline hover:text-amber-300">
-                Authorize events in curation dashboard &rarr;
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {approved.map((event) => (
-                <div key={event.id} className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 transition-all hover:border-amber-500/40">
-                  <div className="relative h-44 w-full overflow-hidden bg-zinc-900">
-                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-500/20 via-zinc-900 to-black p-4 text-center">
-                      <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-amber-400/80">
-                        {event.category || "Aurelian Hospitality"}
-                      </span>
-                    </div>
-                    <LuxuryImage
-                      src={event.image_url}
-                      alt={event.title}
-                      className="relative h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
-                    {event.is_featured && (
-                      <span className="absolute right-3 top-3 rounded bg-amber-500 px-2 py-0.5 font-mono text-[10px] font-extrabold uppercase tracking-wider text-black">
-                        Sponsored
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-grow flex-col justify-between p-6">
-                    <div>
-                      <div className="mb-4 flex items-center justify-between gap-2">
-                        <span className="rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-amber-400">
-                          {event.category || "General"}
-                        </span>
-                      </div>
-                      <h3 className="line-clamp-1 text-lg font-bold tracking-tight transition-colors group-hover:text-amber-300">
-                        {event.title}
-                      </h3>
-                      <div className="mt-3 space-y-1.5 font-mono text-xs text-zinc-400">
-                        <p>📍 {event.venue_name || "Location TBD"}</p>
-                        <p>📅 {new Date(event.start_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
-                      </div>
-                    </div>
-                    <div className="mt-8 flex items-center justify-between border-t border-zinc-900 pt-4">
-                      <span className="font-mono text-xs font-bold text-emerald-400">
-                        {event.price && event.price > 0 ? `${event.currency || "KES"} ${event.price}` : "Free"}
-                      </span>
-                      <button
-                        onClick={() => handleGenerate(event.id, event.title)}
-                        disabled={generatingId === event.id}
-                        className="flex items-center gap-2 rounded-xl bg-amber-500 px-3.5 py-2 font-mono text-xs font-bold text-black shadow-md shadow-amber-500/10 transition-all hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-500"
-                      >
-                        {generatingId === event.id ? "Generating..." : `Generate ${selectedPlatform}`}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {activeDraft && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-            <div className="relative w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl md:p-8">
-              <div className="mb-6 flex items-center justify-between border-b border-zinc-800 pb-4">
+    <main className="min-h-screen bg-[#070707] text-white selection:bg-amber-400 selection:text-black">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_72%_0%,rgba(245,158,11,0.08),transparent_28%),radial-gradient(circle_at_10%_20%,rgba(255,255,255,0.025),transparent_25%)]" />
+      <div className="relative mx-auto max-w-[1480px] px-5 py-6 md:px-8 lg:px-10 lg:py-8">
+        <header className="mb-8 rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl md:p-8">
+          <div className="flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div className="mb-4 flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-400/25 bg-amber-400/10 text-lg text-amber-300">✦</span>
                 <div>
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-amber-400">Amani Output // {selectedPlatform}</span>
-                  <h3 className="mt-1 text-xl font-bold">{activeDraft.title}</h3>
+                  <div className="font-mono text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">SafariPlug / Amani</div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-zinc-600">Marketing Intelligence Suite</div>
                 </div>
-                <button onClick={() => setActiveDraft(null)} className="rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white">
-                  Close [ESC]
-                </button>
+                <span className="ml-1 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-emerald-300">Engine online</span>
               </div>
-              <div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-xl border border-zinc-900 bg-black p-4 font-mono text-xs leading-relaxed text-zinc-300 md:p-6">
-                {activeDraft.copy}
-              </div>
-              <div className="mt-6 flex justify-end border-t border-zinc-800 pt-4">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(activeDraft.copy);
-                    alert("Draft copied to clipboard.");
-                  }}
-                  className="rounded-xl bg-amber-500 px-4 py-2 font-mono text-xs font-bold text-black transition-colors hover:bg-amber-400"
-                >
-                  Copy to Clipboard
-                </button>
-              </div>
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] md:text-5xl">Marketing Studio<span className="text-amber-300">.</span></h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">A premium campaign workspace for turning approved experiences into publish-ready stories, social creative and high-converting content.</p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/admin/ai-events" className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-2.5 text-xs font-medium text-zinc-300 transition hover:border-amber-400/40 hover:text-white">← Curation</Link>
+              <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest text-zinc-500">Amani Engine <span className="text-zinc-300">V2.6</span></div>
             </div>
           </div>
-        )}
+
+          <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.07] md:grid-cols-4">
+            <Metric label="Approved experiences" value={approved.length} note="Ready for creative" />
+            <Metric label="Campaign review" value={reviewDrafts.length} note="Awaiting your decision" highlighted />
+            <Metric label="Ready to publish" value={approvedDrafts.length} note="Human approved" />
+            <Metric label="Scheduled" value={scheduledDrafts.length} note="Metricool queue" />
+          </div>
+        </header>
+
+        <section className="mb-8 rounded-[24px] border border-white/[0.07] bg-[#0c0c0c] p-3 shadow-xl shadow-black/20 md:p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="px-2 md:px-3">
+              <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-zinc-600">Campaign channel</div>
+              <div className="mt-1 text-sm font-medium text-zinc-300">Choose the creative destination</div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 md:w-[520px]">
+              {(["instagram", "whatsapp", "newsletter"] as const).map((platform) => {
+                const meta = platformMeta[platform];
+                const active = selectedPlatform === platform;
+                return <button key={platform} onClick={() => setSelectedPlatform(platform)} className={`group rounded-2xl border px-3 py-3 text-left transition-all ${active ? "border-amber-400/40 bg-amber-400/[0.09] shadow-lg shadow-amber-500/5" : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"}`}><div className="flex items-center gap-2"><span className={`text-lg ${active ? "text-amber-300" : "text-zinc-500 group-hover:text-zinc-300"}`}>{meta.icon}</span><span className={`text-xs font-semibold ${active ? "text-white" : "text-zinc-400"}`}>{meta.label}</span></div><div className="mt-1 text-[10px] text-zinc-600">{meta.description}</div></button>;
+              })}
+            </div>
+          </div>
+          {errorMsg && <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 font-mono text-xs text-red-300">{errorMsg}</div>}
+        </section>
+
+        <section className="mb-12">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div><div className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-300/70">01 / Human approval</div><h2 className="mt-1 text-2xl font-semibold tracking-tight">Campaign Review Queue</h2><p className="mt-1 text-xs text-zinc-600">Review the story, creative and destination before anything moves forward.</p></div>
+            <span className="hidden rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-3 py-1.5 font-mono text-[9px] font-bold uppercase tracking-widest text-amber-300 md:block">{reviewDrafts.length} awaiting review</span>
+          </div>
+          {draftsLoading ? <LoadingBlock label="Loading campaign intelligence…" /> : reviewDrafts.length === 0 ? <EmptyBlock title="Review queue is clear" text="New Amani campaigns will appear here for human approval." /> : <div className="space-y-4">{reviewDrafts.map((draft) => <DraftReviewCard key={draft.id} draft={draft} busy={actionId === draft.id} onApprove={handleApprove} onReject={handleReject} />)}</div>}
+        </section>
+
+        {approvedDrafts.length > 0 && <section className="mb-12 rounded-[24px] border border-emerald-400/10 bg-emerald-400/[0.025] p-5 md:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-300/70">02 / Approved</div><h2 className="mt-1 text-lg font-semibold">Publish-ready campaigns</h2></div><span className="rounded-full bg-emerald-400/10 px-3 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-emerald-300">{approvedDrafts.length} ready</span></div><div className="mt-4 grid gap-2 md:grid-cols-2">{approvedDrafts.map((draft) => <div key={draft.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3"><div className="min-w-0"><div className="truncate text-sm font-medium text-zinc-200">{draft.event_name}</div><div className="mt-1 font-mono text-[9px] uppercase tracking-widest text-zinc-600">{draft.platform} · campaign #{draft.id}</div></div><span className="shrink-0 font-mono text-[9px] font-bold uppercase tracking-widest text-emerald-300">Ready</span></div>)}</div></section>}
+
+        <section>
+          <div className="mb-5 flex items-end justify-between gap-4"><div><div className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-300/70">03 / Creative source</div><h2 className="mt-1 text-2xl font-semibold tracking-tight">Approved Experiences</h2><p className="mt-1 text-xs text-zinc-600">Select an experience and let Amani build the next campaign.</p></div><span className="font-mono text-[9px] uppercase tracking-widest text-zinc-600">{approved.length} available</span></div>
+          {loading ? <LoadingBlock label="Loading approved experiences…" /> : approved.length === 0 ? <EmptyBlock title="No approved experiences" text="Authorize experiences in the curation dashboard before generating campaigns." linkHref="/admin/ai-events" linkText="Open Curation Dashboard →" /> : <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">{approved.map((event) => <EventCard key={event.id} event={event} selectedPlatform={selectedPlatform} generating={generatingId === event.id} onGenerate={handleGenerate} />)}</div>}
+        </section>
+
+        {activeDraft && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"><div className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/10 bg-[#0c0c0c] shadow-2xl shadow-black/60"><div className="flex items-start justify-between border-b border-white/[0.07] p-6 md:p-7"><div><div className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-300">Amani output / {selectedPlatform}</div><h3 className="mt-2 text-2xl font-semibold">{activeDraft.title}</h3></div><button onClick={() => setActiveDraft(null)} className="rounded-xl border border-white/10 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-zinc-500 hover:text-white">Close</button></div><div className="max-h-[55vh] overflow-y-auto whitespace-pre-wrap px-6 py-6 font-mono text-xs leading-6 text-zinc-300 md:px-7">{activeDraft.copy}</div><div className="flex justify-end border-t border-white/[0.07] p-5"><button onClick={() => { navigator.clipboard.writeText(activeDraft.copy); }} className="rounded-xl bg-amber-300 px-5 py-2.5 text-xs font-bold text-black transition hover:bg-amber-200">Copy output</button></div></div></div>}
       </div>
     </main>
   );
 }
 
-function DraftReviewCard({
-  draft,
-  busy,
-  onApprove,
-  onReject,
-}: {
-  draft: MarketingDraft;
-  busy: boolean;
-  onApprove: (id: number) => void;
-  onReject: (id: number) => void;
-}) {
-  return (
-    <article className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
-      <div className="grid md:grid-cols-[280px_1fr]">
-        <div className="relative min-h-56 bg-zinc-900">
-          {draft.image_url ? (
-            <img src={draft.image_url} alt={draft.event_name} className="h-full min-h-56 w-full object-cover" />
-          ) : draft.video_url ? (
-            <video controls className="h-full min-h-56 w-full object-cover"><source src={draft.video_url} /></video>
-          ) : (
-            <div className="flex h-full min-h-56 items-center justify-center font-mono text-xs text-zinc-600">NO MEDIA ATTACHED</div>
-          )}
-        </div>
-        <div className="p-6 md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="rounded-md bg-amber-500 px-2 py-1 font-mono text-[10px] font-extrabold uppercase text-black">{draft.platform}</span>
-                <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">Draft #{draft.id}</span>
-              </div>
-              <h3 className="text-2xl font-bold">{draft.event_name}</h3>
-              <p className="mt-1 font-mono text-xs text-zinc-500">{draft.city || "Location TBD"}</p>
-            </div>
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 font-mono text-[10px] font-bold uppercase text-amber-400">
-              Needs approval
-            </span>
-          </div>
-
-          <div className="mt-6 whitespace-pre-wrap rounded-xl border border-zinc-900 bg-black p-5 font-mono text-xs leading-relaxed text-zinc-300">
-            {draft.draft_content}
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-900 pt-5">
-            <div className="font-mono text-[10px] text-zinc-500">
-              {draft.image_url ? "IMAGE ATTACHED" : "NO IMAGE"}
-              {draft.external_url ? " · EXPERIENCE LINK ATTACHED" : " · NO EXPERIENCE LINK"}
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => onReject(draft.id)}
-                disabled={busy}
-                className="rounded-xl border border-red-900 bg-red-950/40 px-4 py-2.5 font-mono text-xs font-bold text-red-400 hover:bg-red-950 disabled:opacity-50"
-              >
-                {busy ? "Working..." : "Reject"}
-              </button>
-              <button
-                type="button"
-                onClick={() => onApprove(draft.id)}
-                disabled={busy}
-                className="rounded-xl bg-emerald-500 px-5 py-2.5 font-mono text-xs font-extrabold text-black hover:bg-emerald-400 disabled:opacity-50"
-              >
-                {busy ? "Approving..." : "Approve Campaign"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </article>
-  );
+function EventCard({ event, selectedPlatform, generating, onGenerate }: { event: EventItem; selectedPlatform: Platform; generating: boolean; onGenerate: (id: string, title: string) => void }) {
+  return <article className="group overflow-hidden rounded-[24px] border border-white/[0.07] bg-[#0c0c0c] shadow-xl shadow-black/20 transition-all duration-300 hover:-translate-y-1 hover:border-amber-300/20 hover:shadow-2xl hover:shadow-amber-950/10"><div className="relative h-52 overflow-hidden bg-zinc-900">{event.image_url ? <LuxuryImage src={event.image_url} alt={event.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center bg-gradient-to-br from-amber-400/10 to-black font-mono text-[10px] uppercase tracking-widest text-amber-300/50">No creative asset</div>}<div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />{event.is_featured && <span className="absolute right-4 top-4 rounded-full border border-amber-300/30 bg-black/70 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-amber-200 backdrop-blur">Sponsored</span>}<span className="absolute bottom-4 left-4 rounded-full bg-black/65 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-white/70 backdrop-blur">{event.category || "Experience"}</span></div><div className="p-5"><h3 className="line-clamp-1 text-lg font-semibold tracking-tight text-white group-hover:text-amber-200">{event.title}</h3><div className="mt-3 space-y-1 text-xs text-zinc-500"><div>⌖ {event.venue_name || "Location TBD"}</div><div>◷ {new Date(event.start_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div></div><div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4"><span className="font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-300">{event.price && event.price > 0 ? `${event.currency || "KES"} ${event.price}` : "Free"}</span><button onClick={() => onGenerate(event.id, event.title)} disabled={generating} className="rounded-xl bg-amber-300 px-4 py-2.5 text-[11px] font-bold text-black shadow-lg shadow-amber-400/10 transition hover:bg-amber-200 disabled:cursor-wait disabled:bg-zinc-800 disabled:text-zinc-500">{generating ? "Creating…" : `Create ${selectedPlatform}`}</button></div></div></article>;
 }
 
-function Metric({ label, value, highlighted = false }: { label: string; value: number; highlighted?: boolean }) {
-  return (
-    <div className={`relative overflow-hidden rounded-2xl border bg-zinc-950 p-6 ${highlighted ? "border-amber-500/30" : "border-zinc-800"}`}>
-      {highlighted && <div className="pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full bg-amber-500/5 blur-2xl" />}
-      <span className={`font-mono text-[11px] uppercase tracking-wider ${highlighted ? "text-amber-400" : "text-zinc-500"}`}>{label}</span>
-      <p className={`mt-2 font-mono text-3xl font-extrabold ${highlighted ? "text-amber-400" : "text-white"}`}>{value}</p>
-    </div>
-  );
+function DraftReviewCard({ draft, busy, onApprove, onReject }: { draft: MarketingDraft; busy: boolean; onApprove: (id: number) => void; onReject: (id: number) => void }) {
+  return <article className="overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#0c0c0c] shadow-2xl shadow-black/20"><div className="grid lg:grid-cols-[340px_1fr]"><div className="relative min-h-[260px] bg-zinc-900">{draft.video_url ? <video controls className="h-full min-h-[260px] w-full object-cover"><source src={draft.video_url} /></video> : draft.image_url ? <img src={draft.image_url} alt={draft.event_name} className="h-full min-h-[260px] w-full object-cover" /> : <div className="flex h-full min-h-[260px] items-center justify-center font-mono text-[10px] uppercase tracking-widest text-zinc-600">No media attached</div>}<div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-5 pt-16"><div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/60">Campaign #{draft.id}</div></div></div><div className="p-6 md:p-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="mb-3 flex flex-wrap items-center gap-2"><span className="rounded-full bg-amber-300 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-black">{draft.platform}</span><span className="font-mono text-[9px] uppercase tracking-widest text-zinc-600">{draft.city || "Location TBD"}</span></div><h3 className="text-2xl font-semibold tracking-tight">{draft.event_name}</h3></div><span className="rounded-full border border-amber-300/20 bg-amber-300/[0.06] px-3 py-1.5 font-mono text-[9px] font-bold uppercase tracking-widest text-amber-200">Awaiting approval</span></div><div className="mt-6 rounded-2xl border border-white/[0.06] bg-black/30 p-5"><div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-zinc-600">Amani campaign copy</div><div className="max-h-56 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-zinc-300">{draft.draft_content}</div></div><div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.06] pt-5"><div className="font-mono text-[9px] uppercase tracking-widest text-zinc-600">{draft.video_url ? "Video creative attached" : draft.image_url ? "Image creative attached" : "Creative asset missing"}{draft.external_url ? " · Experience link" : ""}</div><div className="flex gap-2"><button type="button" onClick={() => onReject(draft.id)} disabled={busy} className="rounded-xl border border-red-400/15 bg-red-400/[0.04] px-4 py-2.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/[0.1] disabled:opacity-50">{busy ? "Working…" : "Reject"}</button><button type="button" onClick={() => onApprove(draft.id)} disabled={busy} className="rounded-xl bg-emerald-300 px-5 py-2.5 text-xs font-bold text-black transition hover:bg-emerald-200 disabled:opacity-50">{busy ? "Approving…" : "Approve campaign"}</button></div></div></div></div></article>;
+}
+
+function Metric({ label, value, note, highlighted = false }: { label: string; value: number; note: string; highlighted?: boolean }) {
+  return <div className={`bg-[#0c0c0c] p-5 md:p-6 ${highlighted ? "ring-1 ring-inset ring-amber-300/15" : ""}`}><div className="font-mono text-[9px] uppercase tracking-[0.2em] text-zinc-600">{label}</div><div className={`mt-2 text-3xl font-semibold tracking-tight ${highlighted ? "text-amber-300" : "text-white"}`}>{value}</div><div className="mt-1 text-[10px] text-zinc-600">{note}</div></div>;
+}
+
+function LoadingBlock({ label }: { label: string }) {
+  return <div className="rounded-[24px] border border-white/[0.06] bg-[#0c0c0c] py-20 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-600">{label}</div>;
+}
+
+function EmptyBlock({ title, text, linkHref, linkText }: { title: string; text: string; linkHref?: string; linkText?: string }) {
+  return <div className="rounded-[24px] border border-dashed border-white/[0.08] bg-white/[0.015] px-6 py-20 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-white/[0.08] text-zinc-600">✦</div><h3 className="mt-4 text-sm font-semibold text-zinc-300">{title}</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-zinc-600">{text}</p>{linkHref && <Link href={linkHref} className="mt-5 inline-block rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-2 text-xs font-medium text-amber-200 hover:bg-amber-300/10">{linkText}</Link>}</div>;
 }
