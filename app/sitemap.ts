@@ -24,7 +24,7 @@ const experiences = [
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [{ data: events }, { data: articles }] = await Promise.all([
-    supabase.from("events").select("id").eq("status", "published"),
+    supabase.from("events").select("id").eq("status", "approved"),
     supabaseAdmin.from("journal_articles").select("slug, updated_at, published_at").eq("status", "published"),
   ]);
 

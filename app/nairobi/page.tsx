@@ -19,6 +19,8 @@ type Event = {
 
 
 export default async function NairobiPage() {
+  const now = new Date().toISOString();
+  const effectiveValidityFilter = `end_at.gte.${now},and(end_at.is.null,start_at.gte.${now})`;
 
   const { data } = await supabase
     .from("events")
@@ -34,7 +36,8 @@ export default async function NairobiPage() {
       `
     )
     .ilike("city", "Nairobi")
-    .eq("status", "published")
+    .eq("status", "approved")
+    .or(effectiveValidityFilter)
     .order("start_at", {
       ascending: true,
     })
