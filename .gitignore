@@ -56,3 +56,10 @@ fix-*.js
 fix-*.ps1
 check-*.js
 insert-*.js
+
+# Expo Android client
+/mobile/node_modules
+/mobile/.expo
+/mobile/dist
+/mobile/android
+/mobile/ios
