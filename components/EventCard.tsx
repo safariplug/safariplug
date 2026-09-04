@@ -21,6 +21,7 @@ interface EventCardProps {
 export default function EventCard({ event }: EventCardProps) {
   const [imgError, setImgError] = useState(false);
   const imageSource = event.image_url?.trim();
+  const hasPrice = event.price !== null && event.price !== undefined;
 
   return (
     <Link
@@ -57,16 +58,18 @@ export default function EventCard({ event }: EventCardProps) {
           </div>
           {event.is_featured && (
             <div className="rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-black">
-              Sponsored
+              Featured
             </div>
           )}
         </div>
 
         <div className="absolute right-3 top-3 rounded-full border border-zinc-700/50 bg-black/60 px-3 py-1 backdrop-blur-md">
           <span className="text-xs font-semibold text-white">
-            {event.price && event.price > 0
-              ? `${event.currency || "KES"} ${event.price}`
-              : "Free"}
+            {hasPrice
+              ? event.price! > 0
+                ? `${event.currency || "KES"} ${event.price}`
+                : "Free"
+              : "Price TBA"}
           </span>
         </div>
       </div>
