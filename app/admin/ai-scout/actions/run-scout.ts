@@ -129,6 +129,64 @@ function isInvalidSourceName(sourceName: string): boolean {
   );
 }
 
+function isGenericSourceUrl(sourceUrl: string): boolean {
+  try {
+    const url = new URL(sourceUrl);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const path = url.pathname.replace(/\/+$/, "").toLowerCase();
+
+    const knownListingRoots = new Set([
+      "whats-on-mombasa.com",
+      "ticketyetu.com",
+      "eventbrite.com",
+      "events.com",
+    ]);
+
+    if (knownListingRoots.has(host) && (path === "" || path === "/events")) return true;
+    if (host === "whats-on-mombasa.com" && path === "") return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function isWeakEventEvidence(event: DiscoveredEvent): boolean {
+  const sourceUrl = normalizeSourceUrl(event.source_url);
+  if (!sourceUrl) return true;
+
+  if (isGenericSourceUrl(sourceUrl)) return true;
+
+  const title = normalizeIdentity(event.title);
+  const description = normalizeIdentity(event.description);
+  const venue = normalizeIdentity(event.venue_name);
+
+  if (!venue) return true;
+
+  // A source should contain meaningful event identity somewhere in its URL when
+  // it is not an official dedicated event site. This catches generic calendar
+  // roots while still allowing dedicated official event domains such as
+  // fallyipupalive.com/.
+  try {
+    const url = new URL(sourceUrl);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const path = url.pathname.toLowerCase();
+    const dedicatedEventHost =
+      path === "" &&
+      (host.includes("fallyipupa") || host.includes("wimbi") || host.includes("event"));
+
+    if (!dedicatedEventHost && path === "") {
+      const searchable = `${host} ${title} ${description}`;
+      const titleTokens = title.split(" ").filter((token) => token.length >= 5).slice(0, 4);
+      const tokenMatches = titleTokens.filter((token) => searchable.includes(token)).length;
+      if (tokenMatches < Math.min(2, titleTokens.length)) return true;
+    }
+  } catch {
+    return true;
+  }
+
+  return false;
+}
+
 function isValidEvent(event: DiscoveredEvent): boolean {
   const title = normalizeText(event.title);
   const description = normalizeText(event.description);
@@ -145,6 +203,10 @@ function isValidEvent(event: DiscoveredEvent): boolean {
   if (isInvalidSourceName(sourceName)) return false;
   if (isGenericPlaceholderTitle(title)) return false;
   if (confidence < 60) return false;
+  if (isWeakEventEvidence(event)) {
+    console.warn("Skipping event with weak/generic source evidence:", title, sourceUrl);
+    return false;
+  }
   return true;
 }
 
@@ -228,8 +290,6 @@ async function findExistingEvent(title: string, sourceUrl: string, startAt: stri
     const sameVenue = Boolean(normalizedVenue && existingVenue && normalizedVenue === existingVenue);
     const sameCity = Boolean(normalizedCity && existingCity && normalizedCity === existingCity);
 
-    // A listing/calendar URL can legitimately contain many different events.
-    // Therefore source URL alone is NEVER a duplicate signal.
     return (
       (sameTitle && sameDate && sameCity) ||
       (sameTitle && sameDate && sameVenue) ||
@@ -245,6 +305,8 @@ const SYSTEM_PROMPT = [
   "Unknown information must be null. Unknown price is not free.",
   "Every returned event must have a real external HTTP/HTTPS source URL and source name.",
   "Never use SafariPlug, SafariPlug AI Scout, localhost, example.com, or SafariPlug admin URLs as sources.",
+  "Do not use a generic homepage, category index, or site-wide event listing as the source URL when a direct event page exists.",
+  "If only a generic listing page is available and it does not clearly provide the complete event evidence, do not return the event.",
   "Return only JSON with an events array.",
 ].join(" ");
 
@@ -262,7 +324,8 @@ function buildPassPrompt(location: string, category: string, pass: DiscoveryPass
     "Do not return an event with a TBA, tentative, missing, or unverifiable upcoming date.",
     "Cross-check promising events when practical, but one strong official source is acceptable.",
     "For every event collect title, useful description, venue, address if available, city, actual upcoming start/end datetime, supported price/currency, source URL/name, image URL if directly established, and confidence.",
-    "Prefer the direct event/organizer/venue page rather than a generic homepage when possible.",
+    "The source_url must point to the specific event, organizer announcement, venue event listing, or other page containing evidence for THIS event. Do not use a generic homepage or generic calendar root when a specific page exists.",
+    "If you can only find a generic listing page, use it only when the page itself clearly identifies the exact event, date, and venue; otherwise omit the event.",
     "Return at most 8 distinct events from this pass.",
     "Return ONLY valid JSON in exactly this shape:",
     '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime string or null","end_at":"ISO datetime string or null","price":"number or null","currency":"string or null","image_url":"string or null","source_url":"string","source_name":"string","confidence_score":0}]}',
@@ -322,8 +385,6 @@ function dedupeCandidates(events: DiscoveredEvent[]): DiscoveredEvent[] {
     const titleDateCityKey = `${date}|${city}|${title}`;
     const sourceTitleDateKey = `${source}|${date}|${title}`;
 
-    // Same listing/calendar page may contain many different events.
-    // Deduplicate by event identity, never by source URL alone.
     if (titleDateCityKey !== "||" && seenTitles.has(titleDateCityKey)) continue;
     if (eventKey !== "|||" && seenEventKeys.has(eventKey)) continue;
     if (sourceTitleDateKey !== "||" && seenTitles.has(sourceTitleDateKey)) continue;
