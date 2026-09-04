@@ -21,167 +21,106 @@ type DiscoveredEvent = {
   confidence_score: number;
 };
 
-type DiscoveryResponse = {
-  events: DiscoveredEvent[];
+type DiscoveryResponse = { events: DiscoveredEvent[] };
+
+type DiscoveryPass = {
+  name: string;
+  focus: string;
 };
 
 function isValidHttpUrl(value: unknown): value is string {
-  if (typeof value !== "string" || !value.trim()) {
-    return false;
-  }
-
+  if (typeof value !== "string" || !value.trim()) return false;
   try {
     const url = new URL(value.trim());
-
-    return (
-      url.protocol === "http:" ||
-      url.protocol === "https:"
-    );
+    return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
   }
 }
 
-function normalizeImageUrl(value: unknown): string | null {
-  if (!isValidHttpUrl(value)) {
-    return null;
-  }
-
-  const url = value.trim();
-
-  if (
-    url.startsWith("http://localhost") ||
-    url.startsWith("https://localhost") ||
-    url.includes("example.com")
-  ) {
-    return null;
-  }
-
-  return url;
-}
-
 function normalizeSourceUrl(value: unknown): string | null {
-  if (!isValidHttpUrl(value)) {
-    return null;
-  }
-
+  if (!isValidHttpUrl(value)) return null;
   const url = value.trim().replace(/[)\],.]+$/, "");
-
   const lower = url.toLowerCase();
-
   if (
     lower.startsWith("http://localhost") ||
     lower.startsWith("https://localhost") ||
     lower.includes("example.com") ||
     lower.includes("/admin/ai-scout") ||
-    lower.includes("/admin/ai%20scout") ||
-    lower.includes("/admin/ai%20Scout")
-  ) {
-    return null;
-  }
+    lower.includes("/admin/ai%20scout")
+  ) return null;
+  return url;
+}
 
+function normalizeImageUrl(value: unknown): string | null {
+  const url = normalizeSourceUrl(value);
+  if (!url) return null;
   return url;
 }
 
 function normalizeDate(value: unknown): string | null {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-
+  if (typeof value !== "string" || !value.trim()) return null;
   const trimmed = value.trim();
-
-  if (
-    /Z$/i.test(trimmed) ||
-    /[+-]\d{2}:?\d{2}$/.test(trimmed)
-  ) {
+  if (/Z$/i.test(trimmed) || /[+-]\d{2}:?\d{2}$/.test(trimmed)) {
     const date = new Date(trimmed);
-
-    if (Number.isNaN(date.getTime())) {
-      return null;
-    }
-
-    return date.toISOString();
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
   }
-
-  const match = trimmed.match(
-    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/
-  );
-
-  if (!match) {
-    return null;
-  }
-
-  const [
-    ,
-    year,
-    month,
-    day,
-    hours,
-    minutes,
-    seconds = "00",
-  ] = match;
-  return new Date(`${year}-${month}-${day}T${hours}:${minutes}:${seconds}+03:00`).toISOString();
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const [, year, month, day, hours, minutes, seconds = "00"] = match;
+  const date = new Date(`${year}-${month}-${day}T${hours}:${minutes}:${seconds}+03:00`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function normalizePrice(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
-
-  if (!Number.isFinite(number) || number < 0) {
-    return null;
-  }
-
-  return number;
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
 function normalizeConfidence(value: unknown): number {
   const number = Number(value);
-
-  if (!Number.isFinite(number)) {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    Math.min(100, Math.round(number))
-  );
+  return Number.isFinite(number) ? Math.max(0, Math.min(100, Math.round(number))) : 0;
 }
 
 function normalizeText(value: unknown): string {
-  return typeof value === "string"
-    ? value.trim()
-    : "";
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeIdentity(value: unknown): string {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeVenueIdentity(value: unknown): string {
+  return normalizeIdentity(value)
+    .replace(/\b(the|venue|grounds|centre|center)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function isGenericPlaceholderTitle(title: string): boolean {
-  const normalized = title
-    .toLowerCase()
-    .replace(/[\u2013\u2014]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const blockedTitles = [
-    "music & nightlife experience",
-    "mombasa live music & nightlife experience",
-    "mombasa live music & dj night",
-    "mombasa afrobeat & amapiano night",
-    "live music & nightlife experience",
+  const normalized = normalizeIdentity(title);
+  const blocked = [
+    "music and nightlife experience",
+    "mombasa live music and nightlife experience",
+    "mombasa live music and dj night",
+    "mombasa afrobeat and amapiano night",
+    "live music and nightlife experience",
     "nightlife experience",
     "music and nightlife experience",
   ];
-
-  return blockedTitles.includes(normalized);
+  return blocked.includes(normalized);
 }
 
 function isInvalidSourceName(sourceName: string): boolean {
-  const normalized = sourceName
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-
+  const normalized = normalizeIdentity(sourceName);
   return (
     normalized.includes("safariplug ai scout") ||
     normalized === "test scout" ||
@@ -195,120 +134,36 @@ function isValidEvent(event: DiscoveredEvent): boolean {
   const description = normalizeText(event.description);
   const sourceName = normalizeText(event.source_name);
   const sourceUrl = normalizeSourceUrl(event.source_url);
-  const confidence = normalizeConfidence(
-    event.confidence_score
-  );
   const startAt = normalizeDate(event.start_at);
+  const confidence = normalizeConfidence(event.confidence_score);
 
-  if (!startAt) {
-    console.warn(
-      "Skipping event without a valid start date:",
-      title
-    );
+  if (!startAt || new Date(startAt).getTime() <= Date.now()) {
+    console.warn("Skipping event with missing/expired start date:", title, startAt);
     return false;
   }
-
-  const startDate = new Date(startAt);
-
-  if (startDate.getTime() <= Date.now()) {
-    console.warn(
-      "Skipping expired event:",
-      title,
-      startAt
-    );
-    return false;
-  }
-
-  if (!title) {
-    console.warn(
-      "Skipping event without title."
-    );
-    return false;
-  }
-
-  if (!description) {
-    console.warn(
-      "Skipping event without description:",
-      title
-    );
-    return false;
-  }
-
-  if (!sourceUrl) {
-    console.warn(
-      "Skipping event without valid external source:",
-      title
-    );
-    return false;
-  }
-
-  if (isInvalidSourceName(sourceName)) {
-    console.warn(
-      "Skipping invalid source:",
-      title,
-      sourceName
-    );
-    return false;
-  }
-
-  if (isGenericPlaceholderTitle(title)) {
-    console.warn(
-      "Skipping generic placeholder event:",
-      title
-    );
-    return false;
-  }
-
-  if (confidence < 60) {
-    console.warn(
-      "Skipping low-confidence event:",
-      title,
-      confidence
-    );
-    return false;
-  }
-
+  if (!title || !description || !sourceUrl) return false;
+  if (isInvalidSourceName(sourceName)) return false;
+  if (isGenericPlaceholderTitle(title)) return false;
+  if (confidence < 60) return false;
   return true;
 }
 
-async function fetchEventImage(
-  sourceUrl: string
-): Promise<string | null> {
+async function fetchEventImage(sourceUrl: string): Promise<string | null> {
   try {
-    console.log(
-      "Fetching event image:",
-      sourceUrl
-    );
-
     const response = await fetch(sourceUrl, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
       },
       cache: "no-store",
       signal: AbortSignal.timeout(10000),
     });
-
-    if (!response.ok) {
-      console.warn(
-        "Image page request failed:",
-        response.status,
-        sourceUrl
-      );
-      return null;
-    }
+    if (!response.ok) return null;
 
     const html = await response.text();
     const candidates: string[] = [];
-
-    const addCandidate = (value: unknown) => {
-      if (typeof value !== "string" || !value.trim()) {
-        return;
-      }
-
-      candidates.push(value.trim());
+    const add = (value: unknown) => {
+      if (typeof value === "string" && value.trim()) candidates.push(value.trim());
     };
 
     const metaPatterns = [
@@ -317,798 +172,289 @@ async function fetchEventImage(
       /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
       /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
     ];
-
     for (const pattern of metaPatterns) {
       const match = html.match(pattern);
-
-      if (match?.[1]) {
-        addCandidate(match[1]);
-      }
+      if (match?.[1]) add(match[1]);
     }
 
-    const jsonLdMatches = html.matchAll(
-      /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
-    );
+    for (const match of html.matchAll(/<img[^>]+(?:src|data-src|data-lazy-src|data-original)=["']([^"']+)["']/gi)) {
+      if (match[1]) add(match[1]);
+    }
 
-    const collectJsonImages = (value: unknown) => {
-      if (!value) {
-        return;
-      }
-
-      if (typeof value === "string") {
-        if (/^https?:\/\//i.test(value.trim())) {
-          addCandidate(value);
-        }
-
-        return;
-      }
-
-      if (Array.isArray(value)) {
-        for (const item of value) {
-          collectJsonImages(item);
-        }
-
-        return;
-      }
-
-      if (typeof value === "object") {
-        const obj = value as Record<string, unknown>;
-
-        if (typeof obj.image === "string") {
-          addCandidate(obj.image);
-        } else if (obj.image) {
-          collectJsonImages(obj.image);
-        }
-      }
-    };
-
-    for (const match of jsonLdMatches) {
+    for (const raw of candidates) {
       try {
-        const parsed = JSON.parse(match[1]);
-        collectJsonImages(parsed);
-      } catch {
-        continue;
-      }
-    }
-
-    const imageMatches = html.matchAll(
-      /<img[^>]+(?:src|data-src|data-lazy-src|data-original)=["']([^"']+)["']/gi
-    );
-
-    for (const match of imageMatches) {
-      if (match[1]) {
-        addCandidate(match[1]);
-      }
-    }
-
-    const srcsetMatches = html.matchAll(
-      /(?:srcset|data-srcset)=["']([^"']+)["']/gi
-    );
-
-    for (const match of srcsetMatches) {
-      if (!match[1]) {
-        continue;
-      }
-
-      const entries = match[1]
-        .split(",")
-        .map((entry) => entry.trim())
-        .filter(Boolean);
-
-      for (const entry of entries) {
-        const parts = entry.split(/\s+/);
-
-        if (parts[0]) {
-          addCandidate(parts[0]);
-        }
-      }
-    }
-
-    for (const rawCandidate of candidates) {
-      try {
-        const imageUrl = new URL(
-          rawCandidate,
-          sourceUrl
-        ).toString();
-
+        const imageUrl = new URL(raw, sourceUrl).toString();
         const lower = imageUrl.toLowerCase();
-
-        if (
-          lower.includes("logo") ||
-          lower.includes("icon") ||
-          lower.includes("avatar") ||
-          lower.includes("favicon") ||
-          lower.includes("placeholder") ||
-          lower.includes("sprite")
-        ) {
-          continue;
-        }
-
-        if (
-          lower.startsWith("http://") ||
-          lower.startsWith("https://")
-        ) {
-          console.log(
-            "Found page image:",
-            imageUrl
-          );
-
-          return imageUrl;
-        }
+        if (["logo", "icon", "avatar", "favicon", "placeholder", "sprite"].some((word) => lower.includes(word))) continue;
+        if (lower.startsWith("http://") || lower.startsWith("https://")) return imageUrl;
       } catch {
         continue;
       }
     }
-
-    console.log(
-      "No usable event image found:",
-      sourceUrl
-    );
-
     return null;
   } catch (error) {
-    console.warn(
-      "IMAGE FETCH ERROR:",
-      sourceUrl,
-      error
-    );
-
+    console.warn("IMAGE FETCH ERROR:", sourceUrl, error);
     return null;
   }
 }
 
-function normalizeEventIdentity(value: unknown): string {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+async function findExistingEvent(title: string, sourceUrl: string, startAt: string | null, venueName: string, city: string) {
+  const normalizedTitle = normalizeIdentity(title);
+  const normalizedSource = sourceUrl.toLowerCase();
+  const normalizedVenue = normalizeVenueIdentity(venueName);
+  const normalizedCity = normalizeIdentity(city);
 
-function normalizeVenueIdentity(value: unknown): string {
-  return normalizeEventIdentity(value)
-    .replace(/\b(the|venue|grounds|centre|center)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function getMeaningfulTitleTokens(value: unknown): string[] {
-  const stopWords = new Set([
-    "the",
-    "and",
-    "live",
-    "performance",
-    "event",
-    "festival",
-    "party",
-    "edition",
-    "2026",
-    "2027",
-  ]);
-
-  return normalizeEventIdentity(value)
-    .split(" ")
-    .filter(
-      (token) =>
-        token.length >= 4 &&
-        !stopWords.has(token)
-    );
-}
-
-function titlesShareMeaningfulIdentity(
-  first: unknown,
-  second: unknown
-): boolean {
-  const firstTokens =
-    getMeaningfulTitleTokens(first);
-
-  const secondTokens =
-    getMeaningfulTitleTokens(second);
-
-  if (
-    firstTokens.length === 0 ||
-    secondTokens.length === 0
-  ) {
-    return false;
-  }
-
-  const secondSet = new Set(secondTokens);
-
-  const sharedTokens =
-    firstTokens.filter((token) =>
-      secondSet.has(token)
-    );
-
-  const minimumSharedTokens =
-    Math.min(
-      firstTokens.length,
-      secondTokens.length
-    ) === 1
-      ? 1
-      : 2;
-
-  return (
-    sharedTokens.length >=
-    minimumSharedTokens
-  );
-}
-
-async function findExistingEvent(
-  title: string,
-  sourceUrl: string,
-  startAt: string | null,
-  venueName: string,
-  city: string
-) {
-  const normalizedTitle =
-    normalizeEventIdentity(title);
-
-  const normalizedSource =
-    sourceUrl.trim().toLowerCase();
-
-  const normalizedVenue =
-    normalizeVenueIdentity(venueName);
-
-  const normalizedCity =
-    normalizeEventIdentity(city);
-
-  const { data, error } =
-    await supabaseAdmin
-      .from("ai_discovered_events")
-      .select(
-        "id,title,source_url,start_at,venue_name,city"
-      )
-      .limit(500);
+  const { data, error } = await supabaseAdmin
+    .from("ai_discovered_events")
+    .select("id,title,source_url,start_at,venue_name,city")
+    .limit(500);
 
   if (error) {
-    console.error(
-      "DUPLICATE CHECK ERROR:",
-      error
-    );
-
+    console.error("DUPLICATE CHECK ERROR:", error);
     return null;
   }
 
-  const duplicate =
-    (data || []).find(
-      (existing) => {
-        const existingTitle =
-          normalizeEventIdentity(
-            existing.title
-          );
-
-        const existingSource =
-          String(
-            existing.source_url || ""
-          )
-            .trim()
-            .toLowerCase();
-
-        const existingVenue =
-          normalizeVenueIdentity(
-            existing.venue_name
-          );
-
-        const existingCity =
-          normalizeEventIdentity(
-            existing.city
-          );
-
-        const sameSource =
-          existingSource ===
-          normalizedSource;
-
-        const sameTitle =
-          existingTitle ===
-          normalizedTitle;
-
-        const sameDate =
-          Boolean(startAt) &&
-          Boolean(existing.start_at) &&
-          String(
-            existing.start_at
-          ).slice(0, 10) ===
-            String(startAt).slice(0, 10);
-
-        const sameVenue =
-          Boolean(normalizedVenue) &&
-          Boolean(existingVenue) &&
-          existingVenue ===
-            normalizedVenue;
-
-        const sameCity =
-          Boolean(normalizedCity) &&
-          Boolean(existingCity) &&
-          existingCity ===
-            normalizedCity;
-
-        const sharedTitleIdentity =
-          titlesShareMeaningfulIdentity(
-            title,
-            existing.title
-          );
-
-        const sameEventIdentity =
-          sameDate &&
-          sameCity &&
-          sameVenue &&
-          (
-            sameTitle ||
-            sharedTitleIdentity
-          );
-
-        return (
-          sameSource ||
-          sameTitle ||
-          sameEventIdentity
-        );
-      }
-    );
-
-  return duplicate || null;
+  return (data || []).find((existing) => {
+    const existingTitle = normalizeIdentity(existing.title);
+    const existingSource = String(existing.source_url || "").trim().toLowerCase();
+    const existingVenue = normalizeVenueIdentity(existing.venue_name);
+    const existingCity = normalizeIdentity(existing.city);
+    const sameSource = existingSource === normalizedSource;
+    const sameTitle = existingTitle === normalizedTitle;
+    const sameDate = Boolean(startAt && existing.start_at && String(existing.start_at).slice(0, 10) === String(startAt).slice(0, 10));
+    const sameVenue = Boolean(normalizedVenue && existingVenue && normalizedVenue === existingVenue);
+    const sameCity = Boolean(normalizedCity && existingCity && normalizedCity === existingCity);
+    return sameSource || sameTitle || (sameDate && sameCity && sameVenue);
+  }) || null;
 }
 
-export async function runAIScout(
-  formData: FormData
-) {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error(
-      "OPENAI_API_KEY is not configured"
-    );
+const SYSTEM_PROMPT = [
+  "You are SafariPlug AI Scout.",
+  "Discover only real upcoming events or experiences supported by live web evidence.",
+  "Never invent an event, source, image, venue, date, time, or price.",
+  "Unknown information must be null. Unknown price is not free.",
+  "Every returned event must have a real external HTTP/HTTPS source URL and source name.",
+  "Never use SafariPlug, SafariPlug AI Scout, localhost, example.com, or SafariPlug admin URLs as sources.",
+  "Return only JSON with an events array.",
+].join(" ");
+
+function buildPassPrompt(location: string, category: string, pass: DiscoveryPass): string {
+  const todayKenya = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" }).format(new Date());
+  return [
+    `Today in Kenya is ${todayKenya}. Find real upcoming ${category} events or experiences in ${location}, Kenya.`,
+    "",
+    `DISCOVERY PASS: ${pass.name}`,
+    pass.focus,
+    "",
+    "Search the live web thoroughly. Do not stop after one result.",
+    "Prioritize concrete event pages, official organizer/venue pages, official public social posts, legitimate ticketing platforms, reputable local event calendars, and local publications.",
+    "For recurring weekly/monthly events, return the next upcoming occurrence only when the source clearly establishes the recurrence and the occurrence date can be resolved from the source.",
+    "Do not return an event with a TBA, tentative, missing, or unverifiable upcoming date.",
+    "Cross-check promising events when practical, but one strong official source is acceptable.",
+    "For every event collect title, useful description, venue, address if available, city, actual upcoming start/end datetime, supported price/currency, source URL/name, image URL if directly established, and confidence.",
+    "Prefer the direct event/organizer/venue page rather than a generic homepage when possible.",
+    "Return at most 8 distinct events from this pass.",
+    "Return ONLY valid JSON in exactly this shape:",
+    '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime string or null","end_at":"ISO datetime string or null","price":"number or null","currency":"string or null","image_url":"string or null","source_url":"string","source_name":"string","confidence_score":0}]}',
+  ].join("\n");
+}
+
+async function runDiscoveryPass(openai: OpenAI, location: string, category: string, pass: DiscoveryPass): Promise<DiscoveredEvent[]> {
+  console.log(`SCOUT PASS ${pass.name}: starting`);
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-5.6-luna",
+      tools: [{ type: "web_search" }],
+      input: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: buildPassPrompt(location, category, pass) },
+      ],
+    });
+
+    const text = response.output_text?.trim();
+    if (!text) {
+      console.warn(`SCOUT PASS ${pass.name}: empty response`);
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(text) as DiscoveryResponse;
+      if (!parsed || !Array.isArray(parsed.events)) {
+        console.warn(`SCOUT PASS ${pass.name}: invalid events array`);
+        return [];
+      }
+      console.log(`SCOUT PASS ${pass.name}: ${parsed.events.length} candidate(s)`);
+      return parsed.events;
+    } catch (error) {
+      console.warn(`SCOUT PASS ${pass.name}: invalid JSON`, error);
+      console.warn(text.slice(0, 2000));
+      return [];
+    }
+  } catch (error) {
+    console.error(`SCOUT PASS ${pass.name} ERROR:`, error);
+    return [];
   }
+}
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
+function dedupeCandidates(events: DiscoveredEvent[]): DiscoveredEvent[] {
+  const result: DiscoveredEvent[] = [];
+  const seenSources = new Set<string>();
+  const seenTitles = new Set<string>();
+  const seenEventKeys = new Set<string>();
 
-  const location = String(
-    formData.get("location") || ""
-  ).trim();
+  for (const event of events) {
+    const source = normalizeSourceUrl(event.source_url);
+    const title = normalizeIdentity(event.title);
+    const date = normalizeDate(event.start_at)?.slice(0, 10) || "";
+    const venue = normalizeVenueIdentity(event.venue_name);
+    const city = normalizeIdentity(event.city);
+    const sourceKey = source?.toLowerCase() || "";
+    const eventKey = `${date}|${city}|${venue}|${title}`;
 
-  const submittedCategory = String(
-    formData.get("category") || ""
-  ).trim();
+    if (sourceKey && seenSources.has(sourceKey)) continue;
+    if (title && seenTitles.has(title)) continue;
+    if (eventKey !== "|||" && seenEventKeys.has(eventKey)) continue;
 
-  const category = EVENT_CATEGORIES.find(
-    (value) => value === submittedCategory
-  );
-
-  if (!location || !submittedCategory) {
-    throw new Error(
-      "Missing location or category"
-    );
+    if (sourceKey) seenSources.add(sourceKey);
+    if (title) seenTitles.add(title);
+    if (eventKey !== "|||" ) seenEventKeys.add(eventKey);
+    result.push(event);
   }
+  return result;
+}
 
-  if (!category) {
-    throw new Error(
-      `Unsupported Scout category "${submittedCategory}". Use a canonical EVENT_CATEGORIES value.`
-    );
-  }
+export async function runAIScout(formData: FormData) {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
-  const { data: run, error: runError } =
-    await supabaseAdmin
-      .from("ai_scout_runs")
-      .insert({
-        location,
-        category,
-        status: "running",
-        events_found: 0,
-      })
-      .select()
-      .single();
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const location = String(formData.get("location") || "").trim();
+  const submittedCategory = String(formData.get("category") || "").trim();
+  const category = EVENT_CATEGORIES.find((value) => value === submittedCategory);
+
+  if (!location || !submittedCategory) throw new Error("Missing location or category");
+  if (!category) throw new Error(`Unsupported Scout category "${submittedCategory}". Use a canonical EVENT_CATEGORIES value.`);
+
+  const { data: run, error: runError } = await supabaseAdmin
+    .from("ai_scout_runs")
+    .insert({ location, category, status: "running", events_found: 0 })
+    .select()
+    .single();
 
   if (runError || !run) {
-    console.error(
-      "RUN ERROR:",
-      runError
-    );
-
-    throw new Error(
-      "Could not start AI Scout"
-    );
+    console.error("RUN ERROR:", runError);
+    throw new Error("Could not start AI Scout");
   }
 
   try {
-    const searchPrompt = [
-      `Find real upcoming ${category} events or experiences in ${location}, Kenya.`,
-      "",
-      "Use live web search.",
-      "",
-      "SafariPlug is building a real event discovery platform.",
-      "Only return genuine, currently discoverable events.",
-      "Never invent, imagine, simulate, or suggest an event.",
-      "Never create generic nightlife ideas.",
-      "Never create placeholder events.",
-      "Never create an event merely because the category exists.",
-      "",
-      "Search broadly and systematically across the live web.",
-      "Do not stop after finding one or two events.",
-      "For coastal cities such as Mombasa, search multiple independent source types before concluding that no events exist.",
-      "Search official venue pages and public social accounts for clubs, beach clubs, restaurants, hotels, lounges, concert venues, cultural venues, and entertainment spaces.",
-      "Search official organizer, promoter, DJ, artist, festival, and event-series pages and public social accounts.",
-      "Search local ticketing and event-discovery platforms, including Ticketyetu and other legitimate Kenya/East Africa ticketing platforms.",
-      "Search local publications, tourism/event calendars, venue calendars, and reputable local listings.",
-      "Search for specific upcoming dates as well as recurring weekly and monthly nightlife events.",
-      "For nightlife, actively search combinations such as Mombasa live music, Mombasa DJ night, Mombasa Afrobeat, Mombasa Amapiano, Mombasa beach party, Mombasa club night, Mombasa rooftop, Mombasa concert, Mombasa entertainment, and Mombasa events.",
-      "Search venue-by-venue when appropriate rather than relying only on generic event-directory results.",
-      "Cross-check promising discoveries against another credible source when practical.",
-      "DATE-FIRST DISCOVERY:",
-      "Prioritize events whose actual upcoming date and time can be explicitly verified from a credible source.",
-      "Before returning an event, verify that its upcoming start date is supported by the source.",
-      "Do not return announced events with missing, TBA, tentative, or unverified dates.",
-      "Prefer date-confirmed events over events with stronger general information but no confirmed date.",
-      "",
-      "",
-      "PRIORITY SOURCES:",
-      "1. Official organizer social accounts or public event pages.",
-      "2. Official event websites.",
-      "3. Official venue websites or public venue social accounts.",
-      "4. Official ticketing platforms.",
-      "5. Reputable event directories.",
-      "6. Reputable local publications.",
-      "",
-      "SOCIAL MEDIA DISCOVERY:",
-      "Search public social-media sources when relevant, especially Instagram, Facebook, TikTok, and X.",
-      "Look for official organizer accounts, official venue accounts, event-specific posts, event posters, and public event announcements.",
-      "Prefer official organizer or venue social accounts over reposts.",
-      "A public social-media source may be used when it clearly identifies the event and supports its major details.",
-      "Do not treat random reposts, comments, or unverified accounts as sufficient evidence.",
-      "When a social post is used, preserve its direct public URL as source_url.",
-      "",
-      "Avoid low-quality pages when stronger evidence exists.",
-      "",
-      "For every event collect only evidence-backed information:",
-      "- title",
-      "- description",
-      "- venue",
-      "- venue address",
-      "- city",
-      "- actual upcoming start date/time",
-      "- actual end date/time",
-      "- ticket price",
-      "- currency",
-      "- official/source URL",
-      "- source name",
-      "- event image URL",
-      "",
-      "IMAGE RULES:",
-      "Find the actual promotional image whenever possible.",
-      "Prefer the image from the official event page.",
-      "If unavailable, use the official venue or organizer image.",
-      "Do not generate an image.",
-      "Do not invent an image URL.",
-      "If an image URL cannot be established from the source, return null.",
-      "",
-      "DATE RULES:",
-      "Only provide a date when supported by the source.",
-      "If the source says TBA, return null.",
-      "Never invent a date.",
-      "Never turn the current date into an event date.",
-      "",
-      "PRICE RULES:",
-      "Only provide a price supported by the source.",
-      "Unknown price MUST be null.",
-      "Unknown price MUST NOT become zero.",
-      "Do not describe an event as free unless the source explicitly says it is free.",
-      "",
-      "SOURCE RULES:",
-      "Every event MUST have a real external HTTP or HTTPS source URL.",
-      "Never use localhost.",
-      "Never use SafariPlug admin URLs.",
-      "Never use example.com.",
-      "Never use SafariPlug AI Scout as a source.",
-      "If a credible source cannot be established, exclude the event.",
-      "",
-      "QUALITY RULES:",
-      "A generic title such as 'Music & Nightlife Experience' is invalid.",
-      "A generic description is invalid.",
-      "An event with no credible source is invalid.",
-      "An event created only from a category is invalid.",
-      "",
-      "DUPLICATE RULE:",
-      "Do not return duplicate events.",
-      "",
-      "CONFIDENCE:",
-      "100 = event and major details strongly supported.",
-      "80-99 = most major details supported by credible sources.",
-      "60-79 = credible event but one or more details need verification.",
-      "Below 60 = exclude.",
-      "",
-      "Return at most 5 real events.",
-      "If no credible upcoming events are found, return an empty events array.",
-      "",
-      "Return ONLY valid JSON with exactly this structure:",
-      "{",
-      '  "events": [',
-      "    {",
-      '      "title": "string",',
-      '      "description": "string",',
-      '      "venue_name": "string or null",',
-      '      "venue_address": "string or null",',
-      '      "city": "string",',
-      '      "start_at": "ISO datetime string or null",',
-      '      "end_at": "ISO datetime string or null",',
-      '      "price": "number or null",',
-      '      "currency": "string or null",',
-      '      "image_url": "string or null",',
-      '      "source_url": "string",',
-      '      "source_name": "string",',
-      '      "confidence_score": 0',
-      "    }",
-      "  ]",
-      "}",
-    ].join("\n");
+    const passes: DiscoveryPass[] = [
+      {
+        name: "GENERAL",
+        focus: `Search broadly for named upcoming ${category} events, festivals, concerts, shows, experiences, and public event listings in ${location}. Cover the next several weeks rather than only today.`,
+      },
+      {
+        name: "VENUES",
+        focus: `Search venue-by-venue. For ${location}, inspect clubs, lounges, beach clubs, hotels, restaurants, resorts, concert venues, cultural spaces, entertainment venues, and recurring event series. For Music & Nightlife, explicitly investigate live music, DJ nights, Afrobeat, Amapiano, reggae, R&B, bands, parties, beach parties, rooftop events, and concerts.`,
+      },
+      {
+        name: "CALENDARS",
+        focus: `Search ticketing and local discovery sources plus organizer/promoter pages, public social accounts, tourism/event calendars, local publications, and reputable event directories. Look for events that broad search may miss, including smaller local nightlife listings and upcoming ticketed events.`,
+      },
+    ];
 
-    const response =
-      await openai.responses.create({
-        model: "gpt-5.6-luna",
-        tools: [
-          {
-            type: "web_search",
-          },
-        ],
-        input: [
-          {
-            role: "system",
-            content: [
-              "You are SafariPlug AI Scout.",
-              "You discover real upcoming events.",
-              "Use live web information.",
-              "Never invent an event.",
-              "Never invent a source.",
-              "Never invent an image.",
-              "Never invent a date.",
-              "Never invent a venue.",
-              "Never invent a price.",
-              "Unknown information must be null.",
-              "Unknown price is not free.",
-              "Every event requires a real external source.",
-              "Never return SafariPlug admin URLs.",
-              "Never return SafariPlug AI Scout as a source.",
-              "Never return generic placeholder events.",
-              "Return only valid JSON.",
-            ].join(" "),
-          },
-          {
-            role: "user",
-            content: searchPrompt,
-          },
-        ],
-      });
+    const passResults = await Promise.all(
+      passes.map((pass) => runDiscoveryPass(openai, location, category, pass))
+    );
 
-    const text =
-      response.output_text?.trim();
-
-    if (!text) {
-      throw new Error(
-        "AI returned an empty discovery response"
-      );
-    }
-
-    let discovery: DiscoveryResponse;
-
-    try {
-      discovery = JSON.parse(text);
-    } catch {
-      console.error(
-        "OPENAI JSON ERROR:",
-        text
-      );
-
-      throw new Error(
-        "AI returned invalid discovery data"
-      );
-    }
-
-    if (
-      !discovery ||
-      !Array.isArray(
-        discovery.events
-      )
-    ) {
-      throw new Error(
-        "AI returned an invalid events list"
-      );
-    }
+    const candidateEvents = dedupeCandidates(passResults.flat());
+    console.log(`SCOUT MERGED CANDIDATES: ${candidateEvents.length}`);
 
     let insertedCount = 0;
 
-    for (
-      const event of discovery.events.slice(
-        0,
-        5
-      )
-    ) {
-      console.log(
-        "CHECKING EVENT:",
-        event.title,
-        event.confidence_score,
-        event.source_name,
-        event.source_url
-      );
+    for (const event of candidateEvents) {
+      if (insertedCount >= 5) break;
 
+      console.log("CHECKING EVENT:", event.title, event.confidence_score, event.source_name, event.source_url);
       if (!isValidEvent(event)) {
-        console.log(
-          "BLOCKED:",
-          event.title
-        );
+        console.log("BLOCKED:", event.title);
         continue;
       }
 
-      const title =
-        normalizeText(event.title);
+      const title = normalizeText(event.title);
+      const description = normalizeText(event.description);
+      const sourceUrl = normalizeSourceUrl(event.source_url);
+      const sourceName = normalizeText(event.source_name);
+      const venueName = normalizeText(event.venue_name);
+      const venueAddress = normalizeText(event.venue_address);
+      const city = normalizeText(event.city) || location;
+      const confidence = normalizeConfidence(event.confidence_score);
+      const startAt = normalizeDate(event.start_at);
+      const endAt = normalizeDate(event.end_at);
 
-      const description =
-        normalizeText(
-          event.description
-        );
+      if (!sourceUrl || !startAt) continue;
 
-      const sourceUrl =
-        normalizeSourceUrl(
-          event.source_url
-        );
-
-      const sourceName =
-        normalizeText(
-          event.source_name
-        );
-
-      const venueName =
-        normalizeText(
-          event.venue_name
-        );
-
-      const venueAddress =
-        normalizeText(
-          event.venue_address
-        );
-
-      const city =
-        normalizeText(event.city) || location;
-
-      const confidence =
-        normalizeConfidence(
-          event.confidence_score
-        );
-
-      if (!sourceUrl) {
-        continue;
-      }
-
-      const startAt =
-        normalizeDate(event.start_at);
-
-      const endAt =
-        normalizeDate(event.end_at);
-
-      const duplicate =
-        await findExistingEvent(
-          title,
-          sourceUrl,
-          startAt,
-          venueName,
-          city
-        );
-
+      const duplicate = await findExistingEvent(title, sourceUrl, startAt, venueName, city);
       if (duplicate) {
-        console.log(
-          "Skipping duplicate event:",
-          title
-        );
-
+        console.log("Skipping duplicate event:", title);
         continue;
       }
 
-      const price =
-        normalizePrice(event.price);
+      const price = normalizePrice(event.price);
+      let imageUrl = normalizeImageUrl(event.image_url);
+      if (!imageUrl) imageUrl = await fetchEventImage(sourceUrl);
+      const currency = price !== null ? normalizeText(event.currency) || "KES" : null;
 
-      let imageUrl =
-        normalizeImageUrl(event.image_url);
-
-      if (!imageUrl) {
-        imageUrl =
-          await fetchEventImage(sourceUrl);
-      }
-
-      const currency =
-        price !== null
-          ? normalizeText(event.currency) || "KES"
-          : null;
-
-      const { error: eventError } =
-        await supabaseAdmin
-          .from("ai_discovered_events")
-          .insert({
-            title,
-            description,
-            category,
-            city,
-            venue_name: venueName || null,
-            venue_address: venueAddress || null,
-            start_at: startAt,
-            end_at: endAt,
-            price,
-            currency,
-            image_url: imageUrl,
-            source_url: sourceUrl,
-            source_name: sourceName || null,
-            confidence_score: confidence,
-            status: "pending_review",
-          });
+      const { error: eventError } = await supabaseAdmin
+        .from("ai_discovered_events")
+        .insert({
+          title,
+          description,
+          category,
+          city,
+          venue_name: venueName || null,
+          venue_address: venueAddress || null,
+          start_at: startAt,
+          end_at: endAt,
+          price,
+          currency,
+          image_url: imageUrl,
+          source_url: sourceUrl,
+          source_name: sourceName || null,
+          confidence_score: confidence,
+          status: "pending_review",
+        });
 
       if (eventError) {
-        console.error(
-          "EVENT INSERT ERROR:",
-          eventError
-        );
-
+        console.error("EVENT INSERT ERROR:", eventError);
         continue;
       }
 
       insertedCount++;
-
-      console.log(
-        "EVENT INSERTED:",
-        title,
-        "| IMAGE:",
-        imageUrl || "NULL"
-      );
+      console.log("EVENT INSERTED:", title, "| IMAGE:", imageUrl || "NULL");
     }
 
-    const {
-      error: updateError,
-    } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from("ai_scout_runs")
       .update({
         events_found: insertedCount,
         status: "completed",
         completed_at: new Date().toISOString(),
-        notes: `Completed successfully. Inserted ${insertedCount} event(s).`,
+        notes: `Completed successfully. ${passes.length} discovery passes searched. Found ${candidateEvents.length} merged candidate(s). Inserted ${insertedCount} event(s).`,
       })
       .eq("id", run.id);
 
     if (updateError) {
-      console.error(
-        "RUN UPDATE ERROR:",
-        updateError
-      );
-
-      throw new Error(
-        "Could not complete AI Scout run"
-      );
+      console.error("RUN UPDATE ERROR:", updateError);
+      throw new Error("Could not complete AI Scout run");
     }
 
-    revalidatePath(
-      "/admin/ai-events"
-    );
-
-    revalidatePath(
-      "/admin/ai-scout"
-    );
-
-    return;
+    revalidatePath("/admin/ai-events");
+    revalidatePath("/admin/ai-scout");
   } catch (error) {
-    console.error(
-      "AI SCOUT ERROR:",
-      error
-    );
+    console.error("AI SCOUT ERROR:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const safeErrorMessage = errorMessage.length > 1000 ? `${errorMessage.slice(0, 1000)}...` : errorMessage;
 
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : String(error);
-
-    const safeErrorMessage =
-      errorMessage.length > 1000
-        ? `${errorMessage.slice(0, 1000)}...`
-        : errorMessage;
-
-    const {
-      error: failureUpdateError,
-    } = await supabaseAdmin
+    const { error: failureUpdateError } = await supabaseAdmin
       .from("ai_scout_runs")
       .update({
         status: "failed",
@@ -1117,13 +463,7 @@ export async function runAIScout(
       })
       .eq("id", run.id);
 
-    if (failureUpdateError) {
-      console.error(
-        "FAILED RUN UPDATE ERROR:",
-        failureUpdateError
-      );
-    }
-
+    if (failureUpdateError) console.error("FAILED RUN UPDATE ERROR:", failureUpdateError);
     throw error;
   }
 }
