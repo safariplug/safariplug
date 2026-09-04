@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { runAIScout } from "@/app/admin/ai-scout/actions/run-scout";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 export async function POST(request: Request) {
   try {
     const supabase = await createSupabaseServerClient();
@@ -22,18 +25,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-
     const formData = new FormData();
-
-    formData.append(
-      "location",
-      body.location || "Nairobi"
-    );
-
-    formData.append(
-      "category",
-      body.category || "Events & Experiences"
-    );
+    formData.append("location", body.location || "Nairobi");
+    formData.append("category", body.category || "Events & Experiences");
 
     await runAIScout(formData);
 
@@ -41,23 +35,14 @@ export async function POST(request: Request) {
       success: true,
       message: "AI Scout completed successfully.",
     });
-
   } catch (error: unknown) {
-    console.error(
-      "SCOUT RUN ERROR:",
-      error
-    );
+    console.error("SCOUT RUN ERROR:", error);
 
-    const message =
-      error instanceof Error ? error.message : "Scout failed";
+    const message = error instanceof Error ? error.message : "Scout failed";
 
     return NextResponse.json(
-      {
-        error: message
-      },
-      {
-        status: 500
-      }
+      { error: message },
+      { status: 500 }
     );
   }
 }
