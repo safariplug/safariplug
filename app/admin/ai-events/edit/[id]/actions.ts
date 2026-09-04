@@ -76,7 +76,9 @@ export async function updateAIEvent(id: string, formData: FormData) {
 
 export async function publishAIEvent(id: string) {
   await requireAdmin();
-  await approveAIEvent(id);
+  const formData = new FormData();
+  formData.set("id", id);
+  await approveAIEvent(formData);
   revalidatePath("/admin/ai-events");
   revalidatePath(`/admin/ai-events/edit/${id}`);
   redirect("/admin/ai-events");
