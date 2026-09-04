@@ -90,9 +90,6 @@ function normalizeDate(value: unknown): string | null {
 
   const trimmed = value.trim();
 
-  // Preserve explicit timezone information.
-  // If the source gives Z or an explicit +/- offset,
-  // normalize it to UTC.
   if (
     /Z$/i.test(trimmed) ||
     /[+-]\d{2}:?\d{2}$/.test(trimmed)
@@ -106,8 +103,6 @@ function normalizeDate(value: unknown): string | null {
     return date.toISOString();
   }
 
-  // For timezone-less event datetimes, preserve the
-  // supplied local wall-clock time exactly.
   const match = trimmed.match(
     /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/
   );
@@ -127,6 +122,7 @@ function normalizeDate(value: unknown): string | null {
   ] = match;
   return new Date(`${year}-${month}-${day}T${hours}:${minutes}:${seconds}+03:00`).toISOString();
 }
+
 function normalizePrice(value: unknown): number | null {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -222,6 +218,7 @@ function isValidEvent(event: DiscoveredEvent): boolean {
     );
     return false;
   }
+
   if (!title) {
     console.warn(
       "Skipping event without title."
@@ -314,7 +311,6 @@ async function fetchEventImage(
       candidates.push(value.trim());
     };
 
-    // 1. Open Graph and Twitter card images.
     const metaPatterns = [
       /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
       /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
@@ -330,7 +326,6 @@ async function fetchEventImage(
       }
     }
 
-    // 2. JSON-LD structured data.
     const jsonLdMatches = html.matchAll(
       /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
     );
@@ -376,7 +371,6 @@ async function fetchEventImage(
       }
     }
 
-    // 3. Standard and lazy-loaded image elements.
     const imageMatches = html.matchAll(
       /<img[^>]+(?:src|data-src|data-lazy-src|data-original)=["']([^"']+)["']/gi
     );
@@ -387,7 +381,6 @@ async function fetchEventImage(
       }
     }
 
-    // 4. Responsive image sources.
     const srcsetMatches = html.matchAll(
       /(?:srcset|data-srcset)=["']([^"']+)["']/gi
     );
@@ -411,7 +404,6 @@ async function fetchEventImage(
       }
     }
 
-    // Validate candidates without inventing or generating images.
     for (const rawCandidate of candidates) {
       try {
         const imageUrl = new URL(
@@ -658,6 +650,7 @@ async function findExistingEvent(
 
   return duplicate || null;
 }
+
 export async function runAIScout(
   formData: FormData
 ) {
@@ -666,10 +659,6 @@ export async function runAIScout(
       "OPENAI_API_KEY is not configured"
     );
   }
-
-
-
-
 
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -924,20 +913,20 @@ export async function runAIScout(
       )
     ) {
       console.log(
-  "CHECKING EVENT:",
-  event.title,
-  event.confidence_score,
-  event.source_name,
-  event.source_url
-);
+        "CHECKING EVENT:",
+        event.title,
+        event.confidence_score,
+        event.source_name,
+        event.source_url
+      );
 
-if (!isValidEvent(event)) {
-  console.log(
-    "BLOCKED:",
-    event.title
-  );
-  continue;
-}
+      if (!isValidEvent(event)) {
+        console.log(
+          "BLOCKED:",
+          event.title
+        );
+        continue;
+      }
 
       const title =
         normalizeText(event.title);
@@ -968,9 +957,7 @@ if (!isValidEvent(event)) {
         );
 
       const city =
-        normalizeText(
-          event.city
-        ) || location;
+        normalizeText(event.city) || location;
 
       const confidence =
         normalizeConfidence(
@@ -982,14 +969,10 @@ if (!isValidEvent(event)) {
       }
 
       const startAt =
-        normalizeDate(
-          event.start_at
-        );
+        normalizeDate(event.start_at);
 
       const endAt =
-        normalizeDate(
-          event.end_at
-        );
+        normalizeDate(event.end_at);
 
       const duplicate =
         await findExistingEvent(
@@ -1010,42 +993,31 @@ if (!isValidEvent(event)) {
       }
 
       const price =
-        normalizePrice(
-          event.price
-        );
+        normalizePrice(event.price);
 
       let imageUrl =
-        normalizeImageUrl(
-          event.image_url
-        );
+        normalizeImageUrl(event.image_url);
 
       if (!imageUrl) {
         imageUrl =
-          await fetchEventImage(
-            sourceUrl
-          );
+          await fetchEventImage(sourceUrl);
       }
 
       const currency =
         price !== null
-          ? normalizeText(
-              event.currency
-            ) || "KES"
+          ? normalizeText(event.currency) || "KES"
           : null;
 
       const { error: eventError } =
         await supabaseAdmin
-          .from(
-            "ai_discovered_events"
-          )
+          .from("ai_discovered_events")
           .insert({
             title,
             description,
             category,
             city,
             venue_name: venueName || null,
-            venue_address:
-              venueAddress || null,
+            venue_address: venueAddress || null,
             start_at: startAt,
             end_at: endAt,
             price,
@@ -1053,10 +1025,8 @@ if (!isValidEvent(event)) {
             image_url: imageUrl,
             source_url: sourceUrl,
             source_name: sourceName || null,
-            confidence_score:
-              confidence,
-            status:
-  "pending_review",
+            confidence_score: confidence,
+            status: "pending_review",
           });
 
       if (eventError) {
@@ -1083,11 +1053,10 @@ if (!isValidEvent(event)) {
     } = await supabaseAdmin
       .from("ai_scout_runs")
       .update({
-        events_found:
-          insertedCount,
+        events_found: insertedCount,
         status: "completed",
-        completed_at:
-          new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        notes: `Completed successfully. Inserted ${insertedCount} event(s).`,
       })
       .eq("id", run.id);
 
@@ -1117,14 +1086,24 @@ if (!isValidEvent(event)) {
       error
     );
 
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    const safeErrorMessage =
+      errorMessage.length > 1000
+        ? `${errorMessage.slice(0, 1000)}...`
+        : errorMessage;
+
     const {
       error: failureUpdateError,
     } = await supabaseAdmin
       .from("ai_scout_runs")
       .update({
         status: "failed",
-        completed_at:
-          new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        notes: `AI Scout failed: ${safeErrorMessage}`,
       })
       .eq("id", run.id);
 
@@ -1138,5 +1117,3 @@ if (!isValidEvent(event)) {
     throw error;
   }
 }
-
-
