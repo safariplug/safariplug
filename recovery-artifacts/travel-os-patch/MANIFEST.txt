@@ -1,28 +1,40 @@
 original filename: safariplug-travel-os.patch
 original byte size: 876964
 original SHA-256: f3a02de3b75cf30d477c3298fb0d27e4c7e8707a56e827c37c7403c52e0f40f1
-number of chunks: 18
-chunk size target: 50000 UTF-8 characters
+number of chunks: 30
+chunk size target: 30000 UTF-8 characters
 
 chunks:
-  part-001.patch  char_count=50000  byte_count=50021  sha256=835fd68cd82cb982775084bc0b39cb5f69c2c586ae7ca5291e6ecbb38cc7afee
-  part-002.patch  char_count=50000  byte_count=50082  sha256=708877107606efeb49fbe0ed9acf4cf2a941cb1d29176f70f32aecd892f8829b
-  part-003.patch  char_count=50000  byte_count=50000  sha256=d069230425ac6dca1c676badd7b80de1d07ff14d121e2bb23792c2d3eb5b8286
-  part-004.patch  char_count=50000  byte_count=50004  sha256=3ca8878570b457bf87cf160a3c5eab1d14f2d5a908a71b5544f930faceb9925b
-  part-005.patch  char_count=50000  byte_count=50000  sha256=8d8c4aa72cddbac05927a3167900d3cde8ab810426873f6b6a29bb28a63654bc
-  part-006.patch  char_count=50000  byte_count=50000  sha256=aceedf817908eb5048934ce888b7ff9984c3d4b7d39527f43f894358ec5e4f03
-  part-007.patch  char_count=50000  byte_count=50014  sha256=25abe4377d83709a4d2b6aee090014f5708a5ea7435f57fdcfef1e288f585663
-  part-008.patch  char_count=50000  byte_count=50034  sha256=9f59ce7de6c9da50a5b237e8cdf4e9d5896f26d3b764278991687c00a07f9488
-  part-009.patch  char_count=50000  byte_count=50000  sha256=20114c76547ffca61fd2f885b5b0bebbc1365ecb3d58da820a49064900bac9e6
-  part-010.patch  char_count=50000  byte_count=50000  sha256=b60836b25d3167bc61a6d65b8494b64e3fb22ce49ad29cbd9c76fe00538597ed
-  part-011.patch  char_count=50000  byte_count=50000  sha256=6dfa564e44ebb80d3ccafc252411730621fe44ff3744e16b158ff4fc86136602
-  part-012.patch  char_count=50000  byte_count=50000  sha256=e7049bdaa76765c49e8e85d41fbd7e2c63b6f547c3877e44d9e900699f3c30d3
-  part-013.patch  char_count=50000  byte_count=50000  sha256=578c72255d4dba35bed15ba940d650634570078d56adffcf3b869366bc467da6
-  part-014.patch  char_count=50000  byte_count=50000  sha256=771563a741e80750f6938e9b3d039b2dfc684e2dc0f375b38444796cf78a7a13
-  part-015.patch  char_count=50000  byte_count=50000  sha256=ba57df592aa149324ea63303cd13cc30a138747dc217812fdd8b45e1894b6336
-  part-016.patch  char_count=50000  byte_count=50006  sha256=257a5278318f560f5c0da0ad557a8a26f7ba951322a8b5d7026aeb617209e4a6
-  part-017.patch  char_count=50000  byte_count=50011  sha256=017bd922975cf412cd15a360e7d6835223e4e0937d93ca047f012c2497d1ff5e
-  part-018.patch  char_count=26792  byte_count=26792  sha256=542cc9bfe3f7b2164b76f970673039eaacd1f944e6a0e4270023fc021ae0acd3
+  part-001.patch  char_count=30000  byte_count=30018  sha256=80e5339e450ba29765a29c863a6b1c7e356396280c6c404c632a482a683b1eb9
+  part-002.patch  char_count=30000  byte_count=30007  sha256=c883bf009feb04e10c4fcaab3138e317ece54e6e12fbb3ee863db601799accd9
+  part-003.patch  char_count=30000  byte_count=30078  sha256=d32e0407856b12edeeee75225396407926b866782059ea73d54fe528ef598127
+  part-004.patch  char_count=30000  byte_count=30000  sha256=511f11546e0d234c960e514e47895b18a002fda93d2cf2bf688416a71f7876fe
+  part-005.patch  char_count=30000  byte_count=30000  sha256=66c4e915ffeb71b1b8dfac8fc0803756310321f5fb7dc7f06018bbd799c1eb92
+  part-006.patch  char_count=30000  byte_count=30004  sha256=40335e849cc032a310d77d98152e929d4d104f3c0a9f359e433cd3f4d8b515d7
+  part-007.patch  char_count=30000  byte_count=30000  sha256=1f955b0ef4e07341df00a4d290589dd084b737ea1d866b09a4abf6bebeac7de2
+  part-008.patch  char_count=30000  byte_count=30000  sha256=3d660af9708668a370e91c1b969c03c2d91c532f825de796aa943410ab59b3ea
+  part-009.patch  char_count=30000  byte_count=30000  sha256=07a2c3480dfb9ae58c1dde80443000e48e078754923e4a28c4e0bbd14d08e491
+  part-010.patch  char_count=30000  byte_count=30000  sha256=a77368a52673231877aac3dedf930641b8f005a9dabd7a862c3e3d71d68f4b55
+  part-011.patch  char_count=30000  byte_count=30000  sha256=c4892a3aac9524e09bc55b1797c00cf6f9baf101bf34949d3fc28bb99cfbfc19
+  part-012.patch  char_count=30000  byte_count=30038  sha256=c4ddd8ecb7a484c89da8ae4f642b90be933b148709c4ac0868a8fb650012d69f
+  part-013.patch  char_count=30000  byte_count=30010  sha256=da58fb2dd1bee267682803c9b57b32f425aa4d8a8a9c73ad5a9d17a99fdefb1a
+  part-014.patch  char_count=30000  byte_count=30000  sha256=918601b11de24cd2bf293ac4d15a062e7dac149c57340c25f221d34c8e7928c3
+  part-015.patch  char_count=30000  byte_count=30000  sha256=cddfd6692ea2c510e5ceddf644804c41f42d4f33129f62149830ece3be9cc7b8
+  part-016.patch  char_count=30000  byte_count=30000  sha256=86a3877bc3ba908de66dd617a564d921026bb1208acfb0ed60497c6f6c6ef348
+  part-017.patch  char_count=30000  byte_count=30000  sha256=61701b512c17cac364a32074b205e40d2e5953dac3490f0c23a0a1d7180b45c7
+  part-018.patch  char_count=30000  byte_count=30000  sha256=c21d0168c33393345eb6a69709f2db9fdf5b4ad90d97f58e57e640b38290f36c
+  part-019.patch  char_count=30000  byte_count=30000  sha256=d22fb4a53837a4c34cc881c968e29b669392b8daf1cc5066f2aa24d4d6e33ec1
+  part-020.patch  char_count=30000  byte_count=30000  sha256=d48e88c6f94e102df7e7f35c7fcd1c0681a5d36e6d937579254c619e1900e208
+  part-021.patch  char_count=30000  byte_count=30000  sha256=754efdeeab4c8cd97d18952fa2e64e30a5529120582fcb7cc6d1641701e954ed
+  part-022.patch  char_count=30000  byte_count=30000  sha256=512869921b77221e8a27eb132eebb56b2b40b4c1d9d48f18f48f2baefd4f5a86
+  part-023.patch  char_count=30000  byte_count=30000  sha256=7b0b65dde38718281a4e6ac78f4c777fe6bf65c62b65192c3d368286e58d3a78
+  part-024.patch  char_count=30000  byte_count=30000  sha256=dd4b4df1c25e89544dd914fffb0e82288434d094d135e06e3b82bff76c320aac
+  part-025.patch  char_count=30000  byte_count=30000  sha256=dc9277daba385774c5f14364deaf135ca09297bc440b0e6d2cc6427793d87c26
+  part-026.patch  char_count=30000  byte_count=30000  sha256=0c45db0fdb72b4d00568e4b9e4cde6c3e7de0b5e95a143aecc0dfb72d5b1e234
+  part-027.patch  char_count=30000  byte_count=30014  sha256=efe72e7d00f0f506918dabb957643a3a66a57a6b686bbd268ac223d89c42f4fd
+  part-028.patch  char_count=30000  byte_count=30003  sha256=b93a35b73aa58d47056b873ebc611013074f9cdf55aa7e01f32c68b6d8f2b9d9
+  part-029.patch  char_count=30000  byte_count=30000  sha256=bc1837b78886ee6d42b1a3138daedd0f181fdd487104988bb0c9e507d8cf3eaa
+  part-030.patch  char_count=6792  byte_count=6792  sha256=2fc0dd74d3a9a31d7831d49f5a10c41e911da49ce60ce97336995434ec4b8a82
 
 Concatenating the chunks in numeric order (part-001.patch, part-002.patch, ...) must reproduce the original patch exactly (byte-for-byte, SHA-256 f3a02de3b75cf30d477c3298fb0d27e4c7e8707a56e827c37c7403c52e0f40f1).
 Do not insert or strip newlines between files when concatenating.
