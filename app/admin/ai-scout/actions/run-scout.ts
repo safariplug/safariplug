@@ -203,6 +203,7 @@ async function findExistingEvent(title: string, sourceUrl: string, startAt: stri
   const normalizedSource = sourceUrl.toLowerCase();
   const normalizedVenue = normalizeVenueIdentity(venueName);
   const normalizedCity = normalizeIdentity(city);
+  const startDate = startAt ? String(startAt).slice(0, 10) : "";
 
   const { data, error } = await supabaseAdmin
     .from("ai_discovered_events")
@@ -219,12 +220,21 @@ async function findExistingEvent(title: string, sourceUrl: string, startAt: stri
     const existingSource = String(existing.source_url || "").trim().toLowerCase();
     const existingVenue = normalizeVenueIdentity(existing.venue_name);
     const existingCity = normalizeIdentity(existing.city);
+    const existingDate = String(existing.start_at || "").slice(0, 10);
+
     const sameSource = existingSource === normalizedSource;
-    const sameTitle = existingTitle === normalizedTitle;
-    const sameDate = Boolean(startAt && existing.start_at && String(existing.start_at).slice(0, 10) === String(startAt).slice(0, 10));
+    const sameTitle = Boolean(normalizedTitle && existingTitle && normalizedTitle === existingTitle);
+    const sameDate = Boolean(startDate && existingDate && startDate === existingDate);
     const sameVenue = Boolean(normalizedVenue && existingVenue && normalizedVenue === existingVenue);
     const sameCity = Boolean(normalizedCity && existingCity && normalizedCity === existingCity);
-    return sameSource || sameTitle || (sameDate && sameCity && sameVenue);
+
+    // A listing/calendar URL can legitimately contain many different events.
+    // Therefore source URL alone is NEVER a duplicate signal.
+    return (
+      (sameTitle && sameDate && sameCity) ||
+      (sameTitle && sameDate && sameVenue) ||
+      (sameSource && sameTitle && sameDate)
+    );
   }) || null;
 }
 
@@ -298,26 +308,29 @@ async function runDiscoveryPass(openai: OpenAI, location: string, category: stri
 
 function dedupeCandidates(events: DiscoveredEvent[]): DiscoveredEvent[] {
   const result: DiscoveredEvent[] = [];
-  const seenSources = new Set<string>();
   const seenTitles = new Set<string>();
   const seenEventKeys = new Set<string>();
 
   for (const event of events) {
-    const source = normalizeSourceUrl(event.source_url);
     const title = normalizeIdentity(event.title);
     const date = normalizeDate(event.start_at)?.slice(0, 10) || "";
     const venue = normalizeVenueIdentity(event.venue_name);
     const city = normalizeIdentity(event.city);
-    const sourceKey = source?.toLowerCase() || "";
+    const source = normalizeSourceUrl(event.source_url)?.toLowerCase() || "";
+
     const eventKey = `${date}|${city}|${venue}|${title}`;
+    const titleDateCityKey = `${date}|${city}|${title}`;
+    const sourceTitleDateKey = `${source}|${date}|${title}`;
 
-    if (sourceKey && seenSources.has(sourceKey)) continue;
-    if (title && seenTitles.has(title)) continue;
+    // Same listing/calendar page may contain many different events.
+    // Deduplicate by event identity, never by source URL alone.
+    if (titleDateCityKey !== "||" && seenTitles.has(titleDateCityKey)) continue;
     if (eventKey !== "|||" && seenEventKeys.has(eventKey)) continue;
+    if (sourceTitleDateKey !== "||" && seenTitles.has(sourceTitleDateKey)) continue;
 
-    if (sourceKey) seenSources.add(sourceKey);
-    if (title) seenTitles.add(title);
-    if (eventKey !== "|||" ) seenEventKeys.add(eventKey);
+    if (titleDateCityKey !== "||") seenTitles.add(titleDateCityKey);
+    if (eventKey !== "|||") seenEventKeys.add(eventKey);
+    if (sourceTitleDateKey !== "||") seenTitles.add(sourceTitleDateKey);
     result.push(event);
   }
   return result;
@@ -365,16 +378,21 @@ export async function runAIScout(formData: FormData) {
       passes.map((pass) => runDiscoveryPass(openai, location, category, pass))
     );
 
+    const rawCandidateCount = passResults.reduce((sum, events) => sum + events.length, 0);
     const candidateEvents = dedupeCandidates(passResults.flat());
+    console.log(`SCOUT RAW CANDIDATES: ${rawCandidateCount}`);
     console.log(`SCOUT MERGED CANDIDATES: ${candidateEvents.length}`);
 
     let insertedCount = 0;
+    let duplicateCount = 0;
+    let blockedCount = 0;
 
     for (const event of candidateEvents) {
       if (insertedCount >= 5) break;
 
       console.log("CHECKING EVENT:", event.title, event.confidence_score, event.source_name, event.source_url);
       if (!isValidEvent(event)) {
+        blockedCount++;
         console.log("BLOCKED:", event.title);
         continue;
       }
@@ -394,6 +412,7 @@ export async function runAIScout(formData: FormData) {
 
       const duplicate = await findExistingEvent(title, sourceUrl, startAt, venueName, city);
       if (duplicate) {
+        duplicateCount++;
         console.log("Skipping duplicate event:", title);
         continue;
       }
@@ -438,7 +457,7 @@ export async function runAIScout(formData: FormData) {
         events_found: insertedCount,
         status: "completed",
         completed_at: new Date().toISOString(),
-        notes: `Completed successfully. ${passes.length} discovery passes searched. Found ${candidateEvents.length} merged candidate(s). Inserted ${insertedCount} event(s).`,
+        notes: `Completed successfully. ${passes.length} discovery passes searched. Raw candidates ${rawCandidateCount}; merged candidates ${candidateEvents.length}; blocked ${blockedCount}; duplicates ${duplicateCount}; inserted ${insertedCount}.`,
       })
       .eq("id", run.id);
 
