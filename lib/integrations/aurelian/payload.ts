@@ -6,7 +6,7 @@
  */
 
 export const AURELIAN_EVENT_SELECT =
-  "id, title, description, category, venue_name, venue_address, start_at, end_at, price, currency, image_url, booking_url, source_url, organizer_name, is_featured, verified, status, city, city_id, cities(id, name, country)";
+  "id, title, description, category, venue_name, venue_address, start_at, end_at, price, currency, image_url, booking_url, source_url, organizer_name, is_featured, verified, status, city_id, cities(id, name, country)";
 
 export type AurelianExperiencePayload = {
   source: "SafariPlug";
@@ -60,7 +60,6 @@ export type SafariPlugEventRow = {
   is_featured?: unknown;
   verified?: unknown;
   status?: unknown;
-  city?: unknown;
   city_id?: unknown;
   cities?: CityEmbed | CityEmbed[] | null;
   submitted_by?: unknown;
@@ -88,7 +87,7 @@ function asNumber(value: unknown): number | null {
 function cityFromRow(row: SafariPlugEventRow): AurelianExperiencePayload["city"] {
   const cities = row.cities;
   const embed = Array.isArray(cities) ? cities[0] : cities;
-  const name = asString(embed?.name) || asString(row.city);
+  const name = asString(embed?.name);
   const id = asString(embed?.id) || asString(row.city_id);
   const country = asString(embed?.country);
   if (!name && !id) return null;
