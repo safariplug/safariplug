@@ -28,9 +28,9 @@ Preferred is ranking only.
 ## Workflow
 
 ```
-create case \u2192 submit evidence \u2192 in_review \u2192 approve | reject
-approve \u2192 driver verified (controlled function)
-revoke / expire \u2192 not bookable
+create case → submit evidence → in_review → approve | reject
+approve → driver verified (controlled function)
+revoke / expire → not bookable
 ```
 
 Reject and revoke require a reason. Approve requires required evidence for the level.

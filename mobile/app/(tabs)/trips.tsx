@@ -9,7 +9,7 @@ import { TripCard } from "../../src/components/TripCard";
 import { colors } from "../../src/theme";
 
 export default function TripsScreen() {
-  const [note, setNote] = useState("Checking your trips\u2026");
+  const [note, setNote] = useState("Checking your trips…");
 
   const load = useCallback(async () => {
     const [trips, bookings] = await Promise.all([fetchTrips(), fetchBookings()]);
@@ -34,7 +34,7 @@ export default function TripsScreen() {
         <Text style={styles.kicker}>My trips</Text>
         <Text style={styles.title}>Build the journey</Text>
         <Text style={styles.lede}>
-          Hotel, airport transfer, diving, dinner, driver, event \u2014 one trip. Booking stays off until a supplier is live.
+          Hotel, airport transfer, diving, dinner, driver, event — one trip. Booking stays off until a supplier is live.
         </Text>
         <TripCard title="Your itinerary" body={note} />
         <ComingSoonCard
@@ -45,7 +45,7 @@ export default function TripsScreen() {
           kicker="Discover"
           title="Start from a destination"
           body="Pick a place, then add stays, events and experiences as they become available."
-          action="Explore destinations \u2192"
+          action="Explore destinations →"
           onPress={() => router.push("/(tabs)/explore")}
         />
       </ScrollView>

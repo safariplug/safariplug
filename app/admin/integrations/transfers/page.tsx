@@ -13,7 +13,7 @@ export default async function TransferConnectivityPage() {
     <main className="min-h-screen bg-[#050505] p-8 text-white">
       <div className="mx-auto max-w-5xl space-y-8">
         <Link href="/admin" className="font-mono text-xs text-amber-400 hover:underline">
-          \u2190 Command Center
+          ← Command Center
         </Link>
         <header className="border-b border-zinc-800 pb-6">
           <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">
