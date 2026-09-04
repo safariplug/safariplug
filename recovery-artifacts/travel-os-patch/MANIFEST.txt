@@ -1,0 +1,28 @@
+original filename: safariplug-travel-os.patch
+original byte size: 876964
+original SHA-256: f3a02de3b75cf30d477c3298fb0d27e4c7e8707a56e827c37c7403c52e0f40f1
+number of chunks: 18
+chunk size target: 50000 UTF-8 characters
+
+chunks:
+  part-001.patch  char_count=50000  byte_count=50021  sha256=835fd68cd82cb982775084bc0b39cb5f69c2c586ae7ca5291e6ecbb38cc7afee
+  part-002.patch  char_count=50000  byte_count=50082  sha256=708877107606efeb49fbe0ed9acf4cf2a941cb1d29176f70f32aecd892f8829b
+  part-003.patch  char_count=50000  byte_count=50000  sha256=d069230425ac6dca1c676badd7b80de1d07ff14d121e2bb23792c2d3eb5b8286
+  part-004.patch  char_count=50000  byte_count=50004  sha256=3ca8878570b457bf87cf160a3c5eab1d14f2d5a908a71b5544f930faceb9925b
+  part-005.patch  char_count=50000  byte_count=50000  sha256=8d8c4aa72cddbac05927a3167900d3cde8ab810426873f6b6a29bb28a63654bc
+  part-006.patch  char_count=50000  byte_count=50000  sha256=aceedf817908eb5048934ce888b7ff9984c3d4b7d39527f43f894358ec5e4f03
+  part-007.patch  char_count=50000  byte_count=50014  sha256=25abe4377d83709a4d2b6aee090014f5708a5ea7435f57fdcfef1e288f585663
+  part-008.patch  char_count=50000  byte_count=50034  sha256=9f59ce7de6c9da50a5b237e8cdf4e9d5896f26d3b764278991687c00a07f9488
+  part-009.patch  char_count=50000  byte_count=50000  sha256=20114c76547ffca61fd2f885b5b0bebbc1365ecb3d58da820a49064900bac9e6
+  part-010.patch  char_count=50000  byte_count=50000  sha256=b60836b25d3167bc61a6d65b8494b64e3fb22ce49ad29cbd9c76fe00538597ed
+  part-011.patch  char_count=50000  byte_count=50000  sha256=6dfa564e44ebb80d3ccafc252411730621fe44ff3744e16b158ff4fc86136602
+  part-012.patch  char_count=50000  byte_count=50000  sha256=e7049bdaa76765c49e8e85d41fbd7e2c63b6f547c3877e44d9e900699f3c30d3
+  part-013.patch  char_count=50000  byte_count=50000  sha256=578c72255d4dba35bed15ba940d650634570078d56adffcf3b869366bc467da6
+  part-014.patch  char_count=50000  byte_count=50000  sha256=771563a741e80750f6938e9b3d039b2dfc684e2dc0f375b38444796cf78a7a13
+  part-015.patch  char_count=50000  byte_count=50000  sha256=ba57df592aa149324ea63303cd13cc30a138747dc217812fdd8b45e1894b6336
+  part-016.patch  char_count=50000  byte_count=50006  sha256=257a5278318f560f5c0da0ad557a8a26f7ba951322a8b5d7026aeb617209e4a6
+  part-017.patch  char_count=50000  byte_count=50011  sha256=017bd922975cf412cd15a360e7d6835223e4e0937d93ca047f012c2497d1ff5e
+  part-018.patch  char_count=26792  byte_count=26792  sha256=542cc9bfe3f7b2164b76f970673039eaacd1f944e6a0e4270023fc021ae0acd3
+
+Concatenating the chunks in numeric order (part-001.patch, part-002.patch, ...) must reproduce the original patch exactly (byte-for-byte, SHA-256 f3a02de3b75cf30d477c3298fb0d27e4c7e8707a56e827c37c7403c52e0f40f1).
+Do not insert or strip newlines between files when concatenating.
