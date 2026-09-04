@@ -8,6 +8,27 @@ function createSlug(title: string) {
   return title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+function isValidHttpUrl(value: unknown): boolean {
+  if (typeof value !== "string" || !value.trim()) return false;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isWeakSourceUrl(value: unknown): boolean {
+  if (!isValidHttpUrl(value)) return true;
+  try {
+    const url = new URL(String(value).trim());
+    const path = url.pathname.replace(/\/+$/, "").toLowerCase();
+    return path === "" || path === "/home" || path === "/events" || path === "/calendar";
+  } catch {
+    return true;
+  }
+}
+
 export async function approveAIEvent(formData: FormData): Promise<void> {
   await requireAdmin();
 
@@ -22,15 +43,27 @@ export async function approveAIEvent(formData: FormData): Promise<void> {
 
   if (fetchError || !aiEvent) throw new Error("AI event not found: " + fetchError?.message);
 
-  const reviewChecks = [
-    Boolean(aiEvent.image_url), Boolean(aiEvent.description), Boolean(aiEvent.start_at),
-    Boolean(aiEvent.venue_name), Boolean(aiEvent.venue_address),
-    aiEvent.price !== null && aiEvent.price !== undefined && aiEvent.price !== "" && Number.isFinite(Number(aiEvent.price)),
-    Boolean(aiEvent.organizer_name), Boolean(aiEvent.end_at), Boolean(aiEvent.source_url),
-  ];
+  const hasDate = Boolean(aiEvent.start_at) && new Date(aiEvent.start_at).getTime() > Date.now();
+  const hasTitle = Boolean(String(aiEvent.title || "").trim());
+  const hasDescription = Boolean(String(aiEvent.description || "").trim());
+  const hasVenue = Boolean(String(aiEvent.venue_name || "").trim());
+  const hasAddress = Boolean(String(aiEvent.venue_address || "").trim());
+  const hasSource = isValidHttpUrl(aiEvent.source_url);
+  const hasStrongSource = hasSource && !isWeakSourceUrl(aiEvent.source_url);
+  const hasImage = Boolean(String(aiEvent.image_url || "").trim());
+  const hasOrganizer = Boolean(String(aiEvent.organizer_name || "").trim());
+  const hasEnd = Boolean(aiEvent.end_at);
+  const hasPrice = aiEvent.price !== null && aiEvent.price !== undefined && aiEvent.price !== "" && Number.isFinite(Number(aiEvent.price));
+
+  if (!hasTitle || !hasDescription || !hasDate || !hasVenue || !hasSource) {
+    throw new Error("Event is missing a required publishing fact: title, description, future date, venue, or source URL.");
+  }
+
+  // Price and image are optional: legitimate sources often omit one or both.
+  const reviewChecks = [hasTitle, hasDescription, hasDate, hasVenue, hasAddress, hasStrongSource, hasImage, hasOrganizer, hasEnd, hasPrice];
   const reviewScore = Math.round((reviewChecks.filter(Boolean).length / reviewChecks.length) * 100);
 
-  if (!Number.isFinite(reviewScore) || reviewScore < 60) {
+  if (reviewScore < 60) {
     throw new Error(`Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 60%.`);
   }
 
@@ -67,11 +100,7 @@ export async function approveAIEvent(formData: FormData): Promise<void> {
 
     const { error: updateError } = await supabaseAdmin
       .from("ai_discovered_events")
-      .update({
-        status: "approved", review_status: "approved", review_score: reviewScore,
-        image_verified: Boolean(aiEvent.image_url), reviewed_at: new Date().toISOString(),
-        review_notes: "Already published. Existing event reused.", updated_at: new Date().toISOString(),
-      })
+      .update({ status: "approved", review_status: "approved", review_score: reviewScore, image_verified: hasImage, reviewed_at: new Date().toISOString(), review_notes: "Already published. Existing event reused.", updated_at: new Date().toISOString() })
       .eq("id", id);
 
     if (updateError) throw new Error("Failed updating AI event: " + updateError.message);
@@ -96,12 +125,7 @@ export async function approveAIEvent(formData: FormData): Promise<void> {
 
   const { error: updateError } = await supabaseAdmin
     .from("ai_discovered_events")
-    .update({
-      status: "approved", review_status: "approved", review_score: reviewScore,
-      image_verified: Boolean(aiEvent.image_url), reviewed_at: new Date().toISOString(),
-      review_notes: aiEvent.image_url ? "Human approved. Official image available." : "Human approved. Category fallback image used.",
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: "approved", review_status: "approved", review_score: reviewScore, image_verified: hasImage, reviewed_at: new Date().toISOString(), review_notes: hasImage ? "Human approved. Official image available." : "Human approved. Category fallback image used.", updated_at: new Date().toISOString() })
     .eq("id", id);
 
   if (updateError) throw new Error("Failed updating AI event: " + updateError.message);
