@@ -113,7 +113,8 @@ export default async function ExperienceCategoryPage({
     notFound();
   }
 
-
+  const now = new Date().toISOString();
+  const effectiveValidityFilter = `end_at.gte.${now},and(end_at.is.null,start_at.gte.${now})`;
 
   const { data } = await supabase
     .from("events")
@@ -129,7 +130,8 @@ export default async function ExperienceCategoryPage({
       `
     )
     .ilike("category", `%${category.name}%`)
-    .eq("status", "published")
+    .eq("status", "approved")
+    .or(effectiveValidityFilter)
     .order("created_at", {
       ascending:false,
     })
