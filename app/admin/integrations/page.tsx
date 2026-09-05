@@ -8,30 +8,50 @@ export const dynamic = "force-dynamic";
 export default async function IntegrationsPage() {
   await requireAdmin();
   const config = getAurelianConfig();
-  const now = new Date().toISOString();
+  const now = new Date();
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: approvedEvents, error: eventsError }, { data: rows }] =
-    await Promise.all([
-      supabaseAdmin
-        .from("events")
-        .select("id, start_at, status")
-        .eq("status", "approved"),
-      supabaseAdmin
-        .from("integration_syncs")
-        .select(
-          "id, provider, safariplug_event_id, external_id, sync_status, last_synced_at, last_error, last_payload"
-        )
-        .eq("provider", "aurelian")
-        .order("updated_at", { ascending: false })
-        .limit(25),
-    ]);
+  const [
+    { data: approvedEvents, error: eventsError },
+    { data: rows },
+    { data: feedRuns, error: feedRunsError },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("events")
+      .select("id, start_at, status")
+      .eq("status", "approved"),
+    supabaseAdmin
+      .from("integration_syncs")
+      .select(
+        "id, provider, safariplug_event_id, external_id, sync_status, last_synced_at, last_error, last_payload"
+      )
+      .eq("provider", "aurelian")
+      .order("updated_at", { ascending: false })
+      .limit(25),
+    supabaseAdmin
+      .from("aurelian_feed_runs")
+      .select(
+        "id, requested_at, duration_ms, http_status, record_count, upcoming_count, excluded_past_count, malformed_count, outcome"
+      )
+      .order("requested_at", { ascending: false })
+      .limit(100),
+  ]);
 
   const events = approvedEvents ?? [];
   const upcomingCount = events.filter(
-    (event) => event.start_at && new Date(event.start_at).getTime() >= new Date(now).getTime(),
+    (event) => event.start_at && new Date(event.start_at).getTime() >= now.getTime(),
   ).length;
   const pastCount = events.length - upcomingCount;
   const records = rows ?? [];
+  const runs = feedRuns ?? [];
+  const recentRuns = runs.filter(
+    (run) => new Date(run.requested_at).getTime() >= new Date(twentyFourHoursAgo).getTime(),
+  );
+  const successfulRuns = runs.filter((run) => run.outcome === "success");
+  const lastRun = runs[0] ?? null;
+  const lastSuccessfulRun = successfulRuns[0] ?? null;
+  const recentFailures = recentRuns.filter((run) => run.outcome === "error").length;
+  const lastRunHealthy = Boolean(lastRun && lastRun.outcome === "success" && lastRun.http_status === 200);
 
   return (
     <main className="min-h-screen bg-[#050505] p-8 text-white">
@@ -60,6 +80,11 @@ export default async function IntegrationsPage() {
             Unable to read the production event catalog: {eventsError.message}
           </div>
         ) : null}
+        {feedRunsError ? (
+          <div className="rounded-2xl border border-red-900/60 bg-red-950/30 p-5 text-sm text-red-200">
+            Unable to read feed telemetry: {feedRunsError.message}
+          </div>
+        ) : null}
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatusCard
@@ -86,6 +111,33 @@ export default async function IntegrationsPage() {
           />
         </section>
 
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatusCard
+            label="Last feed request"
+            value={lastRun ? formatDate(lastRun.requested_at) : "No requests"}
+            tone={lastRunHealthy ? "good" : lastRun ? "bad" : "neutral"}
+            note={lastRun ? `${lastRun.http_status} · ${lastRun.duration_ms ?? "—"} ms` : "Waiting for Aurelian to consume the feed"}
+          />
+          <StatusCard
+            label="Requests / 24h"
+            value={String(recentRuns.length)}
+            tone="good"
+            note="Authenticated feed requests recorded"
+          />
+          <StatusCard
+            label="Failures / 24h"
+            value={String(recentFailures)}
+            tone={recentFailures === 0 ? "good" : "bad"}
+            note="Feed requests returning an application error"
+          />
+          <StatusCard
+            label="Last successful snapshot"
+            value={lastSuccessfulRun ? `${lastSuccessfulRun.record_count} records` : "None yet"}
+            tone={lastSuccessfulRun ? "good" : "neutral"}
+            note={lastSuccessfulRun ? formatDate(lastSuccessfulRun.requested_at) : "No successful authenticated request recorded"}
+          />
+        </section>
+
         <section className="grid gap-4 lg:grid-cols-3">
           <MonitorCard
             title="Feed endpoint"
@@ -102,6 +154,63 @@ export default async function IntegrationsPage() {
             value="ENFORCED"
             detail="Partner discoveries remain outside Aurelian reservation inventory."
           />
+        </section>
+
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="text-lg font-bold">Feed health history</h2>
+              <p className="mt-1 text-sm leading-6 text-zinc-500">
+                Every authenticated Aurelian feed request is recorded here without storing
+                the API key. This measures SafariPlug feed consumption, not Aurelian's private
+                database sync timestamp.
+              </p>
+            </div>
+            <span className="rounded-full border border-zinc-800 bg-black/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              {runs.length} recent runs
+            </span>
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left font-mono text-xs">
+              <thead>
+                <tr className="border-b border-zinc-800 text-zinc-500">
+                  <th className="p-4">Requested</th>
+                  <th className="p-4">HTTP</th>
+                  <th className="p-4">Records</th>
+                  <th className="p-4">Malformed</th>
+                  <th className="p-4">Duration</th>
+                  <th className="p-4 text-right">Outcome</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.length === 0 ? (
+                  <tr>
+                    <td className="p-6 text-zinc-500" colSpan={6}>
+                      No authenticated Aurelian feed requests have been recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  runs.map((run) => (
+                    <tr key={run.id} className="border-b border-zinc-900">
+                      <td className="p-4 text-zinc-400">{formatDate(run.requested_at)}</td>
+                      <td className={`p-4 ${run.http_status === 200 ? "text-emerald-300" : "text-red-300"}`}>
+                        {run.http_status}
+                      </td>
+                      <td className="p-4 text-zinc-200">{run.record_count}</td>
+                      <td className="p-4 text-zinc-400">{run.malformed_count}</td>
+                      <td className="p-4 text-zinc-400">{run.duration_ms ?? "—"} ms</td>
+                      <td className="p-4 text-right">
+                        <span className={run.outcome === "success" ? "text-emerald-300" : "text-red-300"}>
+                          {run.outcome.toUpperCase()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
@@ -186,6 +295,10 @@ export default async function IntegrationsPage() {
       </div>
     </main>
   );
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString();
 }
 
 function StatusCard({
