@@ -11,8 +11,8 @@ export async function POST(
     const { id } = await context.params;
     const formData = new FormData();
     formData.set("id", id);
-    const eventId = await approveAIEvent(formData);
-    return NextResponse.json({ success: true, event_id: eventId });
+    await approveAIEvent(formData);
+    return NextResponse.json({ success: true, event_id: id });
   } catch (error: unknown) {
     if (error instanceof AdminAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
