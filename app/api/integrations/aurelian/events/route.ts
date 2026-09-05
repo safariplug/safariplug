@@ -5,6 +5,34 @@ import { validateIntegrationKey } from "@/lib/integrations/api-key";
 const SAFARIPLUG_ORIGIN = "https://www.safariplug.com";
 const PAGE_SIZE = 500;
 
+type FeedEvent = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  venue_name: string | null;
+  venue_address: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  price: number | null;
+  currency: string | null;
+  image_url: string | null;
+  booking_url: string | null;
+  source_url: string | null;
+  organizer_name: string | null;
+  is_featured: boolean | null;
+  verified: boolean | null;
+  status: string;
+  city_id: string | null;
+  cities: unknown;
+};
+
+type FeedExperience = FeedEvent & {
+  booking_url: string | null;
+  url: string;
+  canonical_url: string;
+};
+
 function absoluteHttpsUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -45,15 +73,15 @@ async function recordFeedRun(input: {
   }
 }
 
-async function loadApprovedUpcomingEvents() {
+async function loadApprovedUpcomingEvents(): Promise<FeedEvent[]> {
   const now = new Date().toISOString();
-  const allEvents: Array<Record<string, unknown>> = [];
+  const allEvents: FeedEvent[] = [];
 
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabaseAdmin
       .from("events")
       .select(
-        "id, title, description, category, venue_name, venue_address, start_at, end_at, price, currency, image_url, booking_url, source_url, organizer_name, is_featured, verified, status, city_id, cities(id, name, country)"
+        "id, title, description, category, venue_name, venue_address, start_at, end_at, price, currency, image_url, booking_url, source_url, organizer_name, is_featured, verified, status, city_id, cities(id, name, country)",
       )
       .eq("status", "approved")
       .gte("start_at", now)
@@ -63,7 +91,7 @@ async function loadApprovedUpcomingEvents() {
     if (error) throw error;
     if (!data?.length) break;
 
-    allEvents.push(...(data as Array<Record<string, unknown>>));
+    allEvents.push(...(data as unknown as FeedEvent[]));
     if (data.length < PAGE_SIZE) break;
   }
 
@@ -81,12 +109,12 @@ export async function GET(request: Request) {
   try {
     const events = await loadApprovedUpcomingEvents();
 
-    const experiences = events.map((event) => {
+    const experiences: FeedExperience[] = events.map((event) => {
       // Aurelian's canonical click-through stays on SafariPlug so the
       // discovery relationship is preserved. booking_url remains metadata.
       const bookingUrl = absoluteHttpsUrl(event.booking_url);
       const canonicalUrl =
-        `${SAFARIPLUG_ORIGIN}/events/${encodeURIComponent(String(event.id))}`;
+        `${SAFARIPLUG_ORIGIN}/events/${encodeURIComponent(event.id)}`;
 
       return {
         ...event,
@@ -100,7 +128,7 @@ export async function GET(request: Request) {
       (experience) =>
         !experience.id ||
         typeof experience.title !== "string" ||
-        !String(experience.title).trim(),
+        !experience.title.trim(),
     ).length;
     const durationMs = Date.now() - startedAt;
 
