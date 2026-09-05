@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -14,16 +15,49 @@ export default function Concierge() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [registeredClient, setRegisteredClient] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!mounted) return;
+      setRegisteredClient(!!user && !user.is_anonymous && !!user.confirmed_at);
+      setCheckingAuth(false);
+    }
+
+    void loadUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, user) => {
+      if (!mounted) return;
+      setRegisteredClient(!!user && !user.is_anonymous && !!user.confirmed_at);
+      setCheckingAuth(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   async function send(value = text) {
     const content = value.trim();
-    if (!content || busy) return;
+    if (!content || busy || !registeredClient) return;
     const next = [...messages, { role: "user", content } as Message];
     setMessages(next); setText(""); setBusy(true);
     try {
       const r = await fetch("/api/concierge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: next }) });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Concierge unavailable");
+      if (!r.ok) {
+        if (j.error === "registered_client_required") {
+          setRegisteredClient(false);
+          setMessages(messages);
+          return;
+        }
+        throw new Error(j.error || "Concierge unavailable");
+      }
       setMessages([...next, { role: "assistant", content: j.message }]);
     } catch (e) {
       setMessages([...next, { role: "assistant", content: e instanceof Error ? e.message : "I’m unable to help right now. Please try again." }]);
@@ -31,6 +65,35 @@ export default function Concierge() {
   }
 
   function submit(e: FormEvent) { e.preventDefault(); void send(); }
+
+  if (checkingAuth) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#f6f5f2] text-sm text-black/45">Preparing your private concierge…</div>;
+  }
+
+  if (!registeredClient) {
+    return <div className="min-h-screen bg-[#f6f5f2] text-[#111]">
+      <section className="mx-auto flex min-h-screen max-w-5xl items-center px-5 py-16 sm:px-8">
+        <div className="grid w-full overflow-hidden rounded-[2.5rem] border border-black/10 bg-white shadow-[0_35px_120px_-50px_rgba(0,0,0,.45)] lg:grid-cols-[1.1fr_.9fr]">
+          <div className="bg-black p-8 text-white sm:p-12 lg:p-16">
+            <p className="text-[11px] font-semibold uppercase tracking-[.28em] text-white/45">SafariPlug Intelligence</p>
+            <div className="mt-16 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-xl text-black">✦</div>
+            <h1 className="mt-7 max-w-xl text-4xl font-semibold tracking-[-.05em] sm:text-6xl">Your personal concierge, reserved for SafariPlug clients.</h1>
+            <p className="mt-6 max-w-lg text-base leading-7 text-white/55 sm:text-lg">Search real providers, discover live appointment times and arrange bookings through one private, intelligent service.</p>
+          </div>
+          <div className="flex flex-col justify-center p-8 sm:p-12 lg:p-14">
+            <p className="text-[11px] font-semibold uppercase tracking-[.24em] text-black/35">Client access</p>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight">Unlock Concierge</h2>
+            <p className="mt-4 text-sm leading-6 text-black/50">Create a free SafariPlug account or sign in to use the full Concierge service. This helps us protect the service from automated and abusive use.</p>
+            <div className="mt-8 space-y-3">
+              <a href="/login?next=/concierge" className="flex items-center justify-center rounded-2xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-black/85">Sign in to SafariPlug</a>
+              <a href="/login?next=/concierge&mode=signup" className="flex items-center justify-center rounded-2xl border border-black/10 bg-[#fafaf8] px-5 py-4 text-sm font-semibold text-black transition hover:border-black/25">Create a free account</a>
+            </div>
+            <p className="mt-6 text-center text-[11px] leading-5 text-black/30">Your account also keeps your bookings and Concierge requests connected to you.</p>
+          </div>
+        </div>
+      </section>
+    </div>;
+  }
 
   return <div className="min-h-screen bg-[#f6f5f2] text-[#111]">
     <section className="mx-auto max-w-6xl px-5 pb-20 pt-10 sm:px-8 lg:pt-16">
