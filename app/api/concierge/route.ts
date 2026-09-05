@@ -5,6 +5,29 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
+type ServiceResult = {
+  profileId: string;
+  offeringId: string;
+  provider: string;
+  slug: string;
+  address: string | null;
+  cityId: string | null;
+  cityName: string | null;
+  category: string;
+  verified: boolean;
+  claimed: boolean;
+  timezone: string;
+  service: string;
+  description: string | null;
+  durationMinutes: number;
+  price: number;
+  currency: string;
+};
+
+type Slot = { staffId: string; staffName: string; startsAt: string; endsAt: string; label: string };
+
+type ConciergeCard = ServiceResult & { slots: Slot[]; availabilityChecked: boolean };
+
 const SYSTEM = `You are SafariPlug Concierge, an elite booking concierge for SafariPlug's local services marketplace.
 Your job is to understand a client's natural-language request, search real SafariPlug service businesses, check LIVE appointment availability, recommend a few strong options, and book only when the client has explicitly authorized the booking.
 
@@ -12,8 +35,8 @@ Rules:
 - Never invent businesses, services, prices, staff, availability, or booking status. Use tools for all live facts.
 - Ask for the minimum missing information needed. You generally need service, location/city, and a date/time or time window before checking availability.
 - Respect provider service offerings, prices, durations, qualified staff, booking notice, and booking window.
-- If the user says “book”, “reserve”, “yes, book it”, or otherwise clearly authorizes a specific option, you may call book_appointment with confirmed=true. Do not book merely because the user is browsing.
-- Before booking, restate the exact provider, service, specialist (or any available), date/time, price and duration when possible. If the user has already clearly selected and authorized it in the current turn, do not create unnecessary friction.
+- If the user says “book”, “reserve”, “yes, book it”, or otherwise clearly authorizes booking a specific option, you may call book_appointment with confirmed=true. Do not book merely because the user is browsing.
+- Before booking, restate the exact provider, service, specialist, date/time, price and duration when possible. If the user has already clearly selected and authorized it in the current turn, do not create unnecessary friction.
 - If a booking requires provider confirmation, describe it as requested/pending, not confirmed.
 - Prefer 2–4 recommendations when multiple good choices exist.
 - Be concise, polished, warm, and confident. This is a premium concierge, not a generic chatbot.
@@ -31,18 +54,20 @@ async function runTool(name: string, args: Record<string, unknown>) {
     const city = String(args.city || "").trim();
     const maxPrice = typeof args.maxPrice === "number" ? args.maxPrice : null;
     let cityIds: string[] | null = null;
+    const cityNames = new Map<string, string>();
     if (city) {
       const { data: cities } = await supabaseAdmin.from("cities").select("id,name").ilike("name", `%${city}%`).limit(10);
       cityIds = (cities ?? []).map((c: any) => c.id);
+      for (const c of cities ?? []) cityNames.set(c.id, c.name);
       if (!cityIds.length) return [];
     }
     const { data, error } = await supabaseAdmin.from("service_profiles").select("id,timezone,booking_status,businesses!inner(id,name,slug,city_id,address,latitude,longitude,phone,whatsapp,website_url,logo_url,cover_image_url,verified,claimed,status),service_categories(name),service_offerings!inner(id,name,description,duration_minutes,price,currency,status)").eq("status", "active").eq("booking_status", "open").eq("service_offerings.status", "active").limit(100);
     if (error) throw error;
-    const rows = (data ?? []).flatMap((p: any) => {
+    const rows: ServiceResult[] = (data ?? []).flatMap((p: any) => {
       const b = p.businesses; const category = p.service_categories?.name ?? "Service";
       const offerings = Array.isArray(p.service_offerings) ? p.service_offerings : [p.service_offerings];
-      return offerings.map((o: any) => ({ profileId: p.id, offeringId: o.id, provider: b?.name, slug: b?.slug, address: b?.address, cityId: b?.city_id, category, verified: !!b?.verified, claimed: !!b?.claimed, timezone: p.timezone, service: o.name, description: o.description, durationMinutes: Number(o.duration_minutes), price: Number(o.price), currency: o.currency }))
-        .filter((x: any) => (!cityIds || cityIds.includes(x.cityId)) && (!query || `${x.provider} ${x.category} ${x.service} ${x.description ?? ""}`.toLowerCase().includes(query)) && (maxPrice === null || x.price <= maxPrice));
+      return offerings.map((o: any) => ({ profileId: p.id, offeringId: o.id, provider: b?.name ?? "SafariPlug provider", slug: b?.slug ?? "", address: b?.address ?? null, cityId: b?.city_id ?? null, cityName: cityNames.get(b?.city_id) ?? null, category, verified: !!b?.verified, claimed: !!b?.claimed, timezone: p.timezone || "Africa/Nairobi", service: o.name, description: o.description ?? null, durationMinutes: Number(o.duration_minutes), price: Number(o.price), currency: o.currency }))
+        .filter((x: ServiceResult) => (!cityIds || cityIds.includes(x.cityId || "")) && (!query || `${x.provider} ${x.category} ${x.service} ${x.description ?? ""}`.toLowerCase().includes(query)) && (maxPrice === null || x.price <= maxPrice));
     });
     return rows.slice(0, 20);
   }
@@ -78,14 +103,7 @@ export async function POST(request: Request) {
     const client = await createSupabaseServerClient();
     const { data: { user } } = await client.auth.getUser();
     const registeredClient = !!user && !user.is_anonymous && !!(user.email_confirmed_at || user.phone_confirmed_at);
-    if (!registeredClient) {
-      return NextResponse.json({
-        error: "registered_client_required",
-        message: "SafariPlug Concierge is available to registered clients. Please sign in or create your free SafariPlug account to continue.",
-        signInUrl: "/login?next=/concierge",
-        signUpUrl: "/signup?next=/concierge",
-      }, { status: 401 });
-    }
+    if (!registeredClient) return NextResponse.json({ error: "registered_client_required", message: "SafariPlug Concierge is available to registered clients. Please sign in or create your free SafariPlug account to continue.", signInUrl: "/login?next=/concierge", signUpUrl: "/login?next=/concierge&mode=signup" }, { status: 401 });
 
     const payload = await request.json();
     const messages = Array.isArray(payload?.messages) ? payload.messages.slice(-12) : [];
@@ -94,6 +112,10 @@ export async function POST(request: Request) {
     const customerContext = `\nAuthenticated registered customer email: ${user!.email || "unknown"}. Account id: ${user!.id}. Do not reveal account internals.`;
     let input: any[] = [{ role: "system", content: SYSTEM + customerContext }, ...sanitized];
     let finalText = "";
+    const serviceResults = new Map<string, ServiceResult>();
+    const availabilityResults = new Map<string, Slot[]>();
+    let lastBooking: any = null;
+
     for (let turn = 0; turn < 4; turn++) {
       const response = await openai.responses.create({ model: "gpt-5.6-luna", input, tools, store: false });
       const calls = response.output.filter((item: any) => item.type === "function_call");
@@ -103,11 +125,26 @@ export async function POST(request: Request) {
         let args: Record<string, unknown>;
         try { args = JSON.parse(call.arguments || "{}"); } catch { args = {}; }
         const result = await runTool(call.name, args);
+        if (call.name === "search_services" && Array.isArray(result)) {
+          for (const row of result as ServiceResult[]) serviceResults.set(`${row.profileId}:${row.offeringId}`, row);
+        }
+        if (call.name === "check_availability" && result && typeof result === "object" && !Array.isArray(result) && "slots" in result) {
+          const r = result as { slots?: Slot[] };
+          availabilityResults.set(`${String(args.serviceProfileId)}:${String(args.offeringId)}`, r.slots ?? []);
+        }
+        if (call.name === "book_appointment" && result && typeof result === "object" && "appointment" in result) lastBooking = (result as any).appointment;
         input.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
       }
     }
     if (!finalText) finalText = "I’m sorry, I couldn’t complete that request. Please try again.";
-    return NextResponse.json({ message: finalText });
+
+    const cards: ConciergeCard[] = Array.from(serviceResults.values()).slice(0, 4).map(row => ({
+      ...row,
+      slots: availabilityResults.get(`${row.profileId}:${row.offeringId}`) ?? [],
+      availabilityChecked: availabilityResults.has(`${row.profileId}:${row.offeringId}`),
+    }));
+
+    return NextResponse.json({ message: finalText, cards, booking: lastBooking });
   } catch (error) {
     console.error("concierge", error);
     return NextResponse.json({ error: "SafariPlug Concierge is temporarily unavailable." }, { status: 500 });
