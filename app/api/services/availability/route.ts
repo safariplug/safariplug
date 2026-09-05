@@ -4,13 +4,11 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 export const dynamic = "force-dynamic";
 
 type Parts = { year:number; month:number; day:number; hour:number; minute:number; second:number };
-
 function zonedParts(date: Date, timeZone: string): Parts {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit", hourCycle:"h23" }).formatToParts(date);
   const get = (type: string) => Number(parts.find(p => p.type === type)?.value ?? 0);
   return { year:get("year"), month:get("month"), day:get("day"), hour:get("hour"), minute:get("minute"), second:get("second") };
 }
-
 function localToUtc(dateText: string, hour: number, minute: number, timeZone: string) {
   const [year, month, day] = dateText.split("-").map(Number);
   let guess = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
@@ -22,15 +20,11 @@ function localToUtc(dateText: string, hour: number, minute: number, timeZone: st
   }
   return guess;
 }
-
 function dateStringInZone(date: Date, timeZone: string) {
   const p = zonedParts(date, timeZone);
   return `${p.year}-${String(p.month).padStart(2,"0")}-${String(p.day).padStart(2,"0")}`;
 }
-
-function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
-  return aStart < bEnd && aEnd > bStart;
-}
+function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) { return aStart < bEnd && aEnd > bStart; }
 
 export async function GET(request: Request) {
   try {
@@ -39,19 +33,15 @@ export async function GET(request: Request) {
     const offeringId = url.searchParams.get("offeringId");
     const date = url.searchParams.get("date");
     if (!profileId || !offeringId || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error:"serviceProfileId, offeringId and date are required" }, { status:400 });
-
     const { data: profile, error: profileError } = await supabaseAdmin.from("service_profiles").select("id,timezone,booking_status,booking_notice_minutes,max_booking_days,status").eq("id",profileId).maybeSingle();
     if (profileError || !profile || profile.status !== "active" || profile.booking_status !== "open") return NextResponse.json({ error:"Service is not currently bookable" }, { status:404 });
     const timeZone = profile.timezone || "Africa/Nairobi";
-
     const { data: offering } = await supabaseAdmin.from("service_offerings").select("id,duration_minutes,status").eq("id",offeringId).eq("service_profile_id",profileId).maybeSingle();
     if (!offering || offering.status !== "active") return NextResponse.json({ error:"Service is not currently available" }, { status:404 });
-
     const { data: staffRows } = await supabaseAdmin.from("service_staff").select("id,display_name").eq("service_profile_id",profileId).eq("status","active");
     const staff = staffRows ?? [];
     const staffIds = staff.map(s => s.id);
     if (!staffIds.length) return NextResponse.json({ timeZone, slots:[] });
-
     const dayStart = localToUtc(date, 0, 0, timeZone);
     const nextDay = new Date(dayStart.getTime() + 36 * 60 * 60 * 1000);
     const dayEnd = localToUtc(dateStringInZone(nextDay, timeZone), 0, 0, timeZone);
@@ -62,13 +52,12 @@ export async function GET(request: Request) {
     ]);
     const qualified = new Set((assignments ?? []).map(x => x.staff_id));
     const { data: appointments } = await supabaseAdmin.from("service_appointments").select("staff_id,starts_at,ends_at,status").in("staff_id",staffIds).lt("starts_at",dayEnd.toISOString()).gt("ends_at",dayStart.toISOString()).in("status",["pending","confirmed","checked_in","in_progress"]);
-
-    const weekday = (() => { const [y,m,d]=date.split("-").map(Number); const dt=new Date(Date.UTC(y,m-1,d)); return dt.getUTCDay() === 0 ? 7 : dt.getUTCDay(); })();
+    // PostgreSQL stores service_staff_availability day_of_week as 0=Sunday through 6=Saturday.
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     const duration = Number(offering.duration_minutes);
     const now = Date.now() + Number(profile.booking_notice_minutes || 0) * 60_000;
     const max = Date.now() + Number(profile.max_booking_days || 90) * 86_400_000;
     const result: { staffId:string; staffName:string; startsAt:string; endsAt:string; label:string }[] = [];
-
     for (const person of staff) {
       if (!qualified.has(person.id)) continue;
       const windows = (availability ?? []).filter(a => a.staff_id === person.id && Number(a.day_of_week) === weekday);
