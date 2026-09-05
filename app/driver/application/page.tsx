@@ -5,89 +5,35 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
+function statusTone(status: string) { return status === "valid" ? "text-emerald-400" : status === "expiring_soon" ? "text-amber-400" : status === "expired" || status === "missing" || status === "rejected" ? "text-red-400" : "text-zinc-400"; }
+function formatDate(value: string | null | undefined) { return value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`)) : "Not provided"; }
+
 export default async function DriverApplicationPage() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/driver/login");
-
-  const { data: driver } = await supabaseAdmin
-    .from("driver_profiles")
-    .select("id, display_name, service_status, verification_state, service_city, service_country, created_at")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!driver) {
-    return (
-      <main className="min-h-screen bg-[#070708] px-6 py-12 text-white">
-        <div className="mx-auto max-w-2xl rounded-3xl border border-zinc-800 bg-zinc-950 p-8">
-          <h1 className="text-2xl font-black">No driver application found</h1>
-          <p className="mt-3 text-zinc-500">This account is not linked to a driver application.</p>
-          <Link href="/driver/signup" className="mt-6 inline-block text-[#c9a86a]">Apply to drive →</Link>
-        </div>
-      </main>
-    );
-  }
-
-  const { data: verification } = await supabaseAdmin
-    .from("verification_cases")
-    .select("status, verification_level, provider, rejection_reason, notes, expires_at")
-    .eq("subject_type", "driver")
-    .eq("subject_id", driver.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: vehicle } = await supabaseAdmin
-    .from("vehicles")
-    .select("category, make_model, passenger_capacity, luggage_capacity, status")
-    .eq("driver_id", driver.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
+  const { data: driver } = await supabaseAdmin.from("driver_profiles").select("id, display_name, service_status, verification_state, service_city, service_country, created_at, driving_license_expires_on, driving_license_compliance_status, terms_accepted_at, terms_version").eq("user_id", user.id).maybeSingle();
+  if (!driver) return <main className="min-h-screen bg-[#070708] px-6 py-12 text-white"><div className="mx-auto max-w-2xl rounded-3xl border border-zinc-800 bg-zinc-950 p-8"><h1 className="text-2xl font-black">No driver application found</h1><p className="mt-3 text-zinc-500">This account is not linked to a driver application.</p><Link href="/driver/signup" className="mt-6 inline-block text-[#c9a86a]">Apply to drive →</Link></div></main>;
+  const [{ data: verification }, { data: vehicle }, { data: compliance }, { data: alerts }] = await Promise.all([
+    supabaseAdmin.from("verification_cases").select("status, verification_level, provider, rejection_reason, notes, expires_at").eq("subject_type", "driver").eq("subject_id", driver.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from("vehicles").select("category, make_model, passenger_capacity, luggage_capacity, status, registration_number, registration_expires_on, registration_compliance_status, insurance_policy_number, insurance_expires_on, insurance_compliance_status").eq("driver_id", driver.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from("driver_compliance_overview").select("driving_license_status, registration_status, insurance_status").eq("driver_id", driver.id).maybeSingle(),
+    supabaseAdmin.from("driver_compliance_alerts").select("document_type, expires_on, alert_type, status, created_at").eq("driver_id", driver.id).eq("status", "open").order("expires_on", { ascending: true }).limit(10),
+  ]);
   const verified = driver.verification_state === "verified" && driver.service_status === "active";
-  const statusLabel = verified ? "Approved & active" : driver.service_status === "rejected" || driver.verification_state === "rejected" ? "Needs attention" : "Pending review";
-
-  return (
-    <main className="min-h-screen bg-[#070708] text-white">
-      <header className="border-b border-zinc-800/80">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-          <Link href="/" className="text-2xl font-black">Safari<span className="text-[#c9a86a]">Plug</span></Link>
-          <span className="font-mono text-xs text-zinc-500">Driver portal</span>
-        </div>
-      </header>
-      <section className="mx-auto max-w-4xl px-6 py-12">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div><p className="font-mono text-[11px] uppercase tracking-[0.25em] text-[#c9a86a]">Application</p><h1 className="mt-2 text-4xl font-black">Welcome, {driver.display_name}</h1><p className="mt-2 text-zinc-500">{driver.service_city}, {driver.service_country}</p></div>
-          <div className="rounded-full border border-zinc-700 px-4 py-2 font-mono text-xs text-[#c9a86a]">{statusLabel}</div>
-        </div>
-
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {[
-            ["Application", driver.service_status === "pending" ? "Submitted" : driver.service_status],
-            ["Verification", driver.verification_state],
-            ["Bookable", verified ? "Yes" : "No"],
-          ].map(([label, value]) => <div key={label} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">{label}</p><p className="mt-2 font-semibold">{value}</p></div>)}
-        </div>
-
-        <section className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 md:p-8">
-          <h2 className="text-xl font-bold">Verification</h2>
-          <p className="mt-3 leading-7 text-zinc-400">SafariPlug requires identity and driving-document review plus mandatory live face/liveness verification before a driver can receive or accept assignments.</p>
-          <div className="mt-5 rounded-2xl border border-[#c9a86a]/20 bg-[#c9a86a]/5 p-4 text-sm text-zinc-300">
-            <div className="font-semibold text-white">Current verification status: {verification?.status ?? "not started"}</div>
-            <div className="mt-1 text-zinc-500">Level: {verification?.verification_level ?? "enhanced"} · Provider: {verification?.provider ?? "human review"}</div>
-            {verification?.rejection_reason ? <div className="mt-2 text-red-300">Reason: {verification.rejection_reason}</div> : null}
-          </div>
-          <p className="mt-4 text-xs text-zinc-600">Verification evidence is handled through the secure onboarding/review workflow. Do not send identity documents by email or through public forms.</p>
-        </section>
-
-        {vehicle ? <section className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-950 p-6"><h2 className="font-bold">Vehicle on application</h2><p className="mt-2 text-sm text-zinc-400">{vehicle.make_model || vehicle.category} · {vehicle.passenger_capacity ?? "—"} passengers · {vehicle.luggage_capacity ?? "—"} luggage</p><p className="mt-1 text-xs text-zinc-600">Status: {vehicle.status}</p></section> : null}
-
-        <section className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="font-bold">What happens next?</h2>
-          <ol className="mt-4 space-y-3 text-sm text-zinc-400"><li>1. SafariPlug reviews your application and service details.</li><li>2. You complete the required verification and live liveness check when invited.</li><li>3. Your vehicle and service eligibility are reviewed.</li><li>4. Only after approval can your driver profile become active and bookable.</li></ol>
-        </section>
-      </section>
-    </main>
-  );
+  const statusLabel = verified ? "Approved & active" : driver.service_status === "suspended" ? "Suspended — compliance action required" : driver.service_status === "rejected" || driver.verification_state === "rejected" ? "Needs attention" : "Pending review";
+  const complianceRows = [
+    ["Driving license", compliance?.driving_license_status ?? driver.driving_license_compliance_status ?? "missing", driver.driving_license_expires_on],
+    ["Vehicle registration", compliance?.registration_status ?? vehicle?.registration_compliance_status ?? "missing", vehicle?.registration_expires_on],
+    ["Insurance", compliance?.insurance_status ?? vehicle?.insurance_compliance_status ?? "missing", vehicle?.insurance_expires_on],
+  ];
+  return <main className="min-h-screen bg-[#070708] text-white"><header className="border-b border-zinc-800/80"><div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5"><Link href="/" className="text-2xl font-black">Safari<span className="text-[#c9a86a]">Plug</span></Link><span className="font-mono text-xs text-zinc-500">Driver portal</span></div></header><section className="mx-auto max-w-4xl px-6 py-12">
+    <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-[11px] uppercase tracking-[0.25em] text-[#c9a86a]">Application</p><h1 className="mt-2 text-4xl font-black">Welcome, {driver.display_name}</h1><p className="mt-2 text-zinc-500">{driver.service_city}, {driver.service_country}</p></div><div className="rounded-full border border-zinc-700 px-4 py-2 font-mono text-xs text-[#c9a86a]">{statusLabel}</div></div>
+    <div className="mt-10 grid gap-4 md:grid-cols-3">{[["Application", driver.service_status === "pending" ? "Submitted" : driver.service_status],["Verification",driver.verification_state],["Bookable",verified?"Yes":"No"]].map(([label,value])=><div key={label} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">{label}</p><p className="mt-2 font-semibold">{value}</p></div>)}</div>
+    <section className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 md:p-8"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-xl font-bold">Compliance center</h2><p className="mt-2 text-sm text-zinc-500">SafariPlug monitors your license, vehicle registration and insurance expiry dates.</p></div>{alerts?.length ? <span className="rounded-full bg-red-950/50 px-3 py-1 text-xs font-bold text-red-300">{alerts.length} action{alerts.length===1?"":"s"} required</span> : <span className="text-xs text-emerald-400">No open alerts</span>}</div><div className="mt-6 overflow-x-auto"><table className="w-full text-left text-sm"><thead className="font-mono text-[10px] uppercase tracking-widest text-zinc-600"><tr><th className="pb-3">Document</th><th className="pb-3">Status</th><th className="pb-3">Expires</th></tr></thead><tbody>{complianceRows.map(([label,status,date])=><tr key={label} className="border-t border-zinc-900"><td className="py-4 font-medium">{label}</td><td className={`py-4 font-semibold ${statusTone(String(status))}`}>{String(status).replaceAll("_"," ")}</td><td className="py-4 text-zinc-400">{formatDate(date as string | null)}</td></tr>)}</tbody></table></div>{alerts?.length ? <div className="mt-5 space-y-2">{alerts.map((a,i)=><div key={`${a.document_type}-${a.alert_type}-${i}`} className="rounded-xl border border-red-900/40 bg-red-950/20 p-3 text-sm text-red-200">{a.document_type.replaceAll("_"," ")} {a.alert_type === "expired" ? "has expired." : `expires on ${formatDate(a.expires_on)}.`} Please update the document before accepting new assignments.</div>)}</div>:null}</section>
+    <section className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 md:p-8"><h2 className="text-xl font-bold">Verification</h2><p className="mt-3 leading-7 text-zinc-400">SafariPlug requires identity and driving-document review plus mandatory live face/liveness verification before a driver can receive or accept assignments.</p><div className="mt-5 rounded-2xl border border-[#c9a86a]/20 bg-[#c9a86a]/5 p-4 text-sm text-zinc-300"><div className="font-semibold text-white">Current verification status: {verification?.status ?? "not started"}</div><div className="mt-1 text-zinc-500">Level: {verification?.verification_level ?? "enhanced"} · Provider: {verification?.provider ?? "human review"}</div>{verification?.rejection_reason?<div className="mt-2 text-red-300">Reason: {verification.rejection_reason}</div>:null}</div></section>
+    {vehicle?<section className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-950 p-6"><h2 className="font-bold">Vehicle on application</h2><p className="mt-2 text-sm text-zinc-400">{vehicle.make_model||vehicle.category} · {vehicle.passenger_capacity??"—"} passengers · {vehicle.luggage_capacity??"—"} luggage</p><p className="mt-1 text-xs text-zinc-600">Status: {vehicle.status} · Registration: {vehicle.registration_number||"—"} · Insurance: {vehicle.insurance_policy_number||"—"}</p></section>:null}
+    <section className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-950 p-6"><h2 className="font-bold">Terms accepted</h2><p className="mt-2 text-sm text-zinc-400">{driver.terms_version || "Not recorded"}{driver.terms_accepted_at ? ` · ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(driver.terms_accepted_at))}` : ""}</p></section>
+    <section className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-950 p-6"><h2 className="font-bold">What happens next?</h2><ol className="mt-4 space-y-3 text-sm text-zinc-400"><li>1. SafariPlug reviews your application and compliance documents.</li><li>2. You complete the required verification and live liveness check when invited.</li><li>3. Your vehicle and service eligibility are reviewed.</li><li>4. Only after approval, valid documents and active verification can your driver profile become bookable.</li></ol></section>
+  </section></main>;
 }
