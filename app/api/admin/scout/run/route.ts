@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runAIScout } from "@/app/admin/ai-scout/actions/run-scout";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { hasActiveScoutRun } from "@/lib/ai-scout-health";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -21,6 +22,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Admin access required." },
         { status: 403 }
+      );
+    }
+
+    const activeRun = await hasActiveScoutRun();
+    if (activeRun) {
+      return NextResponse.json(
+        {
+          error: `An AI Scout run is already in progress for ${activeRun.location} / ${activeRun.category}. Please wait for it to finish.`,
+          run_id: activeRun.id,
+        },
+        { status: 409 }
       );
     }
 
