@@ -68,6 +68,16 @@ async function runTool(name: string, args: Record<string, unknown>) {
 
 export async function POST(request: Request) {
   try {
+    const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    const realIp = request.headers.get("x-real-ip")?.trim();
+    const ip = (forwarded || realIp || "unknown").slice(0, 120);
+    const { data: allowed, error: rateError } = await supabaseAdmin.rpc("consume_concierge_rate_limit", { p_bucket: `concierge:${ip}`, p_limit: 20, p_window_seconds: 60 });
+    if (rateError) {
+      console.error("concierge rate limit", rateError);
+      return NextResponse.json({ error: "Concierge is temporarily unavailable." }, { status: 503 });
+    }
+    if (allowed !== true) return NextResponse.json({ error: "Concierge is busy. Please wait a moment and try again." }, { status: 429 });
+
     const payload = await request.json();
     const messages = Array.isArray(payload?.messages) ? payload.messages.slice(-12) : [];
     if (!messages.length) return NextResponse.json({ error: "messages are required" }, { status: 400 });
