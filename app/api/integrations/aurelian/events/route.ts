@@ -35,12 +35,16 @@ export async function GET(request: Request) {
   }
 
   const experiences = (events ?? []).map((event) => {
+    // Aurelian's canonical click-through should stay on SafariPlug so the
+    // discovery relationship is preserved. Keep a valid booking_url as
+    // separate metadata for downstream use rather than replacing canonicalUrl.
     const bookingUrl = absoluteHttpsUrl(event.booking_url);
     const canonicalUrl =
-      bookingUrl ?? `${SAFARIPLUG_ORIGIN}/events/${encodeURIComponent(event.id)}`;
+      `${SAFARIPLUG_ORIGIN}/events/${encodeURIComponent(event.id)}`;
 
     return {
       ...event,
+      booking_url: bookingUrl,
       url: canonicalUrl,
       canonical_url: canonicalUrl,
     };
