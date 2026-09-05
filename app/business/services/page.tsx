@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
@@ -14,11 +15,9 @@ export default async function BusinessServicesDashboard() {
   const business = businesses?.[0];
   if (!business) return <main className="min-h-screen bg-[#f7f7f4] px-6 py-20 text-[#111]"><div className="mx-auto max-w-2xl rounded-[2rem] bg-white p-10 text-center shadow-[0_24px_80px_-45px_rgba(0,0,0,.35)]"><p className="text-[11px] font-semibold uppercase tracking-[.25em] text-black/40">SafariPlug Partners</p><h1 className="mt-4 text-4xl font-semibold tracking-tight">Your service business, beautifully booked.</h1><p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-black/55">Create your provider profile to publish services, manage your calendar and receive customers through SafariPlug.</p><Link href="/become-a-service-provider" className="mt-7 inline-flex rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Become a service partner</Link></div></main>;
 
-  const [{ data: profile }, { data: appointments }] = await Promise.all([
-    supabaseAdmin.from("service_profiles").select("id,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days,service_offerings(id,name,duration_minutes,price,currency,status),service_staff(id,display_name,status)").eq("business_id", business.id).maybeSingle(),
-    supabaseAdmin.from("service_appointments").select("id,public_id,customer_name,starts_at,ends_at,status,price,currency,service_offerings(name),service_staff(display_name)").eq("service_profile_id", (await supabaseAdmin.from("service_profiles").select("id").eq("business_id", business.id).maybeSingle()).data?.id ?? "00000000-0000-0000-0000-000000000000").order("starts_at", { ascending: true }).limit(12)
-  ]);
-
+  const { data: profile } = await supabaseAdmin.from("service_profiles").select("id,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days,service_offerings(id,name,duration_minutes,price,currency,status),service_staff(id,display_name,status)").eq("business_id", business.id).maybeSingle();
+  const profileId = (profile as any)?.id;
+  const { data: appointments } = profileId ? await supabaseAdmin.from("service_appointments").select("id,public_id,customer_name,starts_at,ends_at,status,price,currency,service_offerings(name),service_staff(display_name)").eq("service_profile_id", profileId).order("starts_at", { ascending: true }).limit(12) : { data: [] };
   const offerings = (profile as any)?.service_offerings ?? [];
   const staff = (profile as any)?.service_staff ?? [];
   const upcoming = (appointments ?? []).filter((a:any) => new Date(a.starts_at) >= new Date());
@@ -29,4 +28,4 @@ export default async function BusinessServicesDashboard() {
   </main>;
 }
 function Metric({label,value,detail}:{label:string;value:string|number;detail:string}) { return <div className="rounded-[1.5rem] bg-white p-5 shadow-[0_15px_50px_-45px_rgba(0,0,0,.5)]"><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-black/40">{label}</p><p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p><p className="mt-1 text-xs text-black/40">{detail}</p></div> }
-function Panel({title,action,children}:{title:string;action:string;children:React.ReactNode}) { return <section className="rounded-[2rem] bg-white p-6 shadow-[0_20px_70px_-55px_rgba(0,0,0,.5)]"><div className="flex items-center justify-between"><h2 className="font-semibold">{title}</h2><button className="text-[11px] font-semibold text-black/45">{action} →</button></div><div className="mt-4">{children}</div></section> }
+function Panel({title,action,children}:{title:string;action:string;children:ReactNode}) { return <section className="rounded-[2rem] bg-white p-6 shadow-[0_20px_70px_-55px_rgba(0,0,0,.5)]"><div className="flex items-center justify-between"><h2 className="font-semibold">{title}</h2><button className="text-[11px] font-semibold text-black/45">{action} →</button></div><div className="mt-4">{children}</div></section> }
