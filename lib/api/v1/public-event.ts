@@ -18,7 +18,7 @@ const PUBLIC_KEYS = [
 ] as const;
 
 export const PUBLIC_EVENT_SELECT =
-  "id, title, description, category, venue_name, venue_address, start_at, end_at, price, currency, image_url, booking_url, organizer_name, is_featured, city, city_id, status, cities(id, name, country)";
+  "id, title, description, category, venue_name, venue_address, start_at, end_at, price, currency, image_url, booking_url, organizer_name, is_featured, city_id, status, cities(id, name, country)";
 
 export type PublicCity = {
   id: string | null;
@@ -67,7 +67,6 @@ type RawEvent = {
   organizer_name?: unknown;
   is_featured?: unknown;
   status?: unknown;
-  city?: unknown;
   city_id?: unknown;
   cities?: CityEmbed | CityEmbed[] | null;
   organizer_contact?: unknown;
@@ -99,7 +98,7 @@ function asNumber(value: unknown): number | null {
 function embedCity(raw: RawEvent): PublicCity | null {
   const cities = raw.cities;
   const embed = Array.isArray(cities) ? cities[0] : cities;
-  const name = asString(embed?.name) || asString(raw.city);
+  const name = asString(embed?.name);
   const id = asString(embed?.id) || asString(raw.city_id);
   const country = asString(embed?.country);
   if (!name && !id) return null;
