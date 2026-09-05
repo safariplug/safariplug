@@ -72,19 +72,26 @@ export async function POST(request: Request) {
     const realIp = request.headers.get("x-real-ip")?.trim();
     const ip = (forwarded || realIp || "unknown").slice(0, 120);
     const { data: allowed, error: rateError } = await supabaseAdmin.rpc("consume_concierge_rate_limit", { p_bucket: `concierge:${ip}`, p_limit: 20, p_window_seconds: 60 });
-    if (rateError) {
-      console.error("concierge rate limit", rateError);
-      return NextResponse.json({ error: "Concierge is temporarily unavailable." }, { status: 503 });
-    }
+    if (rateError) return NextResponse.json({ error: "Concierge is temporarily unavailable." }, { status: 503 });
     if (allowed !== true) return NextResponse.json({ error: "Concierge is busy. Please wait a moment and try again." }, { status: 429 });
+
+    const client = await createSupabaseServerClient();
+    const { data: { user } } = await client.auth.getUser();
+    const registeredClient = !!user && !user.is_anonymous && !!(user.email_confirmed_at || user.phone_confirmed_at);
+    if (!registeredClient) {
+      return NextResponse.json({
+        error: "registered_client_required",
+        message: "SafariPlug Concierge is available to registered clients. Please sign in or create your free SafariPlug account to continue.",
+        signInUrl: "/login?next=/concierge",
+        signUpUrl: "/signup?next=/concierge",
+      }, { status: 401 });
+    }
 
     const payload = await request.json();
     const messages = Array.isArray(payload?.messages) ? payload.messages.slice(-12) : [];
     if (!messages.length) return NextResponse.json({ error: "messages are required" }, { status: 400 });
     const sanitized = messages.map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 3000) }));
-    const client = await createSupabaseServerClient();
-    const { data: { user } } = await client.auth.getUser();
-    const customerContext = user ? `\nAuthenticated customer email: ${user.email || "unknown"}. Do not reveal account internals.` : "";
+    const customerContext = `\nAuthenticated registered customer email: ${user!.email || "unknown"}. Account id: ${user!.id}. Do not reveal account internals.`;
     let input: any[] = [{ role: "system", content: SYSTEM + customerContext }, ...sanitized];
     let finalText = "";
     for (let turn = 0; turn < 4; turn++) {
