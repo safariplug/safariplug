@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { aiDocumentIsAutoApproved, verifyDriverDocument, type AIDocumentKind } from "@/lib/services/ai-document-verification";
 
 const capabilities = new Set(["airport_transfer", "hotel_transfer", "long_distance", "city_transfer", "child_seat", "wheelchair_accessible", "large_luggage", "premium_vehicle"]);
 const providerTypes = new Set(["independent_driver", "safariplug_driver", "transport_company", "hotel_driver", "tour_operator"]);
@@ -10,14 +11,19 @@ const TERMS_VERSION = "driver-terms-v1-2026-09-04";
 const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
 
 async function uploadDocument(file: FormDataEntryValue | null, driverId: string, kind: string) {
-  if (!(file instanceof File) || file.size < 1 || file.size > MAX_DOCUMENT_BYTES || !documentTypes.has(file.type)) {
-    throw new Error(`Please upload a valid ${kind} image or PDF (max 8MB).`);
-  }
+  if (!(file instanceof File) || file.size < 1 || file.size > MAX_DOCUMENT_BYTES || !documentTypes.has(file.type)) throw new Error(`Please upload a valid ${kind} image or PDF (max 8MB).`);
   const extension = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
   const path = `${driverId}/${kind}-${crypto.randomUUID()}.${extension}`;
   const { error } = await supabaseAdmin.storage.from("driver-verification").upload(path, file, { contentType: file.type, upsert: false });
   if (error) throw new Error(`Unable to securely store ${kind}: ${error.message}`);
   return path;
+}
+
+async function saveAIDocumentEvidence(input: { caseId: string; kind: AIDocumentKind; path: string; result: Awaited<ReturnType<typeof verifyDriverDocument>> }) {
+  const accepted = aiDocumentIsAutoApproved(input.result);
+  const { error } = await supabaseAdmin.from("verification_evidence").insert({ case_id: input.caseId, evidence_type: input.kind, status: accepted ? "accepted" : "submitted", provider: "ai_document_verification", storage_ref: input.path, submitted_at: new Date().toISOString(), reviewed_at: accepted ? new Date().toISOString() : null, metadata: { verification_method: "ai_document_verification", decision: input.result.decision, confidence: input.result.confidence, document_type_match: input.result.document_type_match, readable: input.result.readable, expired: input.result.expired, identity_match: input.result.identity_match, vehicle_match: input.result.vehicle_match, reference_match: input.result.reference_match, expiry_match: input.result.expiry_match, reasons: input.result.reasons, model: "gpt-5.6-luna", auto_approved: accepted } });
+  if (error) throw new Error(`Unable to record AI document verification: ${error.message}`);
+  return accepted;
 }
 
 export async function submitDriverApplication(formData: FormData) {
@@ -67,15 +73,9 @@ export async function submitDriverApplication(formData: FormData) {
     if (driverError || !driver) throw new Error(driverError?.message ?? "Unable to create driver application.");
     driverId = driver.id;
 
-    const licensePath = await uploadDocument(license, driver.id, "driving-license");
-    uploadedPaths.push(licensePath);
-    const { error: licenseUpdateError } = await supabaseAdmin.from("driver_profiles").update({ driving_license_path: licensePath, driving_license_uploaded_at: new Date().toISOString() }).eq("id", driver.id);
-    if (licenseUpdateError) throw new Error(licenseUpdateError.message);
-
-    const insurancePath = await uploadDocument(insurance, driver.id, "insurance");
-    uploadedPaths.push(insurancePath);
-    const registrationPath = await uploadDocument(registration, driver.id, "vehicle-registration");
-    uploadedPaths.push(registrationPath);
+    const licensePath = await uploadDocument(license, driver.id, "driving-license"); uploadedPaths.push(licensePath);
+    const insurancePath = await uploadDocument(insurance, driver.id, "insurance"); uploadedPaths.push(insurancePath);
+    const registrationPath = await uploadDocument(registration, driver.id, "vehicle-registration"); uploadedPaths.push(registrationPath);
 
     const { data: vehicle, error: vehicleError } = await supabaseAdmin.from("vehicles").insert({ driver_id: driver.id, category: vehicleCategory, make_model: vehicleModel, passenger_capacity: passengers, luggage_capacity: Number.isInteger(luggage) && luggage >= 0 ? luggage : null, accessibility: selectedCapabilities.includes("wheelchair_accessible"), status: "draft", registration_number: registrationNumber, registration_expires_on: registrationExpiresOn, registration_document_path: registrationPath, registration_document_uploaded_at: new Date().toISOString(), insurance_policy_number: insurancePolicyNumber || null, insurance_expires_on: insuranceExpiresOn, insurance_document_path: insurancePath, insurance_document_uploaded_at: new Date().toISOString() }).select("id").single();
     if (vehicleError || !vehicle) throw new Error(vehicleError?.message ?? "Unable to create vehicle application.");
@@ -84,8 +84,25 @@ export async function submitDriverApplication(formData: FormData) {
       const { error: availabilityError } = await supabaseAdmin.from("driver_availability").insert({ driver_id: driver.id, available_on: availableOn, start_time: startTime || null, end_time: endTime || null, timezone: "Africa/Nairobi", status: "available" });
       if (availabilityError) throw new Error(availabilityError.message);
     }
-    const { error: verificationError } = await supabaseAdmin.from("verification_cases").insert({ subject_type: "driver", subject_id: driver.id, status: "not_started", verification_level: "enhanced", provider: "human_review", notes: "Driver onboarding submitted. Verify driving license, vehicle registration and insurance documents, then complete mandatory live face/liveness verification before approval and booking eligibility." });
-    if (verificationError) throw new Error(verificationError.message);
+
+    const { data: verificationCase, error: verificationError } = await supabaseAdmin.from("verification_cases").insert({ subject_type: "driver", subject_id: driver.id, status: "pending", verification_level: "enhanced", provider: "ai_document_verification", notes: "AI document verification will assess the license, vehicle registration and insurance. Ambiguous results require human review. Mandatory live face/liveness verification remains required before driver approval and booking eligibility." }).select("id").single();
+    if (verificationError || !verificationCase) throw new Error(verificationError?.message ?? "Unable to create verification case.");
+
+    const [licenseResult, registrationResult, insuranceResult] = await Promise.all([
+      verifyDriverDocument({ path: licensePath, mimeType: license.type, kind: "license", expected: { name: fullName, license_number: licenseNumber, expiry: licenseExpiresOn, country } }),
+      verifyDriverDocument({ path: registrationPath, mimeType: registration.type, kind: "vehicle_registration", expected: { name: fullName, registration_number: registrationNumber, vehicle: vehicleModel, expiry: registrationExpiresOn, country } }),
+      verifyDriverDocument({ path: insurancePath, mimeType: insurance.type, kind: "insurance", expected: { name: fullName, policy_number: insurancePolicyNumber || null, vehicle: vehicleModel, expiry: insuranceExpiresOn, country } }),
+    ]);
+
+    const [licenseApproved, registrationApproved, insuranceApproved] = await Promise.all([
+      saveAIDocumentEvidence({ caseId: verificationCase.id, kind: "license", path: licensePath, result: licenseResult }),
+      saveAIDocumentEvidence({ caseId: verificationCase.id, kind: "vehicle_registration", path: registrationPath, result: registrationResult }),
+      saveAIDocumentEvidence({ caseId: verificationCase.id, kind: "insurance", path: insurancePath, result: insuranceResult }),
+    ]);
+    const allDocumentsApproved = licenseApproved && registrationApproved && insuranceApproved;
+    const note = allDocumentsApproved ? "AI document verification passed all three required documents. Awaiting mandatory identity and live face/liveness verification; documents alone cannot approve the driver." : "One or more documents require human review. Driver remains non-bookable until document review and mandatory identity/live face/liveness verification are complete.";
+    const { error: caseUpdateError } = await supabaseAdmin.from("verification_cases").update({ status: "in_review", notes: note, updated_at: new Date().toISOString() }).eq("id", verificationCase.id);
+    if (caseUpdateError) throw new Error(caseUpdateError.message);
   } catch (error) {
     if (uploadedPaths.length) await supabaseAdmin.storage.from("driver-verification").remove(uploadedPaths);
     await supabaseAdmin.auth.admin.deleteUser(userId, true);
