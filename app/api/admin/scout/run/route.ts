@@ -1,12 +1,19 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { runAIScout } from "@/app/admin/ai-scout/actions/run-scout";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { hasActiveScoutRun } from "@/lib/ai-scout-health";
+import {
+  acquireScoutLease,
+  hasActiveScoutRun,
+  releaseScoutLease,
+} from "@/lib/ai-scout-health";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
+  let leaseOwner: string | null = null;
+
   try {
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getClaims();
@@ -36,6 +43,16 @@ export async function POST(request: Request) {
       );
     }
 
+    leaseOwner = randomUUID();
+    const leaseAcquired = await acquireScoutLease(leaseOwner);
+
+    if (!leaseAcquired) {
+      return NextResponse.json(
+        { error: "Another AI Scout run started at the same time. Please try again shortly." },
+        { status: 409 }
+      );
+    }
+
     const body = await request.json();
     const formData = new FormData();
     formData.append("location", body.location || "Nairobi");
@@ -56,5 +73,9 @@ export async function POST(request: Request) {
       { error: message },
       { status: 500 }
     );
+  } finally {
+    if (leaseOwner) {
+      await releaseScoutLease(leaseOwner);
+    }
   }
 }
