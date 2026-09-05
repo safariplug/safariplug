@@ -1,1 +1,0 @@
-The Travel OS security hardening migration was applied to the live Supabase project as migration 20260905014652. Keep the canonical SQL file named 20260905014652_travel_os_security_hardening.sql.
