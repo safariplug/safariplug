@@ -1,31 +1,39 @@
-import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import ProviderWorkspace from "./ProviderWorkspace";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessServicesDashboard() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/business/services");
+  if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) redirect("/login?next=/business/services");
 
-  const { data: businesses } = await supabaseAdmin.from("businesses").select("id,name,slug,description,status,verified,claimed").eq("owner_id", user.id).eq("status", "active");
-  const business = businesses?.[0];
-  if (!business) return <main className="min-h-screen bg-[#f7f7f4] px-6 py-20 text-[#111]"><div className="mx-auto max-w-2xl rounded-[2rem] bg-white p-10 text-center shadow-[0_24px_80px_-45px_rgba(0,0,0,.35)]"><p className="text-[11px] font-semibold uppercase tracking-[.25em] text-black/40">SafariPlug Partners</p><h1 className="mt-4 text-4xl font-semibold tracking-tight">Your service business, beautifully booked.</h1><p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-black/55">Create your provider profile to publish services, manage your calendar and receive customers through SafariPlug.</p><Link href="/become-a-service-provider" className="mt-7 inline-flex rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Become a service partner</Link></div></main>;
+  const { data: businesses } = await supabaseAdmin.from("businesses").select("id,name,slug,description,business_type,status,verified,claimed,phone,whatsapp,email").eq("owner_id", user.id).in("status", ["active", "ACTIVE"]).order("created_at", { ascending:true }).limit(1);
+  const business = businesses?.[0] ?? null;
+  const { data: categories } = await supabaseAdmin.from("service_categories").select("id,name,slug,description").eq("status","active").order("name");
 
-  const { data: profile } = await supabaseAdmin.from("service_profiles").select("id,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days,service_offerings(id,name,duration_minutes,price,currency,status),service_staff(id,display_name,status)").eq("business_id", business.id).maybeSingle();
-  const profileId = (profile as any)?.id;
-  const { data: appointments } = profileId ? await supabaseAdmin.from("service_appointments").select("id,public_id,customer_name,starts_at,ends_at,status,price,currency,service_offerings(name),service_staff(display_name)").eq("service_profile_id", profileId).order("starts_at", { ascending: true }).limit(12) : { data: [] };
-  const offerings = (profile as any)?.service_offerings ?? [];
-  const staff = (profile as any)?.service_staff ?? [];
-  const upcoming = (appointments ?? []).filter((a:any) => new Date(a.starts_at) >= new Date());
+  let profile:any = null;
+  let offerings:any[] = [];
+  let staff:any[] = [];
+  let appointments:any[] = [];
+  if (business) {
+    const { data } = await supabaseAdmin.from("service_profiles").select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days").eq("business_id",business.id).maybeSingle();
+    profile = data;
+    if (profile) {
+      const [{ data:o }, { data:s }, { data:a }] = await Promise.all([
+        supabaseAdmin.from("service_offerings").select("id,name,description,duration_minutes,price,currency,status,requires_confirmation").eq("service_profile_id",profile.id).order("created_at",{ascending:true}),
+        supabaseAdmin.from("service_staff").select("id,display_name,bio,status").eq("service_profile_id",profile.id).order("created_at",{ascending:true}),
+        supabaseAdmin.from("service_appointments").select("id,public_id,customer_name,starts_at,ends_at,status,price,currency,service_offerings(name),service_staff(display_name)").eq("service_profile_id",profile.id).order("starts_at",{ascending:true}).limit(50)
+      ]);
+      offerings=o??[]; staff=s??[]; appointments=a??[];
+    }
+  }
+
   return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
-    <header className="border-b border-black/8 bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:px-10"><div><p className="text-[10px] font-semibold uppercase tracking-[.25em] text-black/40">SafariPlug Partner</p><h1 className="mt-1 text-xl font-semibold tracking-tight">{business.name}</h1></div><div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${business.verified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{business.verified ? "Verified" : "Verification pending"}</span><Link href={`/services/${business.slug}`} className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">View public page ↗</Link></div></div></header>
-    <section className="mx-auto max-w-7xl px-6 py-10 sm:px-10"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Upcoming" value={upcoming.length} detail="appointments"/><Metric label="Services" value={offerings.length} detail="listed"/><Metric label="Team" value={staff.length} detail="specialists"/><Metric label="Booking" value={(profile as any)?.booking_status === "open" ? "Open" : "Closed"} detail="calendar"/></div>
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1.4fr_.6fr]"><section className="rounded-[2rem] bg-white p-6 shadow-[0_20px_70px_-55px_rgba(0,0,0,.5)] sm:p-8"><div className="flex items-end justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[.22em] text-black/40">Today & upcoming</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Appointment calendar</h2></div><button className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">Manage calendar</button></div><div className="mt-7 divide-y divide-black/7">{upcoming.map((a:any)=><div key={a.id} className="flex items-center justify-between gap-4 py-4"><div><p className="font-semibold">{a.customer_name}</p><p className="mt-1 text-xs text-black/45">{new Date(a.starts_at).toLocaleString()} · {a.service_offerings?.name ?? "Service"} · {a.service_staff?.display_name ?? "Team member"}</p></div><div className="text-right"><p className="text-sm font-semibold">{a.currency} {Number(a.price).toLocaleString()}</p><span className="text-[10px] uppercase tracking-wider text-black/40">{a.status}</span></div></div>)}{!upcoming.length && <div className="py-14 text-center"><p className="font-semibold">Your calendar is clear.</p><p className="mt-2 text-sm text-black/45">New SafariPlug bookings will appear here.</p></div>}</div></section><aside className="space-y-6"><Panel title="Service menu" action="Edit services">{offerings.slice(0,6).map((x:any)=><div key={x.id} className="flex justify-between border-b border-black/7 py-3 text-sm last:border-0"><span>{x.name}</span><span className="text-black/45">{x.currency} {Number(x.price).toLocaleString()}</span></div>)}</Panel><Panel title="Team" action="Manage team">{staff.slice(0,5).map((x:any)=><div key={x.id} className="flex items-center gap-3 py-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-[10px] font-semibold text-white">{x.display_name.split(" ").map((z:string)=>z[0]).slice(0,2).join("")}</span><span className="text-sm font-medium">{x.display_name}</span></div>)}</Panel></aside></div></section>
+    <header className="border-b border-black/8 bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:px-10"><div><Link href="/" className="text-sm font-semibold tracking-tight">SafariPlug</Link><p className="mt-1 text-[10px] font-semibold uppercase tracking-[.25em] text-black/35">Partner workspace</p></div><div className="flex items-center gap-3">{business&&<span className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${business.verified?"bg-emerald-50 text-emerald-700":"bg-amber-50 text-amber-700"}`}>{business.verified?"Verified business":"Verification pending"}</span>}{business&&<Link href={`/services/${business.slug}`} className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">View storefront ↗</Link>}</div></div></header>
+    <section className="mx-auto max-w-7xl px-6 py-10 sm:px-10"><ProviderWorkspace business={business} profile={profile} categories={categories??[]} offerings={offerings} staff={staff} appointments={appointments}/></section>
   </main>;
 }
-function Metric({label,value,detail}:{label:string;value:string|number;detail:string}) { return <div className="rounded-[1.5rem] bg-white p-5 shadow-[0_15px_50px_-45px_rgba(0,0,0,.5)]"><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-black/40">{label}</p><p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p><p className="mt-1 text-xs text-black/40">{detail}</p></div> }
-function Panel({title,action,children}:{title:string;action:string;children:ReactNode}) { return <section className="rounded-[2rem] bg-white p-6 shadow-[0_20px_70px_-55px_rgba(0,0,0,.5)]"><div className="flex items-center justify-between"><h2 className="font-semibold">{title}</h2><button className="text-[11px] font-semibold text-black/45">{action} →</button></div><div className="mt-4">{children}</div></section> }
