@@ -137,12 +137,10 @@ export async function listEvents(
 
   if (input.city) {
     const cityId = await resolveCityId(client, input.city);
-    const cityText = sanitizeIlike(input.city);
-    if (cityId) {
-      query = query.or(`city_id.eq.${cityId},city.ilike.${cityText}`);
-    } else if (cityText) {
-      query = query.ilike("city", cityText);
+    if (!cityId) {
+      return { ok: true, data: [], count: 0 };
     }
+    query = query.eq("city_id", cityId);
   }
 
   if (input.q) {
@@ -150,9 +148,12 @@ export async function listEvents(
     if (!q) {
       return { ok: true, data: [], count: 0 };
     }
-    query = query.or(
-      `title.ilike.%${q}%,description.ilike.%${q}%,venue_name.ilike.%${q}%,category.ilike.%${q}%,city.ilike.%${q}%`
-    );
+    const cityId = await resolveCityId(client, input.q);
+    const textFilter =
+      `title.ilike.%${q}%,description.ilike.%${q}%,venue_name.ilike.%${q}%,category.ilike.%${q}%`;
+    query = cityId
+      ? query.or(`${textFilter},city_id.eq.${cityId}`)
+      : query.or(textFilter);
   }
 
   const { data, error, count } = await query
@@ -212,7 +213,7 @@ export async function listDestinations(
   }
 
   const { data: eventRows, error: eventError } = await applyDateMode(
-    eventsTable(client).select("city_id, city").eq("status", "approved"),
+    eventsTable(client).select("city_id").eq("status", "approved"),
     "valid",
     now
   );
@@ -225,12 +226,7 @@ export async function listDestinations(
   const counts = new Map<string, number>();
   for (const row of eventRows ?? []) {
     const cityId = typeof row.city_id === "string" ? row.city_id : "";
-    const cityName =
-      typeof row.city === "string" ? row.city.trim().toLowerCase() : "";
-    if (cityId) counts.set(`id:${cityId}`, (counts.get(`id:${cityId}`) ?? 0) + 1);
-    if (cityName) {
-      counts.set(`name:${cityName}`, (counts.get(`name:${cityName}`) ?? 0) + 1);
-    }
+    if (cityId) counts.set(cityId, (counts.get(cityId) ?? 0) + 1);
   }
 
   const destinations: PublicDestination[] = (cities ?? [])
@@ -239,16 +235,12 @@ export async function listDestinations(
       const name = typeof city.name === "string" ? city.name : "";
       if (!id || !name) return null;
       const country = typeof city.country === "string" ? city.country : null;
-      const event_count =
-        counts.get(`id:${id}`) ??
-        counts.get(`name:${name.toLowerCase()}`) ??
-        0;
       return {
         id,
         name,
         country,
         slug: slugify(name),
-        event_count,
+        event_count: counts.get(id) ?? 0,
       };
     })
     .filter((row): row is PublicDestination => row !== null);
@@ -299,7 +291,6 @@ export async function listExperiences(
     const needle = collection.name.toLowerCase();
     let event_count = 0;
     for (const [category, count] of counts) {
-      // Same semantics as app/experiences/[slug]/page.tsx: ilike %name%.
       if (category.toLowerCase().includes(needle)) {
         event_count += count;
       }
