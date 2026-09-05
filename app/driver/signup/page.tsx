@@ -3,113 +3,25 @@ import { submitDriverApplication } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-const capabilityOptions = [
-  ["airport_transfer", "Airport transfers"],
-  ["hotel_transfer", "Hotel transfers"],
-  ["city_transfer", "City transfers"],
-  ["long_distance", "Long-distance"],
-  ["child_seat", "Child seat"],
-  ["wheelchair_accessible", "Wheelchair accessible"],
-  ["large_luggage", "Large luggage"],
-  ["premium_vehicle", "Premium vehicle"],
-] as const;
+const capabilityOptions = [["airport_transfer", "Airport transfers"], ["hotel_transfer", "Hotel transfers"], ["city_transfer", "City transfers"], ["long_distance", "Long-distance"], ["child_seat", "Child seat"], ["wheelchair_accessible", "Wheelchair accessible"], ["large_luggage", "Large luggage"], ["premium_vehicle", "Premium vehicle"]] as const;
 
-export default async function DriverSignupPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
+export default async function DriverSignupPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
-
   return (
     <main className="min-h-screen bg-[#070708] text-white">
-      <header className="border-b border-zinc-800/80 bg-black/30">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-          <Link href="/" className="text-2xl font-black">Safari<span className="text-[#c9a86a]">Plug</span></Link>
-          <Link href="/driver/login" className="text-sm font-bold text-zinc-300 hover:text-white">Driver sign in</Link>
-        </div>
-      </header>
-
+      <header className="border-b border-zinc-800/80 bg-black/30"><div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5"><Link href="/" className="text-2xl font-black">Safari<span className="text-[#c9a86a]">Plug</span></Link><Link href="/driver/login" className="text-sm font-bold text-zinc-300 hover:text-white">Driver sign in</Link></div></header>
       <section className="mx-auto max-w-4xl px-6 py-12">
-        <div className="mb-8 max-w-2xl">
-          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-[#c9a86a]">Drive with SafariPlug</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight md:text-5xl">Become a SafariPlug driver</h1>
-          <p className="mt-4 leading-7 text-zinc-400">Apply to provide airport, hotel and private transfer services to travelers across East Africa. Your application is reviewed before you can receive or accept a booking.</p>
-        </div>
-
-        <div className="mb-8 grid gap-3 md:grid-cols-3">
-          {[
-            ["01", "Apply", "Create your driver account and submit your service details."],
-            ["02", "Verify", "Complete identity, license and mandatory live face/liveness verification."],
-            ["03", "Go live", "Only approved, verified and active drivers become eligible for assignments."],
-          ].map(([number, title, body]) => (
-            <div key={number} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-              <span className="font-mono text-xs text-[#c9a86a]">{number}</span>
-              <h2 className="mt-3 font-bold">{title}</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-500">{body}</p>
-            </div>
-          ))}
-        </div>
-
+        <div className="mb-8 max-w-2xl"><p className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-[#c9a86a]">Drive with SafariPlug</p><h1 className="mt-3 text-4xl font-black tracking-tight md:text-5xl">Become a SafariPlug driver</h1><p className="mt-4 leading-7 text-zinc-400">Apply to provide airport, hotel and private transfer services to travelers across East Africa. Your application is reviewed before you can receive or accept a booking.</p></div>
+        <div className="mb-8 grid gap-3 md:grid-cols-3">{[["01", "Apply", "Create your driver account and submit your service details."], ["02", "Verify", "Complete identity, license and mandatory live face/liveness verification."], ["03", "Go live", "Only approved, verified and active drivers become eligible for assignments."]].map(([number, title, body]) => <div key={number} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><span className="font-mono text-xs text-[#c9a86a]">{number}</span><h2 className="mt-3 font-bold">{title}</h2><p className="mt-2 text-sm leading-6 text-zinc-500">{body}</p></div>)}</div>
         {params.error ? <div className="mb-6 rounded-xl border border-red-900/60 bg-red-950/30 p-4 text-sm text-red-200">{params.error}</div> : null}
-
-        <form action={submitDriverApplication} className="space-y-8 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 md:p-8">
-          <section className="space-y-4">
-            <div><h2 className="text-xl font-bold">Account & identity</h2><p className="mt-1 text-sm text-zinc-500">Use your real legal name. It will be reviewed during verification.</p></div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <input name="full_name" required placeholder="Full name" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="phone" required placeholder="Phone / WhatsApp" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="email" required type="email" placeholder="Email address" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="password" required minLength={8} type="password" placeholder="Password (8+ characters)" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <div><h2 className="text-xl font-bold">Service area</h2><p className="mt-1 text-sm text-zinc-500">Tell us where you normally provide transfers.</p></div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <input name="service_city" required placeholder="City (e.g. Nairobi)" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="service_country" defaultValue="Kenya" required placeholder="Country" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="service_airport_code" placeholder="Airport code (optional)" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-            </div>
-            <select name="provider_type" defaultValue="independent_driver" className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
-              <option value="independent_driver">Independent driver</option>
-              <option value="safariplug_driver">SafariPlug driver</option>
-              <option value="transport_company">Transport company</option>
-              <option value="hotel_driver">Hotel driver</option>
-              <option value="tour_operator">Tour operator</option>
-            </select>
-          </section>
-
-          <section className="space-y-4">
-            <div><h2 className="text-xl font-bold">Services</h2><p className="mt-1 text-sm text-zinc-500">Select only services you can reliably provide.</p></div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {capabilityOptions.map(([value, label]) => <label key={value} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 text-sm"><input type="checkbox" name="capability" value={value} className="h-4 w-4" />{label}</label>)}
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <div><h2 className="text-xl font-bold">Vehicle</h2><p className="mt-1 text-sm text-zinc-500">Your vehicle starts as a draft and must pass review before use.</p></div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <input name="vehicle_category" required placeholder="Vehicle type (SUV, sedan, van...)" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="vehicle_make_model" required placeholder="Make / model" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="passenger_capacity" required min="1" type="number" placeholder="Passenger capacity" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="luggage_capacity" min="0" type="number" placeholder="Luggage capacity" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <div><h2 className="text-xl font-bold">Initial availability</h2><p className="mt-1 text-sm text-zinc-500">Optional. You can add more availability after signing in.</p></div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <input name="available_on" type="date" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="start_time" type="time" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-              <input name="end_time" type="time" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" />
-            </div>
-          </section>
-
-          <div className="rounded-2xl border border-[#c9a86a]/20 bg-[#c9a86a]/5 p-4 text-sm leading-6 text-zinc-300">
-            <strong className="text-white">Safety requirement:</strong> submitting this application does not make you a bookable driver. SafariPlug requires identity/license review and mandatory live face/liveness verification before approval. Do not upload identity documents through this form.
-          </div>
-
+        <form action={submitDriverApplication} encType="multipart/form-data" className="space-y-8 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 md:p-8">
+          <section className="space-y-4"><div><h2 className="text-xl font-bold">Account & identity</h2><p className="mt-1 text-sm text-zinc-500">Use your real legal name. It will be reviewed during verification.</p></div><div className="grid gap-4 md:grid-cols-2"><input name="full_name" required placeholder="Full name" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="phone" required placeholder="Phone / WhatsApp" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="email" required type="email" placeholder="Email address" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="password" required minLength={8} type="password" placeholder="Password (8+ characters)" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /></div></section>
+          <section className="space-y-4"><div><h2 className="text-xl font-bold">Service area</h2><p className="mt-1 text-sm text-zinc-500">Tell us where you normally provide transfers.</p></div><div className="grid gap-4 md:grid-cols-3"><input name="service_city" required placeholder="City (e.g. Nairobi)" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="service_country" defaultValue="Kenya" required placeholder="Country" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="service_airport_code" placeholder="Airport code (optional)" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /></div><select name="provider_type" defaultValue="independent_driver" className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3"><option value="independent_driver">Independent driver</option><option value="safariplug_driver">SafariPlug driver</option><option value="transport_company">Transport company</option><option value="hotel_driver">Hotel driver</option><option value="tour_operator">Tour operator</option></select></section>
+          <section className="space-y-4"><div><h2 className="text-xl font-bold">Services</h2><p className="mt-1 text-sm text-zinc-500">Select only services you can reliably provide.</p></div><div className="grid gap-3 sm:grid-cols-2">{capabilityOptions.map(([value, label]) => <label key={value} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 text-sm"><input type="checkbox" name="capability" value={value} className="h-4 w-4" />{label}</label>)}</div></section>
+          <section className="space-y-4"><div><h2 className="text-xl font-bold">Vehicle</h2><p className="mt-1 text-sm text-zinc-500">Your vehicle starts as a draft and must pass review before use.</p></div><div className="grid gap-4 md:grid-cols-2"><input name="vehicle_category" required placeholder="Vehicle type (SUV, sedan, van...)" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="vehicle_make_model" required placeholder="Make / model" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="passenger_capacity" required min="1" type="number" placeholder="Passenger capacity" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="luggage_capacity" min="0" type="number" placeholder="Luggage capacity" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /></div></section>
+          <section className="space-y-4"><div><h2 className="text-xl font-bold">Driving license</h2><p className="mt-1 text-sm text-zinc-500">Upload a clear photo/scan of your current driving license. This is private verification evidence and will not be shown to customers.</p></div><label className="block rounded-2xl border border-dashed border-[#c9a86a]/40 bg-[#c9a86a]/5 p-6"><span className="block text-sm font-bold text-white">Driving license photo or PDF <span className="text-[#c9a86a]">*</span></span><span className="mt-1 block text-xs text-zinc-500">JPG, PNG, WEBP or PDF · maximum 8 MB</span><input name="driving_license" required type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-4 block w-full text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-[#c9a86a] file:px-4 file:py-2 file:font-bold file:text-black" /></label></section>
+          <section className="space-y-4"><div><h2 className="text-xl font-bold">Initial availability</h2><p className="mt-1 text-sm text-zinc-500">Optional. You can add more availability after signing in.</p></div><div className="grid gap-4 md:grid-cols-3"><input name="available_on" type="date" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="start_time" type="time" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /><input name="end_time" type="time" className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3" /></div></section>
+          <div className="rounded-2xl border border-[#c9a86a]/20 bg-[#c9a86a]/5 p-4 text-sm leading-6 text-zinc-300"><strong className="text-white">Safety requirement:</strong> submitting this application does not make you a bookable driver. SafariPlug requires identity/license review and mandatory live face/liveness verification before approval. Your license is stored privately for verification; customers never receive access to the document.</div>
           <button className="w-full rounded-xl bg-[#c9a86a] px-5 py-3.5 font-black text-black hover:bg-[#dfbd7b]">Submit driver application</button>
         </form>
       </section>
