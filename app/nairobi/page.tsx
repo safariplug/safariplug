@@ -31,7 +31,8 @@ export default async function NairobiPage() {
       category,
       start_at,
       venue_name,
-      image_url
+      image_url,
+      cities!inner(name)
       `
     )
     .eq("cities.name", "Nairobi")
