@@ -16,12 +16,14 @@ export default async function BusinessServicesDashboard() {
   const { data: categories } = await supabaseAdmin.from("service_categories").select("id,name,slug,description").eq("status","active").order("name");
 
   let profile:any = null;
+  let category:any = null;
   let offerings:any[] = [];
   let staff:any[] = [];
   let appointments:any[] = [];
   if (business) {
-    const { data } = await supabaseAdmin.from("service_profiles").select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days").eq("business_id",business.id).maybeSingle();
+    const { data } = await supabaseAdmin.from("service_profiles").select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days,service_categories(id,name,slug,description)").eq("business_id",business.id).maybeSingle();
     profile = data;
+    category = profile?.service_categories ?? null;
     if (profile) {
       const [{ data:o }, { data:s }, { data:a }] = await Promise.all([
         supabaseAdmin.from("service_offerings").select("id,name,description,duration_minutes,price,currency,status,requires_confirmation").eq("service_profile_id",profile.id).order("created_at",{ascending:true}),
@@ -34,6 +36,6 @@ export default async function BusinessServicesDashboard() {
 
   return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
     <header className="border-b border-black/8 bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:px-10"><div><Link href="/" className="text-sm font-semibold tracking-tight">SafariPlug</Link><p className="mt-1 text-[10px] font-semibold uppercase tracking-[.25em] text-black/35">Partner workspace</p></div><div className="flex items-center gap-3">{business&&<span className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${business.verified?"bg-emerald-50 text-emerald-700":"bg-amber-50 text-amber-700"}`}>{business.verified?"Verified business":"Verification pending"}</span>}{business&&<Link href={`/services/${business.slug}`} className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">View storefront ↗</Link>}</div></div></header>
-    <section className="mx-auto max-w-7xl px-6 py-10 sm:px-10"><ProviderWorkspace business={business} profile={profile} categories={categories??[]} offerings={offerings} staff={staff} appointments={appointments}/></section>
+    <section className="mx-auto max-w-7xl px-6 py-10 sm:px-10"><ProviderWorkspace business={business} profile={profile} category={category} categories={categories??[]} offerings={offerings} staff={staff} appointments={appointments}/></section>
   </main>;
 }
