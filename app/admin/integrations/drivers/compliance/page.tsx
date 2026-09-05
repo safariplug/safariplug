@@ -1,0 +1,25 @@
+import Link from "next/link";
+import { requireAdmin } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+export const dynamic = "force-dynamic";
+
+function tone(status: string) { return status === "valid" ? "text-emerald-400" : status === "expiring_soon" ? "text-amber-400" : "text-red-400"; }
+function date(value: string | null) { return value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`)) : "Missing"; }
+
+export default async function DriverCompliancePage() {
+  await requireAdmin();
+  const [{ data: rows }, { data: alerts }] = await Promise.all([
+    supabaseAdmin.from("driver_compliance_overview").select("driver_id,display_name,service_status,verification_state,driving_license_expires_on,driving_license_status,vehicle_id,make_model,registration_number,registration_expires_on,registration_status,insurance_policy_number,insurance_expires_on,insurance_status").order("display_name", { ascending: true }),
+    supabaseAdmin.from("driver_compliance_alerts").select("driver_id,document_type,expires_on,alert_type,status,created_at").eq("status", "open").order("expires_on", { ascending: true }).limit(100),
+  ]);
+  const data = rows ?? [];
+  const openAlerts = alerts ?? [];
+  const expired = data.filter(r => [r.driving_license_status, r.registration_status, r.insurance_status].some(s => s === "expired" || s === "missing" || s === "rejected")).length;
+  const expiring = data.filter(r => [r.driving_license_status, r.registration_status, r.insurance_status].some(s => s === "expiring_soon")).length;
+  return <main className="min-h-screen bg-[#050505] p-8 text-white"><div className="mx-auto max-w-7xl space-y-8"><div><Link href="/admin/integrations/drivers" className="font-mono text-xs text-amber-400 hover:underline">← Driver operations</Link><p className="mt-5 font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">Compliance monitoring</p><h1 className="mt-2 text-3xl font-extrabold">Driver document compliance</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Driving licenses, vehicle registrations and insurance are monitored by expiry date. The daily compliance job creates alerts and suspends active drivers when required documents are missing, expired or rejected.</p></div>
+    <section className="grid gap-4 sm:grid-cols-4">{[["Drivers monitored",data.length],["Open alerts",openAlerts.length],["Expiring ≤60 days",expiring],["Action required",expired]].map(([label,value])=><div key={String(label)} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">{label}</p><p className="mt-2 font-mono text-2xl font-bold text-amber-400">{value}</p></div>)}</section>
+    <section className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950"><div className="border-b border-zinc-800 p-5"><h2 className="font-bold">Compliance register</h2></div><table className="w-full text-left text-sm"><thead className="font-mono text-[10px] uppercase tracking-widest text-zinc-500"><tr><th className="p-4">Driver</th><th className="p-4">License</th><th className="p-4">Registration</th><th className="p-4">Insurance</th><th className="p-4">Service</th></tr></thead><tbody>{data.length===0?<tr><td colSpan={5} className="p-8 text-center text-zinc-500">No driver records yet.</td></tr>:data.map(r=><tr key={r.driver_id} className="border-t border-zinc-900"><td className="p-4"><div className="font-semibold">{r.display_name}</div><div className="font-mono text-[10px] text-zinc-600">{r.driver_id}</div></td><td className={`p-4 ${tone(r.driving_license_status)}`}><div className="font-semibold">{r.driving_license_status?.replaceAll("_"," ")}</div><div className="text-xs text-zinc-500">{date(r.driving_license_expires_on)}</div></td><td className={`p-4 ${tone(r.registration_status)}`}><div className="font-semibold">{r.registration_status?.replaceAll("_"," ")}</div><div className="text-xs text-zinc-500">{date(r.registration_expires_on)}</div></td><td className={`p-4 ${tone(r.insurance_status)}`}><div className="font-semibold">{r.insurance_status?.replaceAll("_"," ")}</div><div className="text-xs text-zinc-500">{date(r.insurance_expires_on)}</div></td><td className="p-4 text-zinc-400">{r.service_status} · {r.verification_state}</td></tr>)}</tbody></table></section>
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><h2 className="font-bold">Open alerts</h2>{openAlerts.length===0?<p className="mt-3 text-sm text-emerald-400">No open compliance alerts.</p>:<div className="mt-4 space-y-2">{openAlerts.map((a,i)=><div key={`${a.driver_id}-${a.document_type}-${a.alert_type}-${i}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-900/40 bg-red-950/20 p-4 text-sm"><span><strong>{a.document_type.replaceAll("_"," ")}</strong> · {a.alert_type.replace("_"," ")}</span><span className="text-zinc-400">expires {date(a.expires_on)} · driver {a.driver_id}</span></div>)}</div>}</section>
+  </div></main>;
+}
