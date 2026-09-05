@@ -21,6 +21,18 @@ export async function GET() {
   return NextResponse.json({ appointments: data ?? [], events: events ?? [] });
 }
 
+async function slotIsAvailable(profileId: string, offeringId: string, startsAt: Date, staffId: string) {
+  const profile = await supabaseAdmin.from("service_profiles").select("timezone").eq("id", profileId).maybeSingle();
+  if (profile.error || !profile.data) return false;
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: profile.data.timezone || "Africa/Nairobi", year:"numeric", month:"2-digit", day:"2-digit" }).format(startsAt);
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com";
+  const url = `${base}/api/services/availability?serviceProfileId=${encodeURIComponent(profileId)}&offeringId=${encodeURIComponent(offeringId)}&date=${encodeURIComponent(date)}&staffId=${encodeURIComponent(staffId)}`;
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) return false;
+  const payload = await response.json();
+  return Array.isArray(payload.slots) && payload.slots.some((slot: any) => slot.staffId === staffId && slot.startsAt === startsAt.toISOString());
+}
+
 export async function POST(request: Request) {
   try {
     const user = await getUser();
@@ -50,6 +62,7 @@ export async function POST(request: Request) {
       const max = Date.now() + Number(profile.max_booking_days || 90) * 86400000;
       if (startsAt.getTime() < min) return NextResponse.json({ error: "That time is inside the provider's booking notice window." }, { status: 409 });
       if (startsAt.getTime() > max) return NextResponse.json({ error: "That time is outside the provider's booking window." }, { status: 409 });
+      if (!(await slotIsAvailable(appointment.service_profile_id, appointment.offering_id, startsAt, appointment.staff_id))) return NextResponse.json({ error: "That time is not available. Please choose another live slot." }, { status: 409 });
       const endsAt = new Date(startsAt.getTime() + Number(offering.duration_minutes) * 60000);
       const { data, error } = await supabaseAdmin.from("service_appointments").update({ starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), updated_at: new Date().toISOString() }).eq("id", id).eq("customer_user_id", user.id).in("status", ["pending", "confirmed"]).select("*").single();
       if (error) return NextResponse.json({ error: error.message.includes("service_appointments_staff_no_overlap") ? "That time is no longer available." : "Unable to reschedule this appointment." }, { status: 409 });
