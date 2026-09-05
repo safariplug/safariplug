@@ -1,0 +1,1 @@
+Temporary note removed; canonical security migration is 20260905014652_travel_os_security_hardening.sql.
