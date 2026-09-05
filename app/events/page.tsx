@@ -63,7 +63,7 @@ export default async function EventsPage({
 
   let eventsQuery = supabase
     .from("events")
-    .select("id, title, description, category, venue_name, price, currency, image_url, start_at, is_featured, status, cities ( name )")
+    .select("id, title, description, category, venue_name, price, currency, image_url, start_at, is_featured, status, cities ( name, country )")
     .eq("status", "approved")
     .order("is_featured", { ascending: false })
     .order("start_at", { ascending: true });
@@ -91,13 +91,19 @@ export default async function EventsPage({
 
   const { data: events, error } = await eventsQuery;
 
-  const normalizedEvents = (events || []).map((event) => ({
-    ...event,
-    city: event.cities?.[0]?.name || ""
-  }));
+  const normalizedEvents = (events || []).map((event) => {
+    const related = event.cities;
+    const row = Array.isArray(related) ? related[0] : related;
+    const name = typeof row?.name === "string" ? row.name.trim() : "";
+    const country = typeof row?.country === "string" ? row.country : "";
+    return {
+      ...event,
+      city: name ? { name, country } : null,
+    };
+  });
 
   const filteredEvents = normalizedEvents.filter((event) => {
-    const eventCity = String(event.city || "").toLowerCase();
+    const eventCity = (event.city?.name || "").toLowerCase();
     const searchText = [
       event.title,
       event.description || "",
