@@ -14,6 +14,14 @@ const capabilities = new Set([
   "premium_vehicle",
 ]);
 
+const providerTypes = new Set([
+  "independent_driver",
+  "safariplug_driver",
+  "transport_company",
+  "hotel_driver",
+  "tour_operator",
+]);
+
 export async function submitDriverApplication(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
@@ -37,6 +45,10 @@ export async function submitDriverApplication(formData: FormData) {
 
   if (!email || !password || password.length < 8 || !fullName || !phone || !city) {
     redirect("/driver/signup?error=Please%20complete%20the%20required%20fields%20and%20use%20an%208%2B%20character%20password.");
+  }
+
+  if (!providerTypes.has(providerType)) {
+    redirect("/driver/signup?error=Invalid%20driver%20provider%20type.");
   }
 
   if (!vehicleCategory || !vehicleModel || !Number.isInteger(passengers) || passengers < 1) {
