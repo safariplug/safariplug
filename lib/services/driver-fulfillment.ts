@@ -10,10 +10,7 @@ export type DriverFulfillmentResult =
 
 async function buildStore(): Promise<DriverStore> {
   const [drivers, vehicles, availability, assignments] = await Promise.all([
-    listDriversAdmin(),
-    listVehiclesAdmin(),
-    listAvailabilityAdmin(),
-    listAssignmentsAdmin(),
+    listDriversAdmin(), listVehiclesAdmin(), listAvailabilityAdmin(), listAssignmentsAdmin(),
   ]);
   return new MemoryDriverStore(drivers, vehicles, availability, assignments);
 }
@@ -24,32 +21,24 @@ export async function assignPersistedDriverForTransfer(input: {
   actor: "admin" | "system" | "provider";
 }): Promise<DriverFulfillmentResult> {
   const { request } = input;
-  const { data: booking, error } = await supabaseAdmin
-    .from("bookings")
-    .select("id, status")
-    .eq("id", request.booking_id)
-    .maybeSingle();
+  const { data: booking, error } = await supabaseAdmin.from("bookings").select("id, status").eq("id", request.booking_id).maybeSingle();
   if (error) return { ok: false, reason: "database_error", message: "Unable to load booking." };
   if (!booking) return { ok: false, reason: "booking_not_found", message: "Booking not found." };
   if (booking.status !== request.booking_status || !["confirmed", "booked"].includes(booking.status)) {
     return { ok: false, reason: "booking_not_assignable", message: "Only confirmed or booked transfers can receive a driver." };
   }
-
   const existing = await listAssignmentsAdmin(request.booking_id);
   if (existing.some((row) => row.status === "assigned" || row.status === "accepted")) {
     return { ok: false, reason: "already_assigned", message: "Booking already has an active driver assignment." };
   }
-
   const store = await buildStore();
   const eligible = findEligibleDrivers(request, store);
   if (!eligible.length) return { ok: false, reason: "no_eligible_driver", message: "No verified, active driver currently meets the transfer requirements." };
-
   const selected = eligible[0];
   if (getDriverTrustStatus(selected) !== "verified") {
     return { ok: false, reason: "no_eligible_driver", message: "The selected driver is not verified." };
   }
   const vehicle = store.listVehicles(selected.id).find((row) => row.status === "active") ?? null;
-
   try {
     const assignment = await persistAssignmentAdmin({ booking_id: request.booking_id, driver_id: selected.id, vehicle_id: vehicle?.id ?? null, assigned_by: input.actor });
     return { ok: true, assignment_id: assignment.id, driver: selected, vehicle };
@@ -57,6 +46,23 @@ export async function assignPersistedDriverForTransfer(input: {
     console.error("DRIVER FULFILLMENT ASSIGNMENT ERROR", assignmentError);
     return { ok: false, reason: "database_error", message: "Unable to persist driver assignment." };
   }
+}
+
+/** Driver acceptance is server-side only and requires the assigned driver to remain active and verified. */
+export async function acceptPersistedDriverAssignment(assignmentId: string, driverId: string) {
+  const assignments = await listAssignmentsAdmin();
+  const assignment = assignments.find((row) => row.id === assignmentId);
+  if (!assignment) return { ok: false as const, reason: "not_found", message: "Assignment not found." };
+  if (assignment.driver_id !== driverId) return { ok: false as const, reason: "unauthorized", message: "A driver can only accept their own assignment." };
+  if (assignment.status !== "assigned") return { ok: false as const, reason: "conflict", message: "Only an assigned driver can accept this assignment." };
+
+  const drivers = await listDriversAdmin();
+  const driver = drivers.find((row) => row.id === driverId);
+  if (!driver || driver.service_status !== "active") return { ok: false as const, reason: "ineligible", message: "Driver is not active." };
+  if (getDriverTrustStatus(driver) !== "verified") return { ok: false as const, reason: "verification_required", message: "Driver verification must be active before accepting an assignment." };
+
+  const updated = await updateAssignmentAdmin(assignment.id, { status: "accepted" });
+  return { ok: true as const, assignment: updated };
 }
 
 export async function releasePersistedDriverAssignment(bookingId: string) {
