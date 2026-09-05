@@ -17,6 +17,34 @@ function absoluteHttpsUrl(value: unknown): string | null {
   }
 }
 
+async function recordFeedRun(input: {
+  requestedAt: string;
+  durationMs: number;
+  httpStatus: number;
+  recordCount: number;
+  upcomingCount: number;
+  excludedPastCount: number;
+  malformedCount: number;
+  outcome: "success" | "error";
+}) {
+  try {
+    await supabaseAdmin.from("aurelian_feed_runs").insert({
+      provider: "aurelian",
+      requested_at: input.requestedAt,
+      duration_ms: input.durationMs,
+      http_status: input.httpStatus,
+      record_count: input.recordCount,
+      upcoming_count: input.upcomingCount,
+      excluded_past_count: input.excludedPastCount,
+      malformed_count: input.malformedCount,
+      outcome: input.outcome,
+    });
+  } catch (error) {
+    // Telemetry must never make the partner feed fail.
+    console.error("AURELIAN FEED TELEMETRY ERROR:", error);
+  }
+}
+
 async function loadApprovedUpcomingEvents() {
   const now = new Date().toISOString();
   const allEvents: Array<Record<string, unknown>> = [];
@@ -47,6 +75,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const requestedAt = new Date().toISOString();
+  const startedAt = Date.now();
+
   try {
     const events = await loadApprovedUpcomingEvents();
 
@@ -65,16 +96,46 @@ export async function GET(request: Request) {
       };
     });
 
+    const malformedCount = experiences.filter(
+      (experience) =>
+        !experience.id ||
+        typeof experience.title !== "string" ||
+        !String(experience.title).trim(),
+    ).length;
+    const durationMs = Date.now() - startedAt;
+
+    await recordFeedRun({
+      requestedAt,
+      durationMs,
+      httpStatus: 200,
+      recordCount: experiences.length,
+      upcomingCount: experiences.length,
+      excludedPastCount: 0,
+      malformedCount,
+      outcome: "success",
+    });
+
     return NextResponse.json({
       source: "SafariPlug",
       count: experiences.length,
       experiences,
     });
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    await recordFeedRun({
+      requestedAt,
+      durationMs,
+      httpStatus: 500,
+      recordCount: 0,
+      upcomingCount: 0,
+      excludedPastCount: 0,
+      malformedCount: 0,
+      outcome: "error",
+    });
     console.error("AURELIAN EVENTS FEED ERROR:", error);
     return NextResponse.json(
       { error: "Could not load SafariPlug experiences" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
