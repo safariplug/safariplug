@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const STALE_AFTER_MINUTES = 10;
+const LEASE_SECONDS = 12 * 60;
 
 export async function recoverStaleScoutRuns() {
   const cutoff = new Date(Date.now() - STALE_AFTER_MINUTES * 60 * 1000).toISOString();
@@ -45,4 +46,28 @@ export async function hasActiveScoutRun() {
   }
 
   return data;
+}
+
+export async function acquireScoutLease(owner: string) {
+  const { data, error } = await supabaseAdmin.rpc("try_acquire_ai_scout_lease", {
+    p_owner: owner,
+    p_lease_seconds: LEASE_SECONDS,
+  });
+
+  if (error) {
+    console.error("SCOUT LEASE ACQUIRE ERROR:", error);
+    throw new Error("Could not acquire AI Scout execution lock");
+  }
+
+  return data === true;
+}
+
+export async function releaseScoutLease(owner: string) {
+  const { error } = await supabaseAdmin.rpc("release_ai_scout_lease", {
+    p_owner: owner,
+  });
+
+  if (error) {
+    console.error("SCOUT LEASE RELEASE ERROR:", error);
+  }
 }
