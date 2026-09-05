@@ -20,85 +20,29 @@ Rules:
 - Current date is ${new Date().toISOString().slice(0,10)}.`;
 
 const tools = [
-  {
-    type: "function" as const,
-    name: "search_services",
-    description: "Search active SafariPlug service businesses and offerings using real marketplace data. Use for salons, barbers, spas, wellness, fitness and other appointment services.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Service or business keywords, e.g. barber, manicure, massage" },
-        city: { type: "string", description: "City or locality if known" },
-        maxPrice: { type: ["number", "null"], description: "Maximum price in the marketplace currency if specified" }
-      },
-      required: ["query", "city", "maxPrice"],
-      additionalProperties: false
-    },
-    strict: true
-  },
-  {
-    type: "function" as const,
-    name: "check_availability",
-    description: "Check real open appointment slots for one SafariPlug service offering on a specific local date. Never claim a slot is available without this tool.",
-    parameters: {
-      type: "object",
-      properties: {
-        serviceProfileId: { type: "string" },
-        offeringId: { type: "string" },
-        date: { type: "string", description: "Local date YYYY-MM-DD" },
-        staffId: { type: ["string", "null"], description: "Preferred staff id, or null for any qualified specialist" }
-      },
-      required: ["serviceProfileId", "offeringId", "date", "staffId"],
-      additionalProperties: false
-    },
-    strict: true
-  },
-  {
-    type: "function" as const,
-    name: "book_appointment",
-    description: "Create a real SafariPlug appointment. Only use after the client has explicitly authorized booking a specific option. The slot is rechecked atomically by the booking backend.",
-    parameters: {
-      type: "object",
-      properties: {
-        serviceProfileId: { type: "string" },
-        offeringId: { type: "string" },
-        staffId: { type: "string" },
-        startsAt: { type: "string", description: "Exact ISO timestamp returned by availability" },
-        customerName: { type: "string" },
-        customerEmail: { type: ["string", "null"] },
-        customerPhone: { type: ["string", "null"] },
-        customerNotes: { type: ["string", "null"] },
-        confirmed: { type: "boolean", description: "Must be true only when the client explicitly authorized this booking" }
-      },
-      required: ["serviceProfileId", "offeringId", "staffId", "startsAt", "customerName", "customerEmail", "customerPhone", "customerNotes", "confirmed"],
-      additionalProperties: false
-    },
-    strict: true
-  }
+  { type: "function" as const, name: "search_services", description: "Search active SafariPlug service businesses and offerings using real marketplace data. Use for salons, barbers, spas, wellness, fitness and other appointment services.", parameters: { type: "object", properties: { query: { type: "string", description: "Service or business keywords" }, city: { type: "string", description: "City or locality if known" }, maxPrice: { type: ["number", "null"], description: "Maximum price if specified" } }, required: ["query", "city", "maxPrice"], additionalProperties: false }, strict: true },
+  { type: "function" as const, name: "check_availability", description: "Check real open appointment slots for one SafariPlug service offering on a specific local date. Never claim a slot is available without this tool.", parameters: { type: "object", properties: { serviceProfileId: { type: "string" }, offeringId: { type: "string" }, date: { type: "string", description: "Local date YYYY-MM-DD" }, staffId: { type: ["string", "null"], description: "Preferred staff id, or null" } }, required: ["serviceProfileId", "offeringId", "date", "staffId"], additionalProperties: false }, strict: true },
+  { type: "function" as const, name: "book_appointment", description: "Create a real SafariPlug appointment. Only use after the client has explicitly authorized booking a specific option. The slot is rechecked by the booking backend.", parameters: { type: "object", properties: { serviceProfileId: { type: "string" }, offeringId: { type: "string" }, staffId: { type: "string" }, startsAt: { type: "string" }, customerName: { type: "string" }, customerEmail: { type: ["string", "null"] }, customerPhone: { type: ["string", "null"] }, customerNotes: { type: ["string", "null"] }, confirmed: { type: "boolean" } }, required: ["serviceProfileId", "offeringId", "staffId", "startsAt", "customerName", "customerEmail", "customerPhone", "customerNotes", "confirmed"], additionalProperties: false }, strict: true }
 ];
 
 async function runTool(name: string, args: Record<string, unknown>) {
   if (name === "search_services") {
-    const query = String(args.query || "").trim();
+    const query = String(args.query || "").trim().toLowerCase();
     const city = String(args.city || "").trim();
     const maxPrice = typeof args.maxPrice === "number" ? args.maxPrice : null;
-    let q = supabaseAdmin
-      .from("service_profiles")
-      .select("id,timezone,booking_status,businesses!inner(id,name,slug,city_id,address,latitude,longitude,phone,whatsapp,website_url,logo_url,cover_image_url,verified,claimed,status),service_categories(name),service_offerings!inner(id,name,description,duration_minutes,price,currency,status)")
-      .eq("status", "active")
-      .eq("booking_status", "open")
-      .eq("service_offerings.status", "active")
-      .limit(80);
-    const { data, error } = await q;
+    let cityIds: string[] | null = null;
+    if (city) {
+      const { data: cities } = await supabaseAdmin.from("cities").select("id,name").ilike("name", `%${city}%`).limit(10);
+      cityIds = (cities ?? []).map((c: any) => c.id);
+      if (!cityIds.length) return [];
+    }
+    const { data, error } = await supabaseAdmin.from("service_profiles").select("id,timezone,booking_status,businesses!inner(id,name,slug,city_id,address,latitude,longitude,phone,whatsapp,website_url,logo_url,cover_image_url,verified,claimed,status),service_categories(name),service_offerings!inner(id,name,description,duration_minutes,price,currency,status)").eq("status", "active").eq("booking_status", "open").eq("service_offerings.status", "active").limit(100);
     if (error) throw error;
-    const needle = query.toLowerCase();
-    const cityNeedle = city.toLowerCase();
     const rows = (data ?? []).flatMap((p: any) => {
-      const b = p.businesses;
-      const category = p.service_categories?.name ?? "Service";
+      const b = p.businesses; const category = p.service_categories?.name ?? "Service";
       const offerings = Array.isArray(p.service_offerings) ? p.service_offerings : [p.service_offerings];
-      return offerings.map((o: any) => ({ profileId: p.id, offeringId: o.id, provider: b?.name, slug: b?.slug, address: b?.address, cityId: b?.city_id, category, verified: !!b?.verified, claimed: !!b?.claimed, timezone: p.timezone, service: o.name, description: o.description, durationMinutes: o.duration_minutes, price: Number(o.price), currency: o.currency }))
-        .filter((x: any) => (!needle || `${x.provider} ${x.category} ${x.service} ${x.description ?? ""}`.toLowerCase().includes(needle)) && (!cityNeedle || `${x.address ?? ""} ${x.cityId ?? ""}`.toLowerCase().includes(cityNeedle)) && (maxPrice === null || x.price <= maxPrice));
+      return offerings.map((o: any) => ({ profileId: p.id, offeringId: o.id, provider: b?.name, slug: b?.slug, address: b?.address, cityId: b?.city_id, category, verified: !!b?.verified, claimed: !!b?.claimed, timezone: p.timezone, service: o.name, description: o.description, durationMinutes: Number(o.duration_minutes), price: Number(o.price), currency: o.currency }))
+        .filter((x: any) => (!cityIds || cityIds.includes(x.cityId)) && (!query || `${x.provider} ${x.category} ${x.service} ${x.description ?? ""}`.toLowerCase().includes(query)) && (maxPrice === null || x.price <= maxPrice));
     });
     return rows.slice(0, 20);
   }
@@ -139,7 +83,8 @@ export async function POST(request: Request) {
       if (!calls.length) { finalText = response.output_text; break; }
       input.push(...response.output as any);
       for (const call of calls) {
-        const args = JSON.parse(call.arguments || "{}");
+        let args: Record<string, unknown>;
+        try { args = JSON.parse(call.arguments || "{}"); } catch { args = {}; }
         const result = await runTool(call.name, args);
         input.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
       }
