@@ -8,21 +8,24 @@ export async function POST(request: Request) {
   if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+
   const body = await request.json().catch(() => ({}));
   const eventId = typeof body.eventId === "string" ? body.eventId : "";
   if (!eventId) return NextResponse.json({ error: "eventId is required." }, { status: 400 });
 
-  const { data: event } = await supabaseAdmin
+  const { data: event, error: eventError } = await supabaseAdmin
     .from("events")
     .select("id,title,city_id,start_at,end_at,status")
     .eq("id", eventId)
     .eq("status", "approved")
     .maybeSingle();
+
+  if (eventError) return NextResponse.json({ error: eventError.message }, { status: 500 });
   if (!event) return NextResponse.json({ error: "Event not found." }, { status: 404 });
 
   const { data: existing } = await supabaseAdmin
     .from("trips")
-    .select("id,title")
+    .select("id,title,destination_city_id,start_on,end_on,status")
     .eq("traveler_id", user.id)
     .eq("status", "draft")
     .order("created_at", { ascending: false })
@@ -30,25 +33,45 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   let trip = existing;
+
   if (!trip) {
     const { data: created, error } = await supabaseAdmin
       .from("trips")
-      .insert({ traveler_id: user.id, title: "My SafariPlug Journey", destination_city_id: event.city_id, start_on: event.start_at?.slice(0, 10), status: "draft" })
-      .select("id,title")
+      .insert({
+        traveler_id: user.id,
+        title: "My SafariPlug Journey",
+        destination_city_id: event.city_id,
+        start_on: event.start_at?.slice(0, 10),
+        status: "draft",
+      })
+      .select("id,title,destination_city_id,start_on,end_on,status")
       .single();
+
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     trip = created;
   }
 
-  const { data: duplicate } = await supabaseAdmin
+  const { data: duplicate, error: duplicateError } = await supabaseAdmin
     .from("trip_items")
     .select("id")
     .eq("trip_id", trip.id)
     .eq("event_id", event.id)
     .maybeSingle();
-  if (!duplicate) {
-    const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", trip.id);
-    const { error } = await supabaseAdmin.from("trip_items").insert({
+
+  if (duplicateError) return NextResponse.json({ error: duplicateError.message }, { status: 500 });
+
+  if (duplicate) {
+    return NextResponse.json({ trip, added: false, itemId: duplicate.id });
+  }
+
+  const { count } = await supabaseAdmin
+    .from("trip_items")
+    .select("id", { count: "exact", head: true })
+    .eq("trip_id", trip.id);
+
+  const { data: item, error: itemError } = await supabaseAdmin
+    .from("trip_items")
+    .insert({
       trip_id: trip.id,
       event_id: event.id,
       item_kind: "event",
@@ -57,9 +80,11 @@ export async function POST(request: Request) {
       city_id: event.city_id,
       start_at: event.start_at,
       end_at: event.end_at,
-    });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    })
+    .select("id")
+    .single();
 
-  return NextResponse.json({ trip, added: !duplicate });
+  if (itemError) return NextResponse.json({ error: itemError.message }, { status: 500 });
+
+  return NextResponse.json({ trip, added: true, itemId: item.id }, { status: 201 });
 }
