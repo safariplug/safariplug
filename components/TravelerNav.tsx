@@ -7,6 +7,8 @@ const links = [
   { href: "/events", label: "Discover" },
   { href: "/concierge", label: "AI Concierge" },
   { href: "/account/trips", label: "My Trips" },
+  { href: "/account/appointments", label: "My Bookings" },
+  { href: "/account", label: "Account" },
 ];
 
 export default function TravelerNav() {
