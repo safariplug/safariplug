@@ -111,6 +111,7 @@ export default function PartnerEventsPage() {
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {event.status === "approved" && <Link href={`/events/${event.id}`} className="rounded-xl border px-5 py-3 font-bold">View Listing</Link>}
+                    {event.status === "rejected" && <Link href={`/partner/events/edit/${event.id}`} className="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white">Fix & Resubmit</Link>}
                   </div>
                 </div>
               </article>
