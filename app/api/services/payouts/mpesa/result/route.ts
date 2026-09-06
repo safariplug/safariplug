@@ -14,16 +14,18 @@ export async function POST(request: Request) {
     const { data: payout } = await supabaseAdmin
       .from("service_provider_payouts")
       .select("id,status")
-      .eq("payout_reference", conversationId)
+      .or(`mpesa_conversation_id.eq.${conversationId},payout_reference.eq.${conversationId}`)
       .maybeSingle();
 
     if (!payout) return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
-    if (["paid", "failed"].includes(payout.status)) return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    if (["paid", "failed", "cancelled"].includes(payout.status)) return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
 
+    const metadata = Array.isArray(result?.ResultParameters?.ResultParameter) ? result.ResultParameters.ResultParameter : [];
+    const valueFor = (key: string) => metadata.find((item: { Key?: string }) => item.Key === key)?.Value;
+    const receipt = valueFor("TransactionReceipt");
+    const transactionId = valueFor("TransactionID") || receipt;
     const status = resultCode === 0 ? "paid" : "failed";
     const failureReason = resultCode === 0 ? null : String(result?.ResultDesc || "M-Pesa B2C payout failed");
-    const metadata = Array.isArray(result?.ResultParameters?.ResultParameter) ? result.ResultParameters.ResultParameter : [];
-    const receipt = metadata.find((item: { Key?: string }) => item.Key === "TransactionReceipt")?.Value;
 
     const { error } = await supabaseAdmin
       .from("service_provider_payouts")
@@ -31,11 +33,16 @@ export async function POST(request: Request) {
         status,
         paid_at: status === "paid" ? new Date().toISOString() : null,
         failure_reason: failureReason,
+        mpesa_conversation_id: conversationId,
+        mpesa_transaction_id: transactionId ? String(transactionId) : null,
+        mpesa_result_code: resultCode,
+        mpesa_result_description: String(result?.ResultDesc || ""),
         metadata: { conversationId, resultCode, result: body, transactionReceipt: receipt ?? null },
         payout_reference: receipt ? String(receipt) : conversationId,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", payout.id);
+      .eq("id", payout.id)
+      .in("status", ["processing", "approved"]);
 
     if (error) throw error;
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
