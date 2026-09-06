@@ -34,8 +34,8 @@ export default function TripPlanTools({ tripId }: { tripId: string }) {
   return (
     <div className="mt-8 border-t border-zinc-800 pt-6">
       <div className="flex flex-wrap gap-3">
-        <Link href="/events" className="rounded-full bg-amber-500 px-5 py-3 text-sm font-black text-black hover:bg-amber-400">＋ Add experiences</Link>
-        <Link href="/account/saved" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-white hover:border-amber-500/50 hover:text-amber-300">Browse saved</Link>
+        <Link href={`/events?tripId=${encodeURIComponent(tripId)}`} className="rounded-full bg-amber-500 px-5 py-3 text-sm font-black text-black hover:bg-amber-400">＋ Add experiences</Link>
+        <Link href={`/account/saved?tripId=${encodeURIComponent(tripId)}`} className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-white hover:border-amber-500/50 hover:text-amber-300">Browse saved</Link>
       </div>
       <form onSubmit={renameTrip} className="mt-6 flex flex-col gap-2 sm:flex-row">
         <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Rename this journey" aria-label="New journey name" className="min-w-0 flex-1 rounded-full border border-zinc-800 bg-black px-5 py-3 text-sm text-white outline-none focus:border-amber-500" />
