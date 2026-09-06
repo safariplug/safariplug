@@ -3,27 +3,27 @@
 import { useState } from "react";
 import Link from "next/link";
 
-export default function SavedExperienceActions({ eventId, savedId }: { eventId: string; savedId: string }) {
+export default function SavedExperienceActions({ eventId, savedId, selectedTripId }: { eventId: string; savedId: string; selectedTripId?: string }) {
   const [state, setState] = useState<"idle" | "adding" | "added" | "removing" | "removed" | "error">("idle");
-  const [tripId, setTripId] = useState<string | null>(null);
+  const [tripId, setTripId] = useState<string | null>(selectedTripId || null);
   const [message, setMessage] = useState("");
 
   async function addToTrip() {
     setState("adding");
     setMessage("");
     try {
-      const response = await fetch("/api/trips/from-event", {
+      const response = await fetch(selectedTripId ? "/api/trips/items" : "/api/trips/from-event", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ eventId }),
+        body: JSON.stringify(selectedTripId ? { tripId: selectedTripId, eventId } : { eventId }),
       });
       const body = await response.json().catch(() => ({}));
       if (response.status === 401) {
-        window.location.href = `/login?next=${encodeURIComponent("/account/saved")}`;
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
         return;
       }
       if (!response.ok) throw new Error(body.error || "Could not add this experience.");
-      setTripId(body.trip?.id || null);
+      setTripId(body.trip?.id || selectedTripId || null);
       setMessage(body.added === false ? "Already in your journey" : "Added to your journey");
       setState("added");
     } catch (error) {
@@ -63,7 +63,7 @@ export default function SavedExperienceActions({ eventId, savedId }: { eventId: 
         </div>
       ) : (
         <button type="button" onClick={addToTrip} disabled={state === "adding" || state === "removing"} className="rounded-full bg-[#e7c98d] px-4 py-2 text-xs font-black text-black disabled:cursor-wait disabled:opacity-60">
-          {state === "adding" ? "Adding…" : "＋ Add to My Trip"}
+          {state === "adding" ? "Adding…" : selectedTripId ? "＋ Add to This Trip" : "＋ Add to My Trip"}
         </button>
       )}
       <button type="button" onClick={removeSaved} disabled={state === "adding" || state === "removing"} className="rounded-full border border-white/10 px-4 py-2 text-xs font-bold text-zinc-400 hover:border-red-400/30 hover:text-red-300 disabled:opacity-60">
