@@ -51,6 +51,8 @@ function driver(overrides: Partial<DriverProfile> = {}): DriverProfile {
     service_area: { city: "Nairobi", airport_code: "NBO", country: "KE" },
     source: "test",
     external_id: null,
+    driving_license_expires_on: "2027-10-01",
+    driving_license_compliance_status: "valid",
     ...overrides,
   };
 }
@@ -66,6 +68,10 @@ function vehicle(overrides: Partial<Vehicle> = {}): Vehicle {
     luggage_capacity: 3,
     accessibility: false,
     status: "active",
+    registration_expires_on: "2027-10-01",
+    registration_compliance_status: "valid",
+    insurance_expires_on: "2027-10-01",
+    insurance_compliance_status: "valid",
     ...overrides,
   };
 }
@@ -327,7 +333,17 @@ test("empty marketplace never auto-assigns", () => {
 });
 
 test("vehicle without license or verification claims", () => {
-  const row = vehicle();
+  const row: Vehicle = {
+    id: "veh_test",
+    provider_id: null,
+    driver_id: "drv_ok",
+    category: "sedan",
+    make_model: null,
+    passenger_capacity: 3,
+    luggage_capacity: 3,
+    accessibility: false,
+    status: "active",
+  };
   assert.equal("license" in row, false);
   assert.equal("registration" in row, false);
   assert.equal("verified" in row, false);
