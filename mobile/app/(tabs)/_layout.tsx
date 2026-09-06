@@ -21,47 +21,17 @@ export default function TabsLayout() {
           height: 64,
           paddingTop: 8,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "700", paddingBottom: 8 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", paddingBottom: 8 },
         tabBarActiveTintColor: colors.goldSoft,
         tabBarInactiveTintColor: colors.textMuted,
-        sceneStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Discover",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="◆" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: "Explore",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="◎" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="trips"
-        options={{
-          title: "Trips",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="▤" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="saved"
-        options={{
-          title: "Saved",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="◇" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="you"
-        options={{
-          title: "You",
-          tabBarIcon: ({ focused }) => <TabIcon glyph="●" focused={focused} />,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Discover", tabBarIcon: ({ focused }) => <TabIcon glyph="◆" focused={focused} /> }} />
+      <Tabs.Screen name="explore" options={{ title: "Explore", tabBarIcon: ({ focused }) => <TabIcon glyph="◎" focused={focused} /> }} />
+      <Tabs.Screen name="concierge" options={{ title: "Concierge", tabBarIcon: ({ focused }) => <TabIcon glyph="✦" focused={focused} /> }} />
+      <Tabs.Screen name="trips" options={{ title: "Trips", tabBarIcon: ({ focused }) => <TabIcon glyph="▤" focused={focused} /> }} />
+      <Tabs.Screen name="saved" options={{ title: "Saved", tabBarIcon: ({ focused }) => <TabIcon glyph="◇" focused={focused} /> }} />
+      <Tabs.Screen name="you" options={{ title: "You", tabBarIcon: ({ focused }) => <TabIcon glyph="●" focused={focused} /> }} />
     </Tabs>
   );
 }
