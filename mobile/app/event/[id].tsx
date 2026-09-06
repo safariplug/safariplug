@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { fetchEvent } from "../../src/api/catalog";
 import { ApiError } from "../../src/api/client";
@@ -34,20 +26,14 @@ export default function EventDetailScreen() {
     setLoading(true);
     setError(null);
     fetchEvent(id)
-      .then((row) => {
-        if (!cancelled) setEvent(row);
-      })
+      .then((row) => { if (!cancelled) setEvent(row); })
       .catch((err) => {
         if (cancelled) return;
         setEvent(null);
         setError(err instanceof ApiError ? err.message : "Event is not available.");
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [id]);
 
   async function addToJourney() {
@@ -75,10 +61,9 @@ export default function EventDetailScreen() {
         return;
       }
       if (!response.ok) throw new Error(body.error || "Could not add this experience.");
-      const tripId = body.trip?.id;
       setMessage(body.added === false ? "Already in your journey." : "Added to your journey.");
-      if (tripId) {
-        setTimeout(() => router.push(`/journey/${tripId}`), 350);
+      if (body.trip?.id) {
+        setTimeout(() => router.replace("/(tabs)/trips"), 350);
       }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not add this experience.");
@@ -89,20 +74,10 @@ export default function EventDetailScreen() {
 
   if (loading) return <LoadingBlock />;
   if (error || !event) {
-    return (
-      <ErrorBlock
-        message={error || "Event is not available."}
-        onRetry={() => {
-          setLoading(true);
-          fetchEvent(id)
-            .then(setEvent)
-            .catch((err) =>
-              setError(err instanceof ApiError ? err.message : "Event is not available.")
-            )
-            .finally(() => setLoading(false));
-        }}
-      />
-    );
+    return <ErrorBlock message={error || "Event is not available."} onRetry={() => {
+      setLoading(true);
+      fetchEvent(id).then(setEvent).catch((err) => setError(err instanceof ApiError ? err.message : "Event is not available.")).finally(() => setLoading(false));
+    }} />;
   }
 
   const when = formatEventWhen(event.start_at, event.end_at);
@@ -120,17 +95,11 @@ export default function EventDetailScreen() {
       {event.venue_address ? <Text style={styles.meta}>{event.venue_address}</Text> : null}
       {event.organizer_name ? <Text style={styles.meta}>Organizer · {event.organizer_name}</Text> : null}
       {event.description ? <Text style={styles.body}>{event.description}</Text> : <EmptyBlock title="No description" body="This listing has no description yet." />}
-
       <Pressable style={styles.primary} onPress={() => void addToJourney()} disabled={saving} accessibilityRole="button">
         {saving ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.primaryLabel}>＋ Add to My Journey</Text>}
       </Pressable>
       {message ? <Text style={styles.message}>{message}</Text> : null}
-
-      {bookingUrl ? (
-        <Pressable style={styles.cta} onPress={() => void Linking.openURL(bookingUrl)} accessibilityRole="link">
-          <Text style={styles.ctaLabel}>Open booking source</Text>
-        </Pressable>
-      ) : null}
+      {bookingUrl ? <Pressable style={styles.cta} onPress={() => void Linking.openURL(bookingUrl)} accessibilityRole="link"><Text style={styles.ctaLabel}>Open booking source</Text></Pressable> : null}
     </ScrollView>
   );
 }
