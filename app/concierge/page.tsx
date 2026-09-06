@@ -3,11 +3,12 @@ import TravelerNav from "@/components/TravelerNav";
 
 export const dynamic = "force-dynamic";
 
-export default function ConciergePage() {
+export default async function ConciergePage({ searchParams }: { searchParams: Promise<{ tripId?: string }> }) {
+  const params = await searchParams;
   return (
     <>
       <TravelerNav />
-      <Concierge />
+      <Concierge tripId={params.tripId} />
     </>
   );
 }
