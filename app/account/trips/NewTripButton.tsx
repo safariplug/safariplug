@@ -58,7 +58,7 @@ export default function NewTripButton({ empty = false, cities = [] }: { empty?: 
 
             <label className="mt-7 block text-sm font-semibold text-zinc-300">
               Trip name
-n              <input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="My Kenya getaway" className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none focus:border-amber-400" />
+              <input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="My Kenya getaway" className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none focus:border-amber-400" />
             </label>
 
             <label className="mt-5 block text-sm font-semibold text-zinc-300">
