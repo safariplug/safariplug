@@ -43,14 +43,14 @@ const passFunction = `async function runDiscoveryPass(
   }
 }`;
 
-const functionPattern = /async function runDiscoveryPass[\\s\\S]*?\\nfunction dedupeCandidates/;
+const functionPattern = /async function runDiscoveryPass[\s\S]*?\nfunction dedupeCandidates/;
 if (!functionPattern.test(source)) {
   throw new Error("Could not locate runDiscoveryPass block");
 }
 
 let next = source.replace(functionPattern, `${passFunction}\nfunction dedupeCandidates`);
 
-const resultsPattern = /const passResults = await Promise\.all\(passes\.map\(\(pass\) => runDiscoveryPass\(openai, location, category, pass\)\)\);[\\s\\S]*?const candidateEvents = dedupeCandidates\(passResults\.flat\(\)\);/;
+const resultsPattern = /const passResults = await Promise\.all\(passes\.map\(\(pass\) => runDiscoveryPass\(openai, location, category, pass\)\)\);[\s\S]*?const candidateEvents = dedupeCandidates\(passResults\.flat\(\)\);/;
 const resultsReplacement = `const passResults = await Promise.all(
       passes.map((pass) => runDiscoveryPass(openai, location, category, pass))
     );
