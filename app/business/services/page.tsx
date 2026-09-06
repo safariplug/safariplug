@@ -4,7 +4,6 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import ProviderWorkspace from "./ProviderWorkspace";
 import ServiceProviderTerms from "./ServiceProviderTerms";
-import ServiceQuickAdd from "./ServiceQuickAdd";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +29,7 @@ export default async function BusinessServicesDashboard() {
       const [{ data:o }, { data:s }, { data:a }] = await Promise.all([
         supabaseAdmin.from("service_offerings").select("id,name,description,duration_minutes,price,currency,status,requires_confirmation").eq("service_profile_id",profile.id).order("created_at",{ascending:true}),
         supabaseAdmin.from("service_staff").select("id,display_name,bio,status").eq("service_profile_id",profile.id).order("created_at",{ascending:true}),
-        supabaseAdmin.from("service_appointments").select("id,public_id,customer_name,starts_at,ends_at,status,price,currency,service_offerings(name),service_staff(display_name)").eq("service_profile_id",profile.id).order("starts_at",{ascending:true}).limit(50)
+        supabaseAdmin.from("service_appointments").select("id,public_id,customer_name,starts_at,ends_at,status,price,currency,payment_status,payment_reference,paid_at,service_offerings(name),service_staff(display_name)").eq("service_profile_id",profile.id).order("starts_at",{ascending:true}).limit(50)
       ]);
       offerings=o??[]; staff=s??[]; appointments=a??[];
     }
@@ -40,7 +39,6 @@ export default async function BusinessServicesDashboard() {
     <header className="border-b border-black/8 bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:px-10"><div><Link href="/" className="text-sm font-semibold tracking-tight">SafariPlug</Link><p className="mt-1 text-[10px] font-semibold uppercase tracking-[.25em] text-black/35">Partner workspace</p></div><div className="flex items-center gap-3">{business&&<span className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${business.verified?"bg-emerald-50 text-emerald-700":"bg-amber-50 text-amber-700"}`}>{business.verified?"Verified business":"Verification pending"}</span>}{business&&<Link href={`/services/${business.slug}`} className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">View storefront ↗</Link>}</div></div></header>
     <section className="mx-auto max-w-7xl space-y-6 px-6 py-10 sm:px-10">
       {business&&profile&&<ServiceProviderTerms businessId={business.id} profileId={profile.id} acceptedAt={profile.provider_terms_accepted_at} feePercent={Number(profile.service_fee_percent||10)} />}
-      {business&&profile&&<ServiceQuickAdd serviceProfileId={profile.id} categorySlug={category?.slug} existingNames={offerings.map(o=>o.name)} />}
       <ProviderWorkspace business={business} profile={profile} category={category} categories={categories??[]} offerings={offerings} staff={staff} appointments={appointments}/>
     </section>
   </main>;
