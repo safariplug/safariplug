@@ -20,11 +20,14 @@ async function sumsubRequest(path: string, method: "GET" | "POST", body?: unknow
   return data as Record<string, unknown>;
 }
 
-export async function createSumsubWebSdkLink(input: { userId: string; email?: string | null; phone?: string | null; redirectUrl?: string }) {
-  const body: Record<string, unknown> = { levelName: LEVEL, userId: input.userId, ttlInSecs: 1800, applicantIdentifiers: { ...(input.email ? { email: input.email } : {}), ...(input.phone ? { phone: input.phone } : {}) } };
-  if (input.redirectUrl) body.redirect = { successUrl: input.redirectUrl, failUrl: input.redirectUrl };
-  const data = await sumsubRequest("/resources/sdkIntegrations/levels/-/websdkLink?lang=en&source=websdk", "POST", body);
-  return { link: typeof data.url === "string" ? data.url : null, token: typeof data.token === "string" ? data.token : null };
+export async function createSumsubAccessToken(input: { userId: string; email?: string | null; phone?: string | null }) {
+  const data = await sumsubRequest("/resources/accessTokens/sdk", "POST", {
+    levelName: LEVEL,
+    userId: input.userId,
+    ttlInSecs: 600,
+    applicantIdentifiers: { ...(input.email ? { email: input.email } : {}), ...(input.phone ? { phone: input.phone } : {}) },
+  });
+  return { token: typeof data.token === "string" ? data.token : null, userId: typeof data.userId === "string" ? data.userId : input.userId };
 }
 
 export class SumsubVerificationAdapter implements VerificationAdapter {
