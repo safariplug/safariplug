@@ -6,7 +6,9 @@ type Staff = { id: string; display_name: string; bio?: string | null };
 type Offering = { id: string; name: string; description?: string | null; duration_minutes: number; price: number; currency: string };
 type Slot = { staffId: string; staffName: string; startsAt: string; endsAt: string; label: string };
 
-export default function BookingForm({ profileId, offerings, staff, timezone = "Africa/Nairobi" }: { profileId: string; offerings: Offering[]; staff: Staff[]; timezone?: string }) {
+type BookingFormProps = { profileId: string; offerings: Offering[]; staff: Staff[]; timezone?: string };
+
+export default function BookingForm({ profileId, offerings, staff, timezone = "Africa/Nairobi" }: BookingFormProps) {
   const [offeringId, setOfferingId] = useState(offerings[0]?.id ?? "");
   const offering = useMemo(() => offerings.find(x => x.id === offeringId) ?? offerings[0], [offerings, offeringId]);
   const [date, setDate] = useState("");
@@ -17,6 +19,7 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
+  const [customerLinked, setCustomerLinked] = useState(false);
 
   const minimumDate = useMemo(() => {
     const d = new Date(); d.setDate(d.getDate() + 1);
@@ -24,7 +27,7 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
   }, []);
 
   useEffect(() => {
-    setSlot(null); setStaffId(""); setSlots([]); setMessage("");
+    setSlot(null); setStaffId(""); setSlots([]); setMessage(""); setCustomerLinked(false);
     if (!offering || !date) return;
     let cancelled = false;
     setLoadingSlots(true);
@@ -41,13 +44,13 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!offering || !slot) { setMessage("Choose an available time first."); return; }
-    setBusy(true); setMessage(""); setSuccess(false);
+    setBusy(true); setMessage(""); setSuccess(false); setCustomerLinked(false);
     const f = new FormData(e.currentTarget);
     try {
       const r = await fetch("/api/services/appointments", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({ serviceProfileId:profileId, offeringId:offering.id, staffId:slot.staffId, customerName:f.get("name"), customerEmail:f.get("email"), customerPhone:f.get("phone"), startsAt:slot.startsAt, customerNotes:f.get("notes") }) });
       const j=await r.json();
       if(!r.ok) throw new Error(j.error ?? "That time is no longer available. Please choose another slot.");
-      setSuccess(true); setMessage(`Appointment ${j.appointment.public_id} ${j.appointment.status === "pending" ? "requested" : "confirmed"}.`); e.currentTarget.reset(); setSlot(null); setDate(""); setStaffId(""); setSlots([]);
+      setSuccess(true); setCustomerLinked(Boolean(j.customerLinked)); setMessage(`Appointment ${j.appointment.public_id} ${j.appointment.status === "pending" ? "requested" : "confirmed"}.`); e.currentTarget.reset(); setSlot(null); setDate(""); setStaffId(""); setSlots([]);
     } catch(err) { setMessage(err instanceof Error ? err.message : "Unable to complete your booking."); }
     finally { setBusy(false); }
   }
@@ -70,7 +73,7 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
     </div>
     {offering && <div className="mt-5 flex items-center justify-between rounded-xl bg-black/[.03] px-4 py-3 text-sm"><span>{offering.name} · {offering.duration_minutes} min</span><strong>{offering.currency} {Number(offering.price).toLocaleString()}</strong></div>}
     <button disabled={busy || !slot} className="mt-5 w-full rounded-xl bg-black px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Securing your appointment…" : slot ? "Confirm appointment" : "Choose a time"}</button>
-    {message && <p className={`mt-3 rounded-xl px-4 py-3 text-sm ${success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>{message}</p>}
+    {message && <div className={`mt-3 rounded-xl px-4 py-3 text-sm ${success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}><p>{message}</p>{success && customerLinked && <a href="/account/appointments" className="mt-2 inline-block font-semibold underline underline-offset-2">View My Bookings →</a>}</div>}
     <p className="mt-4 text-center text-[11px] leading-5 text-black/40">Availability is checked again when you confirm, so another customer cannot take the same slot unnoticed.</p>
   </form>;
 }
