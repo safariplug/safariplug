@@ -3,7 +3,14 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
+function authorized(request: Request) {
+  const secret = process.env.MPESA_B2C_CALLBACK_SECRET?.trim();
+  if (!secret) return false;
+  return new URL(request.url).searchParams.get("token") === secret;
+}
+
 export async function POST(request: Request) {
+  if (!authorized(request)) return NextResponse.json({ ResultCode: 1, ResultDesc: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json();
     const result = body?.Result;
@@ -27,22 +34,18 @@ export async function POST(request: Request) {
     const status = resultCode === 0 ? "paid" : "failed";
     const failureReason = resultCode === 0 ? null : String(result?.ResultDesc || "M-Pesa B2C payout failed");
 
-    const { error } = await supabaseAdmin
-      .from("service_provider_payouts")
-      .update({
-        status,
-        paid_at: status === "paid" ? new Date().toISOString() : null,
-        failure_reason: failureReason,
-        mpesa_conversation_id: conversationId,
-        mpesa_transaction_id: transactionId ? String(transactionId) : null,
-        mpesa_result_code: resultCode,
-        mpesa_result_description: String(result?.ResultDesc || ""),
-        metadata: { conversationId, resultCode, result: body, transactionReceipt: receipt ?? null },
-        payout_reference: receipt ? String(receipt) : conversationId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", payout.id)
-      .in("status", ["processing", "approved"]);
+    const { error } = await supabaseAdmin.from("service_provider_payouts").update({
+      status,
+      paid_at: status === "paid" ? new Date().toISOString() : null,
+      failure_reason: failureReason,
+      mpesa_conversation_id: conversationId,
+      mpesa_transaction_id: transactionId ? String(transactionId) : null,
+      mpesa_result_code: resultCode,
+      mpesa_result_description: String(result?.ResultDesc || ""),
+      metadata: { conversationId, resultCode, result: body, transactionReceipt: receipt ?? null },
+      payout_reference: receipt ? String(receipt) : conversationId,
+      updated_at: new Date().toISOString(),
+    }).eq("id", payout.id).in("status", ["processing", "approved"]);
 
     if (error) throw error;
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
