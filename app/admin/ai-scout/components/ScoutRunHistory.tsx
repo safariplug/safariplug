@@ -5,7 +5,7 @@ type ScoutRun = {
   location: string;
   category: string;
   status: string;
-  discoveries_found: number;
+  events_found: number;
   sources_checked: number;
   sent_for_review: number;
   created_at: string;
@@ -62,8 +62,8 @@ export default function ScoutRunHistory({
             <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
 
               <p>
-                Discoveries:
-                <strong> {run.discoveries_found}</strong>
+                Events found:
+                <strong> {run.events_found}</strong>
               </p>
 
               <p>
