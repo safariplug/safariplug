@@ -23,14 +23,23 @@ const experiences = [
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const now = new Date().toISOString();
+
   const [{ data: events }, { data: articles }] = await Promise.all([
-    supabase.from("events").select("id").eq("status", "approved"),
-    supabaseAdmin.from("journal_articles").select("slug, updated_at, published_at").eq("status", "published"),
+    supabase
+      .from("events")
+      .select("id, start_at, end_at, updated_at")
+      .eq("status", "approved")
+      .or(`end_at.gte.${now},and(end_at.is.null,start_at.gte.${now})`),
+    supabaseAdmin
+      .from("journal_articles")
+      .select("slug, updated_at, published_at")
+      .eq("status", "published"),
   ]);
 
   const eventUrls = (events || []).map((event) => ({
     url: `${BASE_URL}/events/${event.id}`,
-    lastModified: new Date(),
+    lastModified: new Date(event.updated_at || event.start_at || now),
   }));
 
   const cityUrls = cities.map((city) => ({
@@ -45,7 +54,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const journalUrls = (articles || []).map((article) => ({
     url: `${BASE_URL}/journal/${article.slug}`,
-    lastModified: new Date(article.updated_at || article.published_at || Date.now()),
+    lastModified: new Date(article.updated_at || article.published_at || now),
   }));
 
   return [
