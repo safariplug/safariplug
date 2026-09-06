@@ -1,0 +1,33 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+export const dynamic = "force-dynamic";
+
+const STATUS: Record<string,string> = { eligible:"Ready for review", approved:"Approved", processing:"Processing", paid:"Paid", failed:"Failed", held:"On hold", cancelled:"Cancelled" };
+
+export default async function ProviderPayoutsPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) redirect("/login?next=/business/payouts");
+
+  const [{ data: payouts }, { data: account }] = await Promise.all([
+    supabaseAdmin.from("service_provider_payouts").select("id,appointment_id,currency,gross_amount,platform_fee_percent,platform_fee_amount,processor_fee_amount,refund_amount,provider_net_amount,status,payout_provider,payout_reference,eligible_at,approved_at,paid_at,failure_reason,created_at").eq("provider_user_id", user.id).order("created_at", { ascending:false }).limit(100),
+    supabaseAdmin.from("service_provider_payout_accounts").select("provider,phone,status,verified_at,rejection_reason").eq("provider_user_id", user.id).eq("provider","mpesa_b2c").maybeSingle()
+  ]);
+  const rows = payouts ?? [];
+  const paid = rows.filter(p=>p.status === "paid").reduce((s,p)=>s+Number(p.provider_net_amount||0),0);
+  const pending = rows.filter(p=>["eligible","approved","processing","held"].includes(p.status)).reduce((s,p)=>s+Number(p.provider_net_amount||0),0);
+  const money=(n:number,c:string)=>`${c} ${Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+
+  return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
+    <header className="border-b border-black/8 bg-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5 sm:px-10"><div><Link href="/" className="text-sm font-semibold">SafariPlug</Link><p className="mt-1 text-[10px] uppercase tracking-[.25em] text-black/35">Partner finance</p></div><div className="flex gap-2"><Link href="/business/services" className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">Workspace</Link><Link href="/services" className="rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white">View marketplace</Link></div></div></header>
+    <section className="mx-auto max-w-6xl px-6 py-12 sm:px-10">
+      <div className="max-w-2xl"><p className="text-[11px] font-semibold uppercase tracking-[.25em] text-black/40">Earnings</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-6xl">Your payouts.</h1><p className="mt-4 text-base leading-7 text-black/50">A clear record of what you earned, SafariPlug's 10% service fee, and what has been released to you.</p></div>
+      <div className="mt-10 grid gap-4 md:grid-cols-3"><div className="rounded-[1.75rem] bg-black p-6 text-white"><p className="text-[10px] uppercase tracking-[.22em] text-white/45">Paid out</p><p className="mt-3 text-3xl font-semibold">{money(paid,rows[0]?.currency||"KES")}</p></div><div className="rounded-[1.75rem] bg-white p-6 shadow-sm"><p className="text-[10px] uppercase tracking-[.22em] text-black/40">Pending</p><p className="mt-3 text-3xl font-semibold">{money(pending,rows[0]?.currency||"KES")}</p></div><div className="rounded-[1.75rem] bg-white p-6 shadow-sm"><p className="text-[10px] uppercase tracking-[.22em] text-black/40">Payout destination</p><p className="mt-3 text-lg font-semibold">{account?.phone || "Not configured"}</p><p className="mt-1 text-xs text-black/45">{account?.status === "verified" ? "Verified for M-Pesa payouts" : account ? "Awaiting SafariPlug verification" : "Add your M-Pesa number below"}</p></div></div>
+      <div className="mt-6 rounded-[1.75rem] bg-white p-6 shadow-sm"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="text-sm font-semibold">M-Pesa payout destination</p><p className="mt-1 text-xs text-black/45">Only verified destinations can receive provider payouts.</p></div><span className="rounded-full bg-black/5 px-3 py-1.5 text-[11px] font-semibold">{account?.status || "not configured"}</span></div>{account?.phone&&<p className="mt-5 rounded-xl bg-[#f7f7f4] px-4 py-3 text-sm font-medium">{account.phone}</p>}<p className="mt-4 text-xs leading-5 text-black/45">To protect providers and customers, changing a payout number places it back into pending verification. SafariPlug will verify the destination before funds can be released.</p></div>
+      <div className="mt-10 overflow-hidden rounded-[1.75rem] bg-white shadow-sm"><div className="border-b border-black/8 px-6 py-5"><h2 className="text-lg font-semibold">Payout history</h2></div><div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="border-b border-black/8 text-[10px] uppercase tracking-[.18em] text-black/40"><tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">Gross</th><th className="px-6 py-4">SafariPlug fee</th><th className="px-6 py-4">Your net</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">M-Pesa reference</th></tr></thead><tbody className="divide-y divide-black/6">{rows.map(p=><tr key={p.id}><td className="px-6 py-5">{new Intl.DateTimeFormat("en",{dateStyle:"medium"}).format(new Date(p.created_at))}</td><td className="px-6 py-5">{money(p.gross_amount,p.currency)}</td><td className="px-6 py-5">{money(p.platform_fee_amount,p.currency)} <span className="text-black/35">({p.platform_fee_percent}%)</span></td><td className="px-6 py-5 font-semibold">{money(p.provider_net_amount,p.currency)}</td><td className="px-6 py-5"><span className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-medium">{STATUS[p.status]||p.status}</span>{p.failure_reason&&<p className="mt-2 max-w-xs text-xs text-red-600">{p.failure_reason}</p>}</td><td className="px-6 py-5 font-mono text-xs text-black/50">{p.payout_reference||"—"}</td></tr>)}</tbody></table>{!rows.length&&<div className="px-6 py-16 text-center text-sm text-black/40">No payouts yet. Once a completed appointment is paid and becomes eligible, your earnings will appear here.</div>}</div></div>
+    </section>
+  </main>;
+}
