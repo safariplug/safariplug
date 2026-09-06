@@ -11,12 +11,18 @@ export async function POST(request: Request) {
     if (!b.customerEmail && !b.customerPhone) return NextResponse.json({ error: "Email or phone is required" }, { status: 400 });
 
     let customerUserId: string | null = null;
+    const client = await createSupabaseServerClient();
+    const { data: { user } } = await client.auth.getUser();
+
     if (request.headers.get("x-safariplug-concierge") === "1") {
-      const client = await createSupabaseServerClient();
-      const { data: { user } } = await client.auth.getUser();
       if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) {
         return NextResponse.json({ error: "A verified SafariPlug client account is required for Concierge bookings." }, { status: 401 });
       }
+      customerUserId = user.id;
+    } else if (user && !user.is_anonymous && (user.email_confirmed_at || user.phone_confirmed_at)) {
+      // Public storefront bookings remain available to guests, but confirmed
+      // SafariPlug clients get the appointment attached to their account so it
+      // appears in My Bookings and can be managed there.
       customerUserId = user.id;
     }
 
