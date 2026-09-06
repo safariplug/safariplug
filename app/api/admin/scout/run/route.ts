@@ -63,10 +63,8 @@ export async function POST(request: Request) {
 
     await runAIScout(formData);
 
-    // Guard against the Scout's historical failure mode where every discovery pass
-    // fails internally, the action swallows those errors, and the run is still
-    // recorded as completed with zero discoveries. Never report that state as a
-    // successful admin operation.
+    // Verify the persisted result before reporting success. A successful HTTP
+    // response must never hide a failed database read or a zero-discovery run.
     const { data: latestRun, error: latestRunError } = await supabaseAdmin
       .from("ai_scout_runs")
       .select("id,status,events_found,created_at")
@@ -78,13 +76,37 @@ export async function POST(request: Request) {
 
     if (latestRunError) {
       console.error("SCOUT RESULT CHECK ERROR:", latestRunError);
-      return NextResponse.json({
-        success: true,
-        message: "AI Scout completed, but the run result could not be verified.",
-      });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "AI Scout ran, but its result could not be verified. Check the Scout run log before retrying.",
+        },
+        { status: 502 }
+      );
     }
 
-    if (latestRun?.status === "completed" && Number(latestRun.events_found || 0) === 0) {
+    if (!latestRun) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "AI Scout ran, but no persisted run result was found.",
+        },
+        { status: 502 }
+      );
+    }
+
+    if (latestRun.status !== "completed") {
+      return NextResponse.json(
+        {
+          success: false,
+          run_id: latestRun.id,
+          error: `AI Scout did not complete successfully (status: ${latestRun.status}).`,
+        },
+        { status: 502 }
+      );
+    }
+
+    if (Number(latestRun.events_found || 0) === 0) {
       await supabaseAdmin
         .from("ai_scout_runs")
         .update({ status: "failed" })
@@ -102,8 +124,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      run_id: latestRun?.id ?? null,
-      events_found: Number(latestRun?.events_found || 0),
+      run_id: latestRun.id,
+      events_found: Number(latestRun.events_found || 0),
       message: "AI Scout completed successfully.",
     });
   } catch (error: unknown) {
