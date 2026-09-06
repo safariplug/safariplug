@@ -16,7 +16,7 @@ export async function createServicePaymentIntent(params: {
     .maybeSingle();
   if (error) throw new Error("Unable to load appointment");
   if (!appointment || appointment.customer_user_id !== params.customerUserId) throw new Error("appointment_not_found");
-  if (["cancelled", "no_show"].includes(appointment.status)) throw new Error("appointment_not_payable");
+  if (!["pending", "confirmed"].includes(appointment.status)) throw new Error("appointment_not_payable");
   if (appointment.payment_status === "paid") throw new Error("appointment_already_paid");
 
   const { data: existing } = await supabaseAdmin
