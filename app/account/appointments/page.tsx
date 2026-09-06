@@ -8,13 +8,14 @@ type Event = { appointment_id:string; from_status:string|null; to_status:string;
 
 const STATUS: Record<string,string> = { pending:"Awaiting confirmation", confirmed:"Confirmed", checked_in:"Checked in", in_progress:"In progress", completed:"Completed", cancelled:"Cancelled", no_show:"No show" };
 
-function formatDate(value:string, timeZone?:string) { return new Intl.DateTimeFormat("en", { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:timeZone || undefined }).format(new Date(value)); }
+function formatDate(value:string,timeZone?:string) { return new Intl.DateTimeFormat("en", { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:timeZone || undefined }).format(new Date(value)); }
 
 export default function AppointmentsPage() {
   const [appointments,setAppointments] = useState<Appointment[]>([]);
   const [events,setEvents] = useState<Event[]>([]);
   const [selected,setSelected] = useState<Appointment|null>(null);
   const [busy,setBusy] = useState(false);
+  const [paying,setPaying] = useState(false);
   const [message,setMessage] = useState("");
   const [reschedule,setReschedule] = useState("");
 
@@ -35,6 +36,18 @@ export default function AppointmentsPage() {
     const r=await fetch("/api/account/appointments",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"cancel",appointmentId:a.id})});
     const j=await r.json(); setBusy(false); setMessage(r.ok?"Appointment cancelled.":(j.error||"Unable to cancel.")); if(r.ok){setSelected(j.appointment);await load();}
   }
+
+  async function pay(a:Appointment) {
+    setPaying(true); setMessage("");
+    const idempotencyKey = `sp_${a.id}_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+    const r = await fetch("/api/services/payments/intent", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({ appointmentId:a.id, provider:"stripe", idempotencyKey }) });
+    const j = await r.json();
+    setPaying(false);
+    if (!r.ok) { setMessage(j.error || "Online payment is not available yet."); return; }
+    if (j.intent?.checkoutUrl) { window.location.assign(j.intent.checkoutUrl); return; }
+    setMessage("Payment session created. Complete payment to confirm your booking.");
+  }
+
   async function saveReschedule() {
     if(!selected || !reschedule) return;
     setBusy(true); setMessage("");
@@ -49,7 +62,9 @@ export default function AppointmentsPage() {
     <section className="mx-auto max-w-6xl px-6 py-12 sm:px-10"><div className="max-w-2xl"><p className="text-[11px] font-semibold uppercase tracking-[.25em] text-black/40">Your time, organised</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-6xl">Appointments.</h1><p className="mt-4 text-base leading-7 text-black/50">Everything you have booked with SafariPlug, in one calm place.</p></div>
       {message&&<div className="mt-6 rounded-2xl bg-black px-4 py-3 text-sm font-medium text-white">{message}</div>}
       <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_380px]"><div className="space-y-10"><AppointmentGroup title="Upcoming" items={upcoming} onSelect={setSelected}/><AppointmentGroup title="Past" items={past} onSelect={setSelected}/></div>
-        <aside className="lg:sticky lg:top-6 lg:h-fit">{selected?<div className="rounded-[2rem] bg-white p-6 shadow-[0_20px_70px_-50px_rgba(0,0,0,.5)]"><p className="text-[10px] font-semibold uppercase tracking-[.22em] text-black/40">Appointment details</p><h2 className="mt-3 text-2xl font-semibold">{selected.service_offerings?.name}</h2><p className="mt-1 text-sm text-black/50">{selected.service_profiles?.businesses?.name}</p><div className="mt-6 space-y-3 border-y border-black/8 py-5 text-sm"><Row label="When" value={formatDate(selected.starts_at,selected.service_profiles?.timezone)}/><Row label="Specialist" value={selected.service_staff?.display_name || "Your specialist"}/><Row label="Reference" value={selected.public_id}/><Row label="Status" value={STATUS[selected.status] || selected.status}/><Row label="Total" value={`${selected.currency} ${Number(selected.price).toLocaleString()}`}/></div><div className="mt-5"><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-black/40">Status history</p><div className="mt-3 space-y-3">{events.filter(e=>e.appointment_id===selected.id).map((e,i)=><div key={`${e.created_at}-${i}`} className="flex gap-3 text-xs"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black"/><div><p className="font-semibold">{STATUS[e.to_status]||e.to_status}</p><p className="mt-0.5 text-black/40">{formatDate(e.created_at,selected.service_profiles?.timezone)}</p></div></div>)}</div></div>
+        <aside className="lg:sticky lg:top-6 lg:h-fit">{selected?<div className="rounded-[2rem] bg-white p-6 shadow-[0_20px_70px_-50px_rgba(0,0,0,.5)]"><p className="text-[10px] font-semibold uppercase tracking-[.22em] text-black/40">Appointment details</p><h2 className="mt-3 text-2xl font-semibold">{selected.service_offerings?.name}</h2><p className="mt-1 text-sm text-black/50">{selected.service_profiles?.businesses?.name}</p><div className="mt-6 space-y-3 border-y border-black/8 py-5 text-sm"><Row label="When" value={formatDate(selected.starts_at,selected.service_profiles?.timezone)}/><Row label="Specialist" value={selected.service_staff?.display_name || "Your specialist"}/><Row label="Reference" value={selected.public_id}/><Row label="Status" value={STATUS[selected.status] || selected.status}/><Row label="Payment" value={selected.payment_status === "paid" ? "Paid" : "Payment required"}/><Row label="Total" value={`${selected.currency} ${Number(selected.price).toLocaleString()}`}/></div>
+          {selected.payment_status !== "paid" && !["cancelled","no_show","completed"].includes(selected.status)&&<button disabled={paying} onClick={()=>pay(selected)} className="mt-5 w-full rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{paying?"Opening secure checkout…":"Pay securely"}</button>}
+          <div className="mt-5"><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-black/40">Status history</p><div className="mt-3 space-y-3">{events.filter(e=>e.appointment_id===selected.id).map((e,i)=><div key={`${e.created_at}-${i}`} className="flex gap-3 text-xs"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black"/><div><p className="font-semibold">{STATUS[e.to_status]||e.to_status}</p><p className="mt-0.5 text-black/40">{formatDate(e.created_at,selected.service_profiles?.timezone)}</p></div></div>)}</div></div>
           {!["cancelled","completed","no_show"].includes(selected.status)&&<><button disabled={busy} onClick={()=>cancel(selected)} className="mt-6 w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Cancel appointment</button><div className="mt-5 rounded-2xl bg-[#f7f7f4] p-4"><p className="text-xs font-semibold">Need another time?</p><input type="datetime-local" value={reschedule} onChange={e=>setReschedule(e.target.value)} className="mt-3 w-full rounded-xl border border-black/10 bg-white px-3 py-3 text-sm"/><button disabled={busy||!reschedule} onClick={saveReschedule} className="mt-2 w-full rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Reschedule</button></div></>}</div>:<div className="rounded-[2rem] bg-black p-7 text-white"><p className="text-[10px] uppercase tracking-[.22em] text-white/40">Your next move</p><h2 className="mt-3 text-2xl font-semibold">A better appointment is one tap away.</h2><Link href="/services" className="mt-6 inline-flex rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black">Explore services ↗</Link></div>}</aside>
       </div>
     </section>
