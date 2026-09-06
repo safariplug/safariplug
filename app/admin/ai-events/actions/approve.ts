@@ -22,11 +22,20 @@ function isWeakSourceUrl(value: unknown): boolean {
   if (!isValidHttpUrl(value)) return true;
   try {
     const url = new URL(String(value).trim());
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
     const path = url.pathname.replace(/\/+$/, "").toLowerCase();
-    return path === "" || path === "/home" || path === "/events" || path === "/calendar";
+    const genericPaths = new Set(["", "/home", "/events", "/calendar", "/event"]);
+    const genericHosts = new Set(["eventbrite.com", "ticketyetu.com", "events.com", "whats-on-mombasa.com", "quicket.co.ke", "quicket.co.ug", "etickets.co.ke", "soldoutafrica.com"]);
+    return genericPaths.has(path) || (genericHosts.has(host) && genericPaths.has(path));
   } catch {
     return true;
   }
+}
+
+function isPlaceholderVenue(value: unknown): boolean {
+  if (typeof value !== "string") return true;
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+  return !normalized || ["tba", "tbc", "to be announced", "to be confirmed", "to be verified", "unknown", "venue tba"].includes(normalized);
 }
 
 export async function approveAIEvent(formData: FormData): Promise<void> {
@@ -35,18 +44,13 @@ export async function approveAIEvent(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "").trim();
   if (!id) throw new Error("AI event ID is missing.");
 
-  const { data: aiEvent, error: fetchError } = await supabaseAdmin
-    .from("ai_discovered_events")
-    .select("*")
-    .eq("id", id)
-    .single();
-
+  const { data: aiEvent, error: fetchError } = await supabaseAdmin.from("ai_discovered_events").select("*").eq("id", id).single();
   if (fetchError || !aiEvent) throw new Error("AI event not found: " + fetchError?.message);
 
   const hasDate = Boolean(aiEvent.start_at) && new Date(aiEvent.start_at).getTime() > Date.now();
   const hasTitle = Boolean(String(aiEvent.title || "").trim());
   const hasDescription = Boolean(String(aiEvent.description || "").trim());
-  const hasVenue = Boolean(String(aiEvent.venue_name || "").trim());
+  const hasVenue = !isPlaceholderVenue(aiEvent.venue_name);
   const hasAddress = Boolean(String(aiEvent.venue_address || "").trim());
   const hasSource = isValidHttpUrl(aiEvent.source_url);
   const hasStrongSource = hasSource && !isWeakSourceUrl(aiEvent.source_url);
@@ -55,59 +59,32 @@ export async function approveAIEvent(formData: FormData): Promise<void> {
   const hasEnd = Boolean(aiEvent.end_at);
   const hasPrice = aiEvent.price !== null && aiEvent.price !== undefined && aiEvent.price !== "" && Number.isFinite(Number(aiEvent.price));
 
-  if (!hasTitle || !hasDescription || !hasDate || !hasVenue || !hasSource) {
-    throw new Error("Event is missing a required publishing fact: title, description, future date, venue, or source URL.");
+  if (!hasTitle || !hasDescription || !hasDate || !hasVenue || !hasStrongSource) {
+    throw new Error("Event is missing a required publishing fact: title, description, future date, real venue, or strong event-specific source URL.");
   }
 
-  // Price and image are optional: legitimate sources often omit one or both.
   const reviewChecks = [hasTitle, hasDescription, hasDate, hasVenue, hasAddress, hasStrongSource, hasImage, hasOrganizer, hasEnd, hasPrice];
   const reviewScore = Math.round((reviewChecks.filter(Boolean).length / reviewChecks.length) * 100);
-
-  if (reviewScore < 60) {
-    throw new Error(`Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 60%.`);
-  }
+  if (reviewScore < 60) throw new Error(`Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 60%.`);
 
   const knownCities = ["Nairobi", "Mombasa", "Diani", "Kilifi", "Mtwapa", "Malindi", "Watamu", "Zanzibar", "Kampala", "Dar es Salaam"];
   let cityName = aiEvent.city;
   const matchedCity = knownCities.find((city) => aiEvent.city?.toLowerCase().includes(city.toLowerCase()));
   if (matchedCity) cityName = matchedCity;
 
-  const { data: city, error: cityError } = await supabaseAdmin
-    .from("cities")
-    .select("id")
-    .ilike("name", cityName)
-    .single();
-
+  const { data: city, error: cityError } = await supabaseAdmin.from("cities").select("id").ilike("name", cityName).single();
   if (cityError || !city) throw new Error("City not found: " + aiEvent.city);
 
   const cleanCategory = aiEvent.category?.replace(cityName, "").trim() || "Experiences";
   const isFeatured = Boolean(aiEvent.is_featured);
-
-  const { data: existingEvent } = await supabaseAdmin
-    .from("events")
-    .select("id,title")
-    .eq("source_url", aiEvent.source_url)
-    .limit(1)
-    .maybeSingle();
+  const { data: existingEvent } = await supabaseAdmin.from("events").select("id,title").eq("source_url", aiEvent.source_url).limit(1).maybeSingle();
 
   if (existingEvent) {
-    const { error: liveUpdateError } = await supabaseAdmin
-      .from("events")
-      .update({ is_featured: isFeatured })
-      .eq("id", existingEvent.id);
-
+    const { error: liveUpdateError } = await supabaseAdmin.from("events").update({ is_featured: isFeatured }).eq("id", existingEvent.id);
     if (liveUpdateError) throw new Error("Failed updating live event: " + liveUpdateError.message);
-
-    const { error: updateError } = await supabaseAdmin
-      .from("ai_discovered_events")
-      .update({ status: "approved", review_status: "approved", review_score: reviewScore, image_verified: hasImage, reviewed_at: new Date().toISOString(), review_notes: "Already published. Existing event reused.", updated_at: new Date().toISOString() })
-      .eq("id", id);
-
+    const { error: updateError } = await supabaseAdmin.from("ai_discovered_events").update({ status: "approved", review_status: "approved", review_score: reviewScore, image_verified: hasImage, reviewed_at: new Date().toISOString(), review_notes: "Already published. Existing event reused.", updated_at: new Date().toISOString() }).eq("id", id);
     if (updateError) throw new Error("Failed updating AI event: " + updateError.message);
-    revalidatePath("/admin/ai-events");
-    revalidatePath("/events");
-    revalidatePath("/");
-    return;
+    revalidatePath("/admin/ai-events"); revalidatePath("/events"); revalidatePath("/"); return;
   }
 
   const slug = `${createSlug(aiEvent.title)}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -115,22 +92,14 @@ export async function approveAIEvent(formData: FormData): Promise<void> {
     title: aiEvent.title, slug, description: aiEvent.description, city_id: city.id,
     category: cleanCategory, venue_name: aiEvent.venue_name, venue_address: aiEvent.venue_address,
     start_at: aiEvent.start_at, end_at: aiEvent.end_at, price: aiEvent.price,
-    currency: aiEvent.currency || "KES", image_url: aiEvent.image_url,
-    source_url: aiEvent.source_url, source_type: "AI_SCOUT", organizer_name: aiEvent.organizer_name,
-    status: "approved", is_featured: isFeatured, verified: true,
-    verified_at: new Date().toISOString(), ai_confidence: aiEvent.confidence_score,
+    currency: aiEvent.currency || "KES", image_url: aiEvent.image_url, source_url: aiEvent.source_url,
+    source_type: "AI_SCOUT", organizer_name: aiEvent.organizer_name, status: "approved",
+    is_featured: isFeatured, verified: true, verified_at: new Date().toISOString(), ai_confidence: aiEvent.confidence_score,
   });
-
   if (insertError) throw new Error("Failed creating live event: " + insertError.message);
 
-  const { error: updateError } = await supabaseAdmin
-    .from("ai_discovered_events")
-    .update({ status: "approved", review_status: "approved", review_score: reviewScore, image_verified: hasImage, reviewed_at: new Date().toISOString(), review_notes: hasImage ? "Human approved. Official image available." : "Human approved. Category fallback image used.", updated_at: new Date().toISOString() })
-    .eq("id", id);
-
+  const { error: updateError } = await supabaseAdmin.from("ai_discovered_events").update({ status: "approved", review_status: "approved", review_score: reviewScore, image_verified: hasImage, reviewed_at: new Date().toISOString(), review_notes: hasImage ? "Human approved. Official image available." : "Human approved. Category fallback image used.", updated_at: new Date().toISOString() }).eq("id", id);
   if (updateError) throw new Error("Failed updating AI event: " + updateError.message);
 
-  revalidatePath("/admin/ai-events");
-  revalidatePath("/events");
-  revalidatePath("/");
+  revalidatePath("/admin/ai-events"); revalidatePath("/events"); revalidatePath("/");
 }
