@@ -67,6 +67,8 @@ export class StripePaymentAdapter implements PaymentAdapter {
       "line_items[0][quantity]": 1,
       "metadata[appointment_id]": input.appointmentId,
       "metadata[idempotency_key]": input.idempotencyKey,
+      "payment_intent_data[metadata][appointment_id]": input.appointmentId,
+      "payment_intent_data[metadata][idempotency_key]": input.idempotencyKey,
     });
 
     const session = await stripeRequest("/checkout/sessions", {
