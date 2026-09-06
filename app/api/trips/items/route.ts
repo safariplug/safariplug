@@ -10,8 +10,8 @@ async function getUser() {
 }
 
 async function ownsTrip(userId: string, tripId: string) {
-  const { data } = await supabaseAdmin.from("trips").select("id").eq("id", tripId).eq("traveler_id", userId).maybeSingle();
-  return Boolean(data);
+  const { data } = await supabaseAdmin.from("trips").select("id,title").eq("id", tripId).eq("traveler_id", userId).maybeSingle();
+  return data;
 }
 
 export async function GET(request: Request) {
@@ -19,10 +19,11 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   const tripId = new URL(request.url).searchParams.get("tripId");
   if (!tripId) return NextResponse.json({ error: "tripId is required." }, { status: 400 });
-  if (!(await ownsTrip(user.id, tripId))) return NextResponse.json({ error: "Trip not found." }, { status: 404 });
+  const trip = await ownsTrip(user.id, tripId);
+  if (!trip) return NextResponse.json({ error: "Trip not found." }, { status: 404 });
   const { data, error } = await supabaseAdmin.from("trip_items").select("id,trip_id,event_id,offering_id,item_kind,position,start_at,end_at,notes,title,city_id").eq("trip_id", tripId).order("position").order("start_at", { ascending: true, nullsFirst: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ items: data ?? [] });
+  return NextResponse.json({ items: data ?? [], trip });
 }
 
 export async function POST(request: Request) {
@@ -31,7 +32,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const tripId = typeof body.tripId === "string" ? body.tripId : "";
   if (!tripId) return NextResponse.json({ error: "tripId is required." }, { status: 400 });
-  if (!(await ownsTrip(user.id, tripId))) return NextResponse.json({ error: "Trip not found." }, { status: 404 });
+  const trip = await ownsTrip(user.id, tripId);
+  if (!trip) return NextResponse.json({ error: "Trip not found." }, { status: 404 });
   const eventId = typeof body.eventId === "string" ? body.eventId : null;
   if (!eventId && !body.offeringId) return NextResponse.json({ error: "eventId or offeringId is required." }, { status: 400 });
   let event: any = null;
@@ -40,6 +42,18 @@ export async function POST(request: Request) {
     event = data;
     if (!event) return NextResponse.json({ error: "Approved event not found." }, { status: 404 });
   }
+
+  const { data: existing } = await supabaseAdmin
+    .from("trip_items")
+    .select("id,trip_id,event_id,offering_id,item_kind,position,start_at,end_at,notes,title,city_id")
+    .eq("trip_id", tripId)
+    .eq(eventId ? "event_id" : "offering_id", eventId ?? body.offeringId)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.json({ item: existing, trip, added: false }, { status: 200 });
+  }
+
   const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", tripId);
   const payload = {
     trip_id: tripId,
@@ -55,7 +69,7 @@ export async function POST(request: Request) {
   };
   const { data, error } = await supabaseAdmin.from("trip_items").insert(payload).select("id,trip_id,event_id,offering_id,item_kind,position,start_at,end_at,notes,title,city_id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ item: data }, { status: 201 });
+  return NextResponse.json({ item: data, trip, added: true }, { status: 201 });
 }
 
 export async function DELETE(request: Request) {
