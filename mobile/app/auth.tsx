@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { supabase, hasMobileSupabaseConfig } from "../src/auth";
 import { colors } from "../src/theme";
 
 export default function AuthScreen() {
+  const params = useLocalSearchParams<{ next?: string | string[] }>();
+  const next = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/(tabs)";
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,10 +16,10 @@ export default function AuthScreen() {
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
-      if (active && data.session) router.replace("/(tabs)");
+      if (active && data.session) router.replace(next as never);
     });
     return () => { active = false; };
-  }, []);
+  }, [next]);
 
   async function submit() {
     if (!email.trim() || password.length < 6 || busy) return;
@@ -32,10 +34,10 @@ export default function AuthScreen() {
       return;
     }
     if (mode === "sign-up" && !result.data.session) {
-      setMessage("Check your email to confirm your account, then return to SafariPlug.");
+      setMessage("Check your email to confirm your account, then return to SafariPlug and sign in.");
       return;
     }
-    router.replace("/(tabs)");
+    router.replace(next as never);
   }
 
   if (!hasMobileSupabaseConfig()) {

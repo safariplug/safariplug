@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getRequestUser, getSupabaseUserClient } from "@/lib/supabase-user";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(request: Request) {
-  const client = await createSupabaseServerClient();
-  const { data: { user } } = await client.auth.getUser();
+  const bearerClient = getSupabaseUserClient(request);
+  let user = null;
+
+  if (bearerClient.ok) {
+    user = await getRequestUser(bearerClient.client);
+  } else {
+    const client = await createSupabaseServerClient();
+    const { data: { user: cookieUser } } = await client.auth.getUser();
+    user = cookieUser;
+  }
+
   if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
