@@ -4,6 +4,8 @@ import EventFilters from "@/app/events/components/EventFilters";
 import EventSearch from "@/app/events/components/EventSearch";
 import { EVENT_CATEGORIES } from "@/lib/constants/events";
 
+export const dynamic = "force-dynamic";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
