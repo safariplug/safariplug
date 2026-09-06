@@ -7,24 +7,22 @@ export default function VerificationStart({ hasCase, status }: { hasCase: boolea
   const [message, setMessage] = useState("");
 
   async function start() {
-    setBusy(true);
-    setMessage("");
+    setBusy(true); setMessage("");
     try {
       const response = await fetch("/api/business/verification", { method: "POST" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Unable to start verification.");
-      setMessage("Verification case ready. SafariPlug will keep it blocked until the required identity and live-liveness provider is connected.");
-      window.location.reload();
+      if (body.verificationUrl) {
+        window.location.assign(body.verificationUrl);
+        return;
+      }
+      setMessage(body.message || "Verification case is active.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to start verification.");
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
-  if (status === "approved") {
-    return <div className="mt-6 rounded-2xl bg-emerald-50 p-5 text-sm text-emerald-900">Your provider verification is approved. Payout execution remains subject to current payout destination and compliance checks.</div>;
-  }
+  if (status === "approved") return <div className="mt-6 rounded-2xl bg-emerald-50 p-5 text-sm text-emerald-900">Your provider verification is approved. Payout execution remains subject to current payout destination and compliance checks.</div>;
 
-  return <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center"><button disabled={busy || (hasCase && status === "in_review")} onClick={() => void start()} className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:opacity-35">{busy ? "Preparing…" : hasCase ? "Verification case active" : "Start provider verification"}</button>{message ? <p className="max-w-xl text-xs leading-5 text-black/50">{message}</p> : null}</div>;
+  return <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center"><button disabled={busy} onClick={() => void start()} className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:opacity-35">{busy ? "Preparing secure verification…" : hasCase ? "Continue verification" : "Start provider verification"}</button>{message ? <p className="max-w-xl text-xs leading-5 text-black/50">{message}</p> : null}</div>;
 }
