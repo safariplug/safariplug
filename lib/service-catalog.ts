@@ -155,6 +155,15 @@ export const SERVICE_CATALOG: Record<string, ServiceTemplate[]> = {
     { name: "Couples Massage", description: "Relaxing massage experience for two.", durationMinutes: 60 },
     { name: "Mobile Hotel Massage", description: "Massage delivered privately at your hotel or villa.", durationMinutes: 60 },
   ],
+  "tattoo-body-art": [
+    { name: "Custom Tattoo", description: "Consultation-led custom tattoo session with an independent tattoo artist.", durationMinutes: 120 },
+    { name: "Fine-Line Tattoo", description: "Precise fine-line tattoo appointment with an experienced artist.", durationMinutes: 90 },
+    { name: "Small / Minimalist Tattoo", description: "Short appointment for a small or minimalist tattoo design.", durationMinutes: 60 },
+    { name: "Cover-Up Tattoo", description: "Consultation and tattoo session for covering an existing tattoo.", durationMinutes: 150 },
+    { name: "Tattoo Consultation", description: "Discuss placement, sizing, design direction and session requirements with the artist.", durationMinutes: 30 },
+    { name: "Tattoo Touch-Up", description: "Professional touch-up appointment for an existing tattoo where appropriate.", durationMinutes: 60 },
+    { name: "Temporary / Artistic Body Art", description: "Temporary body-art application for events, celebrations or creative experiences.", durationMinutes: 60 },
+  ],
   wellness: [
     { name: "Wellness Consultation", description: "Personalized wellness session focused on your goals.", durationMinutes: 60 },
     { name: "Guided Relaxation", description: "Private guided relaxation and reset session.", durationMinutes: 45 },
