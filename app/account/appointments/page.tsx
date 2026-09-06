@@ -23,7 +23,7 @@ type Appointment = {
 };
 type Event = { appointment_id:string; from_status:string|null; to_status:string; actor_type:string; note:string|null; created_at:string };
 const STATUS: Record<string,string> = { pending:"Awaiting confirmation", confirmed:"Confirmed", checked_in:"Checked in", in_progress:"In progress", completed:"Completed", cancelled:"Cancelled", no_show:"No show" };
-function formatDate(value:string,timeZone?:string) { return new Intl.DateTimeFormat("en", { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:timeZone || undefined }).format(new Date(value)); }
+function formatDate(value:string,timeZone?:string | null) { return new Intl.DateTimeFormat("en", { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:timeZone || undefined }).format(new Date(value)); }
 
 export default function AppointmentsPage() {
   const [appointments,setAppointments]=useState<Appointment[]>([]); const [events,setEvents]=useState<Event[]>([]); const [selected,setSelected]=useState<Appointment|null>(null); const [busy,setBusy]=useState(false); const [paying,setPaying]=useState(false); const [message,setMessage]=useState(""); const [reschedule,setReschedule]=useState("");
