@@ -30,6 +30,11 @@ export async function createSumsubAccessToken(input: { userId: string; email?: s
   return { token: typeof data.token === "string" ? data.token : null, userId: typeof data.userId === "string" ? data.userId : input.userId };
 }
 
+// Backward-compatible name used by the business verification route.
+export async function createSumsubWebSdkLink(input: { userId: string; email?: string | null; phone?: string | null; redirectUrl?: string | null }) {
+  return createSumsubAccessToken(input);
+}
+
 export class SumsubVerificationAdapter implements VerificationAdapter {
   readonly name = "Sumsub identity + liveness";
   constructor(readonly key: VerificationProviderKey = "identity_provider") {}
