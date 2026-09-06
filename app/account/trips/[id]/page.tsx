@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import TravelerNav from "@/components/TravelerNav";
 import TripItemActions from "./TripItemActions";
 import TripPlanTools from "./TripPlanTools";
+import TripReorder from "./TripReorder";
 
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
   const client = await createSupabaseServerClient();
@@ -36,13 +37,14 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
           <p className="mt-4 text-zinc-400">{trip.start_on ? new Date(trip.start_on).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Dates not set"}{trip.end_on ? ` – ${new Date(trip.end_on).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` : ""}</p>
 
           <TripPlanTools tripId={trip.id} />
+          <TripReorder tripId={trip.id} items={(items ?? []).map((item) => ({ id: item.id, title: item.title }))} />
 
           <div className="mt-10 space-y-4">
             {!items?.length ? (
               <div className="rounded-2xl border border-dashed border-zinc-700 p-8 text-center">
                 <h2 className="text-xl font-bold">Nothing planned yet</h2>
                 <p className="mt-2 text-zinc-400">Browse SafariPlug experiences and add the ones you want to this journey.</p>
-                <Link href="/events" className="mt-5 inline-flex rounded-full bg-amber-500 px-5 py-3 font-bold text-black">Explore experiences</Link>
+                <Link href={`/events?tripId=${encodeURIComponent(trip.id)}`} className="mt-5 inline-flex rounded-full bg-amber-500 px-5 py-3 font-bold text-black">Explore experiences</Link>
               </div>
             ) : items.map((item, index) => {
               const city = item.city_id ? cityMap.get(item.city_id) : null;
