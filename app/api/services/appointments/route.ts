@@ -20,9 +20,8 @@ export async function POST(request: Request) {
       }
       customerUserId = user.id;
     } else if (user && !user.is_anonymous && (user.email_confirmed_at || user.phone_confirmed_at)) {
-      // Public storefront bookings remain available to guests, but confirmed
-      // SafariPlug clients get the appointment attached to their account so it
-      // appears in My Bookings and can be managed there.
+      // Guest checkout remains available, while confirmed clients get the
+      // appointment attached to their account for My Bookings management.
       customerUserId = user.id;
     }
 
@@ -38,7 +37,7 @@ export async function POST(request: Request) {
       p_customer_notes: b.customerNotes ?? null,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: error.message.includes("slot_unavailable") ? 409 : 400 });
-    return NextResponse.json({ appointment }, { status: 201 });
+    return NextResponse.json({ appointment, customerLinked: Boolean(customerUserId) }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
