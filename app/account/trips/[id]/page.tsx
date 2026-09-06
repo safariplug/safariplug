@@ -12,7 +12,7 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
   const { data: { user } } = await client.auth.getUser();
   if (!user) redirect(`/admin/login?next=/account/trips`);
   const { id } = await params;
-  const { data: trip } = await supabaseAdmin.from("trips").select("id,title,start_on,end_on,status,created_at").eq("id", id).eq("traveler_id", user.id).maybeSingle();
+  const { data: trip } = await supabaseAdmin.from("trips").select("id,title,start_on,end_on,status,created_at,destination_city_id,cities:destination_city_id(name,country)").eq("id", id).eq("traveler_id", user.id).maybeSingle();
   if (!trip) notFound();
 
   const { data: items } = await supabaseAdmin.from("trip_items").select("id,title,start_at,end_at,notes,item_kind,event_id,appointment_id,offering_id,city_id,position").eq("trip_id", id).order("position", { ascending: true });
@@ -23,6 +23,7 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
   const cityMap = new Map((cities ?? []).map((city) => [city.id, city]));
   const appointmentMap = new Map((appointments ?? []).map((appointment: any) => [appointment.id, appointment]));
   const eventHref = (eventId: string) => `/events/${eventId}?tripId=${encodeURIComponent(trip.id)}`;
+  const destination = Array.isArray((trip as any).cities) ? (trip as any).cities[0] : (trip as any).cities;
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -31,7 +32,7 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
         <Link href="/account/trips" className="text-sm font-semibold text-zinc-400 hover:text-white">← My Trips</Link>
         <div className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-950 p-7 md:p-10">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div><p className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">Journey</p><h1 className="mt-2 text-4xl font-black">{trip.title}</h1></div>
+            <div><p className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">Journey</p><h1 className="mt-2 text-4xl font-black">{trip.title}</h1>{destination?.name && <p className="mt-2 text-sm font-semibold text-zinc-400">📍 {destination.name}{destination.country ? `, ${destination.country}` : ""}</p>}</div>
             <span className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-zinc-300">{trip.status || "draft"}</span>
           </div>
           <p className="mt-4 text-zinc-400">{trip.start_on ? new Date(trip.start_on).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Dates not set"}{trip.end_on ? ` – ${new Date(trip.end_on).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` : ""}</p>
