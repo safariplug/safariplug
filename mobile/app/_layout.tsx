@@ -22,6 +22,7 @@ export default function RootLayout() {
         <Stack.Screen name="category/[kind]" options={{ title: "SafariPlug" }} />
         <Stack.Screen name="ask" options={{ title: "Ask SafariPlug" }} />
         <Stack.Screen name="concierge" options={{ title: "Concierge" }} />
+        <Stack.Screen name="auth" options={{ title: "Account", presentation: "modal" }} />
       </Stack>
     </>
   );
