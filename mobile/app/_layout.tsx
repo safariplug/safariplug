@@ -21,6 +21,7 @@ export default function RootLayout() {
         <Stack.Screen name="destination/[slug]" options={{ title: "Destination" }} />
         <Stack.Screen name="category/[kind]" options={{ title: "SafariPlug" }} />
         <Stack.Screen name="ask" options={{ title: "Ask SafariPlug" }} />
+        <Stack.Screen name="concierge" options={{ title: "Concierge" }} />
       </Stack>
     </>
   );
