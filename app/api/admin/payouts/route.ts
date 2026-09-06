@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { requireAdmin, AdminAuthError } from "@/lib/auth/require-admin";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || user.is_anonymous || !user.email) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const { data: admin } = await supabaseAdmin.from("admin_users").select("id").eq("user_id", user.id).maybeSingle();
-  if (!admin) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  let user;
+  try {
+    user = await requireAdmin();
+  } catch (error) {
+    const status = error instanceof AdminAuthError ? 403 : 401;
+    return NextResponse.json({ error: "forbidden" }, { status });
+  }
 
   const body = await request.json().catch(() => null) as { action?: string; payoutId?: string; reason?: string } | null;
   if (!body?.payoutId || !["approve", "hold"].includes(body.action || "")) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
