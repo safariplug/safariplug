@@ -11,7 +11,7 @@ export async function createServicePaymentIntent(params: {
 }) {
   const { data: appointment, error } = await supabaseAdmin
     .from("service_appointments")
-    .select("id,customer_email,customer_phone,price,currency,payment_status,status,customer_user_id")
+    .select("id,customer_email,customer_phone,price,customer_total_amount,currency,payment_status,status,customer_user_id")
     .eq("id", params.appointmentId)
     .maybeSingle();
   if (error) throw new Error("Unable to load appointment");
@@ -27,7 +27,7 @@ export async function createServicePaymentIntent(params: {
     .eq("idempotency_key", params.idempotencyKey)
     .maybeSingle();
   if (existing?.payment_intent_id) {
-    return { id: existing.payment_intent_id, provider: params.provider, providerReference: existing.provider_reference, appointmentId: appointment.id, amount: Number(appointment.price), currency: String(appointment.currency).toUpperCase(), status: "processing" as const, checkoutUrl: null, clientSecret: null };
+    return { id: existing.payment_intent_id, provider: params.provider, providerReference: existing.provider_reference, appointmentId: appointment.id, amount: Number(appointment.customer_total_amount ?? appointment.price), currency: String(appointment.currency).toUpperCase(), status: "processing" as const, checkoutUrl: null, clientSecret: null };
   }
 
   const adapter = getPaymentAdapter(params.provider);
@@ -35,7 +35,7 @@ export async function createServicePaymentIntent(params: {
 
   const intent = await adapter.createPaymentIntent({
     appointmentId: appointment.id,
-    amount: Number(appointment.price),
+    amount: Number(appointment.customer_total_amount ?? appointment.price),
     currency: String(appointment.currency).toUpperCase(),
     customerEmail: appointment.customer_email,
     customerPhone: appointment.customer_phone,
