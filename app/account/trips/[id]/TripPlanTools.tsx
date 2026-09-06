@@ -31,6 +31,7 @@ export default function TripPlanTools({ tripId }: { tripId: string }) {
     <div className="mt-8 border-t border-zinc-800 pt-6">
       <div className="flex flex-wrap gap-3">
         <Link href={`/events?tripId=${encodeURIComponent(tripId)}`} className="rounded-full bg-amber-500 px-5 py-3 text-sm font-black text-black hover:bg-amber-400">＋ Add experiences</Link>
+        <Link href={`/concierge?tripId=${encodeURIComponent(tripId)}`} className="rounded-full border border-amber-500/50 px-5 py-3 text-sm font-bold text-amber-300 hover:bg-amber-500/10">✦ Plan with Concierge</Link>
         <Link href={`/account/saved?tripId=${encodeURIComponent(tripId)}`} className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-white hover:border-amber-500/50 hover:text-amber-300">Browse saved</Link>
         <Link href="/services" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-white hover:border-amber-500/50 hover:text-amber-300">Book a service</Link>
         <Link href="/account/appointments" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-white hover:border-amber-500/50 hover:text-amber-300">My bookings</Link>
