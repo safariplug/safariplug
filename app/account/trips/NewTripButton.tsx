@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function NewTripButton({ empty = false }: { empty?: boolean }) {
+type City = { id: string; name: string; country: string | null };
+
+export default function NewTripButton({ empty = false, cities = [] }: { empty?: boolean; cities?: City[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [destinationCityId, setDestinationCityId] = useState("");
   const [startOn, setStartOn] = useState("");
   const [endOn, setEndOn] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +23,7 @@ export default function NewTripButton({ empty = false }: { empty?: boolean }) {
       const response = await fetch("/api/trips", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, startOn: startOn || null, endOn: endOn || null }),
+        body: JSON.stringify({ title, destinationCityId: destinationCityId || null, startOn: startOn || null, endOn: endOn || null }),
       });
       const body = await response.json().catch(() => ({}));
       if (response.status === 401) {
@@ -55,7 +58,15 @@ export default function NewTripButton({ empty = false }: { empty?: boolean }) {
 
             <label className="mt-7 block text-sm font-semibold text-zinc-300">
               Trip name
-              <input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="My Kenya getaway" className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none focus:border-amber-400" />
+n              <input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="My Kenya getaway" className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none focus:border-amber-400" />
+            </label>
+
+            <label className="mt-5 block text-sm font-semibold text-zinc-300">
+              Destination
+              <select value={destinationCityId} onChange={(e) => setDestinationCityId(e.target.value)} className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none focus:border-amber-400">
+                <option value="">Choose a destination (optional)</option>
+                {cities.map((city) => <option key={city.id} value={city.id}>{city.name}{city.country ? `, ${city.country}` : ""}</option>)}
+              </select>
             </label>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
