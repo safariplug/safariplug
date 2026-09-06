@@ -6,36 +6,41 @@ import Link from "next/link";
 export default function AddToTripButton({ eventId }: { eventId: string }) {
   const [state, setState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [tripId, setTripId] = useState<string | null>(null);
 
   async function addToTrip() {
     setState("loading");
     setMessage("");
-    const response = await fetch("/api/trips/from-event", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ eventId }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (response.status === 401) {
-      window.location.href = `/admin/login?next=${encodeURIComponent(`/events/${eventId}`)}`;
-      return;
-    }
-    if (!response.ok) {
+    try {
+      const response = await fetch("/api/trips/from-event", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ eventId }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        window.location.href = `/admin/login?next=${encodeURIComponent(`/events/${eventId}`)}`;
+        return;
+      }
+      if (!response.ok) {
+        setState("error");
+        setMessage(body.error || "Could not add this experience.");
+        return;
+      }
+      setTripId(body.trip?.id || null);
+      setState("success");
+      setMessage(body.added === false ? "Already in your journey" : `Added to ${body.trip?.title || "your journey"}`);
+    } catch {
       setState("error");
-      setMessage(body.error || "Could not add this experience.");
-      return;
+      setMessage("Something went wrong. Please try again.");
     }
-    setState("success");
-    setMessage(body.trip?.title ? `Added to ${body.trip.title}` : "Added to your journey");
   }
 
   if (state === "success") {
     return (
       <div className="mt-8 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
         <p className="font-semibold text-amber-300">✓ {message}</p>
-        <Link href={`/account/trips/${message ? "" : ""}`} className="mt-2 inline-block text-sm text-white/70 hover:text-white">
-          Open My Trips →
-        </Link>
+        {tripId && <Link href={`/account/trips/${tripId}`} className="mt-2 inline-block text-sm font-semibold text-white/80 hover:text-white">Open your journey →</Link>}
       </div>
     );
   }
