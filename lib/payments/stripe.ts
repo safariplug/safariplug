@@ -21,11 +21,12 @@ function asForm(data: Record<string, string | number | undefined | null>) {
   return form;
 }
 
-async function stripeRequest(path: string, init: RequestInit = {}) {
+async function stripeRequest(path: string, init: RequestInit = {}, idempotencyKey?: string) {
   const response = await fetch(`${STRIPE_API}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${secretKey()}`,
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       ...(init.headers ?? {}),
     },
   });
@@ -72,7 +73,7 @@ export class StripePaymentAdapter implements PaymentAdapter {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
-    });
+    }, input.idempotencyKey);
 
     return {
       id: String(session.id),
@@ -93,8 +94,11 @@ export class StripePaymentAdapter implements PaymentAdapter {
   }
 }
 
-export function stripeWebhookSecretConfigured() {
-  return Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim());
+function constantTimeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let difference = 0;
+  for (let index = 0; index < a.length; index += 1) difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  return difference === 0;
 }
 
 export async function verifyStripeWebhookSignature(payload: string, signature: string): Promise<boolean> {
@@ -110,8 +114,7 @@ export async function verifyStripeWebhookSignature(payload: string, signature: s
 
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const signed = `${timestamp}.${payload}`;
-  const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(signed));
+  const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${payload}`));
   const expected = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  return signatures.some((candidate) => candidate.length === expected.length && crypto.timingSafeEqual?.(Buffer.from(candidate), Buffer.from(expected)) ?? candidate === expected);
+  return signatures.some((candidate) => constantTimeEqual(candidate, expected));
 }
