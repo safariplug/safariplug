@@ -14,7 +14,7 @@ async function getUser() {
 export async function GET() {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
-  const { data, error } = await supabaseAdmin.from("service_appointments").select("id,public_id,starts_at,ends_at,status,customer_name,customer_email,customer_phone,customer_notes,provider_notes,price,currency,cancellation_reason,created_at,service_profiles(id,timezone,cancellation_policy,businesses(name,slug,address,phone,whatsapp)),service_offerings(id,name,description,duration_minutes),service_staff(id,display_name)").eq("customer_user_id", user.id).order("starts_at", { ascending: true }).limit(100);
+  const { data, error } = await supabaseAdmin.from("service_appointments").select("id,public_id,starts_at,ends_at,status,customer_name,customer_email,customer_phone,customer_notes,provider_notes,price,currency,payment_status,cancellation_reason,created_at,service_profiles(id,timezone,cancellation_policy,businesses(name,slug,address,phone,whatsapp)),service_offerings(id,name,description,duration_minutes),service_staff(id,display_name)").eq("customer_user_id", user.id).order("starts_at", { ascending: true }).limit(100);
   if (error) return NextResponse.json({ error: "Unable to load appointments." }, { status: 500 });
   const ids = (data ?? []).map((x: any) => x.id);
   const { data: events } = ids.length ? await supabaseAdmin.from("service_appointment_status_events").select("appointment_id,from_status,to_status,actor_type,note,created_at").in("appointment_id", ids).order("created_at", { ascending: true }) : { data: [] };
