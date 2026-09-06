@@ -3,13 +3,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
-
 function verifyDigest(raw: string, digest: string | null, algorithm: string | null) {
-  const secret = process.env.SUMSUB_WEBHOOK_SECRET;
-  if (!secret || !digest) return false;
+  const secret = process.env.SUMSUB_WEBHOOK_SECRET; if (!secret || !digest) return false;
   const alg = algorithm === "HMAC_SHA512_HEX" ? "sha512" : algorithm === "HMAC_SHA1_HEX" ? "sha1" : "sha256";
-  const expected = crypto.createHmac(alg, secret).update(raw).digest("hex");
-  const a = Buffer.from(expected, "utf8"); const b = Buffer.from(digest, "utf8");
+  const expected = crypto.createHmac(alg, secret).update(raw).digest("hex"); const a = Buffer.from(expected); const b = Buffer.from(digest);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
@@ -22,17 +19,20 @@ export async function POST(request: Request) {
 
   const type = typeof payload.type === "string" ? payload.type : "";
   const externalId = typeof payload.applicantId === "string" ? payload.applicantId : "";
+  const correlation = typeof payload.correlationId === "string" ? payload.correlationId : "";
+  const eventId = correlation ? `sumsub:${correlation}:${type}` : `sumsub:${externalId}:${type}:${String(payload.createdAtMs || "")}`;
   if (!externalId) return NextResponse.json({ ok: true });
+
+  const { data: duplicate } = await supabaseAdmin.from("verification_events").select("id").eq("provider", "sumsub").eq("provider_event_id", eventId).maybeSingle();
+  if (duplicate) return NextResponse.json({ ok: true, duplicate: true });
   const { data: current } = await supabaseAdmin.from("verification_cases").select("id,status,verification_level,subject_type,subject_id,external_id").eq("provider", "sumsub").eq("external_id", externalId).maybeSingle();
   if (!current) return NextResponse.json({ ok: true });
 
   const review = payload.reviewResult && typeof payload.reviewResult === "object" ? payload.reviewResult as Record<string, unknown> : {};
   const answer = typeof review.reviewAnswer === "string" ? review.reviewAnswer : "";
   let toStatus: string | null = null;
-
   if (type === "applicantReviewed") {
-    const approved = answer === "GREEN";
-    toStatus = approved ? "approved" : "rejected";
+    const approved = answer === "GREEN"; toStatus = approved ? "approved" : "rejected";
     await supabaseAdmin.from("verification_cases").update({ status: toStatus, reviewed_at: new Date().toISOString(), rejection_reason: approved ? null : "Sumsub verification result was not approved." }).eq("id", current.id);
     if (approved) {
       for (const evidenceType of ["identity", "liveness"] as const) {
@@ -43,10 +43,9 @@ export async function POST(request: Request) {
       }
     }
   } else if (["applicantPending", "applicantOnHold", "applicantAwaitingUser", "applicantAwaitingService"].includes(type)) {
-    toStatus = "in_review";
-    await supabaseAdmin.from("verification_cases").update({ status: "in_review" }).eq("id", current.id).in("status", ["pending", "not_started"]);
+    toStatus = "in_review"; await supabaseAdmin.from("verification_cases").update({ status: "in_review" }).eq("id", current.id).in("status", ["pending", "not_started"]);
   }
-
-  await supabaseAdmin.from("verification_events").insert({ case_id: current.id, event_type: `sumsub:${type || "unknown"}`, from_status: current.status, to_status: toStatus, actor: "sumsub", provider: "sumsub", external_ref: externalId, reason: answer || null });
+  const { error: eventError } = await supabaseAdmin.from("verification_events").insert({ case_id: current.id, event_type: `sumsub:${type || "unknown"}`, provider_event_id: eventId, from_status: current.status, to_status: toStatus, actor: "sumsub", provider: "sumsub", external_ref: externalId, reason: answer || null });
+  if (eventError && !String(eventError.message).toLowerCase().includes("duplicate")) return NextResponse.json({ error: "Webhook persistence failed." }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
