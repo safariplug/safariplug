@@ -5,6 +5,8 @@ import { createMpesaB2CPayout } from "@/lib/payments/mpesa-payout";
 
 export const dynamic = "force-dynamic";
 
+type ClaimedPayout = { id: string; payout_destination_phone: string; provider_net_amount: number | string };
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -16,9 +18,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { payoutId?: string } | null;
   if (!body?.payoutId) return NextResponse.json({ error: "payout_id_required" }, { status: 400 });
 
-  const { data: payout, error: claimError } = await supabaseAdmin
+  const { data: rawPayout, error: claimError } = await supabaseAdmin
     .rpc("claim_service_provider_payout", { p_payout_id: body.payoutId })
     .single();
+  const payout = rawPayout as unknown as ClaimedPayout | null;
 
   if (claimError || !payout) {
     return NextResponse.json({ error: claimError?.message || "payout_not_ready" }, { status: 409 });
