@@ -1,16 +1,23 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getRequestUser, getSupabaseUserClient } from "@/lib/supabase-user";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-async function getUser() {
+async function getUser(request: Request) {
+  const bearerClient = getSupabaseUserClient(request);
+  if (bearerClient.ok) {
+    const user = await getRequestUser(bearerClient.client);
+    if (user && !user.is_anonymous && user.email_confirmed_at) return user;
+    return null;
+  }
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user || user.is_anonymous || !user.email_confirmed_at) return null;
   return user;
 }
 
-export async function GET() {
-  const user = await getUser();
+export async function GET(request: Request) {
+  const user = await getUser(request);
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   const { data, error } = await supabaseAdmin
     .from("saved_events")
@@ -22,7 +29,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getUser();
+  const user = await getUser(request);
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   const body = await request.json().catch(() => ({}));
   const eventId = String(body.eventId || "").trim();
@@ -37,7 +44,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getUser();
+  const user = await getUser(request);
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   const url = new URL(request.url);
   const eventId = url.searchParams.get("eventId") || "";
