@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const action = String(body.action || "");
     const id = String(body.appointmentId || "");
     if (!id) return NextResponse.json({ error: "Appointment is required." }, { status: 400 });
-    const { data: appointment } = await supabaseAdmin.from("service_appointments").select("id,public_id,trip_id,customer_user_id,status,starts_at,ends_at,staff_id,service_profile_id,offering_id,customer_name").eq("id", id).eq("customer_user_id", user.id).maybeSingle();
+    const { data: appointment } = await supabaseAdmin.from("service_appointments").select("id,public_id,trip_id,customer_user_id,status,starts_at,ends_at,staff_id,service_profile_id,offering_id,customer_name,service_offerings(name)").eq("id", id).eq("customer_user_id", user.id).maybeSingle();
     if (!appointment) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
 
     if (action === "add_to_trip") {
@@ -50,13 +50,14 @@ export async function POST(request: Request) {
       const { data: trip } = await supabaseAdmin.from("trips").select("id,title,traveler_id").eq("id", tripId).eq("traveler_id", user.id).maybeSingle();
       if (!trip) return NextResponse.json({ error: "Journey not found." }, { status: 404 });
       if (["cancelled", "no_show"].includes(appointment.status)) return NextResponse.json({ error: "Cancelled appointments cannot be added to a journey." }, { status: 409 });
-      const { data: existing } = await supabaseAdmin.from("trip_items").select("id").eq("trip_id", tripId).eq("booking_id", appointment.id).maybeSingle();
+      const { data: existing } = await supabaseAdmin.from("trip_items").select("id").eq("trip_id", tripId).eq("appointment_id", appointment.id).maybeSingle();
       if (existing) {
         await supabaseAdmin.from("service_appointments").update({ trip_id: tripId, updated_at: new Date().toISOString() }).eq("id", id).eq("customer_user_id", user.id);
         return NextResponse.json({ added: false, trip, itemId: existing.id });
       }
       const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", tripId);
-      const { data: item, error } = await supabaseAdmin.from("trip_items").insert({ trip_id: tripId, booking_id: appointment.id, offering_id: appointment.offering_id, item_kind: "personal_service", position: count ?? 0, start_at: appointment.starts_at, end_at: appointment.ends_at, title: appointment.customer_name ? `Appointment · ${appointment.customer_name}` : "Service appointment" }).select("id,trip_id,booking_id,offering_id,item_kind,position,start_at,end_at,title").single();
+      const serviceName = (appointment as any).service_offerings?.name || "Service appointment";
+      const { data: item, error } = await supabaseAdmin.from("trip_items").insert({ trip_id: tripId, appointment_id: appointment.id, item_kind: "personal_service", position: count ?? 0, start_at: appointment.starts_at, end_at: appointment.ends_at, title: serviceName }).select("id,trip_id,appointment_id,item_kind,position,start_at,end_at,title").single();
       if (error) return NextResponse.json({ error: "Unable to add this appointment to the journey." }, { status: 409 });
       const { error: linkError } = await supabaseAdmin.from("service_appointments").update({ trip_id: tripId, updated_at: new Date().toISOString() }).eq("id", id).eq("customer_user_id", user.id);
       if (linkError) return NextResponse.json({ error: "Journey item created, but booking link could not be saved." }, { status: 500 });
