@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const { data: appointment } = await client.from("service_appointments").select("id").eq("id", appointmentId).eq("customer_user_id", user.id).maybeSingle();
     if (!appointment) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
 
-    const intent = await createServicePaymentIntent({ appointmentId, provider, idempotencyKey, returnUrl: body.returnUrl || null });
+    const intent = await createServicePaymentIntent({ appointmentId, customerUserId: user.id, provider, idempotencyKey, returnUrl: body.returnUrl || null });
     return NextResponse.json({ intent }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to create payment.";
