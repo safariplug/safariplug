@@ -5,7 +5,22 @@ import Link from "next/link";
 import TravelerNav from "@/components/TravelerNav";
 import AppointmentTripAction from "./AppointmentTripAction";
 
-type Appointment = any;
+type Appointment = {
+  id: string;
+  public_id: string;
+  trip_id: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  status: string;
+  customer_name: string | null;
+  customer_email: string | null;
+  price: number;
+  currency: string;
+  payment_status: string | null;
+  service_offerings?: { name: string } | null;
+  service_profiles?: { timezone?: string | null; businesses?: { name: string } | null } | null;
+  service_staff?: { display_name: string | null } | null;
+};
 type Event = { appointment_id:string; from_status:string|null; to_status:string; actor_type:string; note:string|null; created_at:string };
 const STATUS: Record<string,string> = { pending:"Awaiting confirmation", confirmed:"Confirmed", checked_in:"Checked in", in_progress:"In progress", completed:"Completed", cancelled:"Cancelled", no_show:"No show" };
 function formatDate(value:string,timeZone?:string) { return new Intl.DateTimeFormat("en", { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:timeZone || undefined }).format(new Date(value)); }
