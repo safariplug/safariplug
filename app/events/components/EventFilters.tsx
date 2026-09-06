@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 type EventFiltersProps = {
   cities: string[];
-  categories: string[];
+  categories: readonly string[];
   selectedCity: string;
   selectedCategory: string;
   selectedWhen: string;
