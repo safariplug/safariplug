@@ -17,7 +17,7 @@ export default function AddToTripButton({ eventId, tripId }: { eventId: string; 
       const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json().catch(() => ({}));
       if (response.status === 401) {
-        window.location.href = `/admin/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
         return;
       }
       if (!response.ok) {
