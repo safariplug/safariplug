@@ -12,18 +12,19 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
   const { data: { user } } = await client.auth.getUser();
   if (!user) redirect(`/admin/login?next=/account/trips`);
   const { id } = await params;
-  const { data: trip } = await supabaseAdmin.from("trips").select("id,title,start_on,end_on,status,created_at,destination_city_id,cities:destination_city_id(name,country)").eq("id", id).eq("traveler_id", user.id).maybeSingle();
+  const { data: trip } = await supabaseAdmin.from("trips").select("id,title,start_on,end_on,status,created_at,destination_city_id").eq("id", id).eq("traveler_id", user.id).maybeSingle();
   if (!trip) notFound();
 
   const { data: items } = await supabaseAdmin.from("trip_items").select("id,title,start_at,end_at,notes,item_kind,event_id,appointment_id,offering_id,city_id,position").eq("trip_id", id).order("position", { ascending: true });
   const cityIds = [...new Set((items ?? []).map((item) => item.city_id).filter(Boolean))];
+  if (trip.destination_city_id) cityIds.push(trip.destination_city_id);
   const appointmentIds = [...new Set((items ?? []).map((item) => item.appointment_id).filter(Boolean))];
-  const { data: cities } = cityIds.length ? await supabaseAdmin.from("cities").select("id,name,country").in("id", cityIds) : { data: [] };
+  const { data: cities } = cityIds.length ? await supabaseAdmin.from("cities").select("id,name,country").in("id", [...new Set(cityIds)]) : { data: [] };
   const { data: appointments } = appointmentIds.length ? await supabaseAdmin.from("service_appointments").select("id,public_id,status,payment_status,starts_at,ends_at,service_profiles(businesses(name)),service_offerings(name),service_staff(display_name)").in("id", appointmentIds).eq("customer_user_id", user.id) : { data: [] };
   const cityMap = new Map((cities ?? []).map((city) => [city.id, city]));
   const appointmentMap = new Map((appointments ?? []).map((appointment: any) => [appointment.id, appointment]));
+  const destination = trip.destination_city_id ? cityMap.get(trip.destination_city_id) : null;
   const eventHref = (eventId: string) => `/events/${eventId}?tripId=${encodeURIComponent(trip.id)}`;
-  const destination = Array.isArray((trip as any).cities) ? (trip as any).cities[0] : (trip as any).cities;
 
   return (
     <main className="min-h-screen bg-black text-white">
