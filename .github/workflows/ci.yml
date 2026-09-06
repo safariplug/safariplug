@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   quality:
@@ -20,17 +20,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Apply one-time AI Scout reliability repair
-        if: contains(github.event.head_commit.message, 'Enable AI Scout repair')
-        run: |
-          node scripts/repair-ai-scout.js
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/admin/ai-scout/actions/run-scout.ts
-          git rm -f scripts/repair-ai-scout.js .github/workflows/repair-ai-scout.yml
-          git commit -m "Fix AI Scout pass failure handling"
-          git push
 
       - name: Setup Node
         uses: actions/setup-node@v4
