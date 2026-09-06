@@ -45,6 +45,20 @@ function absoluteHttpsUrl(value: unknown): string | null {
   }
 }
 
+function isFeedEventMalformed(event: FeedEvent): boolean {
+  return (
+    !event.id ||
+    typeof event.title !== "string" ||
+    !event.title.trim() ||
+    typeof event.description !== "string" ||
+    !event.description.trim() ||
+    typeof event.venue_name !== "string" ||
+    !event.venue_name.trim() ||
+    typeof event.source_url !== "string" ||
+    !event.source_url.trim()
+  );
+}
+
 async function recordFeedRun(input: {
   requestedAt: string;
   durationMs: number;
@@ -108,8 +122,10 @@ export async function GET(request: Request) {
 
   try {
     const events = await loadApprovedUpcomingEvents();
+    const malformedCount = events.filter(isFeedEventMalformed).length;
+    const validEvents = events.filter((event) => !isFeedEventMalformed(event));
 
-    const experiences: FeedExperience[] = events.map((event) => {
+    const experiences: FeedExperience[] = validEvents.map((event) => {
       // Aurelian's canonical click-through stays on SafariPlug so the
       // discovery relationship is preserved. booking_url remains metadata.
       const bookingUrl = absoluteHttpsUrl(event.booking_url);
@@ -124,12 +140,6 @@ export async function GET(request: Request) {
       };
     });
 
-    const malformedCount = experiences.filter(
-      (experience) =>
-        !experience.id ||
-        typeof experience.title !== "string" ||
-        !experience.title.trim(),
-    ).length;
     const durationMs = Date.now() - startedAt;
 
     await recordFeedRun({
