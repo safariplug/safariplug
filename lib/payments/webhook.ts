@@ -18,12 +18,16 @@ const statuses = new Set<PaymentIntentStatus>([
 ]);
 
 export async function recordAndApplyPaymentWebhook(event: NormalizedPaymentWebhook) {
+  if (!statuses.has(event.status)) throw new Error("invalid_payment_status");
+  if (!event.appointmentId) throw new Error("payment_appointment_id_required");
+
   const { data: inserted, error: insertError } = await supabaseAdmin
-    .from("service_payment_webhook_events")
+    .from("service_payment_events")
     .insert({
       provider: event.provider,
       event_id: event.eventId,
       event_type: event.eventType,
+      appointment_id: event.appointmentId,
       provider_reference: event.providerReference,
       payload: event.rawPayload,
       status: "received",
@@ -36,21 +40,27 @@ export async function recordAndApplyPaymentWebhook(event: NormalizedPaymentWebho
     throw insertError;
   }
 
-  if (!statuses.has(event.status)) throw new Error("invalid_payment_status");
+  const normalizedStatus = event.status === "succeeded"
+    ? "paid"
+    : event.status === "failed"
+      ? "failed"
+      : event.status === "cancelled"
+        ? "cancelled"
+        : "pending";
 
   const { data: result, error } = await supabaseAdmin.rpc("apply_service_payment_webhook", {
-    p_appointment_id: event.appointmentId ?? null,
+    p_appointment_id: event.appointmentId,
     p_payment_reference: event.providerReference,
-    p_status: event.status === "succeeded" ? "paid" : event.status === "failed" ? "failed" : "pending",
+    p_status: normalizedStatus,
     p_paid_at: event.paidAt ?? null,
     p_refunded_amount: event.refundedAmount ?? 0,
   });
 
   if (error) {
-    await supabaseAdmin.from("service_payment_webhook_events").update({ status: "failed", error_message: error.message }).eq("id", inserted?.id);
+    await supabaseAdmin.from("service_payment_events").update({ status: "failed", error_message: error.message }).eq("id", inserted.id);
     throw error;
   }
 
-  await supabaseAdmin.from("service_payment_webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", inserted?.id);
+  await supabaseAdmin.from("service_payment_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", inserted.id);
   return { duplicate: false, result };
 }
