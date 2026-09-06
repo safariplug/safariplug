@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import TravelerNav from "@/components/TravelerNav";
 
 export default async function TripsPage() {
   const client = await createSupabaseServerClient();
@@ -23,8 +24,9 @@ export default async function TripsPage() {
   for (const item of items ?? []) itemCounts.set(item.trip_id, (itemCounts.get(item.trip_id) ?? 0) + 1);
 
   return (
-    <main className="min-h-screen bg-black px-6 py-12 text-white md:px-12">
-      <div className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-black text-white">
+      <TravelerNav />
+      <div className="mx-auto max-w-6xl px-6 py-12 md:px-12">
         <div className="mb-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">Your journeys</p>
