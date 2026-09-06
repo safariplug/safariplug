@@ -20,9 +20,12 @@ export async function POST(request: Request) {
       }
       customerUserId = user.id;
     } else if (user && !user.is_anonymous && (user.email_confirmed_at || user.phone_confirmed_at)) {
-      // Guest checkout remains available, while confirmed clients get the
-      // appointment attached to their account for My Bookings management.
       customerUserId = user.id;
+    }
+
+    const tripId = typeof b.tripId === "string" && b.tripId.trim() ? b.tripId.trim() : null;
+    if (tripId && !customerUserId) {
+      return NextResponse.json({ error: "Sign in to attach a booking to a journey." }, { status: 401 });
     }
 
     const { data: appointment, error } = await supabaseAdmin.rpc("create_service_appointment", {
@@ -37,7 +40,21 @@ export async function POST(request: Request) {
       p_customer_notes: b.customerNotes ?? null,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: error.message.includes("slot_unavailable") ? 409 : 400 });
-    return NextResponse.json({ appointment, customerLinked: Boolean(customerUserId) }, { status: 201 });
+
+    let attachedToTrip = false;
+    if (tripId && customerUserId && appointment?.id) {
+      const { error: attachError } = await supabaseAdmin.rpc("attach_service_appointment_to_trip", {
+        p_appointment_id: appointment.id,
+        p_trip_id: tripId,
+        p_traveler_id: customerUserId,
+      });
+      if (attachError) {
+        return NextResponse.json({ error: attachError.message }, { status: attachError.message.includes("trip_not_found") ? 404 : 400 });
+      }
+      attachedToTrip = true;
+    }
+
+    return NextResponse.json({ appointment, customerLinked: Boolean(customerUserId), attachedToTrip }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
