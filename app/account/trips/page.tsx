@@ -10,12 +10,15 @@ export default async function TripsPage() {
   const { data: { user } } = await client.auth.getUser();
   if (!user) redirect(`/admin/login?next=/account/trips`);
 
-  const { data: trips } = await supabaseAdmin
-    .from("trips")
-    .select("id,title,start_on,end_on,status,created_at")
-    .eq("traveler_id", user.id)
-    .order("start_on", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  const [{ data: trips }, { data: cities }] = await Promise.all([
+    supabaseAdmin
+      .from("trips")
+      .select("id,title,start_on,end_on,status,created_at")
+      .eq("traveler_id", user.id)
+      .order("start_on", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false }),
+    supabaseAdmin.from("cities").select("id,name,country").order("name"),
+  ]);
 
   const ids = (trips ?? []).map((trip) => trip.id);
   const { data: items } = ids.length
@@ -35,7 +38,7 @@ export default async function TripsPage() {
             <p className="mt-3 max-w-2xl text-zinc-400">Keep your discoveries together and turn them into a journey.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <NewTripButton />
+            <NewTripButton cities={cities ?? []} />
             <Link href="/events" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-white transition hover:border-amber-500/60 hover:text-amber-300">Discover experiences</Link>
           </div>
         </div>
@@ -46,7 +49,7 @@ export default async function TripsPage() {
             <h2 className="mt-4 text-2xl font-bold">Your first journey starts here</h2>
             <p className="mx-auto mt-2 max-w-md text-zinc-400">Start with a trip, then add the SafariPlug experiences you want along the way.</p>
             <div className="flex flex-wrap justify-center gap-3">
-              <NewTripButton empty />
+              <NewTripButton empty cities={cities ?? []} />
               <Link href="/events" className="mt-6 inline-flex rounded-full border border-zinc-700 px-6 py-3 font-bold text-white">Explore events</Link>
             </div>
           </section>
