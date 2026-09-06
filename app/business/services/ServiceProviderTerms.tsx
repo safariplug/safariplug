@@ -1,0 +1,18 @@
+"use client";
+
+import { useState } from "react";
+
+const TERMS_VERSION = "service-provider-terms-v1-2026-09-05";
+
+export default function ServiceProviderTerms({ businessId, profileId, acceptedAt, feePercent = 10 }:{businessId:string;profileId:string;acceptedAt?:string|null;feePercent?:number}) {
+  const [accepted, setAccepted] = useState(Boolean(acceptedAt));
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  if (accepted) return <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-emerald-700/70">Provider agreement</p><p className="mt-1 font-semibold text-emerald-950">Terms accepted · {feePercent}% SafariPlug service fee</p><p className="mt-1 text-xs text-emerald-900/60">Version {TERMS_VERSION}</p></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-semibold text-emerald-700">Active</span></div></div>;
+  async function accept() {
+    setBusy(true); setMessage("");
+    try { const r=await fetch("/api/business/services/terms",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({accept:true,businessId,serviceProfileId:profileId})}); const j=await r.json(); if(!r.ok) throw new Error(j.error||"Unable to accept terms"); setAccepted(true); } catch(e){setMessage(e instanceof Error?e.message:"Unable to accept terms");} finally{setBusy(false);}
+  }
+  return <section className="rounded-[2rem] border border-black/10 bg-white p-7 shadow-[0_20px_80px_-65px_rgba(0,0,0,.55)]"><div className="max-w-3xl"><p className="text-[10px] font-semibold uppercase tracking-[.22em] text-black/40">Required before bookings</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Activate your provider agreement</h2><p className="mt-3 text-sm leading-6 text-black/55">SafariPlug is a marketplace. You remain responsible for delivering your services safely and professionally. For bookings generated through SafariPlug, the marketplace service fee is <strong className="text-black">{feePercent}%</strong> of the applicable service amount.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-[#f7f7f4] p-4"><p className="font-semibold">10% marketplace fee</p><p className="mt-1 text-xs leading-5 text-black/50">Collected from the provider through settlement or invoicing, depending on the payment flow.</p></div><div className="rounded-2xl bg-[#f7f7f4] p-4"><p className="font-semibold">Provider responsibilities</p><p className="mt-1 text-xs leading-5 text-black/50">Accurate listings, pricing, availability, qualifications, safety, cancellations, taxes and customer service.</p></div></div><label className="mt-6 flex cursor-pointer gap-3 text-sm"><input type="checkbox" checked={checked} onChange={e=>setChecked(e.target.checked)} className="mt-1 h-4 w-4"/><span>I have read and agree to the <a href="/legal/service-provider-terms" target="_blank" className="font-semibold underline">SafariPlug Service Provider Terms & Conditions</a>, including the {feePercent}% marketplace service fee.</span></label>{message&&<p className="mt-3 text-sm font-medium text-red-600">{message}</p>}<button disabled={!checked||busy} onClick={accept} className="mt-5 rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:opacity-35">{busy?"Saving…":"Accept & continue"}</button><p className="mt-3 text-[11px] text-black/35">Terms version: {TERMS_VERSION}. Providers should obtain independent legal/tax advice where appropriate.</p></div></section>;
+}
