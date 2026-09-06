@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import TravelerNav from "@/components/TravelerNav";
+import NewTripButton from "./NewTripButton";
 
 export default async function TripsPage() {
   const client = await createSupabaseServerClient();
@@ -33,15 +34,21 @@ export default async function TripsPage() {
             <h1 className="mt-2 text-4xl font-black md:text-5xl">My Trips</h1>
             <p className="mt-3 max-w-2xl text-zinc-400">Keep your discoveries together and turn them into a journey.</p>
           </div>
-          <Link href="/events" className="rounded-full bg-amber-500 px-5 py-3 text-sm font-bold text-black transition hover:bg-amber-400">Discover experiences</Link>
+          <div className="flex flex-wrap gap-3">
+            <NewTripButton />
+            <Link href="/events" className="rounded-full border border-zinc-700 px-5 py-3 text-sm font-bold text-white transition hover:border-amber-500/60 hover:text-amber-300">Discover experiences</Link>
+          </div>
         </div>
 
         {!trips?.length ? (
           <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-10 text-center">
             <div className="text-5xl">🧭</div>
             <h2 className="mt-4 text-2xl font-bold">Your first journey starts here</h2>
-            <p className="mx-auto mt-2 max-w-md text-zinc-400">Explore SafariPlug, find something worth doing and add it to a trip.</p>
-            <Link href="/events" className="mt-6 inline-flex rounded-full bg-white px-6 py-3 font-bold text-black">Explore events</Link>
+            <p className="mx-auto mt-2 max-w-md text-zinc-400">Start with a trip, then add the SafariPlug experiences you want along the way.</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <NewTripButton empty />
+              <Link href="/events" className="mt-6 inline-flex rounded-full border border-zinc-700 px-6 py-3 font-bold text-white">Explore events</Link>
+            </div>
           </section>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
