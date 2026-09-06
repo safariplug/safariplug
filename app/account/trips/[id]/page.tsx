@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import TripItemActions from "./TripItemActions";
 
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
   const client = await createSupabaseServerClient();
@@ -58,7 +59,10 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
                       {city && <span>📍 {city.name}{city.country ? `, ${city.country}` : ""}</span>}
                     </div>
                     {item.notes && <p className="mt-3 text-sm text-zinc-500">{item.notes}</p>}
-                    {item.event_id && <Link href={`/events/${item.event_id}`} className="mt-4 inline-block text-sm font-semibold text-amber-400 hover:text-amber-300">View event →</Link>}
+                    <div className="mt-4 flex flex-wrap items-center gap-4">
+                      {item.event_id && <Link href={`/events/${item.event_id}`} className="text-sm font-semibold text-amber-400 hover:text-amber-300">View event →</Link>}
+                      <TripItemActions tripId={trip.id} itemId={item.id} />
+                    </div>
                   </div>
                 </article>
               );
