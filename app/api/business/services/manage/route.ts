@@ -17,7 +17,7 @@ async function ownedBusiness(userId: string, businessId?: string) {
 }
 async function ownedProfile(userId: string, profileId?: string) {
   const business = await ownedBusiness(userId); if (!business) return null;
-  let q = supabaseAdmin.from("service_profiles").select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days").eq("business_id", business.id);
+  let q = supabaseAdmin.from("service_profiles").select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days,service_fee_percent,service_fee_minimum,customer_fee_percent,customer_fee_minimum,customer_fee_maximum,payout_minimum,payout_schedule").eq("business_id", business.id);
   if (profileId) q = q.eq("id", profileId);
   const { data } = await q.maybeSingle();
   return data ? { ...data, business } : null;
@@ -42,14 +42,22 @@ export async function POST(request: Request) {
       const business = await ownedBusiness(user.id, body.businessId); if (!business) return NextResponse.json({ error:"Business not found." }, { status:404 });
       const existing = await supabaseAdmin.from("service_profiles").select("id").eq("business_id", business.id).maybeSingle(); if (existing.data) return NextResponse.json({ error:"A service profile already exists for this business." }, { status:409 });
       const { data: category } = await supabaseAdmin.from("service_categories").select("id").eq("slug", String(body.categorySlug || "")).eq("status","active").maybeSingle(); if (!category) return NextResponse.json({ error:"Choose a valid service category." }, { status:400 });
-      const { data, error } = await supabaseAdmin.from("service_profiles").insert({ business_id:business.id, category_id:category.id, status:"active", booking_status:"closed", timezone:body.timezone || "Africa/Nairobi", cancellation_policy:body.cancellationPolicy || null, booking_notice_minutes:Math.max(0, Number(body.bookingNoticeMinutes ?? 60)), max_booking_days:Math.max(1, Number(body.maxBookingDays ?? 90)) }).select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days").single();
+      const { data, error } = await supabaseAdmin.from("service_profiles").insert({ business_id:business.id, category_id:category.id, status:"active", booking_status:"closed", timezone:body.timezone || "Africa/Nairobi", cancellation_policy:body.cancellationPolicy || null, booking_notice_minutes:Math.max(0, Number(body.bookingNoticeMinutes ?? 60)), max_booking_days:Math.max(1, Number(body.maxBookingDays ?? 90)), service_fee_percent:10, service_fee_minimum:30, customer_fee_percent:0, customer_fee_minimum:0, customer_fee_maximum:0, payout_minimum:1000, payout_schedule:"weekly" }).select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days,service_fee_percent,service_fee_minimum,customer_fee_percent,customer_fee_minimum,customer_fee_maximum,payout_minimum,payout_schedule").single();
       if (error) return NextResponse.json({ error:error.message }, { status:400 }); return NextResponse.json({ profile:data }, { status:201 });
     }
 
     const profile = await ownedProfile(user.id, body.serviceProfileId); if (!profile) return NextResponse.json({ error:"Service profile not found." }, { status:404 });
 
     if (action === "update_profile") {
-      const patch:any = {}; if (body.timezone) patch.timezone=String(body.timezone); if (body.cancellationPolicy!==undefined) patch.cancellation_policy=body.cancellationPolicy||null; if (body.bookingNoticeMinutes!==undefined) patch.booking_notice_minutes=Math.max(0,Number(body.bookingNoticeMinutes)); if (body.maxBookingDays!==undefined) patch.max_booking_days=Math.max(1,Number(body.maxBookingDays));
+      const patch:any = {};
+      if (body.timezone) patch.timezone=String(body.timezone);
+      if (body.cancellationPolicy!==undefined) patch.cancellation_policy=body.cancellationPolicy||null;
+      if (body.bookingNoticeMinutes!==undefined) patch.booking_notice_minutes=Math.max(0,Number(body.bookingNoticeMinutes));
+      if (body.maxBookingDays!==undefined) patch.max_booking_days=Math.max(1,Number(body.maxBookingDays));
+      if (body.serviceFeePercent!==undefined) patch.service_fee_percent=Math.min(100,Math.max(0,Number(body.serviceFeePercent)));
+      if (body.serviceFeeMinimum!==undefined) patch.service_fee_minimum=Math.max(0,Number(body.serviceFeeMinimum));
+      if (body.payoutMinimum!==undefined) patch.payout_minimum=Math.max(0,Number(body.payoutMinimum));
+      if (body.payoutSchedule!==undefined && ["weekly","manual"].includes(String(body.payoutSchedule))) patch.payout_schedule=String(body.payoutSchedule);
       const { data,error } = await supabaseAdmin.from("service_profiles").update(patch).eq("id",profile.id).select("*").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({profile:data});
     }
     if (action === "toggle_booking") {
@@ -57,7 +65,9 @@ export async function POST(request: Request) {
     }
     if (action === "create_offering") {
       if (!body.name || !body.durationMinutes) return NextResponse.json({error:"Service name and duration are required."},{status:400});
-      const {data,error}=await supabaseAdmin.from("service_offerings").insert({service_profile_id:profile.id,category_id:profile.category_id,name:String(body.name).trim(),slug:slugify(String(body.name)),description:body.description||null,duration_minutes:Number(body.durationMinutes),price:Number(body.price??0),currency:body.currency||"KES",status:body.active===false?"draft":"active",requires_confirmation:Boolean(body.requiresConfirmation)}).select("id,name,description,duration_minutes,price,currency,status,requires_confirmation").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({offering:data},{status:201});
+      const baseSlug=slugify(String(body.name));
+      const slug=`${baseSlug}-${Date.now().toString(36)}`;
+      const {data,error}=await supabaseAdmin.from("service_offerings").insert({service_profile_id:profile.id,category_id:profile.category_id,name:String(body.name).trim(),slug,description:body.description||null,duration_minutes:Number(body.durationMinutes),price:Number(body.price??0),currency:body.currency||"KES",status:body.active===false?"draft":"active",requires_confirmation:Boolean(body.requiresConfirmation)}).select("id,name,description,duration_minutes,price,currency,status,requires_confirmation").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({offering:data},{status:201});
     }
     if (action === "update_offering") {
       if(!body.offeringId)return NextResponse.json({error:"Offering is required."},{status:400}); const {data:offering}=await supabaseAdmin.from("service_offerings").select("id").eq("id",body.offeringId).eq("service_profile_id",profile.id).maybeSingle(); if(!offering)return NextResponse.json({error:"Offering not found."},{status:404}); const patch:any={}; for(const [key,value] of [["name",body.name],["description",body.description],["duration_minutes",body.durationMinutes],["price",body.price],["currency",body.currency],["status",body.status],["requires_confirmation",body.requiresConfirmation]] as const)if(value!==undefined)patch[key]=value; const {data,error}=await supabaseAdmin.from("service_offerings").update(patch).eq("id",body.offeringId).select("*").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({offering:data});
