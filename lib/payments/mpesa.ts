@@ -9,7 +9,12 @@ function config() {
   if (!consumerKey || !consumerSecret || !shortCode || !passKey || !callbackUrl) throw new Error("mpesa_credentials_not_configured");
   return { consumerKey, consumerSecret, shortCode, passKey, callbackUrl };
 }
-function baseUrl() { return (process.env.MPESA_BASE_URL?.trim() || "https://sandbox.safaricom.co.ke").replace(/\/$/, ""); }
+function baseUrl() {
+  const configured = process.env.MPESA_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") throw new Error("mpesa_base_url_not_configured");
+  return "https://sandbox.safaricom.co.ke";
+}
 function normalizePhone(value: string | null | undefined) {
   const digits = String(value || "").replace(/\D/g, "");
   if (/^254[17]\d{8}$/.test(digits)) return digits;
