@@ -34,13 +34,13 @@ export async function POST(request: Request) {
 
   let destinationCityId: string | null = null;
   if (destination) {
-    const { data: city } = await supabaseAdmin
-      .from("cities")
-      .select("id")
-      .or(`name.ilike.%${destination}%,slug.ilike.%${destination}%`)
-      .limit(1)
-      .maybeSingle();
-    destinationCityId = city?.id ?? null;
+    const normalized = destination.replace(/[%_,]/g, " ").trim();
+    const { data: city } = await supabaseAdmin.from("cities").select("id").ilike("name", `%${normalized}%`).limit(1).maybeSingle();
+    if (city) destinationCityId = city.id;
+    else {
+      const { data: slugCity } = await supabaseAdmin.from("cities").select("id").ilike("slug", `%${normalized.toLowerCase().replace(/\s+/g, "-")}%`).limit(1).maybeSingle();
+      destinationCityId = slugCity?.id ?? null;
+    }
   }
 
   const { data: trip, error } = await supabaseAdmin
