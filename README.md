@@ -1,4 +1,4 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a [Next.js](https://nextjs.org) project for SafariPlug.
 
 ## Getting Started
 
@@ -6,31 +6,21 @@ First, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open http://localhost:3000 in your browser.
 
-## Deployment
+## Production
 
-SafariPlug production deploys from the `main` branch.
+SafariPlug production is hosted on Hostinger and deployed from the `main` branch through the Hostinger GitHub integration.
 
-This line intentionally records the current deployment trigger state.
+The application uses Next.js with Node.js, Supabase, OpenAI, Stripe, and SafariPlug's external partner integrations.
 
-This project uses `next/font` to automatically optimize and load Geist.
+## AI Scout
+
+The AI Scout scheduled endpoint is available at `/api/cron/ai-scout`. Hostinger can invoke this endpoint from its hPanel Cron Jobs scheduler using the production `CRON_SECRET` as a Bearer authorization token.
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
-
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Next.js Learn](https://nextjs.org/learn)
-
-## Deploy on Vercel
-
-The easiest way to deploy this Next.js app is through Vercel's Git integration.
