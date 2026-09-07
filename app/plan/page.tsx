@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 type Trip = { id: string; title: string; start_on: string | null; end_on: string | null; status: string; cities?: { name?: string; country?: string } | null };
@@ -31,7 +32,7 @@ export default function PlanPage() {
   async function addIdea(eventId: string) {
     if (!selectedTrip) { setMessage("Create or select a trip first."); return; }
     const response = await fetch(`/api/v1/trips/${selectedTrip}/items`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ event_id: eventId }) });
-    const body = await response.json(); if (!response.ok) { setMessage(body.error?.message || "Could not add that discovery."); return; } setMessage("Added to your journey.");
+    const body = await response.json(); if (!response.ok) { setMessage(body.error?.message || "Could not add that discovery."); return; } setMessage("Added to your journey. Open the itinerary to see it scheduled.");
   }
 
   return <main className="min-h-screen bg-[#0b0b0b] px-5 py-12 text-white md:px-10"><div className="mx-auto max-w-5xl">
@@ -49,6 +50,6 @@ export default function PlanPage() {
       {ideas.length > 0 && <div className="mt-5 grid gap-3 md:grid-cols-2">{ideas.map((item)=><article key={item.id} className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs uppercase tracking-wider text-amber-400">{item.category || "Experience"}</p><h3 className="mt-1 font-semibold">{item.title}</h3><p className="mt-1 text-sm text-white/45">{item.venue_name || "SafariPlug discovery"}</p><div className="mt-4 flex items-center justify-between"><span className="text-xs text-white/40">{item.start_at ? new Date(item.start_at).toLocaleDateString() : "Flexible"}</span><button type="button" onClick={() => void addIdea(item.id)} className="rounded-full bg-white px-4 py-2 text-xs font-bold text-black">Add to trip</button></div></article>)}</div>}
     </section>
     <p className="mt-6 text-sm text-white/50">{message}</p>
-    <section className="mt-6 grid gap-4 md:grid-cols-2">{trips.map((trip)=><article key={trip.id} className="rounded-3xl border border-white/10 bg-white/[0.04] p-6"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{trip.title}</h2><p className="mt-1 text-white/55">{trip.cities?.name || "Destination being prepared"}{trip.cities?.country ? `, ${trip.cities.country}` : ""}</p></div><span className="rounded-full bg-white/10 px-3 py-1 text-xs capitalize text-white/65">{trip.status}</span></div><p className="mt-5 text-sm text-white/55">{trip.start_on || "Flexible dates"}{trip.end_on ? ` → ${trip.end_on}` : ""}</p></article>)}</section>
+    <section className="mt-6 grid gap-4 md:grid-cols-2">{trips.map((trip)=><article key={trip.id} className="rounded-3xl border border-white/10 bg-white/[0.04] p-6"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{trip.title}</h2><p className="mt-1 text-white/55">{trip.cities?.name || "Destination being prepared"}{trip.cities?.country ? `, ${trip.cities.country}` : ""}</p></div><span className="rounded-full bg-white/10 px-3 py-1 text-xs capitalize text-white/65">{trip.status}</span></div><p className="mt-5 text-sm text-white/55">{trip.start_on || "Flexible dates"}{trip.end_on ? ` → ${trip.end_on}` : ""}</p><Link href={`/plan/${trip.id}`} className="mt-5 inline-flex rounded-full bg-white px-4 py-2 text-sm font-bold text-black">Open itinerary →</Link></article>)}</section>
   </div></main>;
 }
