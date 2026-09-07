@@ -15,7 +15,10 @@ function config() {
 }
 
 function baseUrl() {
-  return (process.env.MPESA_BASE_URL?.trim() || "https://sandbox.safaricom.co.ke").replace(/\/$/, "");
+  const configured = process.env.MPESA_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") throw new Error("mpesa_base_url_not_configured");
+  return "https://sandbox.safaricom.co.ke";
 }
 
 function normalizePhone(value: string) {
