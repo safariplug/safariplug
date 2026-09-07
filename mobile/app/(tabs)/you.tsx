@@ -2,13 +2,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors } from "../../src/theme";
+import { useFx } from "../../src/fx";
 
 const ROWS: { label: string; hint: string; href?: string }[] = [
   { label: "My Trips", hint: "Itineraries when you are signed in", href: "/(tabs)/trips" },
   { label: "Saved", hint: "Local architecture only", href: "/(tabs)/saved" },
   { label: "Bookings", hint: "Confirmation is not live", href: "/(tabs)/trips" },
   { label: "Preferences", hint: "Coming with accounts" },
-  { label: "Currency", hint: "Display KES — not a live FX engine" },
+  { label: "Currency", hint: "", href: "/currency" },
   { label: "Language", hint: "English" },
   { label: "Notifications", hint: "No alerts yet" },
   { label: "Help", hint: "safariplug.com" },
@@ -16,6 +17,8 @@ const ROWS: { label: string; hint: string; href?: string }[] = [
 ];
 
 export default function YouScreen() {
+  const { currency, loading, error } = useFx();
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.page}>
@@ -39,7 +42,13 @@ export default function YouScreen() {
             style={styles.row}
           >
             <Text style={styles.rowLabel}>{row.label}</Text>
-            <Text style={styles.rowHint}>{row.hint}</Text>
+            {row.label === "Currency" ? (
+              <Text style={styles.rowHint}>
+                {loading ? "Updating live FX…" : error ? `${currency} · live FX unavailable` : `${currency} · live FX`}
+              </Text>
+            ) : (
+              <Text style={styles.rowHint}>{row.hint}</Text>
+            )}
           </Pressable>
         ))}
       </ScrollView>
