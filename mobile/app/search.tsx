@@ -14,6 +14,8 @@ const FILTERS = ["All", "Stays", "Experiences", "Events", "Food", "Transfers", "
 type Filter = (typeof FILTERS)[number];
 
 const COMING: Partial<Record<Filter, { title: string; body: string }>> = {
+  Experiences: { title: "Experience search is coming soon", body: "Tours, safaris, dining and wellness will appear when the live experience catalog is searchable." },
+  Activities: { title: "Activity search is coming soon", body: "Activities will appear when the live supplier catalog is connected." },
   Stays: {
     title: "Hotel booking is coming soon",
     body: "SafariPlug is connecting trusted accommodation partners across Africa. Search will not invent rooms or rates.",
@@ -50,7 +52,7 @@ export default function SearchScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!query || (filter !== "All" && filter !== "Events" && filter !== "Experiences")) {
+    if (!query || (filter !== "All" && filter !== "Events")) {
       setEvents([]);
       setError(null);
       setLoading(false);
