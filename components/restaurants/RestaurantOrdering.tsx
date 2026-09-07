@@ -6,10 +6,13 @@ type Item = { id: string; name: string; description?: string | null; image_url?:
 type Category = { id: string; name: string; description?: string | null; items: Item[] };
 type Settings = { ordering_enabled: boolean; pickup_enabled: boolean; safari_driver_enabled: boolean; customer_driver_enabled: boolean; restaurant_delivery_enabled: boolean; restaurant_delivery_fee: number; free_delivery_threshold: number | null; minimum_order_amount: number; preparation_time_minutes: number };
 type CartLine = { item: Item; quantity: number; notes: string };
+type Driver = { id: string; display_name: string; service_city?: string | null; service_country?: string | null };
 
 export default function RestaurantOrdering({ businessId }: { businessId: string }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [driverId, setDriverId] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [method, setMethod] = useState("pickup");
   const [customer, setCustomer] = useState({ name: "", phone: "", email: "", address: "", notes: "" });
@@ -30,9 +33,24 @@ export default function RestaurantOrdering({ businessId }: { businessId: string 
     }).catch((e) => setMessage(e.message)).finally(() => setLoading(false));
   }, [businessId]);
 
+  useEffect(() => {
+    if (method !== "customer_driver") return;
+    fetch("/api/restaurants/drivers").then(async (r) => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Unable to load drivers");
+      setDrivers(data.drivers || []);
+    }).catch((e) => setMessage(e.message));
+  }, [method]);
+
   const subtotal = useMemo(() => cart.reduce((sum, line) => sum + Number(line.item.price) * line.quantity, 0), [cart]);
   const deliveryFee = method === "restaurant_delivery" && settings ? (settings.free_delivery_threshold != null && subtotal >= Number(settings.free_delivery_threshold) ? 0 : Number(settings.restaurant_delivery_fee || 0)) : 0;
   const total = subtotal + deliveryFee;
+  const methods = [
+    ["pickup", "Pickup", "pickup_enabled"],
+    ["restaurant_delivery", "Restaurant delivery", "restaurant_delivery_enabled"],
+    ["safari_driver", "SafariPlug driver", "safari_driver_enabled"],
+    ["customer_driver", "My chosen driver", "customer_driver_enabled"],
+  ] as const;
 
   function add(item: Item) { setCart((current) => { const found = current.find((x) => x.item.id === item.id); return found ? current.map((x) => x.item.id === item.id ? { ...x, quantity: x.quantity + 1 } : x) : [...current, { item, quantity: 1, notes: "" }]; }); }
   function change(id: string, delta: number) { setCart((current) => current.flatMap((x) => x.item.id === id ? (x.quantity + delta > 0 ? [{ ...x, quantity: x.quantity + delta }] : []) : [x])); }
@@ -41,9 +59,10 @@ export default function RestaurantOrdering({ businessId }: { businessId: string 
     setMessage("");
     if (!customer.name || !customer.phone || !cart.length) return setMessage("Add your name, phone number and at least one item.");
     if (method !== "pickup" && !customer.address) return setMessage("Add a delivery address.");
+    if (method === "customer_driver" && !driverId) return setMessage("Choose a driver.");
     setOrdering(true);
     try {
-      const res = await fetch("/api/restaurants/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ businessId, fulfillmentMethod: method, customerName: customer.name, customerPhone: customer.phone, customerEmail: customer.email || undefined, deliveryAddress: customer.address || undefined, customerNotes: customer.notes || undefined, items: cart.map((x) => ({ menuItemId: x.item.id, quantity: x.quantity, notes: x.notes || undefined })) }) });
+      const res = await fetch("/api/restaurants/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ businessId, fulfillmentMethod: method, driverId: driverId || undefined, customerName: customer.name, customerPhone: customer.phone, customerEmail: customer.email || undefined, deliveryAddress: customer.address || undefined, customerNotes: customer.notes || undefined, items: cart.map((x) => ({ menuItemId: x.item.id, quantity: x.quantity, notes: x.notes || undefined })) }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to place order");
       setCart([]);
@@ -68,7 +87,8 @@ export default function RestaurantOrdering({ businessId }: { businessId: string 
         <h2 className="text-xl font-semibold">Your order</h2>
         {!cart.length ? <p className="py-8 text-sm text-slate-500">Your cart is empty.</p> : <div className="mt-4 space-y-3">{cart.map((line) => <div key={line.item.id} className="flex items-center gap-3"><div className="min-w-0 flex-1"><p className="truncate font-medium">{line.item.name}</p><p className="text-sm text-slate-500">{line.item.currency} {Number(line.item.price).toLocaleString()}</p></div><button onClick={() => change(line.item.id, -1)} className="h-8 w-8 rounded-full border">−</button><span>{line.quantity}</span><button onClick={() => change(line.item.id, 1)} className="h-8 w-8 rounded-full border">+</button></div>)}</div>}
         <div className="mt-5 space-y-2 border-t pt-4 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{cart[0]?.item.currency || "KES"} {subtotal.toLocaleString()}</span></div><div className="flex justify-between"><span>Delivery</span><span>{deliveryFee ? `${cart[0]?.item.currency || "KES"} ${deliveryFee.toLocaleString()}` : "Free"}</span></div><div className="flex justify-between text-lg font-semibold"><span>Total</span><span>{cart[0]?.item.currency || "KES"} {total.toLocaleString()}</span></div></div>
-        <div className="mt-5"><p className="text-sm font-semibold">Fulfilment</p><div className="mt-2 grid gap-2">{[["pickup", "Pickup"], ["restaurant_delivery", "Restaurant delivery"], ["safari_driver", "SafariPlug driver"], ["customer_driver", "My chosen driver"]].filter(([key]) => settings[`${key === "pickup" ? "pickup" : key}_enabled` as keyof Settings]).map(([key, label]) => <label key={key} className="flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm"><input type="radio" checked={method === key} onChange={() => setMethod(key)} />{label}</label>)}</div></div>
+        <div className="mt-5"><p className="text-sm font-semibold">Fulfilment</p><div className="mt-2 grid gap-2">{methods.filter(([, , setting]) => Boolean(settings[setting])).map(([key, label]) => <label key={key} className="flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm"><input type="radio" checked={method === key} onChange={() => { setMethod(key); if (key !== "customer_driver") setDriverId(""); }} />{label}</label>)}</div></div>
+        {method === "customer_driver" && <div className="mt-3"><label className="text-sm font-semibold">Choose your driver</label><select value={driverId} onChange={(e) => setDriverId(e.target.value)} className="mt-2 w-full rounded-xl border px-3 py-2"><option value="">Select an approved driver</option>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.display_name}{driver.service_city ? ` · ${driver.service_city}` : ""}</option>)}</select></div>}
         <div className="mt-5 space-y-2"><input value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} placeholder="Full name" className="w-full rounded-xl border px-3 py-2" /><input value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} placeholder="Phone / WhatsApp" className="w-full rounded-xl border px-3 py-2" /><input value={customer.email} onChange={(e) => setCustomer({ ...customer, email: e.target.value })} placeholder="Email (optional)" className="w-full rounded-xl border px-3 py-2" />{method !== "pickup" && <textarea value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} placeholder="Delivery address" className="min-h-20 w-full rounded-xl border px-3 py-2" />}<textarea value={customer.notes} onChange={(e) => setCustomer({ ...customer, notes: e.target.value })} placeholder="Order notes (optional)" className="min-h-16 w-full rounded-xl border px-3 py-2" /></div>
         {message && <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm">{message}</p>}
         <button disabled={ordering || !cart.length} onClick={checkout} className="mt-4 w-full rounded-full bg-black px-4 py-3 font-semibold text-white disabled:opacity-40">{ordering ? "Placing order…" : "Place order"}</button>
