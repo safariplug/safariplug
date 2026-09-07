@@ -11,3 +11,5 @@ ios
 
 expo-env.d.ts
 # @end expo-cli
+# Local Android release artifacts
+*-Android-Release-*.apk
