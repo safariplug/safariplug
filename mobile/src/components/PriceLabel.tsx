@@ -1,5 +1,6 @@
 import { StyleSheet, Text } from "react-native";
 import { colors } from "../theme";
+import { useFx } from "../fx";
 import { formatPrice } from "../utils/format";
 
 export function PriceLabel({
@@ -9,7 +10,9 @@ export function PriceLabel({
   price: number | null;
   currency: string | null;
 }) {
-  const label = formatPrice(price, currency);
+  const { currency: displayCurrency, convert } = useFx();
+  const converted = convert(price, currency);
+  const label = formatPrice(converted, displayCurrency);
   const tba = label === "Price TBA";
   return (
     <Text style={[styles.price, tba && styles.tba]} accessibilityLabel={label}>
