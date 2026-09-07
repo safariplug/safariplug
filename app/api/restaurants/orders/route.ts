@@ -31,7 +31,24 @@ export async function POST(request: Request) {
   const {data:order,error}=await supabaseAdmin.from("food_orders").insert({business_id:businessId,customer_user_id:user.id,trip_id:tripId??null,customer_name:customerName,customer_phone:customerPhone,customer_email:customerEmail??user.email??null,fulfillment_method:fulfillmentMethod,payment_status:"unpaid",currency:menuItems?.[0]?.currency??"KES",subtotal,delivery_fee:deliveryFee,customer_total:total,pickup_address:fulfillmentMethod==="pickup"?deliveryAddress??null:null,delivery_address:fulfillmentMethod==="pickup"?null:deliveryAddress,delivery_latitude:deliveryLatitude??null,delivery_longitude:deliveryLongitude??null,customer_notes:customerNotes??null,estimated_prep_minutes:prepMinutes,estimated_delivery_minutes:deliveryMinutes,eta_at:etaAt}).select().single();
   if(error||!order)return NextResponse.json({error:error?.message??"Unable to create order"},{status:400}); const {error:itemsError}=await supabaseAdmin.from("food_order_items").insert(normalized.map((i:any)=>({...i,order_id:order.id}))); if(itemsError){await supabaseAdmin.from("food_orders").delete().eq("id",order.id);return NextResponse.json({error:itemsError.message},{status:400});}
   if(selectedDriver){const {error:e}=await supabaseAdmin.from("food_delivery_assignments").insert({order_id:order.id,driver_id:selectedDriver.id,assignment_source:fulfillmentMethod==="customer_driver"?"customer":"safariplug",status:"assigned",delivery_fee:deliveryFee});if(e){await supabaseAdmin.from("food_order_items").delete().eq("order_id",order.id);await supabaseAdmin.from("food_orders").delete().eq("id",order.id);return NextResponse.json({error:"Unable to assign delivery driver"},{status:400});}}
-  return NextResponse.json({order,deliveryFee,etaAt});
+
+  let itineraryItemAttached = false;
+  if (tripId) {
+    const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", tripId);
+    const { error: itineraryError } = await supabaseAdmin.from("trip_items").insert({
+      trip_id: tripId,
+      item_kind: "food_order",
+      food_order_id: order.id,
+      title: `${business.name} food order`,
+      notes: `${fulfillmentMethod.replaceAll("_", " ")} · ${order.public_id || order.id}`,
+      start_at: etaAt,
+      position: count ?? 0,
+    });
+    itineraryItemAttached = !itineraryError;
+    if (itineraryError) console.error("Unable to attach food order to itinerary", { orderId: order.id, tripId, error: itineraryError.message });
+  }
+
+  return NextResponse.json({order,deliveryFee,etaAt,itineraryItemAttached});
 }
 
 export async function GET(){const supabase=await createSupabaseServerClient();const {data:{user}}=await supabase.auth.getUser();if(!user||user.is_anonymous)return NextResponse.json({error:"Sign in required"},{status:401});const {data,error}=await supabaseAdmin.from("food_orders").select("*, food_order_items(*), food_delivery_assignments(*)").eq("customer_user_id",user.id).order("created_at",{ascending:false}).limit(50);if(error)return NextResponse.json({error:error.message},{status:500});return NextResponse.json({orders:data??[]});}
