@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Linking, ScrollView, StyleSheet, Text, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { fetchBookings, fetchTrips } from "../../src/api/inventory";
 import { ComingSoonCard } from "../../src/components/ComingSoonCard";
 import { StoryCta } from "../../src/components/StoryCta";
@@ -12,14 +13,8 @@ export default function TripsScreen() {
 
   const load = useCallback(async () => {
     const [trips, bookings] = await Promise.all([fetchTrips(), fetchBookings()]);
-    if (trips.status === "unauthorized" || bookings.status === "unauthorized") {
-      setNote("Sign in on SafariPlug to keep trips across devices.");
-      return;
-    }
-    if (trips.status === "available" && Array.isArray(trips.data) && trips.data.length) {
-      setNote(`You have ${trips.data.length} trip${trips.data.length === 1 ? "" : "s"} on SafariPlug.`);
-      return;
-    }
+    if (trips.status === "unauthorized" || bookings.status === "unauthorized") { setNote("Sign in on SafariPlug to keep trips across devices."); return; }
+    if (trips.status === "available" && Array.isArray(trips.data) && trips.data.length) { setNote(`You have ${trips.data.length} trip${trips.data.length === 1 ? "" : "s"} on SafariPlug.`); return; }
     setNote("No trips yet. Start building your journey with SafariPlug.");
   }, []);
 
@@ -30,24 +25,11 @@ export default function TripsScreen() {
       <ScrollView contentContainerStyle={styles.page}>
         <Text style={styles.kicker}>My trips</Text>
         <Text style={styles.title}>Build the journey</Text>
-        <Text style={styles.lede}>
-          Put your hotel, airport transfer, food, experiences, appointments, drivers and events into one journey.
-        </Text>
-        <Pressable style={styles.planButton} onPress={() => void Linking.openURL("https://safariplug.com/plan")}>
-          <Text style={styles.planButtonText}>Plan a new trip →</Text>
-        </Pressable>
+        <Text style={styles.lede}>Put your hotel, airport transfer, food, experiences, appointments, drivers and events into one journey.</Text>
+        <Pressable style={styles.planButton} onPress={() => void Linking.openURL("https://safariplug.com/plan")}><Text style={styles.planButtonText}>Plan a new trip →</Text></Pressable>
         <TripCard title="Your itinerary" body={note} />
-        <ComingSoonCard
-          title="Live booking stays honest"
-          body="SafariPlug only confirms a booking when real supplier inventory and payment are connected."
-        />
-        <StoryCta
-          kicker="Discover"
-          title="Start from a destination"
-          body="Pick a place, then add stays, events and experiences to your journey."
-          action="Explore destinations →"
-          onPress={() => router.push("/(tabs)/explore")}
-        />
+        <ComingSoonCard title="Live booking stays honest" body="SafariPlug only confirms a booking when real supplier inventory and payment are connected." />
+        <StoryCta kicker="Discover" title="Start from a destination" body="Pick a place, then add stays, events and experiences to your journey." action="Explore destinations →" onPress={() => router.push("/(tabs)/explore")} />
       </ScrollView>
     </SafeAreaView>
   );
