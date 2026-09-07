@@ -1,5 +1,7 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { isAdminRole, permissionForPath, roleHasPermission } from '@/lib/auth/roles';
 
 export async function getCurrentAdmin() {
   const supabase = await createSupabaseServerClient();
@@ -13,9 +15,9 @@ export async function getCurrentAdmin() {
     return null;
   }
 
-  const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin');
+  const { data: role, error: roleError } = await supabase.rpc('get_admin_role');
 
-  if (adminError || isAdmin !== true) {
+  if (roleError || !isAdminRole(role)) {
     return null;
   }
 
@@ -27,6 +29,17 @@ export async function requireAdmin() {
 
   if (!user) {
     redirect('/admin/login');
+  }
+
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get('x-safariplug-admin-permission');
+  const permission = pathname ? permissionForPath(pathname) : 'staff';
+
+  const supabase = await createSupabaseServerClient();
+  const { data: role } = await supabase.rpc('get_admin_role');
+
+  if (!isAdminRole(role) || !roleHasPermission(role, permission)) {
+    redirect('/admin');
   }
 
   return user;
