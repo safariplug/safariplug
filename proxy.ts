@@ -25,9 +25,10 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+  const isAdminApiRoute = pathname.startsWith('/api/admin/');
   const isLoginRoute = pathname === '/admin/login';
 
-  if (!isAdminRoute || isLoginRoute) {
+  if ((!isAdminRoute && !isAdminApiRoute) || isLoginRoute) {
     return response;
   }
 
@@ -37,6 +38,9 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
+    if (isAdminApiRoute) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = '/admin/login';
     url.search = '';
@@ -47,8 +51,11 @@ export async function proxy(request: NextRequest) {
   const permission = permissionForPath(pathname);
 
   if (roleError || !isAdminRole(role) || !roleHasPermission(role, permission)) {
+    if (isAdminApiRoute) {
+      return NextResponse.json({ error: 'You do not have permission to access this area.' }, { status: 403 });
+    }
     const url = request.nextUrl.clone();
-    url.pathname = permission === 'dashboard' ? '/admin/login' : '/admin';
+    url.pathname = '/admin';
     url.search = '';
     return NextResponse.redirect(url);
   }
