@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { isAdminRole, permissionForPath, roleHasPermission } from '@/lib/auth/roles';
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -23,8 +24,7 @@ export async function proxy(request: NextRequest) {
   );
 
   const pathname = request.nextUrl.pathname;
-  const isAdminRoute =
-    pathname === '/admin' || pathname.startsWith('/admin/');
+  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
   const isLoginRoute = pathname === '/admin/login';
 
   if (!isAdminRoute || isLoginRoute) {
@@ -43,22 +43,25 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Keep the proxy in sync with the canonical server-side admin check.
-  // Admin access is stored in public.admin_users and verified by the
-  // SECURITY DEFINER public.is_admin() RPC, not by JWT app_metadata.
-  const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin');
+  const { data: role, error: roleError } = await supabase.rpc('get_admin_role');
+  const permission = permissionForPath(pathname);
 
-  if (adminError || isAdmin !== true) {
+  if (roleError || !isAdminRole(role) || !roleHasPermission(role, permission)) {
     const url = request.nextUrl.clone();
-    url.pathname = '/admin/login';
+    url.pathname = permission === 'dashboard' ? '/admin/login' : '/admin';
     url.search = '';
     return NextResponse.redirect(url);
   }
 
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-safariplug-admin-permission', pathname);
+  response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
   response.headers.set('Cache-Control', 'private, no-store');
   return response;
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/api/admin/:path*'],
 };
