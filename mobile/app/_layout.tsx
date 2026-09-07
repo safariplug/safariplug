@@ -1,10 +1,11 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { colors } from "../src/theme";
+import { FxProvider } from "../src/fx";
 
 export default function RootLayout() {
   return (
-    <>
+    <FxProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -21,7 +22,8 @@ export default function RootLayout() {
         <Stack.Screen name="destination/[slug]" options={{ title: "Destination" }} />
         <Stack.Screen name="category/[kind]" options={{ title: "SafariPlug" }} />
         <Stack.Screen name="ask" options={{ title: "Ask SafariPlug" }} />
+        <Stack.Screen name="currency" options={{ title: "Display currency" }} />
       </Stack>
-    </>
+    </FxProvider>
   );
 }
