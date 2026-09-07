@@ -1,8 +1,24 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { colors } from "../src/theme";
+import { useEffect } from "react";
+import { registerForPushNotifications } from "../src/notifications";
+import { supabase } from "../src/auth";
 
 export default function RootLayout() {
+  useEffect(() => {
+    let active = true;
+    const register = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (active && session?.user && !session.user.is_anonymous) await registerForPushNotifications();
+    };
+    register().catch(() => undefined);
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user && !session.user.is_anonymous) registerForPushNotifications().catch(() => undefined);
+    });
+    return () => { active = false; listener.subscription.unsubscribe(); };
+  }, []);
+
   return (
     <>
       <StatusBar style="light" />
