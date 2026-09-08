@@ -9,6 +9,7 @@ export type CreatePaymentIntentInput = {
   customerPhone?: string | null;
   returnUrl?: string | null;
   idempotencyKey: string;
+  callbackUrl?: string | null;
 };
 
 export type PaymentIntent = {

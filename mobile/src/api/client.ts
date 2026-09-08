@@ -1,5 +1,4 @@
 import { API_BASE_URL, API_PREFIX, REQUEST_TIMEOUT_MS } from "../config";
-import { supabase } from "../auth";
 
 export type ApiSuccess<T> = {
   success: true;
@@ -53,15 +52,9 @@ export async function apiGet<T>(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const headers: Record<string, string> = { accept: "application/json" };
-    if (session?.access_token) {
-      headers.Authorization = `Bearer ${session.access_token}`;
-    }
-
     const response = await fetch(buildUrl(path, params), {
       method: "GET",
-      headers,
+      headers: { accept: "application/json" },
       signal: controller.signal,
     });
     let body: unknown = null;

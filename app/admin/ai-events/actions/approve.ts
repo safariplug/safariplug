@@ -67,13 +67,33 @@ export async function approveAIEvent(formData: FormData): Promise<void> {
   const reviewScore = Math.round((reviewChecks.filter(Boolean).length / reviewChecks.length) * 100);
   if (reviewScore < 60) throw new Error(`Event failed quality gate. Review score is ${reviewScore}%. Minimum required is 60%.`);
 
-  const knownCities = ["Nairobi", "Mombasa", "Diani", "Kilifi", "Mtwapa", "Malindi", "Watamu", "Zanzibar", "Kampala", "Dar es Salaam"];
-  let cityName = aiEvent.city;
-  const matchedCity = knownCities.find((city) => aiEvent.city?.toLowerCase().includes(city.toLowerCase()));
-  if (matchedCity) cityName = matchedCity;
+  const cityName = String(aiEvent.city || "").trim();
+  if (!cityName) throw new Error("Event city is missing.");
 
-  const { data: city, error: cityError } = await supabaseAdmin.from("cities").select("id").ilike("name", cityName).single();
-  if (cityError || !city) throw new Error("City not found: " + aiEvent.city);
+  let { data: city, error: cityError } = await supabaseAdmin
+    .from("cities")
+    .select("id")
+    .ilike("name", cityName)
+    .maybeSingle();
+
+  if (!city && !cityError) {
+    const { data: createdCity, error: createCityError } = await supabaseAdmin
+      .from("cities")
+      .insert({
+        name: cityName,
+        country: typeof aiEvent.country === "string" ? aiEvent.country.trim() || null : null,
+        active: true,
+      })
+      .select("id")
+      .single();
+
+    if (createCityError || !createdCity) {
+      throw new Error("City not found and could not be created: " + (createCityError?.message || cityName));
+    }
+    city = createdCity;
+  }
+
+  if (cityError || !city) throw new Error("City lookup failed: " + (cityError?.message || cityName));
 
   const cleanCategory = aiEvent.category?.replace(cityName, "").trim() || "Experiences";
   const isFeatured = Boolean(aiEvent.is_featured);

@@ -1,6 +1,95 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import TravelerNav from "@/components/TravelerNav";
-export default async function AccountPage(){const client=await createSupabaseServerClient();const {data:{user}}=await client.auth.getUser();if(!user||user.is_anonymous)redirect(`/login?next=/account`);const [{data:trips},{count:appointments},{count:savedCount}]=await Promise.all([supabaseAdmin.from("trips").select("id,title,status,start_on,end_on",{count:"exact"}).eq("traveler_id",user.id).order("created_at",{ascending:false}).limit(3),supabaseAdmin.from("appointments").select("id",{count:"exact",head:true}).eq("traveler_user_id",user.id),supabaseAdmin.from("saved_events").select("id",{count:"exact",head:true}).eq("traveler_id",user.id)]);const displayName=user.user_metadata?.full_name||user.user_metadata?.name||user.email?.split("@")[0]||"Traveler";return <main className="min-h-screen bg-black text-white"><TravelerNav/><div className="mx-auto max-w-6xl px-6 py-12 md:px-12"><div className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#15130f] via-zinc-950 to-black p-8 md:p-12"><p className="text-xs font-black uppercase tracking-[0.28em] text-[#c9a86a]">Traveler account</p><h1 className="mt-3 text-4xl font-black md:text-5xl">Welcome back, {displayName}.</h1><p className="mt-4 max-w-2xl text-zinc-400">Your SafariPlug home for journeys, bookings, saved experiences and discovering what is worth experiencing next.</p><div className="mt-8 flex flex-wrap gap-3"><Link href="/events" className="rounded-full bg-[#e7c98d] px-6 py-3 text-sm font-black text-black">Discover experiences →</Link><Link href="/concierge" className="rounded-full border border-[#c9a86a]/50 px-6 py-3 text-sm font-black text-[#e7c98d]">Ask AI Concierge</Link></div></div><div className="mt-8 grid gap-4 sm:grid-cols-3"><Link href="/account/trips" className="rounded-2xl border border-white/10 bg-zinc-950 p-6 transition hover:border-[#c9a86a]/50"><p className="text-3xl font-black">{trips?.length??0}</p><p className="mt-2 font-bold">My Trips</p><p className="mt-1 text-sm text-zinc-500">Plan and manage your journeys.</p></Link><Link href="/account/saved" className="rounded-2xl border border-white/10 bg-zinc-950 p-6 transition hover:border-[#c9a86a]/50"><p className="text-3xl font-black">{savedCount??0}</p><p className="mt-2 font-bold">Saved Experiences</p><p className="mt-1 text-sm text-zinc-500">Keep your favorite discoveries close.</p></Link><Link href="/account/appointments" className="rounded-2xl border border-white/10 bg-zinc-950 p-6 transition hover:border-[#c9a86a]/50"><p className="text-3xl font-black">{appointments??0}</p><p className="mt-2 font-bold">My Bookings</p><p className="mt-1 text-sm text-zinc-500">View and manage service appointments.</p></Link></div><section className="mt-10"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.25em] text-[#c9a86a]">Your journeys</p><h2 className="mt-2 text-2xl font-black">Recently planned</h2></div><Link href="/account/trips" className="text-sm font-bold text-[#e7c98d]">View all →</Link></div>{trips?.length?<div className="mt-5 grid gap-4 md:grid-cols-3">{trips.map(trip=><Link key={trip.id} href={`/account/trips/${trip.id}`} className="rounded-2xl border border-white/10 bg-zinc-950 p-5 hover:border-[#c9a86a]/50"><span className="text-[10px] font-bold uppercase tracking-wider text-[#c9a86a]">{trip.status||"draft"}</span><h3 className="mt-3 font-bold">{trip.title}</h3><p className="mt-2 text-xs text-zinc-500">{trip.start_on?new Date(trip.start_on).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"Dates not set"}</p></Link>)}</div>:<div className="mt-5 rounded-2xl border border-dashed border-zinc-800 p-8 text-center"><p className="font-bold">No journeys yet.</p><Link href="/events" className="mt-4 inline-block text-sm font-bold text-[#e7c98d]">Start discovering →</Link></div>}</section></div></main>}
+
+export default async function AccountPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || user.is_anonymous) redirect(`/login?next=${encodeURIComponent("/account")}`);
+
+  const [trips, foodOrders, appointments, eventBookings, hotelBookings] = await Promise.all([
+    countRows(supabase, "trips", "traveler_id", user.id),
+    countRows(supabase, "food_orders", "customer_user_id", user.id),
+    countRows(supabase, "service_appointments", "customer_user_id", user.id),
+    countRows(supabase, "bookings", "traveler_id", user.id),
+    countRows(supabase, "hotel_booking_pricing_ledger", "customer_user_id", user.id),
+  ]);
+
+  const totalBookings = foodOrders + appointments + eventBookings + hotelBookings;
+
+  return (
+    <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
+      <section className="bg-[#111] text-white">
+        <div className="mx-auto max-w-6xl px-6 pb-14 pt-12 sm:px-10">
+          <p className="text-[11px] font-semibold uppercase tracking-[.28em] text-white/40">SafariPlug</p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">My SafariPlug</h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-white/55">
+            Your trips, stays, experiences, services and food orders — together in one place.
+          </p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-10 sm:px-10">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <StatusCard href="/trips" label="Trips" value={trips} />
+          <StatusCard href="/hotels" label="Hotel bookings" value={hotelBookings} />
+          <StatusCard href="/account/appointments" label="Appointments" value={appointments} />
+          <StatusCard href="/account/orders" label="Food orders" value={foodOrders} />
+          <StatusCard href="/events" label="Experience bookings" value={eventBookings} />
+        </div>
+
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          <AccountCard href="/trips" title="My trips" description="Open your itineraries and see hotels, food orders, services and experiences attached to each journey." />
+          <AccountCard href="/hotels" title="Hotels" description="Search live stays and manage the hotel booking flow." />
+          <AccountCard href="/services" title="Services & appointments" description="Book barbers, massage, beauty, wellness, tattoo, nails and other local services." />
+          <AccountCard href="/account/orders" title="Food orders" description="Track restaurant orders, delivery progress, drivers and completed deliveries." />
+          <AccountCard href="/events" title="Events & experiences" description="Discover experiences and add them to your trips." />
+          <AccountCard href="/concierge" title="AI Concierge" description="Tell SafariPlug what you need and let Concierge help find the right option." />
+        </div>
+
+        <section className="mt-8 rounded-[1.75rem] border border-black/8 bg-white p-6 shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">Booking activity</p>
+          <h2 className="mt-2 text-2xl font-semibold">{totalBookings ? `${totalBookings} booking${totalBookings === 1 ? "" : "s"} across SafariPlug` : "Nothing booked yet"}</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-black/50">
+            Once a booking is created, SafariPlug keeps it connected to your account and, where a trip is selected, to the same itinerary.
+          </p>
+          <Link href="/concierge" className="mt-5 inline-flex rounded-full bg-black px-5 py-3 text-sm font-semibold text-white">Plan with Concierge</Link>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+async function countRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  table: string,
+  ownerColumn: string,
+  ownerId: string,
+) {
+  const { count } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq(ownerColumn, ownerId);
+  return count ?? 0;
+}
+
+function StatusCard({ href, label, value }: { href: string; label: string; value: number }) {
+  return (
+    <Link href={href} className="rounded-[1.25rem] border border-black/8 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-black/35">{label}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
+    </Link>
+  );
+}
+
+function AccountCard({ href, title, description }: { href: string; title: string; description: string }) {
+  return (
+    <Link href={href} className="group rounded-[1.5rem] border border-black/8 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="font-semibold">{title}</h2>
+        <span aria-hidden className="text-black/30 transition group-hover:translate-x-1">↗</span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-black/55">{description}</p>
+    </Link>
+  );
+}

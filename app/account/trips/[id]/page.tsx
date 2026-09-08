@@ -1,34 +1,137 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import TravelerNav from "@/components/TravelerNav";
-import TripItemActions from "./TripItemActions";
-import TripPlanTools from "./TripPlanTools";
-import TripReorder from "./TripReorder";
 
-export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
-  const client = await createSupabaseServerClient();
-  const { data: { user } } = await client.auth.getUser();
-  if (!user || user.is_anonymous) redirect(`/login?next=/account/trips`);
+type TripItem = {
+  id: string;
+  item_kind: string | null;
+  title: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  notes: string | null;
+  position: number | null;
+  city_id: string | null;
+  event_id: string | null;
+  appointment_id: string | null;
+  offering_id: string | null;
+  booking_id: string | null;
+  food_order_id: string | null;
+  hotel_booking_pricing_ledger_id: string | null;
+};
+
+export default async function TripDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
-  const { data: trip } = await supabaseAdmin.from("trips").select("id,title,start_on,end_on,status,created_at,destination_city_id").eq("id", id).eq("traveler_id", user.id).maybeSingle();
-  if (!trip) notFound();
-  const { data: items } = await supabaseAdmin.from("trip_items").select("id,title,start_at,end_at,notes,item_kind,event_id,appointment_id,offering_id,city_id,position").eq("trip_id", id).order("position", { ascending: true });
-  const cityIds = [...new Set((items ?? []).map((item) => item.city_id).filter(Boolean))];
-  if (trip.destination_city_id) cityIds.push(trip.destination_city_id);
-  const appointmentIds = [...new Set((items ?? []).map((item) => item.appointment_id).filter(Boolean))];
-  const { data: cities } = cityIds.length ? await supabaseAdmin.from("cities").select("id,name,country").in("id", [...new Set(cityIds)]) : { data: [] };
-  const { data: appointments } = appointmentIds.length ? await supabaseAdmin.from("service_appointments").select("id,public_id,status,payment_status,starts_at,ends_at,service_profiles(businesses(name)),service_offerings(name),service_staff(display_name)").in("id", appointmentIds).eq("customer_user_id", user.id) : { data: [] };
-  const cityMap = new Map((cities ?? []).map((city) => [city.id, city]));
-  const appointmentMap = new Map((appointments ?? []).map((appointment: any) => [appointment.id, appointment]));
-  const destination = trip.destination_city_id ? cityMap.get(trip.destination_city_id) : null;
-  const eventHref = (eventId: string) => `/events/${eventId}?tripId=${encodeURIComponent(trip.id)}`;
-  const scheduledItems = (items ?? []).filter((item) => item.start_at);
-  const unscheduledItems = (items ?? []).filter((item) => !item.start_at);
-  const dayGroups = new Map<string, typeof scheduledItems>();
-  for (const item of scheduledItems) { const dayKey = new Date(item.start_at as string).toLocaleDateString("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }); const group = dayGroups.get(dayKey) ?? []; group.push(item); dayGroups.set(dayKey, group); }
-  const formatDay = (dayKey: string) => new Date(`${dayKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const renderItem = (item: NonNullable<typeof items>[number], index: number) => { const city = item.city_id ? cityMap.get(item.city_id) : null; const appointment = item.appointment_id ? appointmentMap.get(item.appointment_id) : null; const isService = item.item_kind === "personal_service" || Boolean(item.appointment_id); const displayTitle = appointment?.service_offerings?.name || item.title || "Experience"; return <article key={item.id} className="flex gap-4 rounded-2xl border border-zinc-800 bg-black/50 p-5"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 font-black text-black">{index + 1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-zinc-700 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">{isService ? "Booked service" : "Experience"}</span>{appointment?.status && <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">{appointment.status.replaceAll("_", " ")}</span>}{appointment?.payment_status && <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Payment: {appointment.payment_status.replaceAll("_", " ")}</span>}</div><h2 className="mt-2 text-lg font-bold">{displayTitle}</h2>{appointment?.service_profiles?.businesses?.name && <p className="mt-1 text-sm text-zinc-400">{appointment.service_profiles.businesses.name}{appointment.service_staff?.display_name ? ` · ${appointment.service_staff.display_name}` : ""}</p>}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-400">{item.start_at && <span>📅 {new Date(item.start_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>}{city && <span>📍 {city.name}{city.country ? `, ${city.country}` : ""}</span>}</div>{item.notes && <p className="mt-3 text-sm text-zinc-500">{item.notes}</p>}<div className="mt-4 flex flex-wrap items-center gap-4">{item.event_id && <Link href={eventHref(item.event_id)} className="text-sm font-semibold text-amber-400 hover:text-amber-300">View experience →</Link>}{isService && <Link href="/account/appointments" className="text-sm font-semibold text-amber-400 hover:text-amber-300">View booking →</Link>}<TripItemActions tripId={trip.id} itemId={item.id} /></div></div></article>; };
-  return <main className="min-h-screen bg-black text-white"><TravelerNav/><div className="mx-auto max-w-4xl px-6 py-12 md:px-12"><Link href="/account/trips" className="text-sm font-semibold text-zinc-400 hover:text-white">← My Trips</Link><div className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-950 p-7 md:p-10"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">Journey</p><h1 className="mt-2 text-4xl font-black">{trip.title}</h1>{destination?.name && <p className="mt-2 text-sm font-semibold text-zinc-400">📍 {destination.name}{destination.country ? `, ${destination.country}` : ""}</p>}</div><span className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-bold uppercase tracking-wider text-zinc-300">{trip.status || "draft"}</span></div><p className="mt-4 text-zinc-400">{trip.start_on ? new Date(trip.start_on).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Dates not set"}{trip.end_on ? ` – ${new Date(trip.end_on).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` : ""}</p><TripPlanTools tripId={trip.id}/><TripReorder tripId={trip.id} items={(items ?? []).map((item) => ({ id: item.id, title: item.title }))}/><div className="mt-10 space-y-8">{!items?.length ? <div className="rounded-2xl border border-dashed border-zinc-700 p-8 text-center"><h2 className="text-xl font-bold">Nothing planned yet</h2><p className="mt-2 text-zinc-400">Browse SafariPlug experiences and add the ones you want to this journey.</p><Link href={`/events?tripId=${encodeURIComponent(trip.id)}`} className="mt-5 inline-flex rounded-full bg-amber-500 px-5 py-3 font-bold text-black">Explore experiences</Link></div> : <>{Array.from(dayGroups.entries()).map(([dayKey, dayItems]) => <section key={dayKey}><div className="mb-3 flex items-center gap-3"><div className="h-px flex-1 bg-zinc-800"/><h2 className="text-sm font-black uppercase tracking-[0.18em] text-zinc-300">{formatDay(dayKey)}</h2><div className="h-px flex-1 bg-zinc-800"/></div><div className="space-y-4">{dayItems.map((item,index)=>renderItem(item,index))}</div></section>)}{unscheduledItems.length>0&&<section><div className="mb-3 flex items-center gap-3"><div className="h-px flex-1 bg-zinc-800"/><h2 className="text-sm font-black uppercase tracking-[0.18em] text-zinc-500">To schedule</h2><div className="h-px flex-1 bg-zinc-800"/></div><div className="space-y-4">{unscheduledItems.map((item,index)=>renderItem(item,index))}</div></section>}</>}</div></div></div></main>;
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect(`/login?next=${encodeURIComponent(`/account/trips/${id}`)}`);
+
+  const { data: trip, error: tripError } = await supabase
+    .from("trips")
+    .select("id,title,start_on,end_on,status,destination_city_id")
+    .eq("id", id)
+    .eq("traveler_id", user.id)
+    .maybeSingle();
+
+  if (tripError || !trip) notFound();
+
+  const { data: items } = await supabase
+    .from("trip_items")
+    .select("id,item_kind,title,start_at,end_at,notes,position,city_id,event_id,appointment_id,offering_id,booking_id,food_order_id,hotel_booking_pricing_ledger_id")
+    .eq("trip_id", id)
+    .order("position", { ascending: true })
+    .order("start_at", { ascending: true, nullsFirst: false });
+
+  const itinerary = (items ?? []) as TripItem[];
+
+  return (
+    <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
+      <section className="bg-[#111] text-white">
+        <div className="mx-auto max-w-5xl px-6 pb-14 pt-10 sm:px-10">
+          <Link href="/trips" className="text-xs font-semibold uppercase tracking-[.18em] text-white/45 hover:text-white">← My trips</Link>
+          <div className="mt-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[.28em] text-white/40">SafariPlug itinerary</p>
+              <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">{trip.title || "Untitled trip"}</h1>
+              <p className="mt-4 text-sm text-white/55">
+                {trip.start_on || "Date not set"}{trip.end_on ? ` — ${trip.end_on}` : ""}
+              </p>
+            </div>
+            <span className="w-fit rounded-full border border-white/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.16em] text-white/60">
+              {trip.status || "draft"}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-6 py-10 sm:px-10">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">Your journey</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight">{itinerary.length ? `${itinerary.length} itinerary item${itinerary.length === 1 ? "" : "s"}` : "Nothing added yet"}</h2>
+          </div>
+          <div className="flex gap-2">
+            <Link href="/events" className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold">Find experiences</Link>
+            <Link href="/concierge" className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white">Ask Concierge</Link>
+          </div>
+        </div>
+
+        {itinerary.length ? (
+          <div className="mt-6 space-y-3">
+            {itinerary.map((item, index) => (
+              <article key={item.id} className="rounded-[1.5rem] border border-black/8 bg-white p-5 shadow-sm">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">{index + 1}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-black/35">{formatKind(item.item_kind)}</p>
+                      {item.booking_id && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-emerald-700">Experience booking</span>}
+                      {item.appointment_id && <span className="rounded-full bg-amber-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-amber-700">Appointment</span>}
+                      {item.food_order_id && <span className="rounded-full bg-orange-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-orange-700">Food order</span>}
+                      {item.hotel_booking_pricing_ledger_id && <span className="rounded-full bg-sky-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-sky-700">Hotel booking</span>}
+                    </div>
+                    <h3 className="mt-2 text-lg font-semibold">{item.title || fallbackTitle(item.item_kind)}</h3>
+                    {item.start_at && <p className="mt-2 text-sm text-black/50">{formatDate(item.start_at)}{item.end_at ? ` — ${formatDate(item.end_at)}` : ""}</p>}
+                    {item.notes && <p className="mt-2 text-sm leading-6 text-black/55">{item.notes}</p>}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-6 rounded-[1.75rem] border border-dashed border-black/15 bg-white px-6 py-16 text-center">
+            <p className="text-lg font-semibold">Build this trip as you go.</p>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-black/50">Add experiences, service appointments and bookings to keep the whole journey together.</p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <Link href="/events" className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white">Explore events</Link>
+              <Link href="/services" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold">Browse services</Link>
+              <Link href="/hotels" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold">Find a hotel</Link>
+            </div>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function formatKind(kind: string | null) {
+  return (kind || "plan").replace(/_/g, " ");
+}
+
+function fallbackTitle(kind: string | null) {
+  switch (kind) {
+    case "hotel": return "Hotel stay";
+    case "service": return "Service appointment";
+    case "restaurant": return "Restaurant";
+    case "food_order": return "Food order";
+    case "event": return "Experience or event";
+    default: return "Trip item";
+  }
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
