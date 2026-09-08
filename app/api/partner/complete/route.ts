@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 function slugify(value: string) {
@@ -7,34 +6,23 @@ function slugify(value: string) {
 }
 
 const SERVICE_CATEGORY_BY_BUSINESS_TYPE: Record<string, string> = {
-  Barber: "Barbers",
-  "Hair & Beauty": "Hair & Beauty",
-  "Spa & Massage": "Spas & Massage",
-  "Tattoo & Body Art": "Tattoo Artists & Body Art",
-  Nails: "Nails",
-  "Lashes & Brows": "Lashes & Brows",
-  Fitness: "Fitness",
-  "Yoga / Pilates / Mindfulness": "Yoga, Pilates & Mindfulness",
-  "Tour Operator": "Tours & Local Guides",
-  "Local Guide": "Tours & Local Guides",
-  "Experience Provider": "Tours & Local Guides",
+  Barber: "Barbers", "Hair & Beauty": "Hair & Beauty", "Spa & Massage": "Spas & Massage", "Tattoo & Body Art": "Tattoo Artists & Body Art",
+  Nails: "Nails", "Lashes & Brows": "Lashes & Brows", Fitness: "Fitness", "Yoga / Pilates / Mindfulness": "Yoga, Pilates & Mindfulness",
+  "Tour Operator": "Tours & Local Guides", "Local Guide": "Tours & Local Guides", "Experience Provider": "Tours & Local Guides",
 };
 
-export async function POST() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) return NextResponse.json({ error: "Please confirm your email and sign in again." }, { status: 401 });
+export async function POST(request: Request) {
+  const authorization = request.headers.get("authorization") || "";
+  const accessToken = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!accessToken) return NextResponse.json({ error: "Please sign in to finish your partner account." }, { status: 401 });
+
+  const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+  if (userError || !user) return NextResponse.json({ error: "Your session has expired. Please sign in again." }, { status: 401 });
 
   const metadata = user.user_metadata ?? {};
-  if (metadata.account_type !== "supplier") {
-    return NextResponse.json({ error: "This account is not a business partner account." }, { status: 403 });
-  }
+  if (metadata.account_type !== "supplier") return NextResponse.json({ error: "This account is not a business partner account." }, { status: 403 });
 
-  const { data: existingAccount, error: accountLookupError } = await supabaseAdmin
-    .from("supplier_accounts")
-    .select("id,business_id,onboarding_status")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data: existingAccount, error: accountLookupError } = await supabaseAdmin.from("supplier_accounts").select("id,business_id,onboarding_status").eq("user_id", user.id).maybeSingle();
   if (accountLookupError) return NextResponse.json({ error: accountLookupError.message }, { status: 500 });
   if (existingAccount) return NextResponse.json({ success: true, businessId: existingAccount.business_id, onboardingStatus: existingAccount.onboarding_status });
 
@@ -56,10 +44,7 @@ export async function POST() {
   const { error: profileError } = await supabaseAdmin.from("profiles").upsert({ id: user.id, full_name: fullName, email, phone: phone || null, user_type: "partner" });
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
 
-  const { data: business, error: businessError } = await supabaseAdmin.from("businesses").insert({
-    owner_id: user.id, name: businessName, slug, business_type: businessType, phone: phone || null, whatsapp: phone || null, email,
-    status: "INACTIVE", verified: false, claimed: true,
-  }).select("id").single();
+  const { data: business, error: businessError } = await supabaseAdmin.from("businesses").insert({ owner_id: user.id, name: businessName, slug, business_type: businessType, phone: phone || null, whatsapp: phone || null, email, status: "INACTIVE", verified: false, claimed: true }).select("id").single();
   if (businessError || !business) return NextResponse.json({ error: businessError?.message || "Unable to create business." }, { status: 500 });
 
   const categoryName = SERVICE_CATEGORY_BY_BUSINESS_TYPE[businessType];
@@ -74,9 +59,7 @@ export async function POST() {
     }
   }
 
-  const { error: supplierError } = await supabaseAdmin.from("supplier_accounts").insert({
-    user_id: user.id, business_id: business.id, contact_name: fullName, invitation_status: "accepted", onboarding_status: "draft", accepted_at: new Date().toISOString(),
-  });
+  const { error: supplierError } = await supabaseAdmin.from("supplier_accounts").insert({ user_id: user.id, business_id: business.id, contact_name: fullName, invitation_status: "accepted", onboarding_status: "draft", accepted_at: new Date().toISOString() });
   if (supplierError) {
     await supabaseAdmin.from("service_profiles").delete().eq("business_id", business.id);
     await supabaseAdmin.from("businesses").delete().eq("id", business.id);
