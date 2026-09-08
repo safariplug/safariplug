@@ -1,7 +1,7 @@
 import type { HotelAdapter } from "./adapter";
 import { hotelError } from "./errors";
 import { convertCurrency } from "@/lib/currency/exchange-rates";
-import type { CircuitState, HotelAvailabilityRequest, HotelAvailabilityResponse, HotelCancelRequest, HotelCancelResponse, HotelCapabilities, HotelConfirmRequest, HotelConfirmResponse, HotelHealth, HotelHoldRequest, HotelHoldResponse, HotelProviderStatus, HotelQuoteRequest, HotelQuoteResponse, HotelResult, HotelSearchRequest, HotelSearchResponse, HotelResult as Result } from "./types";
+import type { CircuitState, HotelAvailabilityRequest, HotelAvailabilityResponse, HotelCancelRequest, HotelCancelResponse, HotelCapabilities, HotelConfirmRequest, HotelConfirmResponse, HotelHealth, HotelHoldRequest, HotelHoldResponse, HotelProviderStatus, HotelQuoteRequest, HotelQuoteResponse, HotelResult, HotelSearchRequest, HotelSearchResponse } from "./types";
 
 const DEFAULT_BASE_URL = "https://locktrip.com/mcp/tools";
 const DEFAULT_NATIONALITY = "US";
@@ -14,6 +14,7 @@ type LockTripRoomsResponse = { hotelId: string; hotelName?: string; packages?: A
 type LockTripPrepareResponse = { preparedBookingId: string; bookingInternalId?: string; price: number; currency: string; payment?: string; taxes?: unknown[]; essentialInformation?: string[] };
 type LockTripCheckoutResponse = { checkoutUrl?: string; url?: string; checkoutToken?: string; sessionId?: string; expiresInMinutes?: number; message?: string };
 export type LockTripBookingDetails = { bookingId: string; bookingReferenceId?: string; status?: string; hotel?: { id?: string | number; name?: string; address?: string; city?: string; country?: string; starRating?: number }; checkIn?: string; checkOut?: string; totalPrice?: number; currency?: string; paymentStatus?: string; createdAt?: string; confirmedAt?: string | null; rooms?: unknown[]; contactPerson?: unknown; cancellationPolicy?: unknown | null };
+export type LockTripConfirmResponse = { accepted?: boolean; message?: string | null; voucherUrl?: string | null; serviceUnavailable?: boolean };
 function env(name: string): string | undefined { return process.env[name]?.trim() || undefined; }
 function asError(error: unknown): { code: "timeout" | "provider_error"; message: string } { return { code: error instanceof Error && error.name === "AbortError" ? "timeout" : "provider_error", message: error instanceof Error ? error.message : "LockTrip request failed." }; }
 function retailPrice(netPrice: number): number { return Math.round(netPrice * (1 + DEFAULT_MARKUP_PERCENT / 100) * 100) / 100; }
@@ -36,9 +37,10 @@ export class LockTripHotelAdapter implements HotelAdapter {
   async createCheckout(token: string, input: { bookingId: string; currency: string; backUrl?: string; successUrl?: string }) { return this.call<LockTripCheckoutResponse>("create_checkout", input, token); }
   async getPaymentUrl(token: string, input: { bookingId: string; currency: string; backUrl: string; successUrl?: string }) { return this.call<LockTripCheckoutResponse>("get_payment_url", input, token); }
   async getBookingDetails(token: string, bookingId: string) { return this.call<LockTripBookingDetails>("get_booking_details", { bookingId }, token); }
+  async confirmBooking(token: string, input: { bookingInternalId: string; quoteId: string }) { return this.call<LockTripConfirmResponse>("confirm_booking", { bookingInternalId: input.bookingInternalId, quoteId: input.quoteId, paymentMethod: "CREDIT_LINE" }, token); }
   async availability(_request: HotelAvailabilityRequest): Promise<HotelResult<HotelAvailabilityResponse>> { return { ok: false, error: hotelError("capability_unsupported", "Use LockTrip room packages for live property availability.", false) }; }
   async quote(_request: HotelQuoteRequest): Promise<HotelResult<HotelQuoteResponse>> { return { ok: false, error: hotelError("capability_unsupported", "Use LockTrip room packages for live quotes.", false) }; }
   async hold(_request: HotelHoldRequest): Promise<HotelResult<HotelHoldResponse>> { return { ok: false, error: hotelError("capability_unsupported", "LockTrip consumer bookings do not require a separate hold.", false) }; }
-  async confirm(_request: HotelConfirmRequest): Promise<HotelResult<HotelConfirmResponse>> { return { ok: false, error: hotelError("capability_unsupported", "Use LockTrip consumer checkout for confirmation.", false) }; }
+  async confirm(_request: HotelConfirmRequest): Promise<HotelResult<HotelConfirmResponse>> { return { ok: false, error: hotelError("capability_unsupported", "Use confirmBooking for LockTrip B2B credit-line confirmation.", false) }; }
   async cancel(_request: HotelCancelRequest): Promise<HotelResult<HotelCancelResponse>> { return { ok: false, error: hotelError("capability_unsupported", "LockTrip cancellation will be wired from booking details next.", false) }; }
 }
