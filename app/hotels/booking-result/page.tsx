@@ -25,6 +25,7 @@ export default function HotelBookingResultPage() {
   const [state, setState] = useState<"loading" | "confirmed" | "pending" | "failed">("loading");
   const [data, setData] = useState<StatusResponse | null>(null);
   const [error, setError] = useState("");
+  const [attempts, setAttempts] = useState(0);
 
   useEffect(() => {
     if (!preparedBookingId) {
@@ -34,8 +35,12 @@ export default function HotelBookingResultPage() {
     }
 
     let cancelled = false;
-    let attempts = 0;
+    let timer: number | undefined;
+    let attempt = 0;
+
     const check = async () => {
+      attempt += 1;
+      setAttempts(attempt);
       try {
         const response = await fetch("/api/v1/hotels/locktrip", {
           method: "POST",
@@ -53,20 +58,23 @@ export default function HotelBookingResultPage() {
         }
         if (result.status === "failed" || result.status === "cancelled") {
           setState("failed");
-          setError(result.message || "The hotel booking was not completed.");
+          setError(result.message || (result.status === "cancelled" ? "The hotel booking was cancelled." : "The hotel booking was not completed."));
           return;
         }
         setState("pending");
-        attempts += 1;
-        if (attempts < 6) window.setTimeout(check, 3000);
+        if (attempt < 12) timer = window.setTimeout(check, 5000);
       } catch (err) {
         if (cancelled) return;
         setState("failed");
         setError(err instanceof Error ? err.message : "Unable to verify your hotel booking.");
       }
     };
+
     void check();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
   }, [preparedBookingId, tripId]);
 
   const booking = data?.providerBooking;
@@ -75,9 +83,9 @@ export default function HotelBookingResultPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
       <div className="rounded-3xl border bg-white p-8 shadow-sm">
-        {state === "loading" && <Status title="Checking your hotel booking…" body="We are confirming the payment and reservation with LockTrip." />}
-        {state === "pending" && <Status title="Payment received — booking is processing" body="LockTrip is still confirming the reservation. This page will check again automatically." />}
-        {state === "failed" && <Status title="Hotel booking needs attention" body={error || "The reservation could not be confirmed."} />}
+        {state === "loading" && <Status title="Checking your hotel booking…" body="We are confirming the payment and reservation with LockTrip." attempts={attempts} />}
+        {state === "pending" && <Status title="Payment received — booking is processing" body={attempts < 12 ? "LockTrip is still confirming the reservation. We will keep checking automatically." : "LockTrip is taking longer than usual to confirm the reservation. You can check again below."} attempts={attempts} />}
+        {state === "failed" && <Status title="Hotel booking needs attention" body={error || "The reservation could not be confirmed."} attempts={attempts} />}
         {state === "confirmed" && (
           <>
             <div className="mb-6 text-4xl">✓</div>
@@ -96,6 +104,7 @@ export default function HotelBookingResultPage() {
 
         <div className="mt-8 flex flex-wrap gap-3">
           {state === "failed" && <button className="rounded-xl border px-4 py-2 font-medium" onClick={() => window.location.reload()}>Check again</button>}
+          {state === "pending" && attempts >= 12 && <button className="rounded-xl border px-4 py-2 font-medium" onClick={() => window.location.reload()}>Check again</button>}
           <Link className="rounded-xl bg-black px-4 py-2 font-medium text-white" href={tripId ? `/trips/${encodeURIComponent(tripId)}` : "/trips"}>View my trip</Link>
           <Link className="rounded-xl border px-4 py-2 font-medium" href="/hotels">Find another hotel</Link>
         </div>
@@ -104,6 +113,6 @@ export default function HotelBookingResultPage() {
   );
 }
 
-function Status({ title, body }: { title: string; body: string }) {
-  return <><div className="mb-6 h-10 w-10 animate-pulse rounded-full border-4 border-gray-200 border-t-black" /><h1 className="text-2xl font-bold">{title}</h1><p className="mt-3 text-gray-600">{body}</p></>;
+function Status({ title, body, attempts }: { title: string; body: string; attempts: number }) {
+  return <><div className="mb-6 h-10 w-10 animate-pulse rounded-full border-4 border-gray-200 border-t-black" /><h1 className="text-2xl font-bold">{title}</h1><p className="mt-3 text-gray-600">{body}</p>{attempts > 0 && <p className="mt-3 text-xs text-gray-400">Verification attempt {attempts} of 12</p>}</>;
 }
