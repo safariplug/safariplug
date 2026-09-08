@@ -3,9 +3,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LockTripHotelAdapter } from "@/lib/integrations/hotels/locktrip";
 
 export const dynamic = "force-dynamic";
+const RETAIL_MARKUP_PERCENT = 10;
 
 function errorResponse(status: number, message: string) {
   return NextResponse.json({ error: "locktrip_error", message }, { status });
+}
+
+function retailAmount(net: number) {
+  return Math.round(net * (1 + RETAIL_MARKUP_PERCENT / 100) * 100) / 100;
 }
 
 async function requireUser() {
@@ -47,14 +52,45 @@ export async function POST(request: Request) {
     if (action === "prepare") {
       const email = user.email || String(body.email || "");
       if (!email) return errorResponse(400, "A customer email is required.");
+      const quoteId = String(body.quoteId || "");
+      const searchKey = String(body.searchKey || "");
+      if (!quoteId || !searchKey) return errorResponse(400, "quoteId and searchKey are required.");
       const token = await getLockTripToken(adapter, email);
-      const booking = await adapter.prepareBooking(token, { quoteId: String(body.quoteId || ""), searchKey: String(body.searchKey || ""), rooms: body.rooms, contactPerson: body.contactPerson, specialRequests: typeof body.specialRequests === "string" ? body.specialRequests : undefined });
+      const booking = await adapter.prepareBooking(token, { quoteId, searchKey, rooms: body.rooms, contactPerson: body.contactPerson, specialRequests: typeof body.specialRequests === "string" ? body.specialRequests : undefined });
       const currency = String(body.currency || booking.currency || "USD").toUpperCase();
-      const method = String(body.method || "revolut");
+      const supplierNetAmount = Number(booking.price);
+      if (!Number.isFinite(supplierNetAmount) || supplierNetAmount < 0) return errorResponse(502, "LockTrip returned an invalid booking price.");
+      const retail = retailAmount(supplierNetAmount);
+      const supabase = await createSupabaseServerClient();
+      const { data: ledger, error: ledgerError } = await supabase
+        .from("hotel_booking_pricing_ledger")
+        .insert({
+          customer_user_id: user.id,
+          provider: "locktrip",
+          quote_id: quoteId,
+          prepared_booking_id: booking.preparedBookingId,
+          currency,
+          supplier_net_amount: supplierNetAmount,
+          retail_amount: retail,
+          markup_percent: RETAIL_MARKUP_PERCENT,
+          payment_status: "pending",
+          booking_status: "payment_pending",
+          supplier_settlement_status: "pending",
+          metadata: { searchKey, hotelId: body.hotelId ?? null, checkIn: body.checkIn ?? null, checkOut: body.checkOut ?? null }
+        })
+        .select("id, supplier_net_amount, retail_amount, currency, markup_percent, payment_status, booking_status")
+        .single();
+      if (ledgerError || !ledger) throw new Error("Unable to create hotel pricing ledger entry.");
+
+      const method = String(body.method || "revolut").toLowerCase();
       const checkout = method === "stripe"
         ? await adapter.getPaymentUrl(token, { bookingId: booking.preparedBookingId, currency, backUrl: String(body.backUrl || "https://safariplug.com/hotels"), successUrl: typeof body.successUrl === "string" ? body.successUrl : undefined })
         : await adapter.createCheckout(token, { bookingId: booking.preparedBookingId, currency, backUrl: typeof body.backUrl === "string" ? body.backUrl : undefined, successUrl: typeof body.successUrl === "string" ? body.successUrl : undefined });
-      return NextResponse.json({ provider: "locktrip", booking, checkout: { method, ...checkout } });
+      const paymentReference = typeof checkout.sessionId === "string" ? checkout.sessionId : typeof checkout.checkoutToken === "string" ? checkout.checkoutToken : null;
+      if (paymentReference) {
+        await supabase.from("hotel_booking_pricing_ledger").update({ payment_provider: `locktrip_${method}`, payment_reference: paymentReference }).eq("id", ledger.id);
+      }
+      return NextResponse.json({ provider: "locktrip", booking, pricing: { supplierNetAmount, retailAmount: retail, markupPercent: RETAIL_MARKUP_PERCENT, currency }, ledger: { ...ledger, payment_provider: `locktrip_${method}`, payment_reference: paymentReference }, checkout: { method, ...checkout } });
     }
 
     return errorResponse(400, "Unsupported LockTrip action.");
