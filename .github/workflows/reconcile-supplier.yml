@@ -23,6 +23,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin feature/supplier-onboarding-20260907
-          git merge --no-edit origin/feature/supplier-onboarding-20260907
+          git merge --no-edit -X theirs origin/feature/supplier-onboarding-20260907 -m "chore: reconcile supplier work onto current main [skip ci]"
       - name: Push reconciled branch
         run: git push origin HEAD:reconcile/supplier-onboarding-20260907
