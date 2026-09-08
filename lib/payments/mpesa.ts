@@ -36,8 +36,9 @@ function timestamp() { const now = new Date(); const p = (n: number) => String(n
 
 export function normalizeMpesaPhone(value: string) { return normalizePhone(value); }
 
-export async function initiateMpesaStkPush(input: { amount: number; phone: string; accountReference: string; transactionDescription: string }) {
-  const { shortCode, passKey, callbackUrl } = config();
+export async function initiateMpesaStkPush(input: { amount: number; phone: string; accountReference: string; transactionDescription: string; callbackUrl?: string | null }) {
+  const { shortCode, passKey, callbackUrl: configuredCallbackUrl } = config();
+  const callbackUrl = input.callbackUrl?.trim() || configuredCallbackUrl;
   const phone = normalizePhone(input.phone);
   const amount = Math.round(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_payment_amount");
@@ -62,7 +63,7 @@ export class MpesaPaymentAdapter implements PaymentAdapter {
   readonly provider = "mpesa" as const;
   async createPaymentIntent(input: CreatePaymentIntentInput): Promise<PaymentIntent> {
     if (input.currency.toUpperCase() !== "KES") throw new Error("mpesa_only_supports_kes");
-    const result = await initiateMpesaStkPush({ amount: input.amount, phone: input.customerPhone || "", accountReference: `SP-${input.appointmentId.slice(0,18)}`, transactionDescription: "SafariPlug service appointment" });
+    const result = await initiateMpesaStkPush({ amount: input.amount, phone: input.customerPhone || "", accountReference: `SP-${input.appointmentId.slice(0,18)}`, transactionDescription: "SafariPlug service appointment", callbackUrl: input.callbackUrl });
     return { id:result.checkoutRequestId, provider:"mpesa", providerReference:result.checkoutRequestId, appointmentId:input.appointmentId, amount:input.amount, currency:"KES", status:"processing", checkoutUrl:null, clientSecret:null };
   }
   async getPaymentStatus(providerReference:string):Promise<PaymentIntentStatus> {
