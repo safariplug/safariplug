@@ -18,14 +18,19 @@ export async function GET(request:Request) {
  else query=query.eq("customer_user_id",currentUser.id).limit(50);
  const {data,error}=await query;if(error)return NextResponse.json({error:error.message},{status:500});if(orderId&&!data?.length)return NextResponse.json({error:"Order not found"},{status:404});
  if(orderId){const order=data?.[0];const owns=order.customer_user_id===currentUser.id;const owned=await supplierBusinessId(currentUser.id);const supplier=owned===order.business_id;const assignment=order.food_delivery_assignments?.find((a:{driver_id?:string})=>a.driver_id===currentUser.id);if(!owns&&!supplier&&!assignment)return NextResponse.json({error:"Order access denied"},{status:403});}
- return NextResponse.json({orders:data??[]});
+ const orders=data??[];
+ const driverIds=[...new Set(orders.flatMap((order:any)=>(order.food_delivery_assignments??[]).filter((a:any)=>a.status!=="cancelled"&&a.status!=="declined"&&a.driver_id).map((a:any)=>a.driver_id)))] as string[];
+ let drivers:Record<string,unknown>={};
+ if(driverIds.length){const {data:driverRows}=await supabaseAdmin.from("driver_profiles").select("id,display_name,service_city,service_country,preferred,capabilities").in("id",driverIds);drivers=Object.fromEntries((driverRows??[]).map((driver:any)=>[driver.id,{id:driver.id,display_name:driver.display_name,service_city:driver.service_city,service_country:driver.service_country,preferred:driver.preferred,capabilities:driver.capabilities}]));}
+ const enriched=orders.map((order:any)=>{const assignment=(order.food_delivery_assignments??[]).find((a:any)=>a.status!=="cancelled"&&a.status!=="declined"&&a.driver_id);return {...order,assigned_driver:assignment?.driver_id?drivers[assignment.driver_id]??null:null};});
+ return NextResponse.json({orders:enriched});
 }
 
 export async function PATCH(request:Request) {
  const currentUser=await user();if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
  const body=await request.json();const {orderId,status,note,assignmentStatus,rating,customerNote,assignDriverId,assignmentSource}=body;if(!orderId)return NextResponse.json({error:"orderId is required"},{status:400});
  const {data:order,error:orderError}=await supabaseAdmin.from("food_orders").select("*").eq("id",orderId).maybeSingle();if(orderError)return NextResponse.json({error:orderError.message},{status:500});if(!order)return NextResponse.json({error:"Order not found"},{status:404});
- const owned=await supplierBusinessId(currentUser.id);const isSupplier=owned===order.business_id;const isCustomer=order.customer_user_id===currentUser.id;const {data:assignment}=await supabaseAdmin.from("food_delivery_assignments").select("*").eq("order_id",orderId).eq("driver_id",currentUser.id).maybeSingle();const isDriver=Boolean(assignment);
+ const owned=await supplierBusinessId(currentUser.id);const isSupplier=owned===order.business_id;const isCustomer=order.customer_user_id===currentUser.id;const {data:assignment}=await supabaseAdmin.from("food_delivery_assignments").select("*").eq("order_id",orderId).eq("driver_id",currentUser.id).order("created_at",{ascending:false}).limit(1).maybeSingle();const isDriver=Boolean(assignment);
 
  if(assignDriverId){
   if(!isSupplier)return NextResponse.json({error:"Only the restaurant can assign a driver"},{status:403});
@@ -59,6 +64,6 @@ export async function PATCH(request:Request) {
   if(assignmentStatus==='accepted'&&order.status==='ready')await supabaseAdmin.from("food_orders").update({status:'driver_assigned',updated_at:now}).eq("id",orderId).eq("status","ready");
   return NextResponse.json({assignment:updated});
  }
- if(rating!==undefined||customerNote!==undefined){if(!isCustomer||order.status!=="delivered")return NextResponse.json({error:"Only the customer can rate a delivered order"},{status:403});const score=Number(rating);if(!Number.isInteger(score)||score<1||score>5)return NextResponse.json({error:"Rating must be between 1 and 5"},{status:400});const {data:updated,error}=await supabaseAdmin.from("food_delivery_assignments").update({customer_rating:score,customer_note:customerNote??null}).eq("order_id",orderId).eq("driver_id",assignment?.driver_id??"").select().single();if(error)return NextResponse.json({error:error.message},{status:400});return NextResponse.json({assignment:updated});}
+ if(rating!==undefined||customerNote!==undefined){if(!isCustomer||order.status!=="delivered")return NextResponse.json({error:"Only the customer can rate a delivered order"},{status:403});const score=Number(rating);if(!Number.isInteger(score)||score<1||score>5)return NextResponse.json({error:"Rating must be between 1 and 5"},{status:400});const {data:updated,error}=await supabaseAdmin.from("food_delivery_assignments").update({customer_rating:score,customer_note:customerNote??null}).eq("id",assignment?.id??"").select().single();if(error)return NextResponse.json({error:error.message},{status:400});return NextResponse.json({assignment:updated});}
  return NextResponse.json({error:"No supported update supplied"},{status:400});
 }
