@@ -10,9 +10,12 @@ async function supplierBusinessId(userId:string) { const {data}=await supabaseAd
 
 export async function GET(request:Request) {
  const currentUser=await user(); if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
- const {searchParams}=new URL(request.url); const orderId=searchParams.get("orderId"); const businessId=searchParams.get("businessId");
+ const {searchParams}=new URL(request.url); const orderId=searchParams.get("orderId"); const businessId=searchParams.get("businessId"); const supplierView=searchParams.get("supplier")==="true";
  let query=supabaseAdmin.from("food_orders").select("*, food_order_items(*), food_delivery_assignments(*), businesses:business_id(id,name)").order("created_at",{ascending:false});
- if(orderId) query=query.eq("id",orderId); else if(businessId){const owned=await supplierBusinessId(currentUser.id);if(!owned||owned!==businessId)return NextResponse.json({error:"Supplier access denied"},{status:403});query=query.eq("business_id",businessId).limit(100);} else query=query.eq("customer_user_id",currentUser.id).limit(50);
+ if(orderId) query=query.eq("id",orderId);
+ else if(businessId){const owned=await supplierBusinessId(currentUser.id);if(!owned||owned!==businessId)return NextResponse.json({error:"Supplier access denied"},{status:403});query=query.eq("business_id",businessId).limit(100);}
+ else if(supplierView){const owned=await supplierBusinessId(currentUser.id);if(!owned)return NextResponse.json({error:"Supplier access denied"},{status:403});query=query.eq("business_id",owned).limit(100);}
+ else query=query.eq("customer_user_id",currentUser.id).limit(50);
  const {data,error}=await query;if(error)return NextResponse.json({error:error.message},{status:500});if(orderId&&!data?.length)return NextResponse.json({error:"Order not found"},{status:404});
  if(orderId){const order=data?.[0];const owns=order.customer_user_id===currentUser.id;const owned=await supplierBusinessId(currentUser.id);const supplier=owned===order.business_id;const assignment=order.food_delivery_assignments?.find((a:{driver_id?:string})=>a.driver_id===currentUser.id);if(!owns&&!supplier&&!assignment)return NextResponse.json({error:"Order access denied"},{status:403});}
  return NextResponse.json({orders:data??[]});
@@ -35,7 +38,7 @@ export async function PATCH(request:Request) {
   const {data:created,error}=await supabaseAdmin.from("food_delivery_assignments").insert({order_id:orderId,driver_id:driver.id,assignment_source:assignmentSource,status:"assigned",delivery_fee:order.delivery_fee??0,assigned_by:currentUser.id}).select().single();
   if(error)return NextResponse.json({error:error.message},{status:400});
   const {data:updated,error:updateError}=await supabaseAdmin.from("food_orders").update({status:"driver_assigned",updated_at:new Date().toISOString()}).eq("id",orderId).eq("status",order.status).select().single();
-  if(updateError||!updated)return NextResponse.json({error:updateError?.message??"Order changed before driver assignment"},{status:409});
+  if(updateError||!updated){await supabaseAdmin.from("food_delivery_assignments").delete().eq("id",created.id);return NextResponse.json({error:updateError?.message??"Order changed before driver assignment"},{status:409});}
   return NextResponse.json({order:updated,assignment:created});
  }
 
