@@ -98,6 +98,7 @@ export async function POST(request: Request) {
       if (!Number.isFinite(supplierNetAmount) || supplierNetAmount < 0) return errorResponse(502, "LockTrip returned an invalid booking price.");
       const retail = retailAmount(supplierNetAmount);
       const supabase = await createSupabaseServerClient();
+      const tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : null;
       const { data: ledger, error: ledgerError } = await supabase
         .from("hotel_booking_pricing_ledger")
         .insert({
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
           payment_status: "pending",
           booking_status: "payment_pending",
           supplier_settlement_status: "pending",
-          metadata: { searchKey, hotelId: body.hotelId ?? null, checkIn: body.checkIn ?? null, checkOut: body.checkOut ?? null, tripId: typeof body.tripId === "string" ? body.tripId : null }
+          metadata: { searchKey, hotelId: body.hotelId ?? null, checkIn: body.checkIn ?? null, checkOut: body.checkOut ?? null, tripId }
         })
         .select("id, supplier_net_amount, retail_amount, currency, markup_percent, payment_status, booking_status")
         .single();
@@ -147,11 +148,12 @@ export async function POST(request: Request) {
       const cancelled = providerStatus === "CANCELLED";
       const failed = cancelled || providerStatus === "FAILED";
 
-      const updates: Record<string, unknown> = { metadata: { ...(ledger.metadata || {}), lastProviderStatus: details } };
+      const updates: Record<string, unknown> = { metadata: { ...(ledger.metadata && typeof ledger.metadata === "object" && !Array.isArray(ledger.metadata) ? ledger.metadata : {}), lastProviderStatus: details } };
       if (confirmed) {
         updates.payment_status = "paid";
         updates.booking_status = "confirmed";
-        updates.supplier_settlement_status = "settled";
+        // LockTrip confirms supplier payment; it does not expose SafariPlug's downstream hotel settlement state here.
+        updates.supplier_settlement_status = "pending";
         updates.provider_booking_reference = details.bookingReferenceId || null;
         updates.paid_at = details.confirmedAt || new Date().toISOString();
         updates.confirmed_at = details.confirmedAt || new Date().toISOString();
@@ -162,12 +164,14 @@ export async function POST(request: Request) {
       const { data: updatedLedger, error: updateError } = await supabase.from("hotel_booking_pricing_ledger").update(updates).eq("id", ledger.id).eq("customer_user_id", user.id).select("*").single();
       if (updateError) throw new Error(updateError.message);
 
+      const storedTripId = ledger.metadata && typeof ledger.metadata === "object" && !Array.isArray(ledger.metadata) && typeof ledger.metadata.tripId === "string" ? ledger.metadata.tripId : null;
+      const tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : storedTripId;
       let itineraryItem = null;
-      if (confirmed && typeof body.tripId === "string" && body.tripId) {
+      if (confirmed && tripId) {
         itineraryItem = await attachConfirmedHotelToTrip({
           supabase,
           userId: user.id,
-          tripId: body.tripId,
+          tripId,
           ledgerId: ledger.id,
           hotelName: details.hotel?.name || "Hotel stay",
           checkIn: details.checkIn || null,
