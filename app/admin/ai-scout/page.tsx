@@ -52,7 +52,7 @@ export default async function AIScoutPage() {
           </h1>
 
           <p className="mt-2 text-gray-600">
-            Discovery intelligence engine monitoring East Africa experiences.
+            Discovery intelligence engine monitoring Africa experiences.
           </p>
 
 
