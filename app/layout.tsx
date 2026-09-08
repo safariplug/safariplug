@@ -16,19 +16,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.safariplug.com"),
   title: {
-    default: "SafariPlug — Discover What's Happening Across East Africa",
+    default: "SafariPlug — Discover What's Happening Across Africa",
     template: "%s | SafariPlug",
   },
   description:
-    "SafariPlug Intelligence discovers events, experiences, hidden gems and places worth knowing across East Africa.",
+    "SafariPlug Intelligence discovers events, experiences, hidden gems and places worth knowing across Africa.",
   applicationName: "SafariPlug",
   keywords: [
-    "East Africa events",
+    "Africa events",
     "Nairobi events",
     "Mombasa events",
     "Kenya experiences",
     "things to do in Kenya",
-    "East Africa travel",
+    "Africa travel",
     "SafariPlug",
   ],
   alternates: {
@@ -37,16 +37,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "SafariPlug",
-    title: "SafariPlug — Discover What's Happening Across East Africa",
+    title: "SafariPlug — Discover What's Happening Across Africa",
     description:
-      "AI-powered discovery of events, experiences and places worth knowing across East Africa.",
+      "AI-powered discovery of events, experiences and places worth knowing across Africa.",
     url: "/",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SafariPlug — Discover What's Happening Across East Africa",
+    title: "SafariPlug — Discover What's Happening Across Africa",
     description:
-      "AI-powered discovery of events, experiences and places worth knowing across East Africa.",
+      "AI-powered discovery of events, experiences and places worth knowing across Africa.",
   },
 };
 
