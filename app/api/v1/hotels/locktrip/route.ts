@@ -5,20 +5,28 @@ import { LockTripHotelAdapter } from "@/lib/integrations/hotels/locktrip";
 export const dynamic = "force-dynamic";
 const RETAIL_MARKUP_PERCENT = 10;
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "");
+const LOCKTRIP_BASE_URL = (process.env.SAFARIPLUG_HOTEL_LOCKTRIP_BASE_URL || "https://locktrip.com/mcp/tools").replace(/\/$/, "");
 
 function errorResponse(status: number, message: string) { return NextResponse.json({ error: "locktrip_error", message }, { status }); }
 function retailAmount(net: number) { return Math.round(net * (1 + RETAIL_MARKUP_PERCENT / 100) * 100) / 100; }
 async function requireUser() { const supabase = await createSupabaseServerClient(); const { data: { user } } = await supabase.auth.getUser(); return user; }
-async function getLockTripToken(adapter: LockTripHotelAdapter, email: string) {
-  const configuredEmail = process.env.SAFARIPLUG_HOTEL_LOCKTRIP_EMAIL?.trim();
-  const configuredPassword = process.env.SAFARIPLUG_HOTEL_LOCKTRIP_PASSWORD?.trim();
-  if (configuredEmail && configuredPassword) {
-    const result = await fetch(`${process.env.SAFARIPLUG_HOTEL_LOCKTRIP_BASE_URL || "https://locktrip.com/mcp/tools"}/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: configuredEmail, password: configuredPassword }), cache: "no-store" });
-    if (!result.ok) throw new Error("LockTrip account authentication failed.");
-    const data = await result.json() as { token?: string };
-    if (!data.token) throw new Error("LockTrip did not return an authentication token.");
-    return data.token;
-  }
+function getConfiguredCredentials() {
+  const email = process.env.SAFARIPLUG_HOTEL_LOCKTRIP_EMAIL?.trim();
+  const password = process.env.SAFARIPLUG_HOTEL_LOCKTRIP_PASSWORD?.trim();
+  return email && password ? { email, password } : null;
+}
+async function getRegisteredLockTripToken() {
+  const credentials = getConfiguredCredentials();
+  if (!credentials) throw new Error("SafariPlug hotel booking is awaiting its registered LockTrip account credentials.");
+  const result = await fetch(`${LOCKTRIP_BASE_URL}/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(credentials), cache: "no-store" });
+  if (!result.ok) throw new Error("LockTrip account authentication failed.");
+  const data = await result.json() as { token?: string };
+  if (!data.token) throw new Error("LockTrip did not return an authentication token.");
+  return data.token;
+}
+async function getLockTripBookingToken(adapter: LockTripHotelAdapter, email: string) {
+  const credentials = getConfiguredCredentials();
+  if (credentials) return getRegisteredLockTripToken();
   return adapter.guestLogin(email);
 }
 async function attachConfirmedHotelToTrip(params: { supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>; userId: string; tripId: string; ledgerId: string; hotelName: string; checkIn: string | null; checkOut: string | null; providerReference: string | null; cityId?: string | null }) {
@@ -50,13 +58,14 @@ export async function POST(request: Request) {
     if (action === "prepare") {
       const email = user.email || String(body.email || ""); if (!email) return errorResponse(400, "A customer email is required.");
       const quoteId = String(body.quoteId || ""), searchKey = String(body.searchKey || ""); if (!quoteId || !searchKey) return errorResponse(400, "quoteId and searchKey are required.");
-      const token = await getLockTripToken(adapter, email);
+      const token = await getLockTripBookingToken(adapter, email);
       const booking = await adapter.prepareBooking(token, { quoteId, searchKey, rooms: body.rooms, contactPerson: body.contactPerson, specialRequests: typeof body.specialRequests === "string" ? body.specialRequests : undefined });
       const currency = String(body.currency || booking.currency || "USD").toUpperCase(), supplierNetAmount = Number(booking.price); if (!Number.isFinite(supplierNetAmount) || supplierNetAmount < 0) return errorResponse(502, "LockTrip returned an invalid booking price.");
       const retail = retailAmount(supplierNetAmount), supabase = await createSupabaseServerClient(), tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : null;
       const { data: ledger, error: ledgerError } = await supabase.from("hotel_booking_pricing_ledger").insert({ customer_user_id: user.id, provider: "locktrip", quote_id: quoteId, prepared_booking_id: booking.preparedBookingId, currency, supplier_net_amount: supplierNetAmount, retail_amount: retail, markup_percent: RETAIL_MARKUP_PERCENT, payment_status: "pending", booking_status: "payment_pending", supplier_settlement_status: "pending", metadata: { searchKey, hotelId: body.hotelId ?? null, checkIn: body.checkIn ?? null, checkOut: body.checkOut ?? null, tripId } }).select("id, supplier_net_amount, retail_amount, currency, markup_percent, payment_status, booking_status").single();
       if (ledgerError || !ledger) throw new Error("Unable to create hotel pricing ledger entry.");
       const method = String(body.method || "revolut").toLowerCase();
+      if (method === "stripe" && !getConfiguredCredentials()) return errorResponse(503, "Stripe hotel checkout requires SafariPlug's registered LockTrip account; Revolut guest checkout is available once configured.");
       const successUrl = `${SITE_URL}/hotels/booking-result?bookingId=${encodeURIComponent(booking.preparedBookingId)}${tripId ? `&tripId=${encodeURIComponent(tripId)}` : ""}`;
       const checkout = method === "stripe" ? await adapter.getPaymentUrl(token, { bookingId: booking.preparedBookingId, currency, backUrl: `${SITE_URL}/hotels`, successUrl: typeof body.successUrl === "string" ? body.successUrl : successUrl }) : await adapter.createCheckout(token, { bookingId: booking.preparedBookingId, currency, backUrl: typeof body.backUrl === "string" ? body.backUrl : `${SITE_URL}/hotels`, successUrl: typeof body.successUrl === "string" ? body.successUrl : successUrl });
       const paymentReference = typeof checkout.sessionId === "string" ? checkout.sessionId : typeof checkout.checkoutToken === "string" ? checkout.checkoutToken : null;
@@ -67,8 +76,8 @@ export async function POST(request: Request) {
       const preparedBookingId = String(body.preparedBookingId || ""); if (!preparedBookingId) return errorResponse(400, "preparedBookingId is required.");
       const supabase = await createSupabaseServerClient(); const { data: ledger, error: ledgerError } = await supabase.from("hotel_booking_pricing_ledger").select("*").eq("customer_user_id", user.id).eq("prepared_booking_id", preparedBookingId).maybeSingle();
       if (ledgerError) throw new Error(ledgerError.message); if (!ledger) return errorResponse(404, "Hotel booking not found.");
-      const email = user.email || ""; if (!email) return errorResponse(400, "A customer email is required.");
-      const token = await getLockTripToken(adapter, email); const details = await adapter.getBookingDetails(token, preparedBookingId); const providerStatus = String(details.status || "").toUpperCase(), paymentStatus = String(details.paymentStatus || "").toUpperCase();
+      if (!getConfiguredCredentials()) return NextResponse.json({ provider: "locktrip", status: "payment_pending", reconciliation: "awaiting_registered_provider_account", message: "Payment was sent to LockTrip. SafariPlug will reconcile the booking once its registered LockTrip account is configured.", ledger });
+      const token = await getRegisteredLockTripToken(); const details = await adapter.getBookingDetails(token, preparedBookingId); const providerStatus = String(details.status || "").toUpperCase(), paymentStatus = String(details.paymentStatus || "").toUpperCase();
       const confirmed = providerStatus === "DONE" && paymentStatus === "PAID", cancelled = providerStatus === "CANCELLED", failed = cancelled || providerStatus === "FAILED";
       const metadata = ledger.metadata && typeof ledger.metadata === "object" && !Array.isArray(ledger.metadata) ? ledger.metadata : {};
       const updates: Record<string, unknown> = { metadata: { ...metadata, lastProviderStatus: details } };
@@ -77,7 +86,7 @@ export async function POST(request: Request) {
       const { data: updatedLedger, error: updateError } = await supabase.from("hotel_booking_pricing_ledger").update(updates).eq("id", ledger.id).eq("customer_user_id", user.id).select("*").single(); if (updateError) throw new Error(updateError.message);
       const storedTripId = typeof metadata.tripId === "string" ? metadata.tripId : null, tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : storedTripId;
       let itineraryItem = null;
-      if (confirmed && tripId) itineraryItem = await attachConfirmedHotelToTrip({ supabase, userId: user.id, tripId, ledgerId: ledger.id, hotelName: details.hotel?.name || "Hotel stay", checkIn: details.checkIn || null, checkOut: details.checkOut || null, providerReference: details.bookingReferenceId || null });
+      if (confirmed && tripId) itineraryItem = await attachConfirmedHotelToTrip({ supabase, userId: user.id, tripId, ledgerId: ledger.id, hotelName: details.hotel?.name || "Hotel stay", checkIn: details.checkIn || null, checkOut: details.checkOut || null, providerReference: details.bookingReferenceId || null, cityId: null });
       return NextResponse.json({ provider: "locktrip", status: confirmed ? "confirmed" : failed ? String(updates.booking_status) : "payment_pending", providerBooking: details, ledger: updatedLedger, itineraryItem });
     }
     return errorResponse(400, "Unsupported LockTrip action.");
