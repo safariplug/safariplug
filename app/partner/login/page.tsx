@@ -20,7 +20,9 @@ export default function PartnerLoginPage() {
     if (accountType && accountType !== "supplier") {
       await supabase.auth.signOut(); setError("This is not a SafariPlug partner account. Use the regular SafariPlug sign in."); setLoading(false); return;
     }
-    const response = await fetch("/api/partner/complete", { method: "POST" });
+    const session = data.session;
+    if (!session?.access_token) { setError("No active partner session was created. Please try again."); setLoading(false); return; }
+    const response = await fetch("/api/partner/complete", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) { setError(result.error || "We could not finish your partner account."); setLoading(false); return; }
     router.replace("/partner/dashboard"); router.refresh();
