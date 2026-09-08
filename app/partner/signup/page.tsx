@@ -32,27 +32,39 @@ export default function PartnerSignupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setMessage("");
     try {
-      const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password });
+      const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password, options: { data: { full_name: form.full_name, account_type: "supplier" } } });
       if (error) throw error;
       const user = data.user;
       if (!user) throw new Error("Unable to create account");
 
-      const { error: profileError } = await supabase.from("profiles").insert({ id: user.id, full_name: form.full_name, email: form.email, phone: form.phone, user_type: "partner" });
+      const { error: profileError } = await supabase.from("profiles").upsert({ id: user.id, full_name: form.full_name, email: form.email, phone: form.phone, user_type: "partner" });
       if (profileError) throw profileError;
 
-      const { error: businessError } = await supabase.from("businesses").insert({
+      const slug = form.business_name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Date.now();
+      const { data: business, error: businessError } = await supabase.from("businesses").insert({
         owner_id: user.id,
         name: form.business_name,
-        slug: form.business_name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Date.now(),
+        slug,
         business_type: form.business_type,
         phone: form.phone,
         whatsapp: form.phone,
         email: form.email,
-        status: "ACTIVE",
+        status: "pending",
         verified: false,
-        claimed: false,
-      });
-      if (businessError) throw businessError;
+        claimed: true,
+      }).select("id").single();
+      if (businessError || !business) throw businessError ?? new Error("Unable to create business");
+
+      const { data: category, error: categoryError } = await supabase.from("service_categories").select("id").eq("name", form.business_type).eq("status", "active").maybeSingle();
+      if (categoryError) throw categoryError;
+      if (category) {
+        const { error: serviceProfileError } = await supabase.from("service_profiles").insert({ business_id: business.id, category_id: category.id, status: "pending", booking_status: "closed" });
+        if (serviceProfileError) throw serviceProfileError;
+      }
+
+      const { error: supplierError } = await supabase.from("supplier_accounts").insert({ user_id: user.id, business_id: business.id, contact_name: form.full_name, invitation_status: "accepted", onboarding_status: "invited", accepted_at: new Date().toISOString() });
+      if (supplierError) throw supplierError;
+
       router.push("/partner/dashboard");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Signup failed");
