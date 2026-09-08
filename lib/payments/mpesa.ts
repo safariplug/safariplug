@@ -34,19 +34,36 @@ async function accessToken() {
 }
 function timestamp() { const now = new Date(); const p = (n: number) => String(n).padStart(2, "0"); return `${now.getUTCFullYear()}${p(now.getUTCMonth()+1)}${p(now.getUTCDate())}${p(now.getUTCHours())}${p(now.getUTCMinutes())}${p(now.getUTCSeconds())}`; }
 
+export function normalizeMpesaPhone(value: string) { return normalizePhone(value); }
+
+export async function initiateMpesaStkPush(input: { amount: number; phone: string; accountReference: string; transactionDescription: string }) {
+  const { shortCode, passKey, callbackUrl } = config();
+  const phone = normalizePhone(input.phone);
+  const amount = Math.round(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_payment_amount");
+  const ts = timestamp();
+  const password = Buffer.from(`${shortCode}${passKey}${ts}`).toString("base64");
+  const token = await accessToken();
+  const response = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ BusinessShortCode: shortCode, Password: password, Timestamp: ts, TransactionType: "CustomerPayBillOnline", Amount: amount, PartyA: phone, PartyB: shortCode, PhoneNumber: phone, CallBackURL: callbackUrl, AccountReference: input.accountReference.slice(0, 12), TransactionDesc: input.transactionDescription.slice(0, 13) }),
+  });
+  const body = await response.text();
+  let parsed: Record<string, unknown> = {};
+  try { parsed = JSON.parse(body) as Record<string, unknown>; } catch {}
+  if (!response.ok || Number(parsed.ResponseCode ?? 0) !== 0) throw new Error(`mpesa_stk_error:${response.status}:${String(parsed.ResponseDescription || body).slice(0,300)}`);
+  const checkoutRequestId = String(parsed.CheckoutRequestID || "");
+  if (!checkoutRequestId) throw new Error("mpesa_checkout_request_missing");
+  return { checkoutRequestId, merchantRequestId: String(parsed.MerchantRequestID || ""), customerMessage: String(parsed.CustomerMessage || "") };
+}
+
 export class MpesaPaymentAdapter implements PaymentAdapter {
   readonly provider = "mpesa" as const;
   async createPaymentIntent(input: CreatePaymentIntentInput): Promise<PaymentIntent> {
     if (input.currency.toUpperCase() !== "KES") throw new Error("mpesa_only_supports_kes");
-    const { shortCode, passKey, callbackUrl } = config();
-    const phone = normalizePhone(input.customerPhone); const amount = Math.round(input.amount);
-    if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_payment_amount");
-    const ts = timestamp(); const password = Buffer.from(`${shortCode}${passKey}${ts}`).toString("base64"); const token = await accessToken();
-    const response = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, { method:"POST", headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"}, body:JSON.stringify({ BusinessShortCode:shortCode, Password:password, Timestamp:ts, TransactionType:"CustomerPayBillOnline", Amount:amount, PartyA:phone, PartyB:shortCode, PhoneNumber:phone, CallBackURL:callbackUrl, AccountReference:`SP-${input.appointmentId.slice(0,18)}`, TransactionDesc:"SafariPlug service appointment" }) });
-    const body = await response.text(); let parsed:Record<string,unknown>={}; try { parsed=JSON.parse(body) as Record<string,unknown>; } catch {}
-    if (!response.ok || Number(parsed.ResponseCode ?? 0) !== 0) throw new Error(`mpesa_stk_error:${response.status}:${String(parsed.ResponseDescription || body).slice(0,300)}`);
-    const checkoutRequestId=String(parsed.CheckoutRequestID||""); if(!checkoutRequestId) throw new Error("mpesa_checkout_request_missing");
-    return { id:checkoutRequestId, provider:"mpesa", providerReference:checkoutRequestId, appointmentId:input.appointmentId, amount:input.amount, currency:"KES", status:"processing", checkoutUrl:null, clientSecret:null };
+    const result = await initiateMpesaStkPush({ amount: input.amount, phone: input.customerPhone || "", accountReference: `SP-${input.appointmentId.slice(0,18)}`, transactionDescription: "SafariPlug service appointment" });
+    return { id:result.checkoutRequestId, provider:"mpesa", providerReference:result.checkoutRequestId, appointmentId:input.appointmentId, amount:input.amount, currency:"KES", status:"processing", checkoutUrl:null, clientSecret:null };
   }
   async getPaymentStatus(providerReference:string):Promise<PaymentIntentStatus> {
     const { shortCode, passKey }=config(); const ts=timestamp(); const password=Buffer.from(`${shortCode}${passKey}${ts}`).toString("base64"); const token=await accessToken();
