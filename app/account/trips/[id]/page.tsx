@@ -15,6 +15,8 @@ type TripItem = {
   appointment_id: string | null;
   offering_id: string | null;
   booking_id: string | null;
+  food_order_id: string | null;
+  hotel_booking_pricing_ledger_id: string | null;
 };
 
 export default async function TripDetailPage({
@@ -38,7 +40,7 @@ export default async function TripDetailPage({
 
   const { data: items } = await supabase
     .from("trip_items")
-    .select("id,item_kind,title,start_at,end_at,notes,position,city_id,event_id,appointment_id,offering_id,booking_id")
+    .select("id,item_kind,title,start_at,end_at,notes,position,city_id,event_id,appointment_id,offering_id,booking_id,food_order_id,hotel_booking_pricing_ledger_id")
     .eq("trip_id", id)
     .order("position", { ascending: true })
     .order("start_at", { ascending: true, nullsFirst: false });
@@ -86,8 +88,10 @@ export default async function TripDetailPage({
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-black/35">{formatKind(item.item_kind)}</p>
-                      {item.booking_id && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-emerald-700">Booking</span>}
+                      {item.booking_id && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-emerald-700">Experience booking</span>}
                       {item.appointment_id && <span className="rounded-full bg-amber-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-amber-700">Appointment</span>}
+                      {item.food_order_id && <span className="rounded-full bg-orange-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-orange-700">Food order</span>}
+                      {item.hotel_booking_pricing_ledger_id && <span className="rounded-full bg-sky-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-sky-700">Hotel booking</span>}
                     </div>
                     <h3 className="mt-2 text-lg font-semibold">{item.title || fallbackTitle(item.item_kind)}</h3>
                     {item.start_at && <p className="mt-2 text-sm text-black/50">{formatDate(item.start_at)}{item.end_at ? ` — ${formatDate(item.end_at)}` : ""}</p>}
