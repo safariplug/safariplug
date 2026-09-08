@@ -108,7 +108,7 @@ export default async function EventsPage({
             <div>
               <p className="mb-2 text-xs font-black uppercase tracking-[0.25em] text-amber-400">SafariPlug Discovery</p>
               <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">Discover what&apos;s happening</h1>
-              <p className="mt-3 max-w-2xl text-gray-400">Curated events, experiences and adventures across East Africa — searched and filtered in one place.</p>
+              <p className="mt-3 max-w-2xl text-gray-400">Curated events, experiences and adventures across Africa — searched and filtered in one place.</p>
             </div>
             <div className="rounded-full border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm font-semibold text-zinc-300">
               {filteredEvents.length} {filteredEvents.length === 1 ? "experience" : "experiences"}
