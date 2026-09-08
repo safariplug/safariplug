@@ -13,19 +13,15 @@ export default function PartnerCompletePage() {
     let cancelled = false;
     async function complete() {
       await new Promise((resolve) => setTimeout(resolve, 500));
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
         if (!cancelled) setMessage("Your email was confirmed. Please sign in to finish your partner account.");
         return;
       }
-      const response = await fetch("/api/partner/complete", { method: "POST" });
+      const response = await fetch("/api/partner/complete", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } });
       const data = await response.json().catch(() => ({}));
-      if (response.ok) {
-        router.replace("/partner/dashboard");
-        router.refresh();
-      } else if (!cancelled) {
-        setMessage(data.error || "We could not finish your business account. Please sign in and try again.");
-      }
+      if (response.ok) { router.replace("/partner/dashboard"); router.refresh(); }
+      else if (!cancelled) setMessage(data.error || "We could not finish your business account. Please sign in and try again.");
     }
     void complete();
     return () => { cancelled = true; };
