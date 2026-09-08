@@ -4,6 +4,7 @@ const offerings = [
   { title: "Service businesses", text: "Barbers, salons, massage, spas, tattoo artists, nails, lashes, fitness, yoga and wellness providers.", href: "/partner/signup", label: "List a service business" },
   { title: "Restaurants & hotels", text: "Put your restaurant, hotel or hospitality business in front of travelers and local customers.", href: "/partner/signup", label: "List your business" },
   { title: "Tours & experiences", text: "Guides, tour operators and experience providers can showcase bookable experiences across Africa.", href: "/partner/signup", label: "List an experience" },
+  { title: "Drivers & transfers", text: "Professional drivers can apply to provide airport transfers, private rides, hotel transfers and other SafariPlug transport services.", href: "/driver/signup", label: "Become a SafariPlug driver" },
   { title: "Events", text: "Concerts, festivals, nightlife and other one-time experiences can be submitted for discovery.", href: "/partner/events/create", label: "Submit an event" },
 ];
 
