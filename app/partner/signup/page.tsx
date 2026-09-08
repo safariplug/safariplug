@@ -6,21 +6,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 const BUSINESS_TYPES = [
-  "Restaurant",
-  "Hotel",
-  "Barber",
-  "Hair & Beauty",
-  "Spa & Massage",
-  "Tattoo & Body Art",
-  "Nails",
-  "Lashes & Brows",
-  "Fitness",
-  "Yoga / Pilates / Mindfulness",
-  "Tour Operator",
-  "Local Guide",
-  "Experience Provider",
-  "Event Organizer",
-  "Other Service Business",
+  "Restaurant", "Hotel", "Barber", "Hair & Beauty", "Spa & Massage", "Tattoo & Body Art", "Nails", "Lashes & Brows",
+  "Fitness", "Yoga / Pilates / Mindfulness", "Tour Operator", "Local Guide", "Experience Provider", "Event Organizer", "Other Service Business",
 ];
 
 export default function PartnerSignupPage() {
@@ -32,40 +19,34 @@ export default function PartnerSignupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setMessage("");
     try {
-      const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.password, options: { data: { full_name: form.full_name, account_type: "supplier" } } });
+      const redirectTo = `${window.location.origin}/partner/complete`;
+      const { data, error } = await supabase.auth.signUp({
+        email: form.email.trim(),
+        password: form.password,
+        options: {
+          emailRedirectTo: redirectTo,
+          data: {
+            full_name: form.full_name.trim(),
+            phone: form.phone.trim(),
+            business_name: form.business_name.trim(),
+            business_type: form.business_type,
+            account_type: "supplier",
+          },
+        },
+      });
       if (error) throw error;
-      const user = data.user;
-      if (!user) throw new Error("Unable to create account");
+      if (!data.user) throw new Error("Unable to create account");
 
-      const { error: profileError } = await supabase.from("profiles").upsert({ id: user.id, full_name: form.full_name, email: form.email, phone: form.phone, user_type: "partner" });
-      if (profileError) throw profileError;
-
-      const slug = form.business_name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Date.now();
-      const { data: business, error: businessError } = await supabase.from("businesses").insert({
-        owner_id: user.id,
-        name: form.business_name,
-        slug,
-        business_type: form.business_type,
-        phone: form.phone,
-        whatsapp: form.phone,
-        email: form.email,
-        status: "pending",
-        verified: false,
-        claimed: true,
-      }).select("id").single();
-      if (businessError || !business) throw businessError ?? new Error("Unable to create business");
-
-      const { data: category, error: categoryError } = await supabase.from("service_categories").select("id").eq("name", form.business_type).eq("status", "active").maybeSingle();
-      if (categoryError) throw categoryError;
-      if (category) {
-        const { error: serviceProfileError } = await supabase.from("service_profiles").insert({ business_id: business.id, category_id: category.id, status: "pending", booking_status: "closed" });
-        if (serviceProfileError) throw serviceProfileError;
+      if (data.session) {
+        const response = await fetch("/api/partner/complete", { method: "POST" });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Unable to create business account");
+        router.replace("/partner/dashboard");
+        router.refresh();
+        return;
       }
 
-      const { error: supplierError } = await supabase.from("supplier_accounts").insert({ user_id: user.id, business_id: business.id, contact_name: form.full_name, invitation_status: "accepted", onboarding_status: "invited", accepted_at: new Date().toISOString() });
-      if (supplierError) throw supplierError;
-
-      router.push("/partner/dashboard");
+      setMessage("Account created. Check your email and click the verification link. We will finish creating your business profile automatically.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Signup failed");
     } finally { setLoading(false); }
@@ -88,8 +69,8 @@ export default function PartnerSignupPage() {
               <option value="">Select business type</option>
               {BUSINESS_TYPES.map(type=><option key={type} value={type}>{type}</option>)}
             </select>
-            <input required type="password" placeholder="Password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} className="w-full rounded-xl border px-4 py-3" />
-            {message && <div className="rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-700">{message}</div>}
+            <input required type="password" minLength={8} placeholder="Password (8+ characters)" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} className="w-full rounded-xl border px-4 py-3" />
+            {message && <div role="status" className="rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-700">{message}</div>}
             <button disabled={loading} className="w-full rounded-xl bg-orange-500 py-3 font-black text-white hover:bg-orange-600 disabled:opacity-50">{loading ? "Creating account..." : "Create Business Account"}</button>
           </form>
           <p className="mt-6 text-center text-sm text-slate-500">Already a partner? <Link href="/partner/login" className="font-bold text-orange-500">Sign in</Link></p>
