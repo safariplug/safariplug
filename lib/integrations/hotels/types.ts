@@ -15,6 +15,7 @@ export const HOTEL_PROVIDER_KEYS = [
   "hostaway",
   "direct",
   "aurelian",
+  "locktrip",
 ] as const;
 
 export type HotelProviderKey = (typeof HOTEL_PROVIDER_KEYS)[number];
