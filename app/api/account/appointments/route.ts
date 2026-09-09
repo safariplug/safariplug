@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const action = String(body.action || "");
     const id = String(body.appointmentId || "");
     if (!id) return NextResponse.json({ error: "Appointment is required." }, { status: 400 });
-    const { data: appointment } = await supabaseAdmin.from("service_appointments").select("id,public_id,trip_id,customer_user_id,status,starts_at,ends_at,staff_id,service_profile_id,offering_id,customer_name,service_offerings(name)").eq("id", id).eq("customer_user_id", user.id).maybeSingle();
+    const { data: appointment } = await supabaseAdmin.from("service_appointments").select("id,public_id,trip_id,customer_user_id,status,starts_at,ends_at,staff_id,service_profile_id,offering_id,customer_name,payment_status,service_offerings(name)").eq("id", id).eq("customer_user_id", user.id).maybeSingle();
     if (!appointment) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
 
     if (action === "add_to_trip") {
@@ -81,6 +81,7 @@ export async function POST(request: Request) {
 
     if (action === "cancel") {
       if (!["pending", "confirmed"].includes(appointment.status)) return NextResponse.json({ error: "This appointment can no longer be cancelled online." }, { status: 409 });
+      if (["paid", "partially_refunded"].includes(appointment.payment_status)) return NextResponse.json({ error: "This appointment has a settled payment and requires a refund review before cancellation." }, { status: 409 });
       const { data, error } = await supabaseAdmin.rpc("transition_service_appointment_status", { p_appointment_id: id, p_to_status: "cancelled", p_actor_type: "customer", p_actor_user_id: user.id, p_note: String(body.reason || "Cancelled by customer") });
       if (error) return NextResponse.json({ error: error.message }, { status: 409 });
       return NextResponse.json({ appointment: data });
