@@ -41,7 +41,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const ctx = await supplierContext();
   if (!ctx) return NextResponse.json({ error: "Supplier authentication required." }, { status: 401 });
-  if (["approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
+  // Approval controls the public catalog/profile; it must not freeze the provider's working calendar.
+  // Suppliers need to keep hours and time-off current so availability remains accurate.
   const parsed: unknown = await request.json().catch(() => null);
   const body: Record<string, unknown> = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
   const action = typeof body.action === "string" ? body.action : "";
