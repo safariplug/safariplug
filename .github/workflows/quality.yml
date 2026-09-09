@@ -12,11 +12,13 @@ permissions:
   contents: read
 
 env:
-  # The build imports the browser Supabase client while collecting API route
-  # configuration. CI only needs syntactically valid public values here; no
-  # production credentials are stored in the workflow.
+  # The build imports browser/server configuration while collecting routes.
+  # CI only needs syntactically valid placeholders; production credentials
+  # remain in the production environment and are never stored in Git.
   NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
   NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+  OPENAI_API_KEY: ci-placeholder-openai-key
 
 jobs:
   quality:
