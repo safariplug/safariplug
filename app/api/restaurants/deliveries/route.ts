@@ -2,16 +2,27 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+const ACTIVE_DELIVERY_STATUSES = ["assigned", "accepted", "arrived_at_restaurant", "picked_up", "on_the_way"];
+
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.is_anonymous) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
+  // food_delivery_assignments.driver_id references driver_profiles.id, not auth.users.id.
+  const { data: driver, error: driverError } = await supabaseAdmin
+    .from("driver_profiles")
+    .select("id,service_status,verification_state")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (driverError) return NextResponse.json({ error: driverError.message }, { status: 500 });
+  if (!driver) return NextResponse.json({ deliveries: [] });
+
   const { data: assignments, error: assignmentError } = await supabaseAdmin
     .from("food_delivery_assignments")
     .select("*")
-    .eq("driver_id", user.id)
-    .in("status", ["assigned", "accepted", "arrived_at_restaurant", "picked_up", "on_the_way"])
+    .eq("driver_id", driver.id)
+    .in("status", ACTIVE_DELIVERY_STATUSES)
     .order("created_at", { ascending: false });
 
   if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 500 });
