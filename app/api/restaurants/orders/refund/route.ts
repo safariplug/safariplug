@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const { data: order, error: orderError } = await supabaseAdmin.from("food_orders").select("id,business_id,payment_status,payment_reference,customer_total,currency,refunded_amount").eq("id", orderId).maybeSingle();
   if (orderError) return NextResponse.json({ error: orderError.message }, { status: 500 });
   if (!order || order.business_id !== businessId) return NextResponse.json({ error: "Order access denied" }, { status: 403 });
-  if (order.payment_status === "refunded") return NextResponse.json({ refund: { status: "succeeded", amount: order.refunded_amount, reference: order.payment_reference } });
+  if (order.payment_status === "refunded") return NextResponse.json({ refund: { status: "succeeded", amount: order.refunded_amount, reference: order.refund_reference ?? order.payment_reference } });
   if (order.payment_status !== "paid") return NextResponse.json({ error: "Only paid restaurant orders can be refunded" }, { status: 409 });
   if (String(order.currency).toUpperCase() !== "KES") return NextResponse.json({ error: "M-Pesa refunds require KES orders" }, { status: 409 });
   if (!order.payment_reference) return NextResponse.json({ error: "No M-Pesa transaction reference is available for this order" }, { status: 409 });
