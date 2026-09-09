@@ -1,4 +1,6 @@
-export function calculateAIScore(event: any) {
+type ScorableEvent = Record<string, unknown>;
+
+export function calculateAIScore(event: ScorableEvent) {
   let score = 0;
 
   const checks = {
@@ -26,10 +28,7 @@ export function calculateAIScore(event: any) {
     checks.city = true;
   }
 
-  if (
-    event.venue_name &&
-    event.venue_name !== "To be verified"
-  ) {
+  if (typeof event.venue_name === "string" && event.venue_name !== "To be verified") {
     score += 15;
     checks.venue = true;
   }
@@ -49,8 +48,5 @@ export function calculateAIScore(event: any) {
     checks.organizer = true;
   }
 
-  return {
-    score,
-    checks,
-  };
+  return { score, checks };
 }
