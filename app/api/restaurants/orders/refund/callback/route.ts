@@ -52,12 +52,12 @@ export async function POST(request: Request) {
         error_message: "M-Pesa reversal amount did not match the requested refund amount",
         updated_at: new Date().toISOString(),
         processed_at: new Date().toISOString(),
-      }).eq("id", refund.id);
+      }).eq("id", refund.id).in("status", ["pending", "processing"]);
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
-    const now = new Date().toISOString();
     if (resultCode !== 0) {
+      const now = new Date().toISOString();
       await supabaseAdmin.from("food_order_refunds").update({
         status: "failed",
         error_message: resultDesc || "M-Pesa reversal failed",
@@ -68,32 +68,15 @@ export async function POST(request: Request) {
     }
 
     const refundReference = transactionReceipt || transactionId || conversationId || originatorConversationId;
-    const { error: refundError } = await supabaseAdmin.from("food_order_refunds").update({
-      status: "succeeded",
-      refund_reference: refundReference,
-      updated_at: now,
-      processed_at: now,
-      error_message: null,
-    }).eq("id", refund.id).in("status", ["pending", "processing"]);
-    if (refundError) throw refundError;
-
-    const { error: orderError } = await supabaseAdmin.from("food_orders").update({
-      payment_status: "refunded",
-      refunded_amount: expectedAmount,
-      refund_reference: refundReference,
-      refunded_at: now,
-      status: "cancelled",
-      cancelled_at: now,
-      cancellation_reason: "Restaurant refund completed",
-      updated_at: now,
-    }).eq("id", refund.order_id).eq("payment_status", "paid");
-    if (orderError) throw orderError;
-
-    await supabaseAdmin.from("food_delivery_assignments").update({
-      status: "cancelled",
-      updated_at: now,
-      note: "Order refunded and cancelled",
-    }).eq("order_id", refund.order_id).in("status", ["assigned", "accepted", "arrived_at_restaurant", "picked_up", "on_the_way"]);
+    const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc("finalize_restaurant_refund", {
+      p_refund_id: refund.id,
+      p_amount: expectedAmount,
+      p_refund_reference: refundReference,
+    });
+    if (finalizeError) throw finalizeError;
+    if (!Array.isArray(finalized) || finalized[0]?.success !== true) {
+      throw new Error(`Restaurant refund finalization was not completed: ${finalized?.[0]?.status || "unknown"}`);
+    }
 
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
   } catch (error) {
