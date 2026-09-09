@@ -10,7 +10,7 @@ const ROWS: { label: string; hint: string; href?: string }[] = [
   { label: "Preferences", hint: "Coming with accounts" },
   { label: "Currency", hint: "Display KES — not a live FX engine" },
   { label: "Language", hint: "English" },
-  { label: "Notifications", hint: "No alerts yet" },
+  { label: "Notifications", hint: "Appointment updates and alerts", href: "/notifications" },
   { label: "Help", hint: "safariplug.com" },
   { label: "About SafariPlug", hint: "Discover. Plan. Experience Africa." },
 ];
