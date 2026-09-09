@@ -6,6 +6,7 @@ on:
       - integration/travel-os-validation-20260904
   pull_request:
     branches:
+      - main
       - integration/travel-os-validation-20260904
 
 permissions:
