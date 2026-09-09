@@ -7,7 +7,7 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
   const { category } = await searchParams;
   const { data: categories } = await supabaseAdmin.from("service_categories").select("id,name,slug,description").eq("status", "active").order("name");
 
-  let query = supabaseAdmin.from("service_profiles").select("id,businesses!inner(name,slug,description,city_id),service_categories!inner(name,slug),service_offerings(id,name,duration_minutes,price,currency)").eq("status", "active").eq("booking_status", "open").eq("service_offerings.status", "active");
+  let query = supabaseAdmin.from("service_profiles").select("id,businesses!inner(name,slug,description,city_id),service_categories!inner(name,slug),service_offerings(id,name,duration_minutes,price,currency)").eq("status", "active").eq("booking_status", "open").eq("businesses.status", "active").eq("service_categories.status", "active").eq("service_offerings.status", "active");
   if (category) query = query.eq("service_categories.slug", category);
   const { data: services } = await query;
   const activeCategory = (categories ?? []).find((c: any) => c.slug === category);
