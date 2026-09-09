@@ -26,9 +26,6 @@ export async function POST(request: Request) {
     if (categoryError) return NextResponse.json({ success: false, error: categoryError.message }, { status: 500 });
     if (!category) return NextResponse.json({ success: false, error: "Service category not found." }, { status: 422 });
 
-    const { data: existingAccount } = await supabaseAdmin.from("supplier_accounts").select("id,onboarding_status").eq("business_id", "00000000-0000-0000-0000-000000000000").maybeSingle();
-    void existingAccount;
-
     const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const already = existingUser.users.find((u) => u.email?.toLowerCase() === email);
     if (already) {
