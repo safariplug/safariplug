@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const ORDER_TRANSITIONS: Record<string, string[]> = { pending:["accepted","rejected","cancelled"], accepted:["preparing","cancelled"], preparing:["ready","cancelled"], ready:["driver_assigned","picked_up","cancelled"], driver_assigned:["picked_up","cancelled"], picked_up:["on_the_way","delivered"], on_the_way:["delivered"], delivered:[], cancelled:[], rejected:[] };
 const DRIVER_TRANSITIONS: Record<string, string[]> = { assigned:["accepted","declined","cancelled"], accepted:["arrived_at_restaurant","cancelled"], arrived_at_restaurant:["picked_up","cancelled"], picked_up:["on_the_way","delivered","cancelled"], on_the_way:["delivered","cancelled"], delivered:[], declined:[], cancelled:[] };
+const ACTIVE_ASSIGNMENT_STATUSES=["assigned","accepted","arrived_at_restaurant","picked_up","on_the_way"];
 
 async function user() { const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser(); return user&&!user.is_anonymous?user:null; }
 async function supplierBusinessId(userId:string) { const {data}=await supabaseAdmin.from("supplier_accounts").select("business_id").eq("user_id",userId).maybeSingle(); return data?.business_id??null; }
@@ -31,7 +32,7 @@ async function eligibleDriver(driverId:string, order:any) {
   const {data:vehicles}=await supabaseAdmin.from("vehicles").select("id,status,registration_compliance_status,insurance_compliance_status").eq("driver_id",driver.id);
   const vehicle=(vehicles??[]).find((v:any)=>v.status==="active"&&v.registration_compliance_status==="compliant"&&v.insurance_compliance_status==="compliant");
   if(!vehicle)return {error:"Selected driver has no compliant active vehicle"};
-  const {data:busy}=await supabaseAdmin.from("food_delivery_assignments").select("id").eq("driver_id",driver.id).in("status",["assigned","accepted","arrived_at_restaurant","picked_up","on_the_way"]).limit(1).maybeSingle();
+  const {data:busy}=await supabaseAdmin.from("food_delivery_assignments").select("id").eq("driver_id",driver.id).in("status",ACTIVE_ASSIGNMENT_STATUSES).limit(1).maybeSingle();
   if(busy)return {error:"Selected driver is already assigned to another active delivery"};
   return {driver,vehicle};
 }
@@ -66,10 +67,14 @@ export async function PATCH(request:Request) {
   if(!["restaurant","safariplug"].includes(assignmentSource))return NextResponse.json({error:"Invalid assignment source"},{status:400});
   const eligibility=await eligibleDriver(assignDriverId,order);
   if("error" in eligibility)return NextResponse.json({error:eligibility.error},{status:409});
-  const {data:existing}=await supabaseAdmin.from("food_delivery_assignments").select("id,status,driver_id").eq("order_id",orderId).in("status",["assigned","accepted","arrived_at_restaurant","picked_up","on_the_way"]).limit(1).maybeSingle();
+  const {data:existing}=await supabaseAdmin.from("food_delivery_assignments").select("id,status,driver_id").eq("order_id",orderId).in("status",ACTIVE_ASSIGNMENT_STATUSES).limit(1).maybeSingle();
   if(existing)return NextResponse.json({error:"This order already has an active delivery assignment"},{status:409});
   const {data:created,error}=await supabaseAdmin.from("food_delivery_assignments").insert({order_id:orderId,driver_id:eligibility.driver.id,vehicle_id:eligibility.vehicle.id,assignment_source:assignmentSource,status:"assigned",delivery_fee:order.delivery_fee??0,assigned_by:currentUser.id}).select().single();
-  if(error)return NextResponse.json({error:error.message},{status:400});
+  if(error){
+    if(error.code==="23505"&&error.message.includes("food_delivery_assignments_active_driver_key"))return NextResponse.json({error:"Selected driver was assigned to another delivery. Choose another available driver."},{status:409});
+    if(error.code==="23505"&&(error.message.includes("food_delivery_assignments_order_id_key")||error.message.includes("food_delivery_assignments_active_order_idx")))return NextResponse.json({error:"This order already has a delivery assignment"},{status:409});
+    return NextResponse.json({error:error.message},{status:400});
+  }
   const {data:updated,error:updateError}=await supabaseAdmin.from("food_orders").update({status:"driver_assigned",updated_at:new Date().toISOString()}).eq("id",orderId).eq("status",order.status).select().single();
   if(updateError||!updated){await supabaseAdmin.from("food_delivery_assignments").delete().eq("id",created.id);return NextResponse.json({error:updateError?.message??"Order changed before driver assignment"},{status:409});}
   return NextResponse.json({order:updated,assignment:created});
@@ -81,7 +86,9 @@ export async function PATCH(request:Request) {
   if(isDriver&&!isSupplier&&!['picked_up','on_the_way','delivered'].includes(status))return NextResponse.json({error:"Driver cannot make this order transition"},{status:403});
   if(!(ORDER_TRANSITIONS[order.status]??[]).includes(status))return NextResponse.json({error:`Cannot move order from ${order.status} to ${status}`},{status:409});
   const now=new Date().toISOString();const update:Record<string,unknown>={status,updated_at:now};if(status==='accepted'){update.accepted_at=now;update.accepted_by=currentUser.id;}if(status==='ready')update.ready_at=now;if(status==='picked_up')update.picked_up_at=now;if(status==='delivered')update.delivered_at=now;if(status==='cancelled'||status==='rejected'){update.cancelled_at=now;update.cancellation_reason=note??null;}
-  const {data:updated,error}=await supabaseAdmin.from("food_orders").update(update).eq("id",orderId).eq("status",order.status).select().single();if(error)return NextResponse.json({error:error.message},{status:400});return NextResponse.json({order:updated});
+  const {data:updated,error}=await supabaseAdmin.from("food_orders").update(update).eq("id",orderId).eq("status",order.status).select().single();if(error)return NextResponse.json({error:error.message},{status:400});
+  if((status==='cancelled'||status==='rejected')&&assignment){await supabaseAdmin.from("food_delivery_assignments").update({status:'cancelled',updated_at:now,note:note??null}).eq("id",assignment.id).in("status",ACTIVE_ASSIGNMENT_STATUSES);}
+  return NextResponse.json({order:updated});
  }
  if(assignmentStatus){
   if(!isDriver&&!isSupplier)return NextResponse.json({error:"Driver access denied"},{status:403});if(!assignment)return NextResponse.json({error:"Delivery assignment not found"},{status:404});if(!(DRIVER_TRANSITIONS[assignment.status]??[]).includes(assignmentStatus))return NextResponse.json({error:`Cannot move delivery from ${assignment.status} to ${assignmentStatus}`},{status:409});
