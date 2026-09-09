@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { runSalesScout } from "./actions/run-sales-scout";
+import { runSalesScoutForm } from "./actions/run-sales-scout";
 
 const cities = [
   "Nairobi",
@@ -44,10 +44,6 @@ const categories = [
 ];
 
 export default async function AISalesPage() {
-  async function runScout(formData: FormData): Promise<void> {
-    await runSalesScout(formData);
-  }
-
   const { count: total } = await supabaseAdmin
     .from("ai_sales_prospects")
     .select("*", { count: "exact", head: true });
@@ -106,7 +102,7 @@ export default async function AISalesPage() {
               Find real service providers and hospitality businesses across Africa. Discovery only: results are reviewed before outreach.
             </p>
 
-            <form action={runScout} className="mt-6 grid gap-4 md:grid-cols-3">
+            <form action={runSalesScoutForm} className="mt-6 grid gap-4 md:grid-cols-3">
               <select name="city" defaultValue="Nairobi" className="rounded-xl border p-3">
                 {cities.map((city) => <option key={city}>{city}</option>)}
               </select>
