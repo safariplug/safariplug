@@ -7,6 +7,7 @@ const DRIVER_TRANSITIONS: Record<string, string[]> = { assigned:["accepted","dec
 
 async function user() { const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser(); return user&&!user.is_anonymous?user:null; }
 async function supplierBusinessId(userId:string) { const {data}=await supabaseAdmin.from("supplier_accounts").select("business_id").eq("user_id",userId).maybeSingle(); return data?.business_id??null; }
+async function driverProfileId(userId:string) { const {data}=await supabaseAdmin.from("driver_profiles").select("id").eq("user_id",userId).maybeSingle(); return data?.id??null; }
 
 export async function GET(request:Request) {
  const currentUser=await user(); if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
@@ -17,7 +18,7 @@ export async function GET(request:Request) {
  else if(supplierView){const owned=await supplierBusinessId(currentUser.id);if(!owned)return NextResponse.json({error:"Supplier access denied"},{status:403});query=query.eq("business_id",owned).limit(100);}
  else query=query.eq("customer_user_id",currentUser.id).limit(50);
  const {data,error}=await query;if(error)return NextResponse.json({error:error.message},{status:500});if(orderId&&!data?.length)return NextResponse.json({error:"Order not found"},{status:404});
- if(orderId){const order=data?.[0];const owns=order.customer_user_id===currentUser.id;const owned=await supplierBusinessId(currentUser.id);const supplier=owned===order.business_id;const assignment=order.food_delivery_assignments?.find((a:{driver_id?:string})=>a.driver_id===currentUser.id);if(!owns&&!supplier&&!assignment)return NextResponse.json({error:"Order access denied"},{status:403});}
+ if(orderId){const order=data?.[0];const owns=order.customer_user_id===currentUser.id;const owned=await supplierBusinessId(currentUser.id);const supplier=owned===order.business_id;const driverId=await driverProfileId(currentUser.id);const assignment=driverId?order.food_delivery_assignments?.find((a:{driver_id?:string})=>a.driver_id===driverId):null;if(!owns&&!supplier&&!assignment)return NextResponse.json({error:"Order access denied"},{status:403});}
  const orders=data??[];
  const driverIds=[...new Set(orders.flatMap((order:any)=>(order.food_delivery_assignments??[]).filter((a:any)=>a.status!=="cancelled"&&a.status!=="declined"&&a.driver_id).map((a:any)=>a.driver_id)))] as string[];
  let drivers:Record<string,unknown>={};
@@ -30,7 +31,7 @@ export async function PATCH(request:Request) {
  const currentUser=await user();if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
  const body=await request.json();const {orderId,status,note,assignmentStatus,rating,customerNote,assignDriverId,assignmentSource}=body;if(!orderId)return NextResponse.json({error:"orderId is required"},{status:400});
  const {data:order,error:orderError}=await supabaseAdmin.from("food_orders").select("*").eq("id",orderId).maybeSingle();if(orderError)return NextResponse.json({error:orderError.message},{status:500});if(!order)return NextResponse.json({error:"Order not found"},{status:404});
- const owned=await supplierBusinessId(currentUser.id);const isSupplier=owned===order.business_id;const isCustomer=order.customer_user_id===currentUser.id;const {data:assignment}=await supabaseAdmin.from("food_delivery_assignments").select("*").eq("order_id",orderId).eq("driver_id",currentUser.id).order("created_at",{ascending:false}).limit(1).maybeSingle();const isDriver=Boolean(assignment);
+ const owned=await supplierBusinessId(currentUser.id);const isSupplier=owned===order.business_id;const isCustomer=order.customer_user_id===currentUser.id;const currentDriverId=await driverProfileId(currentUser.id);const {data:assignment}=currentDriverId?await supabaseAdmin.from("food_delivery_assignments").select("*").eq("order_id",orderId).eq("driver_id",currentDriverId).order("created_at",{ascending:false}).limit(1).maybeSingle():{data:null};const isDriver=Boolean(assignment);
 
  if(assignDriverId){
   if(!isSupplier)return NextResponse.json({error:"Only the restaurant can assign a driver"},{status:403});
