@@ -30,7 +30,7 @@ export default function SupplierHomePage() {
       ? { href: "/supplier/hotel", title: "Property & booking", body: "Complete your property profile and prepare your hotel for booking connectivity." }
       : isEvents
         ? { href: "/supplier/events", title: "Events & experiences", body: "Prepare your organizer profile and event listings for SafariPlug curation." }
-        : { href: "/supplier/onboarding", title: "Services & bookings", body: "Manage services, pricing, staff, availability and customer bookings." };
+        : { href: "/business/services", title: "Services & bookings", body: "Manage services, pricing, staff, working hours and the complete customer appointment lifecycle." };
 
   if (!supplier.business && !message) return <main className="mx-auto max-w-5xl px-6 py-16"><h1 className="text-3xl font-semibold">Supplier Portal</h1><p className="mt-3 text-black/60">Loading your workspace…</p></main>;
 
@@ -56,7 +56,7 @@ export default function SupplierHomePage() {
         {isRestaurant && <Link href="/supplier/restaurant-orders" className="rounded-2xl border border-black/10 p-5 transition hover:bg-black/[.03]"><h3 className="font-semibold">Restaurant orders</h3><p className="mt-2 text-sm text-black/50">Accept orders, manage kitchen status and hand orders to delivery.</p></Link>}
         {isHotel && <Link href="/supplier/hotel" className="rounded-2xl border border-black/10 p-5 transition hover:bg-black/[.03]"><h3 className="font-semibold">Hotel workspace</h3><p className="mt-2 text-sm text-black/50">Property readiness and booking connectivity.</p></Link>}
         {isEvents && <Link href="/supplier/events" className="rounded-2xl border border-black/10 p-5 transition hover:bg-black/[.03]"><h3 className="font-semibold">Event workspace</h3><p className="mt-2 text-sm text-black/50">Organizer readiness and curation workflow.</p></Link>}
-        {isAppointment && <div className="rounded-2xl border border-black/10 p-5"><h3 className="font-semibold">Appointments</h3><p className="mt-2 text-sm text-black/50">Your services, staff and availability are managed through the onboarding and calendar tools.</p></div>}
+        {isAppointment && <Link href="/business/services" className="rounded-2xl border border-black/10 p-5 transition hover:bg-black/[.03]"><h3 className="font-semibold">Appointments</h3><p className="mt-2 text-sm text-black/50">Manage services, specialists, bookings and appointment status from one workspace.</p></Link>}
       </div>
     </>}
   </main>;
