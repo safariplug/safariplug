@@ -34,23 +34,23 @@ export async function POST(request: Request) {
   const externalUserId = typeof payload.externalUserId === "string" ? payload.externalUserId : "";
   if (!applicantId && !externalUserId) return NextResponse.json({ ok: true });
 
-  let query = supabaseAdmin
+  const lookup = async (externalId: string) => supabaseAdmin
     .from("verification_cases")
     .select("id,status,verification_level,subject_type,subject_id,external_id")
-    .eq("provider", "sumsub");
-  const { data: current } = externalUserId
-    ? await query.eq("external_id", externalUserId).maybeSingle()
-    : await query.eq("external_id", applicantId).maybeSingle();
+    .eq("provider", "sumsub")
+    .eq("external_id", externalId)
+    .maybeSingle();
 
-  let resolved = current;
-  if (!resolved && applicantId && externalUserId) {
-    const fallback = await supabaseAdmin
-      .from("verification_cases")
-      .select("id,status,verification_level,subject_type,subject_id,external_id")
-      .eq("provider", "sumsub")
-      .eq("external_id", applicantId)
-      .maybeSingle();
-    resolved = fallback.data;
+  let resolved = null;
+  if (externalUserId) {
+    const result = await lookup(externalUserId);
+    if (result.error) return NextResponse.json({ error: "Unable to resolve verification case." }, { status: 500 });
+    resolved = result.data;
+  }
+  if (!resolved && applicantId) {
+    const result = await lookup(applicantId);
+    if (result.error) return NextResponse.json({ error: "Unable to resolve verification case." }, { status: 500 });
+    resolved = result.data;
   }
   if (!resolved) return NextResponse.json({ ok: true });
 
@@ -62,62 +62,52 @@ export async function POST(request: Request) {
   const eventExternalRef = applicantId || externalUserId;
 
   if (type === "applicantCreated" && applicantId && resolved.external_id !== applicantId) {
-    await supabaseAdmin.from("verification_cases").update({ external_id: applicantId }).eq("id", resolved.id);
+    const { error } = await supabaseAdmin.from("verification_cases").update({ external_id: applicantId }).eq("id", resolved.id);
+    if (error) return NextResponse.json({ error: "Unable to link Sumsub applicant." }, { status: 500 });
   } else if (type === "applicantReviewed") {
     const approved = answer === "GREEN";
     toStatus = approved ? "approved" : "rejected";
-    await supabaseAdmin
+    const reviewedAt = new Date().toISOString();
+
+    const { error: caseError } = await supabaseAdmin
       .from("verification_cases")
-      .update({
-        status: toStatus,
-        reviewed_at: new Date().toISOString(),
-        rejection_reason: approved ? null : "Sumsub verification result was not approved.",
-      })
+      .update({ status: toStatus, reviewed_at: reviewedAt, rejection_reason: approved ? null : "Sumsub verification result was not approved." })
       .eq("id", resolved.id);
+    if (caseError) return NextResponse.json({ error: "Unable to update verification case." }, { status: 500 });
 
     if (resolved.subject_type === "driver" && resolved.subject_id) {
-      await supabaseAdmin
-        .from("driver_profiles")
-        .update({ verification_state: approved ? "verified" : "rejected" })
-        .eq("id", resolved.subject_id);
+      const { error: driverError } = await supabaseAdmin.rpc("apply_driver_verification_state", {
+        p_driver_id: resolved.subject_id,
+        p_state: approved ? "verified" : "rejected",
+        p_case_id: resolved.id,
+      });
+      if (driverError) return NextResponse.json({ error: "Unable to update driver verification state." }, { status: 500 });
     }
 
     if (approved) {
       for (const evidenceType of ["identity", "liveness"] as const) {
-        const { data: existing } = await supabaseAdmin
+        const { data: existing, error: lookupError } = await supabaseAdmin
           .from("verification_evidence")
           .select("id")
           .eq("case_id", resolved.id)
           .eq("evidence_type", evidenceType)
           .maybeSingle();
-        const patch = {
-          status: "accepted",
-          provider: "sumsub",
-          external_ref: eventExternalRef,
-          reviewed_at: new Date().toISOString(),
-        };
-        if (existing?.id) {
-          await supabaseAdmin.from("verification_evidence").update(patch).eq("id", existing.id);
-        } else {
-          await supabaseAdmin.from("verification_evidence").insert({
-            case_id: resolved.id,
-            evidence_type: evidenceType,
-            ...patch,
-            submitted_at: new Date().toISOString(),
-          });
-        }
+        if (lookupError) return NextResponse.json({ error: "Unable to update verification evidence." }, { status: 500 });
+
+        const patch = { status: "accepted", provider: "sumsub", external_ref: eventExternalRef, reviewed_at: reviewedAt };
+        const result = existing?.id
+          ? await supabaseAdmin.from("verification_evidence").update(patch).eq("id", existing.id)
+          : await supabaseAdmin.from("verification_evidence").insert({ case_id: resolved.id, evidence_type: evidenceType, ...patch, submitted_at: reviewedAt });
+        if (result.error) return NextResponse.json({ error: "Unable to update verification evidence." }, { status: 500 });
       }
     }
   } else if (["applicantPending", "applicantOnHold", "applicantAwaitingUser", "applicantAwaitingService"].includes(type)) {
     toStatus = "in_review";
-    await supabaseAdmin
-      .from("verification_cases")
-      .update({ status: "in_review" })
-      .eq("id", resolved.id)
-      .in("status", ["pending", "not_started"]);
+    const { error } = await supabaseAdmin.from("verification_cases").update({ status: "in_review" }).eq("id", resolved.id).in("status", ["pending", "not_started"]);
+    if (error) return NextResponse.json({ error: "Unable to update verification case." }, { status: 500 });
   }
 
-  await supabaseAdmin.from("verification_events").insert({
+  const { error: eventError } = await supabaseAdmin.from("verification_events").insert({
     case_id: resolved.id,
     event_type: `sumsub:${type || "unknown"}`,
     from_status: resolved.status,
@@ -127,6 +117,7 @@ export async function POST(request: Request) {
     external_ref: eventExternalRef || null,
     reason: answer || null,
   });
+  if (eventError) return NextResponse.json({ error: "Unable to record verification event." }, { status: 500 });
 
   return NextResponse.json({ ok: true });
 }
