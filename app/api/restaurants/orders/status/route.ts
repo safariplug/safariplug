@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 const ORDER_TRANSITIONS: Record<string, string[]> = { pending:["accepted","rejected","cancelled"], accepted:["preparing","cancelled"], preparing:["ready","cancelled"], ready:["driver_assigned","picked_up","cancelled"], driver_assigned:["picked_up","cancelled"], picked_up:["on_the_way","delivered"], on_the_way:["delivered"], delivered:[], cancelled:[], rejected:[] };
 const DRIVER_TRANSITIONS: Record<string, string[]> = { assigned:["accepted","declined","cancelled"], accepted:["arrived_at_restaurant","cancelled"], arrived_at_restaurant:["picked_up","cancelled"], picked_up:["on_the_way","delivered","cancelled"], on_the_way:["delivered","cancelled"], delivered:[], declined:[], cancelled:[] };
 const ACTIVE_ASSIGNMENT_STATUSES=["assigned","accepted","arrived_at_restaurant","picked_up","on_the_way"];
+const SUPPLIER_ORDER_STATUSES=["accepted","preparing","ready","cancelled","rejected"];
+const DRIVER_ORDER_STATUSES=["picked_up","on_the_way","delivered"];
 
 async function user() { const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser(); return user&&!user.is_anonymous?user:null; }
 async function supplierBusinessId(userId:string) { const {data}=await supabaseAdmin.from("supplier_accounts").select("business_id").eq("user_id",userId).maybeSingle(); return data?.business_id??null; }
@@ -17,7 +19,6 @@ async function eligibleDriver(driverId:string, order:any) {
   const {data:business}=await supabaseAdmin.from("businesses").select("city_id,latitude,longitude").eq("id",order.business_id).maybeSingle();
   if(!business)return {error:"Restaurant location is not configured"};
   const destinationLat=Number(order.delivery_latitude), destinationLng=Number(order.delivery_longitude);
-  const restaurantLat=Number(business.latitude), restaurantLng=Number(business.longitude);
   if(!Number.isFinite(destinationLat)||!Number.isFinite(destinationLng)||destinationLat<-90||destinationLat>90||destinationLng<-180||destinationLng>180)return {error:"Delivery location is not configured"};
   if(driver.service_city_id&&business.city_id&&driver.service_city_id===business.city_id) {
     // City-scoped driver is eligible for this restaurant; destination is still validated above.
@@ -65,16 +66,11 @@ export async function PATCH(request:Request) {
   if(!isSupplier)return NextResponse.json({error:"Only the restaurant can assign a driver"},{status:403});
   if(!["ready","driver_assigned"].includes(order.status))return NextResponse.json({error:"Order must be ready before assigning a delivery driver"},{status:409});
   if(!["restaurant","safariplug"].includes(assignmentSource))return NextResponse.json({error:"Invalid assignment source"},{status:400});
-  const eligibility=await eligibleDriver(assignDriverId,order);
-  if("error" in eligibility)return NextResponse.json({error:eligibility.error},{status:409});
+  const eligibility=await eligibleDriver(assignDriverId,order); if("error" in eligibility)return NextResponse.json({error:eligibility.error},{status:409});
   const {data:existing}=await supabaseAdmin.from("food_delivery_assignments").select("id,status,driver_id").eq("order_id",orderId).in("status",ACTIVE_ASSIGNMENT_STATUSES).limit(1).maybeSingle();
   if(existing)return NextResponse.json({error:"This order already has an active delivery assignment"},{status:409});
   const {data:created,error}=await supabaseAdmin.from("food_delivery_assignments").insert({order_id:orderId,driver_id:eligibility.driver.id,vehicle_id:eligibility.vehicle.id,assignment_source:assignmentSource,status:"assigned",delivery_fee:order.delivery_fee??0,assigned_by:currentUser.id}).select().single();
-  if(error){
-    if(error.code==="23505"&&error.message.includes("food_delivery_assignments_active_driver_key"))return NextResponse.json({error:"Selected driver was assigned to another delivery. Choose another available driver."},{status:409});
-    if(error.code==="23505"&&(error.message.includes("food_delivery_assignments_order_id_key")||error.message.includes("food_delivery_assignments_active_order_idx")))return NextResponse.json({error:"This order already has a delivery assignment"},{status:409});
-    return NextResponse.json({error:error.message},{status:400});
-  }
+  if(error){if(error.code==="23505"&&error.message.includes("food_delivery_assignments_active_driver_key"))return NextResponse.json({error:"Selected driver was assigned to another delivery. Choose another available driver."},{status:409});if(error.code==="23505"&&(error.message.includes("food_delivery_assignments_order_id_key")||error.message.includes("food_delivery_assignments_active_order_idx")))return NextResponse.json({error:"This order already has a delivery assignment"},{status:409});return NextResponse.json({error:error.message},{status:400});}
   const {data:updated,error:updateError}=await supabaseAdmin.from("food_orders").update({status:"driver_assigned",updated_at:new Date().toISOString()}).eq("id",orderId).eq("status",order.status).select().single();
   if(updateError||!updated){await supabaseAdmin.from("food_delivery_assignments").delete().eq("id",created.id);return NextResponse.json({error:updateError?.message??"Order changed before driver assignment"},{status:409});}
   return NextResponse.json({order:updated,assignment:created});
@@ -82,8 +78,9 @@ export async function PATCH(request:Request) {
 
  if(status){
   if(!isSupplier&&!isCustomer&&!isDriver)return NextResponse.json({error:"Order access denied"},{status:403});
-  if(isCustomer&&!isSupplier&&!isDriver&&status!=="cancelled")return NextResponse.json({error:"Customers can only cancel an order"},{status:403});
-  if(isDriver&&!isSupplier&&!['picked_up','on_the_way','delivered'].includes(status))return NextResponse.json({error:"Driver cannot make this order transition"},{status:403});
+  if(isCustomer&&!isSupplier&&!isDriver){if(status!=="cancelled")return NextResponse.json({error:"Customers can only cancel an order"},{status:403});if(order.status!=="pending")return NextResponse.json({error:"Customers can only cancel an order while it is pending"},{status:409});}
+  if(isDriver&&!isSupplier&&!DRIVER_ORDER_STATUSES.includes(status))return NextResponse.json({error:"Driver cannot make this order transition"},{status:403});
+  if(isSupplier&&!isCustomer&&!isDriver&&!SUPPLIER_ORDER_STATUSES.includes(status))return NextResponse.json({error:"Restaurant cannot make this order transition"},{status:403});
   if(!(ORDER_TRANSITIONS[order.status]??[]).includes(status))return NextResponse.json({error:`Cannot move order from ${order.status} to ${status}`},{status:409});
   const now=new Date().toISOString();const update:Record<string,unknown>={status,updated_at:now};if(status==='accepted'){update.accepted_at=now;update.accepted_by=currentUser.id;}if(status==='ready')update.ready_at=now;if(status==='picked_up')update.picked_up_at=now;if(status==='delivered')update.delivered_at=now;if(status==='cancelled'||status==='rejected'){update.cancelled_at=now;update.cancellation_reason=note??null;}
   const {data:updated,error}=await supabaseAdmin.from("food_orders").update(update).eq("id",orderId).eq("status",order.status).select().single();if(error)return NextResponse.json({error:error.message},{status:400});
