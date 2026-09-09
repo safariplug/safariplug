@@ -42,6 +42,13 @@ export async function POST(request: Request) {
       if (profile) {
         const { error: offeringError } = await supabaseAdmin.from("service_offerings").update({ status: "active" }).eq("service_profile_id", profile.id).eq("status", "draft");
         if (offeringError) return NextResponse.json({ error: offeringError.message }, { status: 500 });
+        const { data: offerings } = await supabaseAdmin.from("service_offerings").select("id").eq("service_profile_id", profile.id).eq("status", "active");
+        const { data: staff } = await supabaseAdmin.from("service_staff").select("id").eq("service_profile_id", profile.id).eq("status", "active");
+        if (offerings?.length && staff?.length) {
+          const assignments = staff.flatMap((member) => offerings.map((offering) => ({ staff_id: member.id, offering_id: offering.id })));
+          const { error: assignmentError } = await supabaseAdmin.from("service_staff_offerings").upsert(assignments, { onConflict: "staff_id,offering_id" });
+          if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 500 });
+        }
       }
       return NextResponse.json({ success: true, onboarding_status: "approved" });
     }
