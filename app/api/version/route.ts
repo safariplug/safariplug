@@ -12,13 +12,11 @@ export async function GET() {
     process.env.GIT_COMMIT_SHA,
     process.env.SOURCE_VERSION,
     process.env.GITHUB_SHA,
-    process.env.VERCEL_GIT_COMMIT_SHA,
   );
 
   const branch = firstDefined(
     process.env.GIT_BRANCH,
     process.env.GITHUB_REF_NAME,
-    process.env.VERCEL_GIT_COMMIT_REF,
   );
 
   return NextResponse.json({
