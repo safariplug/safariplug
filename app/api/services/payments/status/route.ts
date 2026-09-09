@@ -51,8 +51,11 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (!intent) return NextResponse.json({ error: "Payment intent not found." }, { status: 404 });
 
-    if (appointment.payment_status === "paid") {
-      return NextResponse.json({ status: "succeeded", paymentStatus: "paid" });
+    if (["paid", "disputed", "refunded"].includes(String(appointment.payment_status))) {
+      return NextResponse.json({
+        status: appointment.payment_status === "paid" ? "succeeded" : appointment.payment_status,
+        paymentStatus: appointment.payment_status,
+      });
     }
 
     const adapter = getPaymentAdapter(provider);
@@ -73,7 +76,23 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ status, paymentStatus: status === "succeeded" ? "paid" : status === "failed" || status === "cancelled" ? status : "pending" });
+    const { data: authoritativeAppointment, error: authoritativeError } = await supabaseAdmin
+      .from("service_appointments")
+      .select("payment_status")
+      .eq("id", appointmentId)
+      .eq("customer_user_id", user.id)
+      .maybeSingle();
+    if (authoritativeError) throw authoritativeError;
+
+    const authoritativeStatus = String(authoritativeAppointment?.payment_status || "");
+    if (["paid", "disputed", "refunded", "failed", "cancelled"].includes(authoritativeStatus)) {
+      return NextResponse.json({
+        status: authoritativeStatus === "paid" ? "succeeded" : authoritativeStatus,
+        paymentStatus: authoritativeStatus,
+      });
+    }
+
+    return NextResponse.json({ status, paymentStatus: "pending" });
   } catch (error) {
     console.error("Payment status reconciliation error", error);
     const message = error instanceof Error ? error.message : "Unable to check payment status.";
