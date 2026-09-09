@@ -59,18 +59,10 @@ export async function POST(request: Request) {
       });
 
       if (error) {
-        if (error.message.includes("appointment_already_in_trip")) {
-          return NextResponse.json({ error: "This appointment is already attached to another journey." }, { status: 409 });
-        }
-        if (error.message.includes("appointment_not_found")) {
-          return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
-        }
-        if (error.message.includes("trip_not_found")) {
-          return NextResponse.json({ error: "Journey not found." }, { status: 404 });
-        }
-        if (error.message.includes("unauthorized")) {
-          return NextResponse.json({ error: "You are not authorized to modify this journey." }, { status: 403 });
-        }
+        if (error.message.includes("appointment_already_in_trip")) return NextResponse.json({ error: "This appointment is already attached to another journey." }, { status: 409 });
+        if (error.message.includes("appointment_not_found")) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
+        if (error.message.includes("trip_not_found")) return NextResponse.json({ error: "Journey not found." }, { status: 404 });
+        if (error.message.includes("unauthorized")) return NextResponse.json({ error: "You are not authorized to modify this journey." }, { status: 403 });
         console.error("attach appointment to trip", error);
         return NextResponse.json({ error: "Unable to add this appointment to the journey." }, { status: 409 });
       }
@@ -83,7 +75,10 @@ export async function POST(request: Request) {
       if (!["pending", "confirmed"].includes(appointment.status)) return NextResponse.json({ error: "This appointment can no longer be cancelled online." }, { status: 409 });
       if (["paid", "partially_refunded"].includes(appointment.payment_status)) return NextResponse.json({ error: "This appointment has a settled payment and requires a refund review before cancellation." }, { status: 409 });
       const { data, error } = await supabaseAdmin.rpc("transition_service_appointment_status", { p_appointment_id: id, p_to_status: "cancelled", p_actor_type: "customer", p_actor_user_id: user.id, p_note: String(body.reason || "Cancelled by customer") });
-      if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+      if (error) {
+        if (error.message.includes("settled_payment_requires_refund_review")) return NextResponse.json({ error: "This appointment has a settled payment and requires a refund review before cancellation." }, { status: 409 });
+        return NextResponse.json({ error: error.message }, { status: 409 });
+      }
       return NextResponse.json({ appointment: data });
     }
 
