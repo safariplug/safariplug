@@ -90,6 +90,11 @@ export async function runSalesScout(formData: FormData) {
   return result;
 }
 
+/** Server Action adapter for the admin form. The form action contract must return void. */
+export async function runSalesScoutForm(formData: FormData): Promise<void> {
+  await runSalesScout(formData);
+}
+
 /** Server-only entry point for the authenticated cron route. */
 export async function runScheduledSalesScout() {
   const pairs = SCOUT_CITIES.flatMap((city) =>
