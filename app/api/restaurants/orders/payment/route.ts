@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     if (idemError) {
       if (idemError.code === "23505" || idemError.message.toLowerCase().includes("duplicate")) {
         const { data: raced } = await supabaseAdmin.from("food_order_payment_idempotency").select("order_id,payment_intent_id,provider_reference").eq("customer_user_id", user.id).eq("provider", provider).eq("idempotency_key", idempotencyKey).maybeSingle();
-        if (raced?.order_id !== order.id || !raced.payment_intent_id) return NextResponse.json({ error: "Payment request was already started. Please retry with a new payment attempt." }, { status: 409 });
+        if (!raced || raced.order_id !== order.id || !raced.payment_intent_id) return NextResponse.json({ error: "Payment request was already started. Please retry with a new payment attempt." }, { status: 409 });
         return NextResponse.json({ intent: { ...intent, id: raced.payment_intent_id, providerReference: raced.provider_reference } });
       }
       throw idemError;

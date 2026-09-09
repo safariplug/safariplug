@@ -52,6 +52,7 @@ function driver(overrides: Partial<DriverProfile> = {}): DriverProfile {
     service_area: { city: "Nairobi", airport_code: "NBO" },
     source: "test",
     external_id: null,
+    driving_license_compliance_status: "compliant",
     ...overrides,
   };
 }
@@ -67,6 +68,8 @@ function vehicle(): Vehicle {
     luggage_capacity: 3,
     accessibility: false,
     status: "active",
+    registration_compliance_status: "compliant",
+    insurance_compliance_status: "compliant",
   };
 }
 

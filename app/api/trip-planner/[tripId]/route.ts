@@ -23,7 +23,7 @@ export async function GET(_request: Request, { params }: Params) {
 
   const { data: rawItems, error: itemError } = await supabaseAdmin
     .from("trip_items")
-    .select("id,item_kind,title,event_id,offering_id,booking_id,appointment_id,food_order_id,city_id,start_at,end_at,notes,position,created_at,updated_at")
+    .select("id,item_kind,title,event_id,offering_id,booking_id,appointment_id,food_order_id,hotel_booking_pricing_ledger_id,city_id,start_at,end_at,notes,position,created_at,updated_at")
     .eq("trip_id", tripId)
     .order("position", { ascending: true })
     .order("start_at", { ascending: true, nullsFirst: false })
@@ -68,7 +68,7 @@ export async function GET(_request: Request, { params }: Params) {
       event,
       appointment,
       food_order: food_order ? { ...food_order, business: food_business || null } : null,
-      display_title: item.title || event?.title || food_business?.name ? (item.title || event?.title || `${food_business?.name || "Restaurant"} food order`) : (appointment ? "Service appointment" : "Trip item"),
+      display_title: item.title || event?.title || food_business?.name ? (item.title || event?.title || `${food_business?.name || "Restaurant"} food order`) : (appointment ? "Service appointment" : item.hotel_booking_pricing_ledger_id ? "Hotel stay" : "Trip item"),
       display_start: item.start_at || event?.start_at || appointment?.starts_at || food_order?.eta_at || null,
       display_end: item.end_at || event?.end_at || appointment?.ends_at || null,
     };
