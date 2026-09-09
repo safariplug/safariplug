@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function ServicePage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ tripId?: string }> }) {
   const { slug } = await params;
   const { tripId } = await searchParams;
-  const { data: s } = await supabaseAdmin.from("service_profiles").select("id,timezone,booking_notice_minutes,cancellation_policy,businesses!inner(name,slug,description,address,phone,whatsapp,website_url,logo_url,cover_image_url),service_categories(name),service_offerings(id,name,description,duration_minutes,price,currency,status,requires_confirmation)").eq("status","active").eq("booking_status","open").eq("businesses.slug",slug).eq("service_offerings.status","active").maybeSingle();
+  const { data: s } = await supabaseAdmin.from("service_profiles").select("id,timezone,booking_notice_minutes,cancellation_policy,businesses!inner(id,name,slug,description,address,phone,whatsapp,website_url,logo_url,cover_image_url,status),service_categories(name),service_offerings(id,name,description,duration_minutes,price,currency,status,requires_confirmation)").eq("status","active").eq("booking_status","open").eq("businesses.slug",slug).eq("businesses.status","active").eq("service_offerings.status","active").maybeSingle();
   if (!s) notFound();
   const offerings = ((s as any).service_offerings ?? []) as any[];
   const { data: staff } = await supabaseAdmin.from("service_staff").select("id,display_name,bio").eq("service_profile_id",(s as any).id).eq("status","active");
