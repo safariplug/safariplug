@@ -45,19 +45,14 @@ begin
   select * into a from public.service_appointments where id = new.appointment_id;
   if not found then return new; end if;
 
-  select sp.business_id, so.name
-    into a.service_profile_id, service_name
-    from public.service_profiles sp
-    left join public.service_offerings so on so.id = a.offering_id
-   where sp.id = a.service_profile_id;
+  select so.name into service_name
+    from public.service_offerings so
+   where so.id = a.offering_id;
 
-  select b.name into business_name from public.businesses b where b.id = a.service_profile_id;
-  if business_name is null then
-    select b.name into business_name
-      from public.businesses b
-      join public.service_profiles sp on sp.business_id = b.id
-     where sp.id = a.service_profile_id;
-  end if;
+  select b.name into business_name
+    from public.businesses b
+    join public.service_profiles sp on sp.business_id = b.id
+   where sp.id = a.service_profile_id;
 
   customer_user_id := a.customer_user_id;
   select sa.user_id into supplier_user_id
