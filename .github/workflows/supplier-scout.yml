@@ -1,0 +1,23 @@
+name: SafariPlug Supplier Scout
+
+on:
+  schedule:
+    - cron: "0 15 * * 1,3,5"
+
+jobs:
+  supplier-scout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run scheduled Supplier Scout
+        env:
+          SAFARIPLUG_CRON_URL: ${{ secrets.SAFARIPLUG_CRON_URL }}
+          SAFARIPLUG_CRON_SECRET: ${{ secrets.SAFARIPLUG_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$SAFARIPLUG_CRON_URL"
+          test -n "$SAFARIPLUG_CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --max-time 900 \
+            -H "Authorization: Bearer ${SAFARIPLUG_CRON_SECRET}" \
+            "${SAFARIPLUG_CRON_URL}"
