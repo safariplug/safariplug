@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 const categories = [
   "All",
@@ -13,23 +13,24 @@ const categories = [
   "Wellness",
 ];
 
+type EventRecord = Record<string, unknown>;
+
 export default function AIEventFilter({
   events,
   renderEvent,
 }: {
-  events: any[];
-  renderEvent: (event: any) => React.ReactNode;
+  events: EventRecord[];
+  renderEvent: (event: EventRecord) => ReactNode;
 }) {
   const [activeCategory, setActiveCategory] = useState("All");
 
   const filteredEvents =
     activeCategory === "All"
       ? events
-      : events.filter((event) =>
-          event.category
-            ?.toLowerCase()
-            .includes(activeCategory.toLowerCase())
-        );
+      : events.filter((event) => {
+          const category = typeof event.category === "string" ? event.category : "";
+          return category.toLowerCase().includes(activeCategory.toLowerCase());
+        });
 
   return (
     <>
@@ -50,7 +51,7 @@ export default function AIEventFilter({
         ))}
       </div>
 
-      <div className="space-y-5 mt-6">
+      <div className="mt-6 space-y-5">
         {filteredEvents.map((event) => renderEvent(event))}
       </div>
     </>
