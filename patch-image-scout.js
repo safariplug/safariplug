@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require("fs");
 
 const path = "app/admin/ai-scout/actions/run-scout.ts";
@@ -149,11 +150,7 @@ const replacement = String.raw`async function fetchEventImage(
     // Validate candidates without inventing or generating images.
     for (const rawCandidate of candidates) {
       try {
-        const imageUrl = new URL(
-          rawCandidate,
-          sourceUrl
-        ).toString();
-
+        const imageUrl = new URL(rawCandidate, sourceUrl).toString();
         const lower = imageUrl.toLowerCase();
 
         if (
@@ -167,15 +164,8 @@ const replacement = String.raw`async function fetchEventImage(
           continue;
         }
 
-        if (
-          lower.startsWith("http://") ||
-          lower.startsWith("https://")
-        ) {
-          console.log(
-            "Found page image:",
-            imageUrl
-          );
-
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+          console.log("Found page image:", imageUrl);
           return imageUrl;
         }
       } catch {
@@ -183,19 +173,10 @@ const replacement = String.raw`async function fetchEventImage(
       }
     }
 
-    console.log(
-      "No usable event image found:",
-      sourceUrl
-    );
-
+    console.log("No usable event image found:", sourceUrl);
     return null;
   } catch (error) {
-    console.warn(
-      "IMAGE FETCH ERROR:",
-      sourceUrl,
-      error
-    );
-
+    console.warn("IMAGE FETCH ERROR:", sourceUrl, error);
     return null;
   }
 }`;
@@ -204,10 +185,6 @@ const replacementLines = replacement.split(/\r?\n/);
 
 lines.splice(start, count, ...replacementLines);
 
-fs.writeFileSync(
-  path,
-  lines.join("\n"),
-  "utf8"
-);
+fs.writeFileSync(path, lines.join("\n"), "utf8");
 
 console.log("IMAGE SCOUT PATCH APPLIED");
