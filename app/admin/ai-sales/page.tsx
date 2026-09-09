@@ -104,7 +104,7 @@ export default async function AISalesPage() {
               </h1>
 
               <p className="mt-2 text-gray-600">
-                Partnership intelligence engine finding East Africa businesses.
+                Partnership intelligence engine finding businesses across Africa.
               </p>
 
             </div>
