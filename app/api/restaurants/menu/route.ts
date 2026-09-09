@@ -49,6 +49,21 @@ function settingValue(key: string, value: unknown) {
   return finiteNumber(value, key, 0, 100000000);
 }
 
+async function ownedMenuItem(itemId: string, businessId: string) {
+  const { data } = await supabaseAdmin.from("restaurant_menu_items").select("id").eq("id", itemId).eq("business_id", businessId).maybeSingle();
+  return data;
+}
+
+async function ownedOption(optionId: string, businessId: string) {
+  const { data } = await supabaseAdmin.from("restaurant_menu_item_options").select("id,menu_item_id,restaurant_menu_items!inner(business_id)").eq("id", optionId).eq("restaurant_menu_items.business_id", businessId).maybeSingle();
+  return data;
+}
+
+async function ownedValue(valueId: string, businessId: string) {
+  const { data } = await supabaseAdmin.from("restaurant_menu_item_option_values").select("id,option_id,restaurant_menu_item_options!inner(menu_item_id,restaurant_menu_items!inner(business_id))").eq("id", valueId).eq("restaurant_menu_item_options.restaurant_menu_items.business_id", businessId).maybeSingle();
+  return data;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const businessId = searchParams.get("businessId");
@@ -112,6 +127,23 @@ export async function POST(request: Request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ item: data });
     }
+    if (body.action === "option") {
+      const menuItemId = String(body.menuItemId ?? "").trim();
+      if (!menuItemId || !(await ownedMenuItem(menuItemId, businessId))) return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
+      const name = text(body.name, MAX_NAME, "Option name", true), sortOrder = integer(body.sortOrder, "sortOrder");
+      if (typeof body.required !== "undefined" && typeof body.required !== "boolean") throw new Error("required must be true or false");
+      const { data, error } = await supabaseAdmin.from("restaurant_menu_item_options").insert({ menu_item_id: menuItemId, name, required: body.required === true, sort_order: sortOrder }).select().single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ option: data });
+    }
+    if (body.action === "option_value") {
+      const optionId = String(body.optionId ?? "").trim();
+      if (!optionId || !(await ownedOption(optionId, businessId))) return NextResponse.json({ error: "Menu option not found" }, { status: 404 });
+      const name = text(body.name, MAX_NAME, "Option value name", true), priceDelta = finiteNumber(body.priceDelta ?? 0, "Price delta", -100000000, 100000000), sortOrder = integer(body.sortOrder, "sortOrder");
+      const { data, error } = await supabaseAdmin.from("restaurant_menu_item_option_values").insert({ option_id: optionId, name, price_delta: priceDelta, sort_order: sortOrder }).select().single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ value: data });
+    }
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid menu request" }, { status: 400 }); }
 }
@@ -120,11 +152,33 @@ export async function PATCH(request: Request) {
   const { user, businessId } = await getSupplierBusinessId();
   if (!user || !businessId) return NextResponse.json({ error: "Supplier authentication required" }, { status: 401 });
   try {
-    const body = await request.json(); const id = String(body.id ?? "").trim(); const type = body.type === "category" ? "category" : body.type === "item" ? "item" : null;
+    const body = await request.json(); const id = String(body.id ?? "").trim(); const type = ["category", "item", "option", "option_value"].includes(body.type) ? body.type : null;
     if (!id || !type) return NextResponse.json({ error: "A valid menu type and id are required" }, { status: 400 });
     if (type === "category") {
       const name = text(body.name, MAX_NAME, "Category name", true), description = text(body.description, MAX_DESCRIPTION, "Category description"), sortOrder = integer(body.sortOrder, "sortOrder");
       const { data, error } = await supabaseAdmin.from("restaurant_menu_categories").update({ name, description, sort_order: sortOrder, active: body.active !== false }).eq("id", id).eq("business_id", businessId).select().single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ data });
+    }
+    if (type === "option") {
+      const owned = await ownedOption(id, businessId); if (!owned) return NextResponse.json({ error: "Menu option not found" }, { status: 404 });
+      const updates: Record<string, unknown> = {};
+      if (body.name !== undefined) updates.name = text(body.name, MAX_NAME, "Option name", true);
+      if (body.required !== undefined) { if (typeof body.required !== "boolean") throw new Error("required must be true or false"); updates.required = body.required; }
+      if (body.sortOrder !== undefined) updates.sort_order = integer(body.sortOrder, "sortOrder");
+      if (body.active !== undefined) { if (typeof body.active !== "boolean") throw new Error("active must be true or false"); updates.active = body.active; }
+      if (!Object.keys(updates).length) return NextResponse.json({ error: "No option changes supplied" }, { status: 400 });
+      const { data, error } = await supabaseAdmin.from("restaurant_menu_item_options").update(updates).eq("id", id).select().single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ data });
+    }
+    if (type === "option_value") {
+      const owned = await ownedValue(id, businessId); if (!owned) return NextResponse.json({ error: "Menu option value not found" }, { status: 404 });
+      const updates: Record<string, unknown> = {};
+      if (body.name !== undefined) updates.name = text(body.name, MAX_NAME, "Option value name", true);
+      if (body.priceDelta !== undefined) updates.price_delta = finiteNumber(body.priceDelta, "Price delta", -100000000, 100000000);
+      if (body.sortOrder !== undefined) updates.sort_order = integer(body.sortOrder, "sortOrder");
+      if (body.active !== undefined) { if (typeof body.active !== "boolean") throw new Error("active must be true or false"); updates.active = body.active; }
+      if (!Object.keys(updates).length) return NextResponse.json({ error: "No option value changes supplied" }, { status: 400 });
+      const { data, error } = await supabaseAdmin.from("restaurant_menu_item_option_values").update(updates).eq("id", id).select().single();
       if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ data });
     }
     const updates: Record<string, unknown> = {};
@@ -134,8 +188,8 @@ export async function PATCH(request: Request) {
     if (body.price !== undefined) updates.price = finiteNumber(body.price, "Price", 0, 100000000);
     if (body.preparationTimeMinutes !== undefined) updates.preparation_time_minutes = body.preparationTimeMinutes == null ? null : integer(body.preparationTimeMinutes, "preparationTimeMinutes", 1, 1440);
     if (body.sortOrder !== undefined) updates.sort_order = integer(body.sortOrder, "sortOrder");
-    if (body.available !== undefined) updates.available = Boolean(body.available);
-    if (body.active !== undefined) updates.active = Boolean(body.active);
+    if (body.available !== undefined) { if (typeof body.available !== "boolean") throw new Error("available must be true or false"); updates.available = body.available; }
+    if (body.active !== undefined) { if (typeof body.active !== "boolean") throw new Error("active must be true or false"); updates.active = body.active; }
     if (body.currency !== undefined) { const currency = String(body.currency).trim().toUpperCase(); if (!CURRENCIES.test(currency)) throw new Error("Currency must be a 3-letter ISO code"); updates.currency = currency; }
     if (body.categoryId !== undefined) { const categoryId = body.categoryId ? String(body.categoryId) : null; if (categoryId) { const { data: category } = await supabaseAdmin.from("restaurant_menu_categories").select("id").eq("id", categoryId).eq("business_id", businessId).maybeSingle(); if (!category) return NextResponse.json({ error: "Category not found" }, { status: 404 }); } updates.category_id = categoryId; }
     if (!Object.keys(updates).length) return NextResponse.json({ error: "No menu changes supplied" }, { status: 400 });
