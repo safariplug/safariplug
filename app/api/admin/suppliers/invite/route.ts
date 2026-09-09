@@ -50,6 +50,16 @@ export async function POST(request: Request) {
     if (userError || !userData.user) return NextResponse.json({ success: false, error: userError?.message ?? "Unable to create supplier account." }, { status: 500 });
 
     const userId = userData.user.id;
+    let businessId: string | null = null;
+    let profileId: string | null = null;
+
+    const rollback = async () => {
+      if (profileId) await supabaseAdmin.from("service_profiles").delete().eq("id", profileId);
+      if (businessId) await supabaseAdmin.from("supplier_accounts").delete().eq("business_id", businessId);
+      if (businessId) await supabaseAdmin.from("businesses").delete().eq("id", businessId);
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+    };
+
     const { data: business, error: businessError } = await supabaseAdmin.from("businesses").insert({
       name: businessName,
       slug,
@@ -68,29 +78,33 @@ export async function POST(request: Request) {
       await supabaseAdmin.auth.admin.deleteUser(userId);
       return NextResponse.json({ success: false, error: businessError?.message ?? "Unable to create supplier business." }, { status: 500 });
     }
+    businessId = business.id;
 
     const { data: profile, error: profileError } = await supabaseAdmin.from("service_profiles").insert({ business_id: business.id, category_id: category.id, status: "pending", booking_status: "closed" }).select("id").single();
     if (profileError || !profile) {
-      await supabaseAdmin.from("businesses").delete().eq("id", business.id);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      await rollback();
       return NextResponse.json({ success: false, error: profileError?.message ?? "Unable to create supplier service profile." }, { status: 500 });
     }
+    profileId = profile.id;
 
     const { error: accountError } = await supabaseAdmin.from("supplier_accounts").insert({ user_id: userId, business_id: business.id, contact_name: contactName });
     if (accountError) {
-      await supabaseAdmin.from("service_profiles").delete().eq("id", profile.id);
-      await supabaseAdmin.from("businesses").delete().eq("id", business.id);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      await rollback();
       return NextResponse.json({ success: false, error: accountError.message }, { status: 500 });
     }
 
     const appUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.safariplug.com";
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({ type: "invite", email, options: { redirectTo: `${appUrl}/supplier/onboarding` } });
     if (linkError || !linkData?.properties?.action_link) {
-      return NextResponse.json({ success: false, error: "Supplier was created, but the invitation link could not be generated. Resend the invitation from the admin panel." }, { status: 502 });
+      await rollback();
+      return NextResponse.json({ success: false, error: "The supplier invitation link could not be generated. No incomplete supplier account was left behind." }, { status: 502 });
     }
 
-    if (!process.env.RESEND_API_KEY) return NextResponse.json({ success: false, error: "Supplier created, but RESEND_API_KEY is not configured." }, { status: 500 });
+    if (!process.env.RESEND_API_KEY) {
+      await rollback();
+      return NextResponse.json({ success: false, error: "RESEND_API_KEY is not configured. No incomplete supplier account was left behind." }, { status: 500 });
+    }
+
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { error: emailError } = await resend.emails.send({
       from: process.env.OUTREACH_FROM_EMAIL || "SafariPlug <onboarding@resend.dev>",
@@ -98,7 +112,10 @@ export async function POST(request: Request) {
       subject: "Finish setting up your SafariPlug supplier account",
       text: `Hello ${contactName},\n\nSafariPlug has created a supplier account for ${businessName}. Finish your setup securely here:\n\n${linkData.properties.action_link}\n\nYou will create your own password and then complete your business profile, services, pricing, availability, and photos.\n\nIf you did not expect this invitation, you can ignore this email.`,
     });
-    if (emailError) return NextResponse.json({ success: false, error: "Supplier was created, but the invitation email could not be sent." }, { status: 502 });
+    if (emailError) {
+      await rollback();
+      return NextResponse.json({ success: false, error: "The invitation email could not be sent. The incomplete supplier account was rolled back." }, { status: 502 });
+    }
 
     return NextResponse.json({ success: true, supplierId: userId, businessId: business.id });
   } catch (error) {
