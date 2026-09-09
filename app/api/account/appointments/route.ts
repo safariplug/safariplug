@@ -90,9 +90,11 @@ export async function POST(request: Request) {
       if (!["pending", "confirmed"].includes(appointment.status)) return NextResponse.json({ error: "Only pending or confirmed appointments can be rescheduled." }, { status: 409 });
       const startsAt = new Date(String(body.startsAt || ""));
       if (Number.isNaN(startsAt.getTime())) return NextResponse.json({ error: "Choose a valid appointment time." }, { status: 400 });
-      const { data: profile } = await supabaseAdmin.from("service_profiles").select("status,booking_status,booking_notice_minutes,max_booking_days").eq("id", appointment.service_profile_id).maybeSingle();
+      const { data: profile } = await supabaseAdmin.from("service_profiles").select("status,booking_status,booking_notice_minutes,max_booking_days,business_id").eq("id", appointment.service_profile_id).maybeSingle();
       const { data: offering } = await supabaseAdmin.from("service_offerings").select("duration_minutes,status").eq("id", appointment.offering_id).maybeSingle();
       if (!profile || profile.status !== "active" || profile.booking_status !== "open" || !offering || offering.status !== "active") return NextResponse.json({ error: "This service is not currently accepting reschedules." }, { status: 409 });
+      const { data: business } = await supabaseAdmin.from("businesses").select("status").eq("id", profile.business_id).maybeSingle();
+      if (!business || business.status !== "active") return NextResponse.json({ error: "This service is not currently accepting reschedules." }, { status: 409 });
       const min = Date.now() + Number(profile.booking_notice_minutes || 0) * 60000;
       const max = Date.now() + Number(profile.max_booking_days || 90) * 86400000;
       if (startsAt.getTime() < min) return NextResponse.json({ error: "That time is inside the provider's booking notice window." }, { status: 409 });
