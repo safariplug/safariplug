@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { aiDocumentIsAutoApproved, verifyDriverDocument, type AIDocumentKind } from "@/lib/services/ai-document-verification";
 
 const capabilities = new Set(["airport_transfer", "hotel_transfer", "long_distance", "city_transfer", "child_seat", "wheelchair_accessible", "large_luggage", "premium_vehicle"]);
-const providerTypes = new Set(["independent_driver", "safariplug_driver", "transport_company", "hotel_driver", "tour_operator"]);
+const providerTypes = new Set(["independent_driver", "safariplug_driver", "transport_company", "hotel_driver", "tour_operator", "aurelian_driver", "external_driver_provider"]);
 const documentTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 const TERMS_VERSION = "driver-terms-v1-2026-09-04";
 const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
