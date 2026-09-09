@@ -4,15 +4,21 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-async function getUser() {
+async function getUser(request: Request) {
+  const header = request.headers.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (token) {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (!error && data.user && !data.user.is_anonymous && (data.user.email_confirmed_at || data.user.phone_confirmed_at)) return data.user;
+  }
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) return null;
   return user;
 }
 
-export async function GET() {
-  const user = await getUser();
+export async function GET(request: Request) {
+  const user = await getUser(request);
   if (!user) return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
   const { data, error } = await supabaseAdmin
     .from("service_appointment_notifications")
@@ -25,7 +31,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const user = await getUser();
+  const user = await getUser(request);
   if (!user) return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
   const body = await request.json().catch(() => ({}));
   const id = typeof body.id === "string" ? body.id : null;
