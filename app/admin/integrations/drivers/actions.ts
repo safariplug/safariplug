@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   createAvailabilityAdmin,
   createDriverAdmin,
@@ -37,10 +38,37 @@ export async function createDriver(formData: FormData) {
 
 export async function updateDriverStatus(formData: FormData) {
   await requireAdmin();
-  await updateDriverAdmin(text(formData, "driver_id"), {
-    service_status: text(formData, "service_status") as "pending" | "active" | "inactive" | "suspended" | "off_duty",
-  });
+  const driverId = text(formData, "driver_id");
+  const serviceStatus = text(formData, "service_status") as "pending" | "active" | "inactive" | "suspended" | "off_duty";
+  if (!driverId) throw new Error("Driver ID is required.");
+  if (!["pending", "active", "inactive", "suspended", "off_duty"].includes(serviceStatus)) throw new Error("Invalid driver status.");
+
+  if (serviceStatus === "active") {
+    const { data: driver, error: driverError } = await supabaseAdmin
+      .from("driver_profiles")
+      .select("id,verification_state,driving_license_compliance_status")
+      .eq("id", driverId)
+      .maybeSingle();
+    if (driverError || !driver) throw new Error("Driver could not be loaded.");
+    if (driver.verification_state !== "verified") throw new Error("A driver must have verified identity before becoming active.");
+    if (driver.driving_license_compliance_status !== "compliant") throw new Error("The driving license must be compliant before the driver can become active.");
+
+    const { data: vehicles, error: vehicleError } = await supabaseAdmin
+      .from("vehicles")
+      .select("id,status,registration_compliance_status,insurance_compliance_status")
+      .eq("driver_id", driverId);
+    if (vehicleError) throw new Error("Driver vehicles could not be loaded.");
+    const eligibleVehicle = (vehicles ?? []).some((vehicle) =>
+      vehicle.status === "active" &&
+      vehicle.registration_compliance_status === "compliant" &&
+      vehicle.insurance_compliance_status === "compliant",
+    );
+    if (!eligibleVehicle) throw new Error("The driver needs an active vehicle with compliant registration and insurance before becoming active.");
+  }
+
+  await updateDriverAdmin(driverId, { service_status: serviceStatus });
   revalidatePath("/admin/integrations/drivers");
+  revalidatePath("/driver/application");
 }
 
 export async function createVehicle(formData: FormData) {
