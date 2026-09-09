@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   if (!orderId || !idempotencyKey) return NextResponse.json({ error: "orderId and idempotencyKey are required" }, { status: 400 });
   if (idempotencyKey.length > 200) return NextResponse.json({ error: "idempotencyKey is too long" }, { status: 400 });
   const businessId = await supplierBusinessId(currentUser.id); if (!businessId) return NextResponse.json({ error: "Supplier access denied" }, { status: 403 });
-  const { data: order, error: orderError } = await supabaseAdmin.from("food_orders").select("id,business_id,payment_status,payment_reference,customer_total,currency,refunded_amount").eq("id", orderId).maybeSingle();
+  const { data: order, error: orderError } = await supabaseAdmin.from("food_orders").select("id,business_id,payment_status,payment_reference,refund_reference,customer_total,currency,refunded_amount").eq("id", orderId).maybeSingle();
   if (orderError) return NextResponse.json({ error: orderError.message }, { status: 500 });
   if (!order || order.business_id !== businessId) return NextResponse.json({ error: "Order access denied" }, { status: 403 });
   if (order.payment_status === "refunded") return NextResponse.json({ refund: { status: "succeeded", amount: order.refunded_amount, reference: order.refund_reference ?? order.payment_reference } });
