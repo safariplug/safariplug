@@ -98,10 +98,17 @@ export async function DELETE(request: Request) {
   const itemId = url.searchParams.get("itemId");
   if (!tripId || !itemId) return NextResponse.json({ error: "tripId and itemId are required." }, { status: 400 });
   if (!(await ownsTrip(user.id, tripId))) return NextResponse.json({ error: "Trip not found." }, { status: 404 });
-  const { data: item } = await supabaseAdmin.from("trip_items").select("id,appointment_id").eq("id", itemId).eq("trip_id", tripId).maybeSingle();
-  if (!item) return NextResponse.json({ error: "Trip item not found." }, { status: 404 });
-  const { error } = await supabaseAdmin.from("trip_items").delete().eq("id", itemId).eq("trip_id", tripId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (item.appointment_id) await supabaseAdmin.from("service_appointments").update({ trip_id: null, updated_at: new Date().toISOString() }).eq("id", item.appointment_id).eq("customer_user_id", user.id).eq("trip_id", tripId);
-  return NextResponse.json({ deleted: true });
+
+  const { data: item, error } = await supabaseAdmin.rpc("detach_service_appointment_from_trip", {
+    p_item_id: itemId,
+    p_trip_id: tripId,
+    p_traveler_id: user.id,
+  });
+  if (error) {
+    if (error.message.includes("trip_item_not_found")) return NextResponse.json({ error: "Trip item not found." }, { status: 404 });
+    if (error.message.includes("appointment_not_found")) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
+    console.error("detach service appointment from trip", error);
+    return NextResponse.json({ error: "Unable to remove this appointment from the journey." }, { status: 409 });
+  }
+  return NextResponse.json({ item, deleted: true });
 }
