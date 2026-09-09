@@ -136,6 +136,11 @@ export async function POST(request: Request) {
     if (!slug) return NextResponse.json({ error: "Service name must contain letters or numbers." }, { status: 400 });
     const { data, error } = await supabaseAdmin.from("service_offerings").upsert({ service_profile_id: profile.data.id, category_id: profile.data.category_id, name: o.name.trim(), slug, description: typeof o.description === "string" ? o.description.trim() : null, duration_minutes: duration, price, currency, status: "draft", requires_confirmation: true }, { onConflict: "service_profile_id,slug" }).select("id,name,slug,description,duration_minutes,price,currency,status,requires_confirmation").single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data: staff } = await supabaseAdmin.from("service_staff").select("id").eq("service_profile_id", profile.data.id).eq("status", "active");
+    if (staff?.length) {
+      const { error: assignmentError } = await supabaseAdmin.from("service_staff_offerings").upsert(staff.map((member) => ({ staff_id: member.id, offering_id: data.id })), { onConflict: "staff_id,offering_id" });
+      if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 500 });
+    }
     return NextResponse.json({ success: true, offering: data });
   }
 
@@ -146,6 +151,11 @@ export async function POST(request: Request) {
     if (!profile) return NextResponse.json({ error: "Service profile not found." }, { status: 404 });
     const { data, error } = await supabaseAdmin.from("service_staff").insert({ service_profile_id: profile.id, display_name: displayName.slice(0, 120), bio: typeof body.bio === "string" ? body.bio.trim().slice(0, 2000) : null, status: "active" }).select("id,display_name,bio,status").single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data: offerings } = await supabaseAdmin.from("service_offerings").select("id").eq("service_profile_id", profile.id);
+    if (offerings?.length) {
+      const { error: assignmentError } = await supabaseAdmin.from("service_staff_offerings").upsert(offerings.map((offering) => ({ staff_id: data.id, offering_id: offering.id })), { onConflict: "staff_id,offering_id" });
+      if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 500 });
+    }
     return NextResponse.json({ success: true, staff: data });
   }
 
