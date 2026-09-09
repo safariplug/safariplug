@@ -66,10 +66,15 @@ export async function POST(request: Request) {
     const { data: appointment, error } = await supabaseAdmin.rpc("create_service_appointment", { p_service_profile_id: b.serviceProfileId, p_offering_id: b.offeringId, p_staff_id: b.staffId, p_customer_user_id: customerUserId, p_customer_name: b.customerName, p_customer_email: b.customerEmail ?? null, p_customer_phone: b.customerPhone ?? null, p_starts_at: b.startsAt, p_customer_notes: b.customerNotes ?? null });
     if (error) return NextResponse.json({ error: error.message }, { status: error.message.includes("slot_unavailable") ? 409 : 400 });
     let attachedToTrip = false;
+    let tripAttachmentError: string | null = null;
     if (tripId && customerUserId && appointment?.id) {
       const { error: attachError } = await supabaseAdmin.rpc("attach_service_appointment_to_trip", { p_appointment_id: appointment.id, p_trip_id: tripId, p_traveler_id: customerUserId });
-      if (attachError) return NextResponse.json({ error: attachError.message }, { status: attachError.message.includes("trip_not_found") ? 404 : 400 });
-      attachedToTrip = true;
+      if (attachError) {
+        tripAttachmentError = attachError.message;
+        console.error("Trip attachment failed after service booking creation", { appointmentId: appointment.id, tripId, error: attachError });
+      } else {
+        attachedToTrip = true;
+      }
     }
     let notifications = { push: 0, email: false, whatsapp: false, whatsappFallbackUrl: null as string | null };
     try {
@@ -77,7 +82,7 @@ export async function POST(request: Request) {
     } catch (notificationError) {
       console.error("Supplier booking notification failed after booking creation", notificationError);
     }
-    return NextResponse.json({ appointment, customerLinked: Boolean(customerUserId), attachedToTrip, notifications }, { status: 201 });
+    return NextResponse.json({ appointment, customerLinked: Boolean(customerUserId), attachedToTrip, tripAttachmentError, notifications }, { status: 201 });
   } catch (error) {
     console.error("Create service appointment failed", error);
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
