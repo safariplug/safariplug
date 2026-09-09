@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getPaymentAdapter } from "./registry";
+import { recordAndApplyPaymentWebhook } from "./webhook";
 import type { PaymentProvider } from "./types";
 
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
@@ -143,12 +144,33 @@ export async function createServicePaymentIntent(params: {
     .is("payment_intent_id", null);
   if (intentPersistError) throw new Error("Unable to persist payment idempotency record");
 
-  const { error: appointmentUpdateError } = await supabaseAdmin.from("service_appointments").update({
-    payment_status: intent.status === "succeeded" ? "paid" : "pending",
-    payment_reference: intent.providerReference,
-    paid_at: intent.status === "succeeded" ? new Date().toISOString() : null,
-  }).eq("id", appointment.id).eq("customer_user_id", params.customerUserId).neq("payment_status", "paid");
-  if (appointmentUpdateError) throw new Error("Unable to persist appointment payment state");
+  // Terminal provider results must go through the same database-enforced webhook
+  // lifecycle as asynchronous callbacks. This closes the race where cancellation
+  // happens after provider success but before the old direct appointment update.
+  if (intent.status === "succeeded") {
+    await recordAndApplyPaymentWebhook({
+      eventId: `${params.provider}:intent:${intent.id}:succeeded`,
+      provider: params.provider,
+      eventType: `${params.provider}.intent_created`,
+      providerReference: intent.providerReference || intent.id,
+      appointmentId: appointment.id,
+      status: "succeeded",
+      paidAt: new Date().toISOString(),
+      refundedAmount: 0,
+      rawPayload: { source: "payment_intent_creation", intentId: intent.id },
+    });
+  } else {
+    // Non-terminal intent creation only marks the appointment pending while it
+    // remains payable; cancellation wins any race with this update.
+    const { error: appointmentUpdateError } = await supabaseAdmin.from("service_appointments").update({
+      payment_status: "pending",
+      payment_reference: intent.providerReference,
+    }).eq("id", appointment.id)
+      .eq("customer_user_id", params.customerUserId)
+      .in("status", ["pending", "confirmed"])
+      .neq("payment_status", "paid");
+    if (appointmentUpdateError) throw new Error("Unable to persist appointment payment state");
+  }
 
   return intent;
 }
