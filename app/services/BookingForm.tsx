@@ -23,9 +23,14 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
   const [attachedToTrip, setAttachedToTrip] = useState(false);
 
   const minimumDate = useMemo(() => {
-    const d = new Date(); d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0,10);
-  }, []);
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" });
+    const parts = Object.fromEntries(formatter.formatToParts(now).filter(x => x.type !== "literal").map(x => [x.type, x.value]));
+    const today = `${parts.year}-${parts.month}-${parts.day}`;
+    const tomorrow = new Date(`${today}T12:00:00Z`);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    return tomorrow.toISOString().slice(0, 10);
+  }, [timezone]);
 
   useEffect(() => {
     setSlot(null); setStaffId(""); setSlots([]); setMessage(""); setCustomerLinked(false); setAttachedToTrip(false);
@@ -44,6 +49,7 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (busy) return;
     if (!offering || !slot) { setMessage("Choose an available time first."); return; }
     setBusy(true); setMessage(""); setSuccess(false); setCustomerLinked(false); setAttachedToTrip(false);
     const f = new FormData(e.currentTarget);
