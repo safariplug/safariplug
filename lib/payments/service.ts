@@ -135,7 +135,7 @@ export async function createServicePaymentIntent(params: {
     const message = error instanceof Error ? error.message : "";
     const uncertain = message === "mpesa_submission_uncertain" || message === "mpesa_stk_response_uncertain";
     await supabaseAdmin.from("service_payment_idempotency").update({
-      processing_until: uncertain ? null : null,
+      processing_until: null,
       provider_submission_state: uncertain ? "uncertain" : "ready",
     })
       .eq("customer_user_id", params.customerUserId).eq("provider", params.provider)
@@ -153,7 +153,30 @@ export async function createServicePaymentIntent(params: {
     .eq("idempotency_key", params.idempotencyKey)
     .eq("appointment_id", appointment.id)
     .is("payment_intent_id", null);
-  if (intentPersistError) throw new Error("Unable to persist payment idempotency record");
+
+  if (intentPersistError) {
+    // The provider accepted the payment intent, but the first database write failed.
+    // Preserve enough information to reconcile it without ever issuing a second charge.
+    const { error: recoveryError } = await supabaseAdmin.from("service_payment_idempotency").update({
+      payment_intent_id: intent.id,
+      provider_reference: intent.providerReference,
+      processing_until: null,
+      provider_submission_state: "uncertain",
+    }).eq("customer_user_id", params.customerUserId)
+      .eq("provider", params.provider)
+      .eq("idempotency_key", params.idempotencyKey)
+      .eq("appointment_id", appointment.id)
+      .is("payment_intent_id", null);
+
+    if (recoveryError) {
+      throw new Error("payment_intent_persistence_uncertain");
+    }
+
+    return {
+      ...intent,
+      status: "processing" as const,
+    };
+  }
 
   if (intent.status === "succeeded") {
     await recordAndApplyPaymentWebhook({
