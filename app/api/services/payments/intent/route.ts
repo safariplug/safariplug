@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "Unable to create payment.";
     const status = message.includes("not_configured") ? 503
       : message.includes("not_found") ? 404
-      : message.includes("already_paid") || message.includes("idempotency_key_reused") || message.includes("payment_intent_in_progress") ? 409
+      : message.includes("already_paid") || message.includes("idempotency_key_reused") || message.includes("payment_intent_in_progress") || message.includes("payment_intent_submission_uncertain") ? 409
       : 400;
     return NextResponse.json({ error: message }, { status });
   }
