@@ -96,10 +96,22 @@ export async function POST(request: Request) {
       if (startsAt.getTime() < min) return NextResponse.json({ error: "That time is inside the provider's booking notice window." }, { status: 409 });
       if (startsAt.getTime() > max) return NextResponse.json({ error: "That time is outside the provider's booking window." }, { status: 409 });
       if (!(await slotIsAvailable(appointment.service_profile_id, appointment.offering_id, startsAt, appointment.staff_id))) return NextResponse.json({ error: "That time is not available. Please choose another live slot." }, { status: 409 });
-      const endsAt = new Date(startsAt.getTime() + Number(offering.duration_minutes) * 60000);
-      const { data, error } = await supabaseAdmin.from("service_appointments").update({ starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), updated_at: new Date().toISOString() }).eq("id", id).eq("customer_user_id", user.id).in("status", ["pending", "confirmed"]).select("*").single();
-      if (error) return NextResponse.json({ error: error.message.includes("service_appointments_staff_no_overlap") ? "That time is no longer available." : "Unable to reschedule this appointment." }, { status: 409 });
-      await supabaseAdmin.from("service_appointment_status_events").insert({ appointment_id: id, from_status: appointment.status, to_status: appointment.status, actor_type: "customer", actor_user_id: user.id, note: `Rescheduled from ${appointment.starts_at} to ${startsAt.toISOString()}` });
+      const { data, error } = await supabaseAdmin.rpc("reschedule_service_appointment", {
+        p_appointment_id: id,
+        p_customer_user_id: user.id,
+        p_starts_at: startsAt.toISOString(),
+        p_note: `Rescheduled from ${appointment.starts_at} to ${startsAt.toISOString()}`,
+      });
+      if (error) {
+        const message = error.message;
+        if (message.includes("service_appointments_staff_no_overlap")) return NextResponse.json({ error: "That time is no longer available." }, { status: 409 });
+        if (message.includes("staff_unavailable")) return NextResponse.json({ error: "That time is no longer available." }, { status: 409 });
+        if (message.includes("booking_notice_violation")) return NextResponse.json({ error: "That time is inside the provider's booking notice window." }, { status: 409 });
+        if (message.includes("booking_window_violation")) return NextResponse.json({ error: "That time is outside the provider's booking window." }, { status: 409 });
+        if (message.includes("appointment_not_reschedulable")) return NextResponse.json({ error: "Only pending or confirmed appointments can be rescheduled." }, { status: 409 });
+        if (message.includes("appointment_not_found")) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
+        return NextResponse.json({ error: "Unable to reschedule this appointment." }, { status: 409 });
+      }
       return NextResponse.json({ appointment: data });
     }
     return NextResponse.json({ error: "Unknown action." }, { status: 400 });
