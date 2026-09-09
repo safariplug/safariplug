@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getPaymentAdapter } from "@/lib/payments/registry";
+import { getConfiguredPaymentProviders, getPaymentAdapter } from "@/lib/payments/registry";
 import { recordAndApplyPaymentWebhook } from "@/lib/payments/webhook";
 import type { PaymentProvider } from "@/lib/payments/types";
 
@@ -27,6 +27,10 @@ export async function POST(request: Request) {
     const providerReference = String(body?.providerReference || "");
     if (!appointmentId || !PROVIDERS.has(provider) || !providerReference) {
       return NextResponse.json({ error: "appointmentId, provider and providerReference are required." }, { status: 400 });
+    }
+
+    if (!getConfiguredPaymentProviders().includes(provider)) {
+      return NextResponse.json({ error: `payment_provider_not_configured:${provider}` }, { status: 503 });
     }
 
     const { data: appointment } = await client
