@@ -45,17 +45,22 @@ export async function initiateMpesaStkPush(input: { amount: number; phone: strin
   const ts = timestamp();
   const password = Buffer.from(`${shortCode}${passKey}${ts}`).toString("base64");
   const token = await accessToken();
-  const response = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ BusinessShortCode: shortCode, Password: password, Timestamp: ts, TransactionType: "CustomerPayBillOnline", Amount: amount, PartyA: phone, PartyB: shortCode, PhoneNumber: phone, CallBackURL: callbackUrl, AccountReference: input.accountReference.slice(0, 12), TransactionDesc: input.transactionDescription.slice(0, 13) }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ BusinessShortCode: shortCode, Password: password, Timestamp: ts, TransactionType: "CustomerPayBillOnline", Amount: amount, PartyA: phone, PartyB: shortCode, PhoneNumber: phone, CallBackURL: callbackUrl, AccountReference: input.accountReference.slice(0, 12), TransactionDesc: input.transactionDescription.slice(0, 13) }),
+    });
+  } catch {
+    throw new Error("mpesa_submission_uncertain");
+  }
   const body = await response.text();
   let parsed: Record<string, unknown> = {};
   try { parsed = JSON.parse(body) as Record<string, unknown>; } catch {}
-  if (!response.ok || Number(parsed.ResponseCode ?? 0) !== 0) throw new Error(`mpesa_stk_error:${response.status}:${String(parsed.ResponseDescription || body).slice(0,300)}`);
+  if (!response.ok || Number(parsed.ResponseCode ?? 0) !== 0) throw new Error(`mpesa_stk_rejected:${response.status}:${String(parsed.ResponseDescription || body).slice(0,300)}`);
   const checkoutRequestId = String(parsed.CheckoutRequestID || "");
-  if (!checkoutRequestId) throw new Error("mpesa_checkout_request_missing");
+  if (!checkoutRequestId) throw new Error("mpesa_stk_response_uncertain");
   return { checkoutRequestId, merchantRequestId: String(parsed.MerchantRequestID || ""), customerMessage: String(parsed.CustomerMessage || "") };
 }
 
