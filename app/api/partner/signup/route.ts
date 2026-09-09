@@ -3,13 +3,22 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+
+// Only appointment/service businesses are mapped here. Restaurants, hotels and
+// event organizers use their dedicated supplier workflows and do not need a
+// service_profiles row during partner signup.
 const SERVICE_CATEGORY_BY_BUSINESS_TYPE: Record<string, string> = {
-  Restaurant: "Restaurants",
-  Hotel: "Hotels",
-  Barber: "Barbers", "Hair & Beauty": "Hair & Beauty", "Spa & Massage": "Spas & Massage", "Tattoo & Body Art": "Tattoo Artists & Body Art",
-  Nails: "Nails", "Lashes & Brows": "Lashes & Brows", Fitness: "Fitness", "Yoga / Pilates / Mindfulness": "Yoga, Pilates & Mindfulness",
-  "Tour Operator": "Tours & Local Guides", "Local Guide": "Tours & Local Guides", "Experience Provider": "Tours & Local Guides",
-  "Event Organizer": "Events",
+  Barber: "Barbers",
+  "Hair & Beauty": "Hair & Beauty",
+  "Spa & Massage": "Spas & Massage",
+  "Tattoo & Body Art": "Tattoo Artists & Body Art",
+  Nails: "Nails",
+  "Lashes & Brows": "Lashes & Brows",
+  Fitness: "Fitness & Personal Training",
+  "Yoga / Pilates / Mindfulness": "Yoga, Pilates & Mindfulness",
+  "Tour Operator": "Tours & Local Guides",
+  "Local Guide": "Tours & Local Guides",
+  "Experience Provider": "Tours & Local Guides",
 };
 
 export async function POST(request: Request) {
