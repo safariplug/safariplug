@@ -28,6 +28,10 @@ type OutreachRow = {
   response: string | null;
   sent_at: string | null;
   follow_up_date: string | null;
+  ai_sales_prospects: Prospect | null;
+};
+
+type OutreachQueryRow = Omit<OutreachRow, "ai_sales_prospects"> & {
   ai_sales_prospects: Prospect | Prospect[] | null;
 };
 
@@ -56,7 +60,7 @@ export default async function OutreachPage() {
     `)
     .order("created_at", { ascending: false });
 
-  const outreach: OutreachRow[] = (data ?? []).map((item) => ({
+  const outreach: OutreachRow[] = ((data ?? []) as OutreachQueryRow[]).map((item) => ({
     ...item,
     ai_sales_prospects: Array.isArray(item.ai_sales_prospects)
       ? item.ai_sales_prospects[0] ?? null
