@@ -9,6 +9,33 @@ async function user() { const supabase=await createSupabaseServerClient(); const
 async function supplierBusinessId(userId:string) { const {data}=await supabaseAdmin.from("supplier_accounts").select("business_id").eq("user_id",userId).maybeSingle(); return data?.business_id??null; }
 async function driverProfileId(userId:string) { const {data}=await supabaseAdmin.from("driver_profiles").select("id").eq("user_id",userId).maybeSingle(); return data?.id??null; }
 
+async function eligibleDriver(driverId:string, order:any) {
+  const {data:driver}=await supabaseAdmin.from("driver_profiles").select("id,service_city_id,service_lat,service_lng,service_radius_km,driving_license_compliance_status,service_status,verification_state").eq("id",driverId).maybeSingle();
+  if(!driver||driver.service_status!=="active"||driver.verification_state!=="verified")return {error:"Selected driver is not available"};
+  if(driver.driving_license_compliance_status!=="compliant")return {error:"Selected driver license compliance is not current"};
+  const {data:business}=await supabaseAdmin.from("businesses").select("city_id,latitude,longitude").eq("id",order.business_id).maybeSingle();
+  if(!business)return {error:"Restaurant location is not configured"};
+  const destinationLat=Number(order.delivery_latitude), destinationLng=Number(order.delivery_longitude);
+  const restaurantLat=Number(business.latitude), restaurantLng=Number(business.longitude);
+  if(!Number.isFinite(destinationLat)||!Number.isFinite(destinationLng)||destinationLat<-90||destinationLat>90||destinationLng<-180||destinationLng>180)return {error:"Delivery location is not configured"};
+  if(driver.service_city_id&&business.city_id&&driver.service_city_id===business.city_id) {
+    // City-scoped driver is eligible for this restaurant; destination is still validated above.
+  } else {
+    const serviceLat=Number(driver.service_lat), serviceLng=Number(driver.service_lng), radius=Number(driver.service_radius_km);
+    if(!Number.isFinite(serviceLat)||!Number.isFinite(serviceLng)||!Number.isFinite(radius)||radius<=0)return {error:"Selected driver does not have a valid service area"};
+    const r=6371, x=(destinationLng-serviceLng)*Math.PI/180, y=(destinationLat-serviceLat)*Math.PI/180;
+    const q=Math.sin(y/2)**2+Math.cos(serviceLat*Math.PI/180)*Math.cos(destinationLat*Math.PI/180)*Math.sin(x/2)**2;
+    const km=r*2*Math.atan2(Math.sqrt(q),Math.sqrt(1-q));
+    if(!Number.isFinite(km)||km>radius)return {error:"Selected driver does not serve this delivery area"};
+  }
+  const {data:vehicles}=await supabaseAdmin.from("vehicles").select("id,status,registration_compliance_status,insurance_compliance_status").eq("driver_id",driver.id);
+  const vehicle=(vehicles??[]).find((v:any)=>v.status==="active"&&v.registration_compliance_status==="compliant"&&v.insurance_compliance_status==="compliant");
+  if(!vehicle)return {error:"Selected driver has no compliant active vehicle"};
+  const {data:busy}=await supabaseAdmin.from("food_delivery_assignments").select("id").eq("driver_id",driver.id).in("status",["assigned","accepted","arrived_at_restaurant","picked_up","on_the_way"]).limit(1).maybeSingle();
+  if(busy)return {error:"Selected driver is already assigned to another active delivery"};
+  return {driver,vehicle};
+}
+
 export async function GET(request:Request) {
  const currentUser=await user(); if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
  const {searchParams}=new URL(request.url); const orderId=searchParams.get("orderId"); const businessId=searchParams.get("businessId"); const supplierView=searchParams.get("supplier")==="true";
@@ -37,11 +64,11 @@ export async function PATCH(request:Request) {
   if(!isSupplier)return NextResponse.json({error:"Only the restaurant can assign a driver"},{status:403});
   if(!["ready","driver_assigned"].includes(order.status))return NextResponse.json({error:"Order must be ready before assigning a delivery driver"},{status:409});
   if(!["restaurant","safariplug"].includes(assignmentSource))return NextResponse.json({error:"Invalid assignment source"},{status:400});
-  const {data:driver}=await supabaseAdmin.from("driver_profiles").select("id").eq("id",assignDriverId).eq("service_status","active").eq("verification_state","verified").maybeSingle();
-  if(!driver)return NextResponse.json({error:"Selected driver is not available"},{status:409});
+  const eligibility=await eligibleDriver(assignDriverId,order);
+  if("error" in eligibility)return NextResponse.json({error:eligibility.error},{status:409});
   const {data:existing}=await supabaseAdmin.from("food_delivery_assignments").select("id,status,driver_id").eq("order_id",orderId).in("status",["assigned","accepted","arrived_at_restaurant","picked_up","on_the_way"]).limit(1).maybeSingle();
   if(existing)return NextResponse.json({error:"This order already has an active delivery assignment"},{status:409});
-  const {data:created,error}=await supabaseAdmin.from("food_delivery_assignments").insert({order_id:orderId,driver_id:driver.id,assignment_source:assignmentSource,status:"assigned",delivery_fee:order.delivery_fee??0,assigned_by:currentUser.id}).select().single();
+  const {data:created,error}=await supabaseAdmin.from("food_delivery_assignments").insert({order_id:orderId,driver_id:eligibility.driver.id,vehicle_id:eligibility.vehicle.id,assignment_source:assignmentSource,status:"assigned",delivery_fee:order.delivery_fee??0,assigned_by:currentUser.id}).select().single();
   if(error)return NextResponse.json({error:error.message},{status:400});
   const {data:updated,error:updateError}=await supabaseAdmin.from("food_orders").update({status:"driver_assigned",updated_at:new Date().toISOString()}).eq("id",orderId).eq("status",order.status).select().single();
   if(updateError||!updated){await supabaseAdmin.from("food_delivery_assignments").delete().eq("id",created.id);return NextResponse.json({error:updateError?.message??"Order changed before driver assignment"},{status:409});}
