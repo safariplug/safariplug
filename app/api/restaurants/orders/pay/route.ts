@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getPaymentAdapter } from "@/lib/payments/registry";
+import { getPaymentAdapter, getConfiguredPaymentProviders } from "@/lib/payments/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +13,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
     }
 
-    const body = await request.json();
-    const orderId = String(body.orderId || "");
-    const phone = String(body.phone || "").trim();
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const orderId = String(body?.orderId || "");
+    const phone = String(body?.phone || "").trim();
+    const idempotencyKey = String(body?.idempotencyKey || "").trim();
     const provider = "mpesa" as const;
-    const idempotencyKey = String(body.idempotencyKey || "").trim();
     if (!orderId || !idempotencyKey) return NextResponse.json({ error: "orderId and idempotencyKey are required." }, { status: 400 });
-
-    const adapter = getPaymentAdapter(provider);
-    if (!adapter) return NextResponse.json({ error: "payment_provider_not_configured:mpesa" }, { status: 503 });
+    if (idempotencyKey.length > 200) return NextResponse.json({ error: "idempotencyKey is too long" }, { status: 400 });
+    if (!getConfiguredPaymentProviders().includes(provider)) return NextResponse.json({ error: "payment_provider_not_configured:mpesa" }, { status: 503 });
 
     const { data: order, error } = await supabaseAdmin
       .from("food_orders")
@@ -33,6 +32,11 @@ export async function POST(request: Request) {
     if (["cancelled", "rejected", "delivered"].includes(order.status)) return NextResponse.json({ error: "This order can no longer accept payment." }, { status: 409 });
     if (order.payment_status === "paid") return NextResponse.json({ error: "Order is already paid." }, { status: 409 });
 
+    const amount = Number(order.customer_total);
+    const currency = String(order.currency || "").trim().toUpperCase();
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000_000) return NextResponse.json({ error: "Order total is invalid for payment." }, { status: 409 });
+    if (currency !== "KES") return NextResponse.json({ error: "M-Pesa restaurant payments require KES." }, { status: 409 });
+
     const { data: existing, error: existingError } = await supabaseAdmin
       .from("food_order_payment_idempotency")
       .select("payment_intent_id,provider_reference,order_id")
@@ -43,13 +47,16 @@ export async function POST(request: Request) {
     if (existingError) throw existingError;
     if (existing?.order_id && existing.order_id !== orderId) return NextResponse.json({ error: "Idempotency key is already used for another order." }, { status: 409 });
     if (existing?.payment_intent_id) {
-      return NextResponse.json({ intent: { id: existing.payment_intent_id, provider, providerReference: existing.provider_reference, orderId, amount: Number(order.customer_total), currency: String(order.currency).toUpperCase(), status: "processing" } });
+      return NextResponse.json({ intent: { id: existing.payment_intent_id, provider, providerReference: existing.provider_reference, orderId, amount, currency, status: "processing" } });
     }
+
+    const adapter = getPaymentAdapter(provider);
+    if (!adapter) return NextResponse.json({ error: "payment_provider_not_configured:mpesa" }, { status: 503 });
 
     const intent = await adapter.createPaymentIntent({
       appointmentId: order.id,
-      amount: Number(order.customer_total),
-      currency: String(order.currency).toUpperCase(),
+      amount,
+      currency,
       customerEmail: order.customer_email,
       customerPhone: phone || order.customer_phone,
       returnUrl: null,
@@ -67,21 +74,28 @@ export async function POST(request: Request) {
     });
     if (idemError) {
       if (idemError.code === "23505" || idemError.message.toLowerCase().includes("duplicate")) {
-        const { data: raced } = await supabaseAdmin.from("food_order_payment_idempotency").select("order_id,payment_intent_id,provider_reference").eq("customer_user_id", user.id).eq("provider", provider).eq("idempotency_key", idempotencyKey).maybeSingle();
+        const { data: raced } = await supabaseAdmin.from("food_order_payment_idempotency")
+          .select("order_id,payment_intent_id,provider_reference")
+          .eq("customer_user_id", user.id)
+          .eq("provider", provider)
+          .eq("idempotency_key", idempotencyKey)
+          .maybeSingle();
         if (raced?.order_id !== order.id || !raced.payment_intent_id) return NextResponse.json({ error: "Payment request was already started. Please retry with a new payment attempt." }, { status: 409 });
         return NextResponse.json({ intent: { ...intent, id: raced.payment_intent_id, providerReference: raced.provider_reference } });
       }
       throw idemError;
     }
 
-    // The food_orders schema uses `pending` for an initiated payment; keep the
-    // provider's `processing` intent state at the application/payment layer.
-    const { error: updateError } = await supabaseAdmin.from("food_orders")
-      .update({ payment_status: "pending", payment_reference: intent.providerReference })
+    const { data: updatedOrder, error: updateError } = await supabaseAdmin.from("food_orders")
+      .update({ payment_status: "pending", payment_reference: intent.providerReference, payment_intent_id: intent.id })
       .eq("id", order.id)
       .eq("customer_user_id", user.id)
-      .neq("payment_status", "paid");
+      .in("status", ["pending", "accepted", "preparing", "ready", "driver_assigned", "picked_up", "on_the_way"])
+      .neq("payment_status", "paid")
+      .select("id")
+      .maybeSingle();
     if (updateError) throw updateError;
+    if (!updatedOrder) return NextResponse.json({ error: "Order changed before payment could be secured. Do not retry this payment request." }, { status: 409 });
 
     return NextResponse.json({ intent }, { status: 201 });
   } catch (error) {
