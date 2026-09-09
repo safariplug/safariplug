@@ -63,7 +63,11 @@ type Event = {
   category: string;
   venue_name: string | null;
   image_url: string | null;
-  cities: { name: string } | null;
+  cities: { name: string }[] | null;
+};
+
+type EventQueryRow = Omit<Event, "cities"> & {
+  cities: { name: string }[] | { name: string } | null;
 };
 
 export async function generateMetadata({
@@ -116,7 +120,15 @@ export default async function ExperienceCategoryPage({
     console.error("Failed to load experience category", { slug, error });
   }
 
-  const events = (data || []) as Event[];
+  const rows = (data || []) as EventQueryRow[];
+  const events: Event[] = rows.map((event) => ({
+    ...event,
+    cities: event.cities
+      ? Array.isArray(event.cities)
+        ? event.cities
+        : [event.cities]
+      : null,
+  }));
 
   const schema = {
     "@context": "https://schema.org",
@@ -174,8 +186,8 @@ export default async function ExperienceCategoryPage({
                 <div className="p-6">
                   <span className="text-sm font-black text-orange-500">{event.category}</span>
                   <h3 className="mt-3 text-2xl font-black">{event.title}</h3>
-                  {event.cities?.name && (
-                    <p className="mt-3 text-sm text-slate-500">📍 {event.cities.name}</p>
+                  {event.cities?.[0]?.name && (
+                    <p className="mt-3 text-sm text-slate-500">📍 {event.cities[0].name}</p>
                   )}
                 </div>
               </Link>
