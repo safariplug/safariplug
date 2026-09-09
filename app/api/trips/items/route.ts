@@ -41,45 +41,52 @@ export async function POST(request: Request) {
   if (!appointmentId && !eventId && !offeringId) return NextResponse.json({ error: "appointmentId, eventId or offeringId is required." }, { status: 400 });
   if ([appointmentId, eventId, offeringId].filter(Boolean).length > 1) return NextResponse.json({ error: "Choose one trip item type." }, { status: 400 });
 
-  let event: any = null;
-  let appointment: any = null;
   if (appointmentId) {
-    const { data } = await supabaseAdmin.from("service_appointments").select("id,trip_id,status,starts_at,ends_at,offering_id,service_offerings(name),customer_user_id").eq("id", appointmentId).eq("customer_user_id", user.id).maybeSingle();
-    appointment = data;
-    if (!appointment) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
-    if (["cancelled", "no_show"].includes(appointment.status)) return NextResponse.json({ error: "Cancelled appointments cannot be added to a journey." }, { status: 409 });
+    const { data: item, error } = await supabaseAdmin.rpc("attach_service_appointment_to_trip", {
+      p_appointment_id: appointmentId,
+      p_trip_id: tripId,
+      p_traveler_id: user.id,
+    });
+    if (error) {
+      if (error.message.includes("appointment_already_in_trip")) return NextResponse.json({ error: "This appointment is already attached to another journey." }, { status: 409 });
+      if (error.message.includes("appointment_not_found")) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
+      if (error.message.includes("trip_not_found")) return NextResponse.json({ error: "Journey not found." }, { status: 404 });
+      if (error.message.includes("unauthorized")) return NextResponse.json({ error: "You are not authorized to modify this journey." }, { status: 403 });
+      console.error("attach service appointment to trip", error);
+      return NextResponse.json({ error: "Unable to add this appointment to the journey." }, { status: 409 });
+    }
+    const alreadyAttached = Boolean(item?.trip_id === tripId);
+    return NextResponse.json({ item, trip, added: !alreadyAttached }, { status: alreadyAttached ? 200 : 201 });
   }
+
+  let event: any = null;
   if (eventId) {
     const { data } = await supabaseAdmin.from("events").select("id,title,city_id,start_at,end_at,status").eq("id", eventId).eq("status", "approved").maybeSingle();
     event = data;
     if (!event) return NextResponse.json({ error: "Approved event not found." }, { status: 404 });
   }
 
-  const matchColumn = appointmentId ? "appointment_id" : eventId ? "event_id" : "offering_id";
-  const matchValue = appointmentId ?? eventId ?? offeringId;
+  const matchColumn = eventId ? "event_id" : "offering_id";
+  const matchValue = eventId ?? offeringId;
   const { data: existing } = await supabaseAdmin.from("trip_items").select("id,trip_id,appointment_id,event_id,offering_id,item_kind,position,start_at,end_at,notes,title,city_id").eq("trip_id", tripId).eq(matchColumn, matchValue).maybeSingle();
   if (existing) return NextResponse.json({ item: existing, trip, added: false }, { status: 200 });
 
   const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", tripId);
   const payload = {
     trip_id: tripId,
-    appointment_id: appointment?.id ?? null,
+    appointment_id: null,
     event_id: event?.id ?? null,
-    offering_id: appointment ? appointment.offering_id : offeringId,
-    item_kind: appointment ? "personal_service" : event ? "event" : "experience",
+    offering_id: offeringId,
+    item_kind: event ? "event" : "experience",
     position: count ?? 0,
-    start_at: appointment?.starts_at ?? event?.start_at ?? (typeof body.startAt === "string" ? body.startAt : null),
-    end_at: appointment?.ends_at ?? event?.end_at ?? (typeof body.endAt === "string" ? body.endAt : null),
-    title: appointment?.service_offerings?.name ?? event?.title ?? (typeof body.title === "string" ? body.title.trim() : null),
+    start_at: event?.start_at ?? (typeof body.startAt === "string" ? body.startAt : null),
+    end_at: event?.end_at ?? (typeof body.endAt === "string" ? body.endAt : null),
+    title: event?.title ?? (typeof body.title === "string" ? body.title.trim() : null),
     city_id: event?.city_id ?? (typeof body.cityId === "string" ? body.cityId : null),
     notes: typeof body.notes === "string" ? body.notes.trim() : null,
   };
   const { data, error } = await supabaseAdmin.from("trip_items").insert(payload).select("id,trip_id,appointment_id,event_id,offering_id,item_kind,position,start_at,end_at,notes,title,city_id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (appointmentId) {
-    const { error: linkError } = await supabaseAdmin.from("service_appointments").update({ trip_id: tripId, updated_at: new Date().toISOString() }).eq("id", appointmentId).eq("customer_user_id", user.id);
-    if (linkError) return NextResponse.json({ error: "Journey item created, but booking link could not be saved." }, { status: 500 });
-  }
   return NextResponse.json({ item: data, trip, added: true }, { status: 201 });
 }
 
