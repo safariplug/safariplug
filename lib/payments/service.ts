@@ -3,6 +3,71 @@ import { getPaymentAdapter } from "./registry";
 import type { PaymentProvider } from "./types";
 
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+const PAYMENT_CLAIM_MS = 10 * 60_000;
+
+async function loadIdempotency(customerUserId: string, provider: PaymentProvider, idempotencyKey: string) {
+  const { data, error } = await supabaseAdmin
+    .from("service_payment_idempotency")
+    .select("appointment_id,provider_reference,payment_intent_id,processing_until")
+    .eq("customer_user_id", customerUserId)
+    .eq("provider", provider)
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+  if (error) throw new Error("Unable to check payment idempotency");
+  return data;
+}
+
+async function claimIdempotency(params: {
+  appointmentId: string;
+  customerUserId: string;
+  provider: PaymentProvider;
+  idempotencyKey: string;
+}) {
+  const processingUntil = new Date(Date.now() + PAYMENT_CLAIM_MS).toISOString();
+  const existing = await loadIdempotency(params.customerUserId, params.provider, params.idempotencyKey);
+
+  if (existing) {
+    if (existing.appointment_id !== params.appointmentId) throw new Error("payment_idempotency_key_reused");
+    if (existing.payment_intent_id) return existing;
+    if (existing.processing_until && new Date(existing.processing_until).getTime() > Date.now()) {
+      throw new Error("payment_intent_in_progress");
+    }
+    const { data: claimed, error } = await supabaseAdmin
+      .from("service_payment_idempotency")
+      .update({ processing_until: processingUntil })
+      .eq("customer_user_id", params.customerUserId)
+      .eq("provider", params.provider)
+      .eq("idempotency_key", params.idempotencyKey)
+      .eq("appointment_id", params.appointmentId)
+      .is("payment_intent_id", null)
+      .or(`processing_until.is.null,processing_until.lt.${new Date().toISOString()}`)
+      .select("appointment_id,provider_reference,payment_intent_id,processing_until")
+      .maybeSingle();
+    if (error) throw new Error("Unable to claim payment idempotency key");
+    if (!claimed) throw new Error("payment_intent_in_progress");
+    return claimed;
+  }
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from("service_payment_idempotency")
+    .insert({
+      appointment_id: params.appointmentId,
+      customer_user_id: params.customerUserId,
+      provider: params.provider,
+      idempotency_key: params.idempotencyKey,
+      processing_until: processingUntil,
+    })
+    .select("appointment_id,provider_reference,payment_intent_id,processing_until")
+    .single();
+  if (!error) return inserted;
+  if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) {
+    const raced = await loadIdempotency(params.customerUserId, params.provider, params.idempotencyKey);
+    if (raced?.appointment_id !== params.appointmentId) throw new Error("payment_idempotency_key_reused");
+    if (raced?.payment_intent_id) return raced;
+    throw new Error("payment_intent_in_progress");
+  }
+  throw new Error("Unable to reserve payment idempotency key");
+}
 
 export async function createServicePaymentIntent(params: {
   appointmentId: string;
@@ -26,55 +91,57 @@ export async function createServicePaymentIntent(params: {
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_payment_amount");
   if (!CURRENCY_PATTERN.test(currency)) throw new Error("invalid_payment_currency");
 
-  const { data: existing, error: existingError } = await supabaseAdmin
-    .from("service_payment_idempotency")
-    .select("appointment_id,provider_reference,payment_intent_id")
-    .eq("customer_user_id", params.customerUserId)
-    .eq("provider", params.provider)
-    .eq("idempotency_key", params.idempotencyKey)
-    .maybeSingle();
-  if (existingError) throw new Error("Unable to check payment idempotency");
-  if (existing && existing.appointment_id !== appointment.id) {
-    throw new Error("payment_idempotency_key_reused");
-  }
-  if (existing?.payment_intent_id) {
-    return { id: existing.payment_intent_id, provider: params.provider, providerReference: existing.provider_reference, appointmentId: appointment.id, amount, currency, status: "processing" as const, checkoutUrl: null, clientSecret: null };
+  const claimed = await claimIdempotency(params);
+  if (claimed.payment_intent_id) {
+    return {
+      id: claimed.payment_intent_id,
+      provider: params.provider,
+      providerReference: claimed.provider_reference,
+      appointmentId: appointment.id,
+      amount,
+      currency,
+      status: "processing" as const,
+      checkoutUrl: null,
+      clientSecret: null,
+    };
   }
 
   const adapter = getPaymentAdapter(params.provider);
-  if (!adapter) throw new Error(`payment_provider_not_configured:${params.provider}`);
+  if (!adapter) {
+    await supabaseAdmin.from("service_payment_idempotency").delete()
+      .eq("customer_user_id", params.customerUserId).eq("provider", params.provider)
+      .eq("idempotency_key", params.idempotencyKey).eq("appointment_id", appointment.id).is("payment_intent_id", null);
+    throw new Error(`payment_provider_not_configured:${params.provider}`);
+  }
 
-  const intent = await adapter.createPaymentIntent({
-    appointmentId: appointment.id,
-    amount,
-    currency,
-    customerEmail: appointment.customer_email,
-    customerPhone: appointment.customer_phone,
-    returnUrl: params.returnUrl,
-    idempotencyKey: params.idempotencyKey,
-  });
+  let intent;
+  try {
+    intent = await adapter.createPaymentIntent({
+      appointmentId: appointment.id,
+      amount,
+      currency,
+      customerEmail: appointment.customer_email,
+      customerPhone: appointment.customer_phone,
+      returnUrl: params.returnUrl,
+      idempotencyKey: params.idempotencyKey,
+    });
+  } catch (error) {
+    await supabaseAdmin.from("service_payment_idempotency").update({ processing_until: null })
+      .eq("customer_user_id", params.customerUserId).eq("provider", params.provider)
+      .eq("idempotency_key", params.idempotencyKey).eq("appointment_id", appointment.id).is("payment_intent_id", null);
+    throw error;
+  }
 
-  const { error: idemError } = await supabaseAdmin.from("service_payment_idempotency").insert({
-    appointment_id: appointment.id,
-    customer_user_id: params.customerUserId,
-    provider: params.provider,
-    idempotency_key: params.idempotencyKey,
+  const { error: intentPersistError } = await supabaseAdmin.from("service_payment_idempotency").update({
     payment_intent_id: intent.id,
     provider_reference: intent.providerReference,
-  });
-  if (idemError) {
-    if (idemError.code === "23505" || idemError.message.toLowerCase().includes("duplicate")) {
-      const { data: raced } = await supabaseAdmin.from("service_payment_idempotency")
-        .select("appointment_id,payment_intent_id,provider_reference")
-        .eq("customer_user_id", params.customerUserId)
-        .eq("provider", params.provider)
-        .eq("idempotency_key", params.idempotencyKey)
-        .maybeSingle();
-      if (raced?.appointment_id !== appointment.id || !raced.payment_intent_id) throw new Error("payment_idempotency_key_reused");
-      return { ...intent, id: raced.payment_intent_id, providerReference: raced.provider_reference, appointmentId: appointment.id, amount, currency };
-    }
-    throw new Error("Unable to persist payment idempotency record");
-  }
+    processing_until: null,
+  }).eq("customer_user_id", params.customerUserId)
+    .eq("provider", params.provider)
+    .eq("idempotency_key", params.idempotencyKey)
+    .eq("appointment_id", appointment.id)
+    .is("payment_intent_id", null);
+  if (intentPersistError) throw new Error("Unable to persist payment idempotency record");
 
   const { error: appointmentUpdateError } = await supabaseAdmin.from("service_appointments").update({
     payment_status: intent.status === "succeeded" ? "paid" : "pending",
