@@ -33,8 +33,10 @@ export async function GET(request: Request) {
     const offeringId = url.searchParams.get("offeringId");
     const date = url.searchParams.get("date");
     if (!profileId || !offeringId || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error:"serviceProfileId, offeringId and date are required" }, { status:400 });
-    const { data: profile, error: profileError } = await supabaseAdmin.from("service_profiles").select("id,timezone,booking_status,booking_notice_minutes,max_booking_days,status").eq("id",profileId).maybeSingle();
+    const { data: profile, error: profileError } = await supabaseAdmin.from("service_profiles").select("id,business_id,timezone,booking_status,booking_notice_minutes,max_booking_days,status").eq("id",profileId).maybeSingle();
     if (profileError || !profile || profile.status !== "active" || profile.booking_status !== "open") return NextResponse.json({ error:"Service is not currently bookable" }, { status:404 });
+    const { data: business, error: businessError } = await supabaseAdmin.from("businesses").select("status").eq("id",profile.business_id).maybeSingle();
+    if (businessError || !business || business.status !== "active") return NextResponse.json({ error:"Service is not currently bookable" }, { status:404 });
     const timeZone = profile.timezone || "Africa/Nairobi";
     const { data: offering } = await supabaseAdmin.from("service_offerings").select("id,duration_minutes,status").eq("id",offeringId).eq("service_profile_id",profileId).maybeSingle();
     if (!offering || offering.status !== "active") return NextResponse.json({ error:"Service is not currently available" }, { status:404 });
@@ -52,7 +54,6 @@ export async function GET(request: Request) {
     ]);
     const qualified = new Set((assignments ?? []).map(x => x.staff_id));
     const { data: appointments } = await supabaseAdmin.from("service_appointments").select("staff_id,starts_at,ends_at,status").in("staff_id",staffIds).lt("starts_at",dayEnd.toISOString()).gt("ends_at",dayStart.toISOString()).in("status",["pending","confirmed","checked_in","in_progress"]);
-    // PostgreSQL stores service_staff_availability day_of_week as 0=Sunday through 6=Saturday.
     const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     const duration = Number(offering.duration_minutes);
     const now = Date.now() + Number(profile.booking_notice_minutes || 0) * 60_000;
