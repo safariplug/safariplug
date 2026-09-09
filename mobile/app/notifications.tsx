@@ -59,6 +59,39 @@ export default function NotificationsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let active = true;
+
+    async function subscribe() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!active || !session?.user || session.user.is_anonymous) return;
+
+      channel = supabase
+        .channel(`service-appointment-notifications:${session.user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "service_appointment_notifications",
+            filter: `user_id=eq.${session.user.id}`,
+          },
+          (payload) => {
+            const notification = payload.new as NotificationItem;
+            setItems((current) => [notification, ...current.filter((item) => item.id !== notification.id)].slice(0, 100));
+          },
+        )
+        .subscribe();
+    }
+
+    subscribe();
+    return () => {
+      active = false;
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, []);
+
   async function markRead(item?: NotificationItem) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
