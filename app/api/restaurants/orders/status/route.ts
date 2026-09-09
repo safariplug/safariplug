@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const ORDER_TRANSITIONS: Record<string, string[]> = { pending:["accepted","rejected","cancelled"], accepted:["preparing","cancelled"], preparing:["ready","cancelled"], ready:["driver_assigned","picked_up","cancelled"], driver_assigned:["picked_up","cancelled"], picked_up:["on_the_way","delivered"], on_the_way:["delivered"], delivered:[], cancelled:[], rejected:[] };
-const DRIVER_TRANSITIONS: Record<string, string[]> = { assigned:["accepted","declined","cancelled"], accepted:["arrived_at_restaurant","cancelled"], arrived_at_restaurant:["picked_up","cancelled"], picked_up:["on_the_way","delivered","cancelled"], on_the_way:["delivered","cancelled"], delivered:[], declined:[], cancelled:[] };
+const DRIVER_TRANSITIONS: Record<string, string[]> = { assigned:["accepted","declined","cancelled"], accepted:["arrived_at_restaurant","cancelled"], arrived_at_restaurant:["picked_up","cancelled"], picked_up:["on_the_way","delivered","cancelled"], on_the_way:["delivered","cancelled"], declined:[], cancelled:[], delivered:[] };
 const ACTIVE_ASSIGNMENT_STATUSES=["assigned","accepted","arrived_at_restaurant","picked_up","on_the_way"];
 const SUPPLIER_ORDER_STATUSES=["accepted","preparing","ready","cancelled","rejected"];
 const DRIVER_ORDER_STATUSES=["picked_up","on_the_way","delivered"];
@@ -20,9 +20,7 @@ async function eligibleDriver(driverId:string, order:any) {
   if(!business)return {error:"Restaurant location is not configured"};
   const destinationLat=Number(order.delivery_latitude), destinationLng=Number(order.delivery_longitude);
   if(!Number.isFinite(destinationLat)||!Number.isFinite(destinationLng)||destinationLat<-90||destinationLat>90||destinationLng<-180||destinationLng>180)return {error:"Delivery location is not configured"};
-  if(driver.service_city_id&&business.city_id&&driver.service_city_id===business.city_id) {
-    // City-scoped driver is eligible for this restaurant; destination is still validated above.
-  } else {
+  if(driver.service_city_id&&business.city_id&&driver.service_city_id===business.city_id) {} else {
     const serviceLat=Number(driver.service_lat), serviceLng=Number(driver.service_lng), radius=Number(driver.service_radius_km);
     if(!Number.isFinite(serviceLat)||!Number.isFinite(serviceLng)||!Number.isFinite(radius)||radius<=0)return {error:"Selected driver does not have a valid service area"};
     const r=6371, x=(destinationLng-serviceLng)*Math.PI/180, y=(destinationLat-serviceLat)*Math.PI/180;
@@ -96,6 +94,13 @@ export async function PATCH(request:Request) {
   if(assignmentStatus==='accepted'&&order.status==='ready')await supabaseAdmin.from("food_orders").update({status:'driver_assigned',updated_at:now}).eq("id",orderId).eq("status","ready");
   return NextResponse.json({assignment:updated});
  }
- if(rating!==undefined||customerNote!==undefined){if(!isCustomer||order.status!=="delivered")return NextResponse.json({error:"Only the customer can rate a delivered order"},{status:403});const score=Number(rating);if(!Number.isInteger(score)||score<1||score>5)return NextResponse.json({error:"Rating must be between 1 and 5"},{status:400});const {data:updated,error}=await supabaseAdmin.from("food_delivery_assignments").update({customer_rating:score,customer_note:customerNote??null}).eq("id",assignment?.id??"").select().single();if(error)return NextResponse.json({error:error.message},{status:400});return NextResponse.json({assignment:updated});}
+ if(rating!==undefined||customerNote!==undefined){
+  if(!isCustomer||order.status!=="delivered")return NextResponse.json({error:"Only the customer can rate a delivered order"},{status:403});
+  const score=Number(rating);if(!Number.isInteger(score)||score<1||score>5)return NextResponse.json({error:"Rating must be between 1 and 5"},{status:400});
+  const noteText=customerNote==null?null:String(customerNote).trim().slice(0,2000);
+  const {data:updated,error}=await supabaseAdmin.from("food_orders").update({customer_rating:score,customer_note:noteText}).eq("id",orderId).eq("customer_user_id",currentUser.id).select("id,customer_rating,customer_note").single();
+  if(error)return NextResponse.json({error:error.message},{status:400});
+  return NextResponse.json({order:updated});
+ }
  return NextResponse.json({error:"No supported update supplied"},{status:400});
 }
