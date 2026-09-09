@@ -46,7 +46,7 @@ export async function POST(request: Request) {
         const { error: serviceProfileError } = await supabaseAdmin.from("service_profiles").insert({ business_id: business.id, category_id: category.id, status: "pending", booking_status: "closed" });
         if (serviceProfileError) throw new Error(serviceProfileError.message);
       }
-      const { error: supplierError } = await supabaseAdmin.from("supplier_accounts").insert({ user_id: userId, business_id: business.id, contact_name: fullName, invitation_status: "pending", onboarding_status: "invited" });
+      const { error: supplierError } = await supabaseAdmin.from("supplier_accounts").insert({ user_id: userId, business_id: business.id, contact_name: fullName, invitation_status: "pending", onboarding_status: "draft" });
       if (supplierError) throw new Error(supplierError.message);
 
       const appUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.safariplug.com";
