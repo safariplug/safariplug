@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { createServicePaymentIntent } from "@/lib/payments/service";
+import { getConfiguredPaymentProviders } from "@/lib/payments/registry";
 import type { PaymentProvider } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +19,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const appointmentId = String(body.appointmentId || "");
     const provider = String(body.provider || "") as PaymentProvider;
-    const idempotencyKey = String(body.idempotencyKey || "");
+    const idempotencyKey = String(body.idempotencyKey || "").trim();
     if (!appointmentId || !PROVIDERS.has(provider) || !idempotencyKey) {
       return NextResponse.json({ error: "appointmentId, provider and idempotencyKey are required." }, { status: 400 });
+    }
+
+    if (!getConfiguredPaymentProviders().includes(provider)) {
+      return NextResponse.json({ error: `payment_provider_not_configured:${provider}` }, { status: 503 });
     }
 
     const { data: appointment } = await client.from("service_appointments").select("id").eq("id", appointmentId).eq("customer_user_id", user.id).maybeSingle();
