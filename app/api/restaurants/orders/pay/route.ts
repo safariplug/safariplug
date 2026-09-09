@@ -5,6 +5,8 @@ import { getPaymentAdapter, getConfiguredPaymentProviders } from "@/lib/payments
 
 export const dynamic = "force-dynamic";
 
+const CLAIM_MS = 10 * 60 * 1000;
+
 export async function POST(request: Request) {
   try {
     const supabase = await createSupabaseServerClient();
@@ -37,9 +39,10 @@ export async function POST(request: Request) {
     if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000_000) return NextResponse.json({ error: "Order total is invalid for payment." }, { status: 409 });
     if (currency !== "KES") return NextResponse.json({ error: "M-Pesa restaurant payments require KES." }, { status: 409 });
 
+    let claimId: string | null = null;
     const { data: existing, error: existingError } = await supabaseAdmin
       .from("food_order_payment_idempotency")
-      .select("payment_intent_id,provider_reference,order_id")
+      .select("id,payment_intent_id,provider_reference,order_id,processing_until")
       .eq("customer_user_id", user.id)
       .eq("provider", provider)
       .eq("idempotency_key", idempotencyKey)
@@ -50,41 +53,72 @@ export async function POST(request: Request) {
       return NextResponse.json({ intent: { id: existing.payment_intent_id, provider, providerReference: existing.provider_reference, orderId, amount, currency, status: "processing" } });
     }
 
-    const adapter = getPaymentAdapter(provider);
-    if (!adapter) return NextResponse.json({ error: "payment_provider_not_configured:mpesa" }, { status: 503 });
-
-    const intent = await adapter.createPaymentIntent({
-      appointmentId: order.id,
-      amount,
-      currency,
-      customerEmail: order.customer_email,
-      customerPhone: phone || order.customer_phone,
-      returnUrl: null,
-      idempotencyKey,
-      callbackUrl: null,
-    });
-
-    const { error: idemError } = await supabaseAdmin.from("food_order_payment_idempotency").insert({
-      order_id: order.id,
-      customer_user_id: user.id,
-      provider,
-      idempotency_key: idempotencyKey,
-      payment_intent_id: intent.id,
-      provider_reference: intent.providerReference,
-    });
-    if (idemError) {
-      if (idemError.code === "23505" || idemError.message.toLowerCase().includes("duplicate")) {
-        const { data: raced } = await supabaseAdmin.from("food_order_payment_idempotency")
-          .select("order_id,payment_intent_id,provider_reference")
-          .eq("customer_user_id", user.id)
-          .eq("provider", provider)
-          .eq("idempotency_key", idempotencyKey)
-          .maybeSingle();
-        if (raced?.order_id !== order.id || !raced.payment_intent_id) return NextResponse.json({ error: "Payment request was already started. Please retry with a new payment attempt." }, { status: 409 });
-        return NextResponse.json({ intent: { ...intent, id: raced.payment_intent_id, providerReference: raced.provider_reference } });
+    const claimUntil = new Date(Date.now() + CLAIM_MS).toISOString();
+    if (existing?.id) {
+      if (existing.processing_until && new Date(existing.processing_until).getTime() > Date.now()) {
+        return NextResponse.json({ error: "Payment request is already in progress. Please wait and check payment status." }, { status: 409 });
       }
-      throw idemError;
+      const { data: reclaimed, error: reclaimError } = await supabaseAdmin
+        .from("food_order_payment_idempotency")
+        .update({ processing_until: claimUntil })
+        .eq("id", existing.id)
+        .is("payment_intent_id", null)
+        .or(`processing_until.is.null,processing_until.lte.${new Date().toISOString()}`)
+        .select("id")
+        .maybeSingle();
+      if (reclaimError) throw reclaimError;
+      if (!reclaimed) return NextResponse.json({ error: "Payment request is already in progress. Please wait and check payment status." }, { status: 409 });
+      claimId = reclaimed.id;
+    } else {
+      const { data: createdClaim, error: claimError } = await supabaseAdmin
+        .from("food_order_payment_idempotency")
+        .insert({
+          order_id: order.id,
+          customer_user_id: user.id,
+          provider,
+          idempotency_key: idempotencyKey,
+          processing_until: claimUntil,
+        })
+        .select("id")
+        .maybeSingle();
+      if (claimError) {
+        if (claimError.code === "23505" || claimError.message.toLowerCase().includes("duplicate")) {
+          return NextResponse.json({ error: "Payment request is already in progress. Please wait and check payment status." }, { status: 409 });
+        }
+        throw claimError;
+      }
+      claimId = createdClaim?.id ?? null;
     }
+    if (!claimId) throw new Error("Unable to reserve payment request.");
+
+    const adapter = getPaymentAdapter(provider);
+    if (!adapter) {
+      await supabaseAdmin.from("food_order_payment_idempotency").update({ processing_until: new Date().toISOString() }).eq("id", claimId).is("payment_intent_id", null);
+      return NextResponse.json({ error: "payment_provider_not_configured:mpesa" }, { status: 503 });
+    }
+
+    let intent;
+    try {
+      intent = await adapter.createPaymentIntent({
+        appointmentId: order.id,
+        amount,
+        currency,
+        customerEmail: order.customer_email,
+        customerPhone: phone || order.customer_phone,
+        returnUrl: null,
+        idempotencyKey,
+        callbackUrl: null,
+      });
+    } catch (error) {
+      await supabaseAdmin.from("food_order_payment_idempotency").update({ processing_until: new Date().toISOString() }).eq("id", claimId).is("payment_intent_id", null);
+      throw error;
+    }
+
+    const { error: intentError } = await supabaseAdmin.from("food_order_payment_idempotency")
+      .update({ payment_intent_id: intent.id, provider_reference: intent.providerReference, processing_until: null })
+      .eq("id", claimId)
+      .is("payment_intent_id", null);
+    if (intentError) throw intentError;
 
     const { data: updatedOrder, error: updateError } = await supabaseAdmin.from("food_orders")
       .update({ payment_status: "pending", payment_reference: intent.providerReference, payment_intent_id: intent.id })
