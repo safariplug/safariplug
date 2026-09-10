@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { fetchEvents, fetchExperienceTaxonomy } from "../../src/api/catalog";
-import {
-  fetchHotels,
-  fetchServices,
-  fetchTransferSearch,
-  fetchTransfersCatalog,
-  type InventoryState,
-} from "../../src/api/inventory";
+import { fetchHotels, fetchServices, fetchTransferSearch, fetchTransfersCatalog, type InventoryState } from "../../src/api/inventory";
 import { ComingSoonCard } from "../../src/components/ComingSoonCard";
 import { EventCard } from "../../src/components/EventCard";
 import { ExperienceCard } from "../../src/components/ExperienceCard";
@@ -18,43 +12,14 @@ import { categoryByKind } from "../../src/discover/categories";
 import type { CatalogEvent, CatalogExperienceCollection } from "../../src/models/event";
 import { colors } from "../../src/theme";
 
+type ServiceOffering = { id: string; title: string; description?: string | null; category?: string | null; city_id?: string | null; };
+
 function comingCopy(kind: string, state?: InventoryState<unknown>) {
-  if (kind === "stay") {
-    return {
-      title: "Hotel booking is coming soon",
-      body: "SafariPlug is connecting trusted accommodation partners across Africa. /api/v1/hotels is not configured — no rooms or rates are invented.",
-    };
-  }
-  if (kind === "transfers") {
-    return {
-      title: "Transfers are coming soon",
-      body: "Airport / hotel / date / passengers / luggage will search live suppliers. None are connected yet.",
-    };
-  }
-  if (kind === "drivers") {
-    return {
-      title: "Trusted private drivers are coming soon",
-      body: "SafariPlug will not publish an unverified driver directory. Contact details and verification evidence stay private.",
-    };
-  }
-  if (kind === "food") {
-    return {
-      title: "Food & drink is being mapped",
-      body: "Restaurants and dining experiences appear when the catalog has them. Nothing here is fabricated.",
-    };
-  }
-  if (kind === "adventure" || kind === "wellness" || kind === "activities") {
-    return {
-      title: "Live services are not listed yet",
-      body: state?.code
-        ? `The services API reported ${state.code}.`
-        : "Adventure, wellness and activities use the unified SafariPlug services catalog.",
-    };
-  }
-  return {
-    title: "Coming soon",
-    body: "This surface is ready for live inventory. SafariPlug will not fake it.",
-  };
+  if (kind === "stay") return { title: "Hotel booking is coming soon", body: "SafariPlug is connecting trusted accommodation partners across Africa. No rooms or rates are invented." };
+  if (kind === "transfers") return { title: "Transfers are coming soon", body: "Airport, hotel, date, passengers and luggage will search live suppliers. None are connected yet." };
+  if (kind === "drivers") return { title: "Trusted private drivers are coming soon", body: "SafariPlug will not publish an unverified driver directory." };
+  if (kind === "food") return { title: "Food & drink is being mapped", body: "Restaurants and dining experiences appear when the catalog has them. Nothing here is fabricated." };
+  return { title: "Live services are not listed yet", body: state?.code ? `The services API reported ${state.code}.` : "SafariPlug will show approved service listings here when available." };
 }
 
 export default function CategoryScreen() {
@@ -68,92 +33,50 @@ export default function CategoryScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setError(null);
-    setLoading(true);
+    setError(null); setLoading(true);
     try {
-      if (kind === "events") {
-        const feed = await fetchEvents({ page: 1, when: "valid", limit: 20 });
-        setEvents(feed.events);
-      } else if (kind === "experiences" || kind === "safaris") {
-        const taxonomy = await fetchExperienceTaxonomy();
-        setCollections(taxonomy.collections);
-      } else if (kind === "stay") {
-        setInventory(await fetchHotels());
-      } else if (kind === "transfers") {
-        const [catalog, search] = await Promise.all([
-          fetchTransfersCatalog(),
-          fetchTransferSearch(),
-        ]);
+      if (kind === "events") setEvents((await fetchEvents({ page: 1, when: "valid", limit: 20 })).events);
+      else if (kind === "experiences" || kind === "safaris") setCollections((await fetchExperienceTaxonomy()).collections);
+      else if (kind === "stay") setInventory(await fetchHotels());
+      else if (kind === "transfers") {
+        const [catalog, search] = await Promise.all([fetchTransfersCatalog(), fetchTransferSearch()]);
         setInventory(catalog.status === "available" ? catalog : search);
-      } else if (kind === "adventure" || kind === "wellness" || kind === "activities") {
-        setInventory(await fetchServices());
-      } else {
-        setInventory({ status: "not_configured", data: null });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load this category.");
-    } finally {
-      setLoading(false);
-    }
+      } else if (kind === "adventure" || kind === "wellness" || kind === "activities") setInventory(await fetchServices());
+      else setInventory({ status: "not_configured", data: null });
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to load this category."); }
+    finally { setLoading(false); }
   }, [kind]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
+  useEffect(() => { void load(); }, [load]);
   const title = category?.label || "SafariPlug";
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <Stack.Screen options={{ title }} />
-      {loading ? (
-        <LoadingBlock />
-      ) : error ? (
-        <ErrorBlock message={error} onRetry={() => void load()} />
-      ) : kind === "events" ? (
-        <FlatList
-          data={events}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <EventCard event={item} onPress={() => router.push(`/event/${item.id}`)} />
-          )}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <ComingSoonCard
-              title="No approved events just now"
-              body="The events API returned an empty catalog for this filter."
-            />
-          }
-        />
+      {loading ? <LoadingBlock /> : error ? <ErrorBlock message={error} onRetry={() => void load()} /> : kind === "events" ? (
+        <FlatList data={events} keyExtractor={(item) => item.id} renderItem={({ item }) => <EventCard event={item} onPress={() => router.push(`/event/${item.id}`)} />} contentContainerStyle={styles.list} ListEmptyComponent={<ComingSoonCard title="No approved events just now" body="The events API returned an empty catalog for this filter." />} />
       ) : kind === "experiences" || kind === "safaris" ? (
         <ScrollView contentContainerStyle={styles.page}>
           <Text style={styles.blurb}>{category?.blurb}</Text>
-          {collections.length ? (
-            collections.map((collection) => (
-              <View key={collection.slug} style={{ marginBottom: 12 }}>
-                <ExperienceCard collection={collection} />
-              </View>
-            ))
-          ) : (
-            <ComingSoonCard
-              title="More experiences are coming to SafariPlug"
-              body="The experiences API has no collections to show yet."
-            />
-          )}
+          {collections.length ? collections.map((collection) => <View key={collection.slug} style={styles.collection}><ExperienceCard collection={collection} /></View>) : <ComingSoonCard title="More experiences are coming to SafariPlug" body="The experiences API has no collections to show yet." />}
         </ScrollView>
       ) : inventory?.status === "available" && Array.isArray(inventory.data) ? (
         <ScrollView contentContainerStyle={styles.page}>
           <Text style={styles.blurb}>{category?.blurb}</Text>
           <Text style={styles.meta}>{inventory.data.length} live listings</Text>
+          {kind === "adventure" || kind === "wellness" || kind === "activities" ? (
+            <View style={styles.cards}>{(inventory.data as ServiceOffering[]).map((item) => (
+              <View key={item.id} style={styles.card}>
+                <Text style={styles.cardKicker}>{item.category || "SafariPlug service"}</Text>
+                <Text style={styles.cardTitle}>{item.title}</Text>
+                {item.description ? <Text style={styles.cardBody}>{item.description}</Text> : null}
+                <Pressable style={styles.cta} onPress={() => router.push("/concierge")}><Text style={styles.ctaText}>Ask Concierge to arrange →</Text></Pressable>
+              </View>
+            ))}</View>
+          ) : null}
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.page}>
-          <Text style={styles.blurb}>{category?.blurb}</Text>
-          <ComingSoonCard
-            title={comingCopy(kind || "", inventory || undefined).title}
-            body={comingCopy(kind || "", inventory || undefined).body}
-          />
-        </ScrollView>
+        <ScrollView contentContainerStyle={styles.page}><Text style={styles.blurb}>{category?.blurb}</Text><ComingSoonCard title={comingCopy(kind || "", inventory || undefined).title} body={comingCopy(kind || "", inventory || undefined).body} /></ScrollView>
       )}
     </SafeAreaView>
   );
@@ -165,4 +88,12 @@ const styles = StyleSheet.create({
   list: { padding: 20, paddingBottom: 48 },
   blurb: { color: colors.textMuted, lineHeight: 22, fontSize: 16 },
   meta: { color: colors.goldSoft },
+  collection: { marginBottom: 12 },
+  cards: { gap: 12 },
+  card: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard, padding: 16, gap: 8 },
+  cardKicker: { color: colors.gold, fontSize: 10, fontWeight: "800", letterSpacing: 1.8, textTransform: "uppercase" },
+  cardTitle: { color: colors.text, fontSize: 19, fontWeight: "700" },
+  cardBody: { color: colors.textMuted, lineHeight: 20 },
+  cta: { marginTop: 4, borderRadius: 14, backgroundColor: colors.gold, paddingVertical: 12, alignItems: "center" },
+  ctaText: { color: colors.bg, fontWeight: "800", fontSize: 13 },
 });
