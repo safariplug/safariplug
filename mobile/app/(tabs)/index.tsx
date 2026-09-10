@@ -99,9 +99,7 @@ export default function DiscoverScreen() {
               imageUrl={heroImage}
               title={"Discover Africa\ndifferently."}
               body="Find places to stay, things to do, people to meet and experiences worth remembering."
-              onPress={
-                heroEvent ? () => router.push(`/event/${heroEvent.id}`) : undefined
-              }
+              onPress={heroEvent ? () => router.push(`/event/${heroEvent.id}`) : undefined}
             />
 
             <HorizontalRail title="Explore by category">
@@ -186,15 +184,15 @@ export default function DiscoverScreen() {
 
             <StoryCta
               kicker="Explore"
-              title="See Africa on the map"
-              body="Destinations, events and experiences — only where real coordinates exist."
+              title="Explore Africa"
+              body="Browse destinations, events and experiences from the live SafariPlug catalog."
               action="Open Explore →"
               onPress={() => router.push("/(tabs)/explore")}
             />
             <StoryCta
               kicker="Trips"
               title="Plan your trip"
-              body="Save a stay, a transfer, a table and a night out in one itinerary. Booking confirmation stays off until a real supplier is live."
+              body="Bring stays, transfers, dining, activities and bookings together in one SafariPlug itinerary."
               action="Open Trips →"
               onPress={() => router.push("/(tabs)/trips")}
             />
