@@ -9,7 +9,7 @@ export default async function SavedPage({ searchParams }: { searchParams: Promis
   const { tripId } = await searchParams;
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
-  if (!user || user.is_anonymous || !user.email_confirmed_at) redirect(`/login?next=${encodeURIComponent(`/account/saved${tripId ? `?tripId=${tripId}` : ""}`)}`);
+  if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) redirect(`/login?next=${encodeURIComponent(`/account/saved${tripId ? `?tripId=${tripId}` : ""}`)}`);
 
   let selectedTripTitle: string | null = null;
   if (tripId) {
