@@ -28,7 +28,7 @@ export default function SavedScreen() {
   const load = useCallback(async () => {
     setMessage("Loading your saved experiences…");
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session || session.user.is_anonymous || !session.user.email_confirmed_at) {
+    if (!session || session.user.is_anonymous || !(session.user.email_confirmed_at || session.user.phone_confirmed_at)) {
       setSaved([]);
       setMessage("Sign in to save experiences and keep them for your journey.");
       return;
