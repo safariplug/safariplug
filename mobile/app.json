@@ -25,7 +25,17 @@
       "package": "com.safariplug.app",
       "edgeToEdgeEnabled": true
     },
-    "plugins": ["expo-router"],
-    "experiments": { "typedRoutes": true }
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "24fd985e-5834-4e18-bf13-123ff456a258"
+      }
+    }
   }
 }
