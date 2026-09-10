@@ -25,7 +25,7 @@ function linePrice(line: CartLine) {
 }
 
 export default function RestaurantScreen() {
-  const { businessId, name } = useLocalSearchParams<{ businessId: string; name?: string }>();
+  const { businessId, name, tripId } = useLocalSearchParams<{ businessId: string; name?: string; tripId?: string }>();
   const [menu, setMenu] = useState<Menu | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -96,10 +96,10 @@ export default function RestaurantScreen() {
     if (menu?.settings && subtotal < Number(menu.settings.minimum_order_amount || 0)) return setMessage(`Minimum order is ${currency} ${Number(menu.settings.minimum_order_amount).toLocaleString()}.`);
     setBusy(true);
     try {
-      const created = await createRestaurantOrder({ businessId: businessId!, fulfillmentMethod: method, customerName: customer.name.trim(), customerPhone: customer.phone.trim(), customerEmail: customer.email.trim() || undefined, deliveryAddress: method === "restaurant_delivery" ? customer.address.trim() : undefined, customerNotes: customer.notes.trim() || undefined, items: cart.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, options: line.options })) });
+      const created = await createRestaurantOrder({ businessId: businessId!, tripId: tripId || undefined, fulfillmentMethod: method, customerName: customer.name.trim(), customerPhone: customer.phone.trim(), customerEmail: customer.email.trim() || undefined, deliveryAddress: method === "restaurant_delivery" ? customer.address.trim() : undefined, customerNotes: customer.notes.trim() || undefined, items: cart.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, options: line.options })) });
       const payment = await startRestaurantMpesaPayment(created.order.id, customer.phone.trim());
       setCart([]);
-      setMessage(`Order ${created.order.public_id || created.order.id} created. M-Pesa payment request started${payment.intent.providerReference ? ` (${payment.intent.providerReference})` : ""}. Check your phone to complete payment.`);
+      setMessage(`Order ${created.order.public_id || created.order.id} created${tripId ? " and added to your trip" : ""}. M-Pesa payment request started${payment.intent.providerReference ? ` (${payment.intent.providerReference})` : ""}. Check your phone to complete payment.`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to place your order.");
     } finally { setBusy(false); }
