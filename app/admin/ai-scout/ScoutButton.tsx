@@ -62,23 +62,14 @@ export default function ScoutButton() {
 
   return (
     <div className="mt-6 grid gap-4">
-      <select
+      <input
+        type="text"
         value={location}
         onChange={(e) => setLocation(e.target.value)}
+        placeholder="Enter any city or destination"
+        aria-label="Scout destination"
         className="rounded-lg border p-3"
-      >
-        <option>Nairobi</option>
-        <option>Mombasa</option>
-        <option>Mtwapa</option>
-        <option>Diani</option>
-        <option>Kilifi</option>
-        <option>Watamu</option>
-        <option>Malindi</option>
-        <option>Lamu</option>
-        <option>Zanzibar</option>
-        <option>Kampala</option>
-        <option>Dar es Salaam</option>
-      </select>
+      />
 
       <select
         value={category}
@@ -94,7 +85,7 @@ export default function ScoutButton() {
 
       <button
         onClick={runScout}
-        disabled={loading}
+        disabled={loading || !location.trim()}
         className="rounded-lg bg-black px-6 py-3 text-white disabled:opacity-50"
       >
         {loading ? "Running Scout..." : "Run Scout Mission"}

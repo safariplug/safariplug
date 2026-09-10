@@ -55,7 +55,7 @@ export default function ExploreScreen() {
         }
       >
         <Text style={styles.kicker}>Explore</Text>
-        <Text style={styles.title}>Places across East Africa</Text>
+        <Text style={styles.title}>Places across Africa</Text>
         <Text style={styles.lede}>
           Destinations from the live SafariPlug catalog. The map shows only records we actually have.
         </Text>

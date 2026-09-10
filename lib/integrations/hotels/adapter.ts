@@ -57,4 +57,5 @@ export const HOTEL_PROVIDER_NAMES: Record<HotelProviderKey, string> = {
   hostaway: "Hostaway",
   direct: "Direct hotel API",
   aurelian: "Aurelian Hospitality",
+  locktrip: "LockTrip",
 };

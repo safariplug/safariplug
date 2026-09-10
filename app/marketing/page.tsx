@@ -46,7 +46,7 @@ export default async function MarketingPage() {
         </h1>
 
         <p className="mt-3 text-slate-500">
-          Discover what SafariPlug is sharing across East Africa.
+          Discover what SafariPlug is sharing across Africa.
         </p>
 
 

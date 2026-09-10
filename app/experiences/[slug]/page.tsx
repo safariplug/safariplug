@@ -67,6 +67,16 @@ type Event = {
   image_url: string | null;
 };
 
+type EventRow = Event & {
+  cities?: { name?: string | null } | { name?: string | null }[] | null;
+};
+
+function cityNameFromRelation(cities: EventRow["cities"]): string | null {
+  const row = Array.isArray(cities) ? cities[0] : cities;
+  const name = typeof row?.name === "string" ? row.name.trim() : "";
+  return name || null;
+}
+
 
 
 export async function generateMetadata({
@@ -124,9 +134,9 @@ export default async function ExperienceCategoryPage({
       title,
       description,
       category,
-      city,
       venue_name,
-      image_url
+      image_url,
+      cities ( name )
       `
     )
     .ilike("category", `%${category.name}%`)
@@ -139,7 +149,10 @@ export default async function ExperienceCategoryPage({
 
 
 
-  const events = (data || []) as Event[];
+  const events = ((data || []) as EventRow[]).map((row) => ({
+    ...row,
+    city: cityNameFromRelation(row.cities),
+  }));
 
 
 

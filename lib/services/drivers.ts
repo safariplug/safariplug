@@ -174,6 +174,8 @@ export type EligibilityFailure =
   | "rejected"
   | "verification_expired"
   | "verification_revoked"
+  | "document_compliance"
+  | "vehicle_compliance"
   | "capacity"
   | "unavailable"
   | "service_area"
@@ -193,10 +195,14 @@ export function eligibilityFailure(
     if (trust === "unverified") return "unverified";
     return trust;
   }
+  if (driver.driving_license_compliance_status !== "compliant") return "document_compliance";
   if (!areaMatches(driver, request)) return "service_area";
   if (!capabilityMatches(driver, request)) return "capability";
   const vehicle = activeVehicle(store, driver.id);
   if (!vehicle) return "no_vehicle";
+  if (vehicle.registration_compliance_status !== "compliant" || vehicle.insurance_compliance_status !== "compliant") {
+    return "vehicle_compliance";
+  }
   if (!capacityMatches(vehicle, request)) return "capacity";
   if (!availabilityMatches(store, driver, request)) return "unavailable";
   if (alreadyAssigned(store, driver.id, request.booking_id)) return "already_assigned";

@@ -3,12 +3,12 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const metadata: Metadata = {
-  title: "SafariPlug Journal | Things to Do, Travel & Events in East Africa",
-  description: "Discover what to do, where to go and what's happening across East Africa with SafariPlug Journal.",
+  title: "SafariPlug Journal | Things to Do, Travel & Events in Africa",
+  description: "Discover what to do, where to go and what's happening across Africa with SafariPlug Journal.",
   alternates: { canonical: "https://safariplug.com/journal" },
   openGraph: {
     title: "SafariPlug Journal",
-    description: "Travel guides, event stories and ideas for discovering East Africa.",
+    description: "Travel guides, event stories and ideas for discovering Africa.",
     url: "https://safariplug.com/journal",
     type: "website",
   },
@@ -26,9 +26,9 @@ export default async function JournalPage() {
       <div className="mx-auto max-w-6xl px-5 py-14 md:px-8 md:py-20">
         <header className="max-w-3xl">
           <Link href="/" className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-300">SafariPlug</Link>
-          <p className="mt-10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Journal / East Africa</p>
+          <p className="mt-10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Journal / Africa</p>
           <h1 className="mt-3 text-5xl font-semibold tracking-[-0.05em] md:text-7xl">Discover more.<span className="text-amber-300">.</span></h1>
-          <p className="mt-6 max-w-2xl text-base leading-7 text-zinc-400 md:text-lg">Stories, guides and timely ideas for finding the best things to do, places to go and experiences to discover across East Africa.</p>
+          <p className="mt-6 max-w-2xl text-base leading-7 text-zinc-400 md:text-lg">Stories, guides and timely ideas for finding the best things to do, places to go and experiences to discover across Africa.</p>
         </header>
 
         {articles?.length ? (

@@ -216,7 +216,7 @@ export default async function SalesReviewPage({
             <p className="mt-3 text-gray-700">
 
               "SafariPlug helps travelers discover the best
-              experiences across East Africa. We would like
+              experiences across Africa. We would like
               to feature this business as a recommended
               experience partner."
 

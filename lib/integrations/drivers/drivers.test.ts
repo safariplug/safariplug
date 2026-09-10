@@ -51,6 +51,7 @@ function driver(overrides: Partial<DriverProfile> = {}): DriverProfile {
     service_area: { city: "Nairobi", airport_code: "NBO", country: "KE" },
     source: "test",
     external_id: null,
+    driving_license_compliance_status: "compliant",
     ...overrides,
   };
 }
@@ -66,6 +67,8 @@ function vehicle(overrides: Partial<Vehicle> = {}): Vehicle {
     luggage_capacity: 3,
     accessibility: false,
     status: "active",
+    registration_compliance_status: "compliant",
+    insurance_compliance_status: "compliant",
     ...overrides,
   };
 }
@@ -138,7 +141,7 @@ test("public assigned fields omit contact refs", () => {
   assert.equal(JSON.stringify(pub).includes("opaque_contact_ref"), false);
 });
 
-test("inactive, unverified, capacity, area, capability, availability are rejected", () => {
+test("inactive, unverified, compliance, capacity, area, capability, availability are rejected", () => {
   const store = eligibleStore();
   assert.equal(eligibilityFailure(store, driver(), BOOKING), null);
   assert.equal(
@@ -156,6 +159,22 @@ test("inactive, unverified, capacity, area, capability, availability are rejecte
       BOOKING
     ),
     "unverified"
+  );
+  assert.equal(
+    eligibilityFailure(
+      store,
+      driver({ driving_license_compliance_status: "expired" }),
+      BOOKING
+    ),
+    "document_compliance"
+  );
+  assert.equal(
+    eligibilityFailure(
+      new MemoryDriverStore([driver()], [vehicle({ insurance_compliance_status: "expired" })], store.listAvailability("drv_ok", "2026-10-01")),
+      driver(),
+      BOOKING
+    ),
+    "vehicle_compliance"
   );
   const small = new MemoryDriverStore(
     [driver()],

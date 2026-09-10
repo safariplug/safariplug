@@ -92,7 +92,7 @@ export default function PartnerCRMPage() {
     setSelectedPartner(partner);
     const name = partner.contact_person || "Partner";
     const venue = partner.venue_or_promoter_name;
-    setOutreachDraft(`Subject: Featuring ${venue} on SafariPlug\n\nHi ${name},\n\nI’ve been following ${venue} and love the energy you're bringing to the local scene.\n\nI’m reaching out from SafariPlug—our curated discovery engine highlighting the best experiences across East Africa. We would love to spotlight your upcoming events directly to our growing audience of experience seekers.\n\nWould you be open to collaborating or sharing your event calendar so we can feature your listings?\n\nBest regards,\nErick Mwirigi\nSafariPlug Curation Team`);
+    setOutreachDraft(`Subject: Featuring ${venue} on SafariPlug\n\nHi ${name},\n\nI’ve been following ${venue} and love the energy you're bringing to the local scene.\n\nI’m reaching out from SafariPlug—our curated discovery engine highlighting the best experiences across Africa. We would love to spotlight your upcoming events directly to our growing audience of experience seekers.\n\nWould you be open to collaborating or sharing your event calendar so we can feature your listings?\n\nBest regards,\nErick Mwirigi\nSafariPlug Curation Team`);
     setStatusMsg(null);
   }
 

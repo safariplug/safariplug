@@ -14,8 +14,40 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SafariPlug // Command Center",
-  description: "Curated discovery engine and partner operations for East Africa",
+  metadataBase: new URL("https://www.safariplug.com"),
+  title: {
+    default: "SafariPlug — Discover What's Happening Across Africa",
+    template: "%s | SafariPlug",
+  },
+  description:
+    "SafariPlug Intelligence discovers events, experiences, hidden gems and places worth knowing across Africa.",
+  applicationName: "SafariPlug",
+  keywords: [
+    "Africa events",
+    "Nairobi events",
+    "Mombasa events",
+    "Kenya experiences",
+    "things to do in Kenya",
+    "Africa travel",
+    "SafariPlug",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "SafariPlug",
+    title: "SafariPlug — Discover What's Happening Across Africa",
+    description:
+      "AI-powered discovery of events, experiences and places worth knowing across Africa.",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SafariPlug — Discover What's Happening Across Africa",
+    description:
+      "AI-powered discovery of events, experiences and places worth knowing across Africa.",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
