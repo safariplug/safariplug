@@ -7,12 +7,12 @@ async function getUser(request: Request) {
   const bearerClient = getSupabaseUserClient(request);
   if (bearerClient.ok) {
     const user = await getRequestUser(bearerClient.client);
-    if (user && !user.is_anonymous && user.email_confirmed_at) return user;
+    if (user && !user.is_anonymous && (user.email_confirmed_at || user.phone_confirmed_at)) return user;
     return null;
   }
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
-  if (!user || user.is_anonymous || !user.email_confirmed_at) return null;
+  if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) return null;
   return user;
 }
 
