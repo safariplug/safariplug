@@ -70,7 +70,9 @@ export default function CategoryScreen() {
                 <Text style={styles.cardKicker}>{item.category || "SafariPlug service"}</Text>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 {item.description ? <Text style={styles.cardBody}>{item.description}</Text> : null}
-                <Pressable style={styles.cta} onPress={() => router.push("/concierge")}><Text style={styles.ctaText}>Ask Concierge to arrange →</Text></Pressable>
+                <Pressable style={styles.cta} onPress={() => router.push({ pathname: "/concierge", params: { request: `I want to arrange ${item.title}${item.category ? ` (${item.category})` : ""}. Please show me real providers and available times.` } })}>
+                  <Text style={styles.ctaText}>Ask Concierge to arrange →</Text>
+                </Pressable>
               </View>
             ))}</View>
           ) : null}
