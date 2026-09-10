@@ -16,6 +16,7 @@ export type CreateRestaurantOrderInput = {
   customerEmail?: string;
   deliveryAddress?: string;
   customerNotes?: string;
+  tripId?: string;
   items: RestaurantOrderItemInput[];
 };
 
@@ -37,7 +38,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 }
 
 export async function createRestaurantOrder(input: CreateRestaurantOrderInput) {
-  return request<{ order: { id: string; public_id?: string | null; customer_total: number; currency: string; payment_status: string }; deliveryFee: number; etaAt: string }>("/api/restaurants/orders", {
+  return request<{ order: { id: string; public_id?: string | null; customer_total: number; currency: string; payment_status: string }; deliveryFee: number; etaAt: string; itineraryItemAttached?: boolean }>("/api/restaurants/orders", {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify(input),
