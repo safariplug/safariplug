@@ -9,6 +9,8 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import { fetchEvent } from "../../src/api/catalog";
 import { ApiError } from "../../src/api/client";
+import { API_BASE_URL } from "../../src/config";
+import { supabase } from "../../src/auth";
 import { EventImage } from "../../src/components/EventImage";
 import { PriceLabel } from "../../src/components/PriceLabel";
 import { EmptyBlock, ErrorBlock, LoadingBlock } from "../../src/components/StatusBlocks";
@@ -17,11 +19,14 @@ import { colors } from "../../src/theme";
 import { formatEventWhen, venueLine } from "../../src/utils/format";
 
 export default function EventDetailScreen() {
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; tripId?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const tripId = Array.isArray(params.tripId) ? params.tripId[0] : params.tripId;
   const [event, setEvent] = useState<CatalogEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [addingToTrip, setAddingToTrip] = useState(false);
+  const [tripMessage, setTripMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +48,44 @@ export default function EventDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  async function addToTrip() {
+    if (!tripId || !event || addingToTrip) return;
+    setAddingToTrip(true);
+    setTripMessage(null);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        setTripMessage("Sign in to add this event to your journey.");
+        return;
+      }
+      const response = await fetch(
+        `${API_BASE_URL}/api/trip-planner/${encodeURIComponent(tripId)}/items`,
+        {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ event_id: event.id, item_kind: "event" }),
+        }
+      );
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string; added?: boolean }
+        | null;
+      if (!response.ok) {
+        setTripMessage(body?.error || "Unable to add this event to your journey.");
+        return;
+      }
+      setTripMessage(body?.added === false ? "Already in this journey." : "Added to this journey.");
+    } catch {
+      setTripMessage("Unable to add this event to your journey.");
+    } finally {
+      setAddingToTrip(false);
+    }
+  }
 
   if (loading) return <LoadingBlock />;
   if (error || !event) {
@@ -85,9 +128,23 @@ export default function EventDetailScreen() {
       ) : (
         <EmptyBlock title="No description" body="This listing has no description yet." />
       )}
+      {tripId ? (
+        <>
+          <Pressable
+            style={[styles.cta, addingToTrip && styles.ctaDisabled]}
+            onPress={() => void addToTrip()}
+            disabled={addingToTrip}
+          >
+            <Text style={styles.ctaLabel}>
+              {addingToTrip ? "Adding to journey…" : "Add to this journey"}
+            </Text>
+          </Pressable>
+          {tripMessage ? <Text style={styles.tripMessage}>{tripMessage}</Text> : null}
+        </>
+      ) : null}
       {bookingUrl ? (
         <Pressable
-          style={styles.cta}
+          style={tripId ? styles.secondaryCta : styles.cta}
           onPress={() => void Linking.openURL(bookingUrl)}
           accessibilityRole="link"
         >
@@ -125,5 +182,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
   },
+  secondaryCta: {
+    marginTop: 12,
+    backgroundColor: colors.goldSoft,
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  ctaDisabled: { opacity: 0.6 },
   ctaLabel: { color: colors.bg, fontWeight: "800", fontSize: 15 },
+  tripMessage: { color: colors.textMuted, marginTop: 10, textAlign: "center" },
 });
