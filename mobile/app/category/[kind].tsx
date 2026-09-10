@@ -19,12 +19,42 @@ import type { CatalogEvent, CatalogExperienceCollection } from "../../src/models
 import { colors } from "../../src/theme";
 
 function comingCopy(kind: string, state?: InventoryState<unknown>) {
-  if (kind === "stay") return { title: "Hotel booking is coming soon", body: "SafariPlug is connecting trusted accommodation partners across Africa. /api/v1/hotels is not configured — no rooms or rates are invented." };
-  if (kind === "transfers") return { title: "Transfers are coming soon", body: "Airport / hotel / date / passengers / luggage will search live suppliers. None are connected yet." };
-  if (kind === "drivers") return { title: "Trusted private drivers are coming soon", body: "SafariPlug will not publish an unverified driver directory. Contact details and verification evidence stay private." };
-  if (kind === "food") return { title: "Food & drink is being mapped", body: "Restaurants and dining experiences appear when the catalog has them. Nothing here is fabricated." };
-  if (kind === "adventure" || kind === "wellness" || kind === "activities") return { title: "Live services are not listed yet", body: state?.code ? `The services API reported ${state.code}.` : "Adventure, wellness and activities use the unified SafariPlug services catalog." };
-  return { title: "Coming soon", body: "This surface is ready for live inventory. SafariPlug will not fake it." };
+  if (kind === "stay") {
+    return {
+      title: "Hotel booking is coming soon",
+      body: "SafariPlug is connecting trusted accommodation partners across Africa. /api/v1/hotels is not configured — no rooms or rates are invented.",
+    };
+  }
+  if (kind === "transfers") {
+    return {
+      title: "Transfers are coming soon",
+      body: "Airport / hotel / date / passengers / luggage will search live suppliers. None are connected yet.",
+    };
+  }
+  if (kind === "drivers") {
+    return {
+      title: "Trusted private drivers are coming soon",
+      body: "SafariPlug will not publish an unverified driver directory. Contact details and verification evidence stay private.",
+    };
+  }
+  if (kind === "food") {
+    return {
+      title: "Food & drink is being mapped",
+      body: "Restaurants and dining experiences appear when the catalog has them. Nothing here is fabricated.",
+    };
+  }
+  if (kind === "adventure" || kind === "wellness" || kind === "activities") {
+    return {
+      title: "Live services are not listed yet",
+      body: state?.code
+        ? `The services API reported ${state.code}.`
+        : "Adventure, wellness and activities use the unified SafariPlug services catalog.",
+    };
+  }
+  return {
+    title: "Coming soon",
+    body: "This surface is ready for live inventory. SafariPlug will not fake it.",
+  };
 }
 
 export default function CategoryScreen() {
@@ -42,14 +72,25 @@ export default function CategoryScreen() {
     setError(null);
     setLoading(true);
     try {
-      if (kind === "events") setEvents((await fetchEvents({ page: 1, when: "valid", limit: 20 })).events);
-      else if (kind === "experiences" || kind === "safaris") setCollections((await fetchExperienceTaxonomy()).collections);
-      else if (kind === "stay") setInventory(await fetchHotels());
-      else if (kind === "transfers") {
-        const [catalog, search] = await Promise.all([fetchTransfersCatalog(), fetchTransferSearch()]);
+      if (kind === "events") {
+        const feed = await fetchEvents({ page: 1, when: "valid", limit: 20 });
+        setEvents(feed.events);
+      } else if (kind === "experiences" || kind === "safaris") {
+        const taxonomy = await fetchExperienceTaxonomy();
+        setCollections(taxonomy.collections);
+      } else if (kind === "stay") {
+        setInventory(await fetchHotels());
+      } else if (kind === "transfers") {
+        const [catalog, search] = await Promise.all([
+          fetchTransfersCatalog(),
+          fetchTransferSearch(),
+        ]);
         setInventory(catalog.status === "available" ? catalog : search);
-      } else if (kind === "adventure" || kind === "wellness" || kind === "activities") setInventory(await fetchServices());
-      else setInventory({ status: "not_configured", data: null });
+      } else if (kind === "adventure" || kind === "wellness" || kind === "activities") {
+        setInventory(await fetchServices());
+      } else {
+        setInventory({ status: "not_configured", data: null });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load this category.");
     } finally {
@@ -57,32 +98,71 @@ export default function CategoryScreen() {
     }
   }, [kind]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const title = category?.label || "SafariPlug";
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <Stack.Screen options={{ title }} />
-      {loading ? <LoadingBlock /> : error ? <ErrorBlock message={error} onRetry={() => void load()} /> : kind === "events" ? (
+      {loading ? (
+        <LoadingBlock />
+      ) : error ? (
+        <ErrorBlock message={error} onRetry={() => void load()} />
+      ) : kind === "events" ? (
         <FlatList
           data={events}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <EventCard event={item} onPress={() => router.push({ pathname: "/event/[id]", params: { id: item.id, ...(tripId ? { tripId } : {}) } })} />
+            <EventCard
+              event={item}
+              onPress={() =>
+                router.push({
+                  pathname: "/event/[id]",
+                  params: { id: item.id, ...(tripId ? { tripId } : {}) },
+                })
+              }
+            />
           )}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<ComingSoonCard title="No approved events just now" body="The events API returned an empty catalog for this filter." />}
+          ListEmptyComponent={
+            <ComingSoonCard
+              title="No approved events just now"
+              body="The events API returned an empty catalog for this filter."
+            />
+          }
         />
       ) : kind === "experiences" || kind === "safaris" ? (
         <ScrollView contentContainerStyle={styles.page}>
           <Text style={styles.blurb}>{category?.blurb}</Text>
-          {collections.length ? collections.map((collection) => <View key={collection.slug} style={{ marginBottom: 12 }}><ExperienceCard collection={collection} /></View>) : <ComingSoonCard title="More experiences are coming to SafariPlug" body="The experiences API has no collections to show yet." />}
+          {collections.length ? (
+            collections.map((collection) => (
+              <View key={collection.slug} style={{ marginBottom: 12 }}>
+                <ExperienceCard collection={collection} />
+              </View>
+            ))
+          ) : (
+            <ComingSoonCard
+              title="More experiences are coming to SafariPlug"
+              body="The experiences API has no collections to show yet."
+            />
+          )}
         </ScrollView>
       ) : inventory?.status === "available" && Array.isArray(inventory.data) ? (
-        <ScrollView contentContainerStyle={styles.page}><Text style={styles.blurb}>{category?.blurb}</Text><Text style={styles.meta}>{inventory.data.length} live listings</Text></ScrollView>
+        <ScrollView contentContainerStyle={styles.page}>
+          <Text style={styles.blurb}>{category?.blurb}</Text>
+          <Text style={styles.meta}>{inventory.data.length} live listings</Text>
+        </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.page}><Text style={styles.blurb}>{category?.blurb}</Text><ComingSoonCard title={comingCopy(kind || "", inventory || undefined).title} body={comingCopy(kind || "", inventory || undefined).body} /></ScrollView>
+        <ScrollView contentContainerStyle={styles.page}>
+          <Text style={styles.blurb}>{category?.blurb}</Text>
+          <ComingSoonCard
+            title={comingCopy(kind || "", inventory || undefined).title}
+            body={comingCopy(kind || "", inventory || undefined).body}
+          />
+        </ScrollView>
       )}
     </SafeAreaView>
   );
