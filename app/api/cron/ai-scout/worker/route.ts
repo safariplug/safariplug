@@ -44,6 +44,25 @@ async function finishJob(
   await supabaseAdmin.from("ai_scout_runs").update(update).eq("id", job.id);
 }
 
+function parseClaimedJob(data: unknown): QueuedScoutJob | null {
+  const candidate = Array.isArray(data) ? data[0] : data;
+
+  if (!candidate || typeof candidate !== "object") return null;
+
+  const row = candidate as Partial<QueuedScoutJob>;
+  if (
+    typeof row.id !== "string" ||
+    typeof row.location !== "string" ||
+    typeof row.category !== "string" ||
+    typeof row.attempt_count !== "number" ||
+    typeof row.max_attempts !== "number"
+  ) {
+    return null;
+  }
+
+  return row as QueuedScoutJob;
+}
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const authorization = request.headers.get("authorization");
@@ -66,7 +85,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Could not claim AI Scout job." }, { status: 500 });
   }
 
-  const job = (Array.isArray(data) ? data[0] : null) as QueuedScoutJob | null;
+  const job = parseClaimedJob(data);
   if (!job) {
     return NextResponse.json({
       success: true,
