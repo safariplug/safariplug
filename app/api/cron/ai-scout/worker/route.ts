@@ -309,6 +309,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const { data: transientRecovered, error: transientRecoveryError } = await supabaseAdmin.rpc("requeue_transient_ai_scout_failures");
+    if (transientRecoveryError) console.error("SCOUT TRANSIENT RECOVERY ERROR:", transientRecoveryError);
+
     const { data: recovered, error: recoveryError } = await supabaseAdmin.rpc("requeue_stale_ai_scout_jobs", {
       p_stale_minutes: 5,
     });
@@ -319,6 +322,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      transient_recovered: Number(transientRecovered || 0),
       recovered: Number(recovered || 0),
       polled_jobs: pool.polled,
       finalized_job: pool.finalized,
