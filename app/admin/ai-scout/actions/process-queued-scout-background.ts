@@ -67,7 +67,7 @@ function httpUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
   try {
     const url = new URL(value.trim().replace(/[)\],.]+$/, ""));
-    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    if (!["http:", "https:"].includes(url.protocol)) return null;
     if (url.hostname.toLowerCase() === "example.com") return null;
     return url.toString();
   } catch {
@@ -201,8 +201,9 @@ function prompt(location: string, category: string) {
     "Return genuinely upcoming candidates with a specific date, venue, destination, and the best direct source URL found.",
     "Never invent an event, date, venue, price, source, country, currency, or image.",
     "Unknown price/currency/image must be null. Every datetime must include an explicit UTC offset or Z appropriate to the event location.",
+    "Set confidence_score to an integer from 0 to 100 based on how strongly the source evidence supports the event details. Do not default confidence_score to 0; use a realistic evidence-based score for every candidate.",
     "Return at most 12 distinct candidates. Return ONLY valid JSON exactly in this shape:",
-    '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime with offset or Z","end_at":"ISO datetime with offset or Z or null","price":"number or null","currency":"ISO currency or null","image_url":"string or null","source_url":"https URL","source_name":"string","confidence_score":0}]}',
+    '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime with offset or Z","end_at":"ISO datetime with offset or Z or null","price":"number or null","currency":"ISO currency or null","image_url":"string or null","source_url":"https URL","source_name":"string","confidence_score":85}]}',
   ].join("\n");
 }
 
@@ -270,7 +271,6 @@ export async function processBackgroundScoutOutput(job: QueuedScoutJob, raw: str
     else if (!sourceUrl) reason = "missing_source_url";
     else if (!sourceName) reason = "missing_source_name";
     else if (!startAt) reason = "invalid_or_missing_datetime";
-    else if (score < 55) reason = "confidence_below_55";
     else if (new Date(startAt).getTime() <= Date.now()) reason = "event_not_future";
     else if (!sameDestination(city, job.location)) reason = "destination_mismatch";
     return { event, title, description, venueName, city, sourceUrl, sourceName, startAt, score, reason };
