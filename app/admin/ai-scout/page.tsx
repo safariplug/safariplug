@@ -1,5 +1,6 @@
 import Link from "next/link";
 import ScoutButton from "./ScoutButton";
+import ScoutAutoRefresh from "./ScoutAutoRefresh";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +61,23 @@ function stageDetail(job: ScoutQueueJob) {
   return job.notes || null;
 }
 
+function elapsedLabel(job: ScoutQueueJob) {
+  const startValue = job.started_at || job.queued_at;
+  if (!startValue) return null;
+
+  const endValue = job.completed_at || new Date().toISOString();
+  const start = new Date(startValue).getTime();
+  const end = new Date(endValue).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+
+  const totalSeconds = Math.floor((end - start) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
 function sourceEvidenceLabel(sourceType: string | null) {
   if (!sourceType) return "Legacy discovery";
   if (sourceType.startsWith("social_instagram_")) return "Public Instagram";
@@ -101,6 +119,9 @@ export default async function AIScoutPage() {
     .order("created_at", { ascending: false })
     .limit(10);
 
+  const queueJobs = (queue || []) as ScoutQueueJob[];
+  const hasActiveMission = queueJobs.some((job) => job.status === "queued" || job.status === "running");
+
   return (
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="mx-auto max-w-6xl">
@@ -139,15 +160,17 @@ export default async function AIScoutPage() {
                 <h2 className="text-xl font-semibold">Scout Queue</h2>
                 <p className="mt-1 text-sm text-gray-600">Queued → Searching with AI → Verifying Sources → Completed/Failed. Stalled jobs retry automatically up to three attempts.</p>
               </div>
+              <ScoutAutoRefresh active={hasActiveMission} />
             </div>
 
             <div className="mt-5 space-y-3">
-              {!queue?.length ? (
+              {!queueJobs.length ? (
                 <p className="text-sm text-gray-500">No queued Scout missions yet.</p>
               ) : (
-                (queue as ScoutQueueJob[]).map((job) => {
+                queueJobs.map((job) => {
                   const detail = stageDetail(job);
                   const showError = job.status === "failed" && job.last_error;
+                  const elapsed = elapsedLabel(job);
 
                   return (
                     <div key={job.id} className="rounded-xl border p-4">
@@ -162,6 +185,11 @@ export default async function AIScoutPage() {
                       </div>
 
                       {detail ? <p className="mt-2 text-sm text-gray-600">{detail}</p> : null}
+                      {elapsed ? (
+                        <p className="mt-1 text-xs text-gray-500">
+                          {job.status === "completed" ? "Completed in" : job.status === "failed" ? "Stopped after" : "Elapsed"}: {elapsed}
+                        </p>
+                      ) : null}
                       {showError ? <p className="mt-2 text-sm text-red-600">{job.last_error}</p> : null}
 
                       {job.status === "completed" ? (
