@@ -12,12 +12,20 @@ export const dynamic = "force-dynamic";
 
 const ROTATION = [
   { location: "Nairobi", category: "Music & Nightlife" },
-  { location: "Mombasa", category: "Music & Nightlife" },
+  { location: "Mombasa", category: "Food & Drink" },
   { location: "Kampala", category: "Music & Nightlife" },
   { location: "Dar es Salaam", category: "Music & Nightlife" },
-  { location: "Nairobi", category: "Food & Drink" },
-  { location: "Mombasa", category: "Culture & Arts" },
-  { location: "Nairobi", category: "Events & Experiences" },
+  { location: "Zanzibar", category: "Food & Drink" },
+  { location: "Kigali", category: "Culture & Arts" },
+  { location: "Accra", category: "Music & Nightlife" },
+  { location: "Lagos", category: "Music & Nightlife" },
+  { location: "Cape Town", category: "Food & Drink" },
+  { location: "Johannesburg", category: "Music & Nightlife" },
+  { location: "Addis Ababa", category: "Culture & Arts" },
+  { location: "Marrakech", category: "Culture & Arts" },
+  { location: "Cairo", category: "Culture & Arts" },
+  { location: "Diani", category: "Adventure" },
+  { location: "Nairobi", category: "Festivals" },
 ] as const;
 
 const SCHEDULED_DAY_SLOTS: Record<number, number> = {
