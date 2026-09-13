@@ -6,10 +6,11 @@ on:
       - main
     paths:
       - ".github/workflows/ai-scout-worker.yml"
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
+# Production polling is owned by Supabase pg_cron every minute. This workflow
+# remains available only for explicit/manual recovery so two schedulers do not
+# race the same Scout jobs.
 concurrency:
   group: safariplug-ai-scout-worker
   cancel-in-progress: false
@@ -19,13 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Process next queued AI Scout mission
+      - name: Process AI Scout worker pool
         env:
           SAFARIPLUG_CRON_SECRET: ${{ secrets.SAFARIPLUG_CRON_SECRET }}
         run: |
           set -euo pipefail
           test -n "$SAFARIPLUG_CRON_SECRET"
           curl --fail-with-body --silent --show-error \
-            --max-time 840 \
+            --max-time 60 \
             -H "Authorization: Bearer ${SAFARIPLUG_CRON_SECRET}" \
             "https://safariplug.com/api/cron/ai-scout/worker"
