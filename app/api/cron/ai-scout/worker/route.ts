@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 45;
 
 const MAX_CONCURRENT_SCOUTS = 3;
+const POLL_LEASE_SECONDS = 50;
 
 type RunningScoutJob = QueuedScoutJob & {
   provider_response_id: string;
@@ -20,21 +21,11 @@ type RunningScoutJob = QueuedScoutJob & {
   worker_stage: string | null;
 };
 
-type PollResult = {
-  success: boolean;
-  pending: boolean;
-  job_id: string;
-  location: string;
-  category: string;
-  provider_status?: string | null;
-  retrying?: boolean;
-  error?: string;
-  events_found?: number;
-  candidates?: number;
-  verification_tiers?: Record<string, number>;
-  blocked_reasons?: Record<string, number>;
-  duration_seconds?: number;
-  message: string;
+type ProviderSnapshot = {
+  job: RunningScoutJob;
+  status: string;
+  outputText: string;
+  error: string | null;
 };
 
 function compactCounts(values: Record<string, number>) {
@@ -72,6 +63,7 @@ async function finishJob(job: QueuedScoutJob, result?: BackgroundScoutResult, er
         sent_for_review: result.inserted,
         completed_at: new Date().toISOString(),
         claimed_at: null,
+        poll_lease_until: null,
         last_error: null,
         notes: [
           `Background worker completed finalization in ${Math.round(result.durationMs / 1000)}s.`,
@@ -93,6 +85,7 @@ async function finishJob(job: QueuedScoutJob, result?: BackgroundScoutResult, er
       provider_response_id: null,
       provider_status: null,
       claimed_at: null,
+      poll_lease_until: null,
       started_at: retry ? null : undefined,
       completed_at: retry ? null : new Date().toISOString(),
       queued_at: retry ? new Date().toISOString() : undefined,
@@ -118,17 +111,18 @@ function parseClaimedJob(data: unknown): QueuedScoutJob | null {
   return row as QueuedScoutJob;
 }
 
-async function getRunningBackgroundJobs(): Promise<RunningScoutJob[]> {
-  const { data, error } = await supabaseAdmin
-    .from("ai_scout_runs")
-    .select("id,location,category,attempt_count,max_attempts,provider_response_id,provider_status,worker_stage")
-    .eq("status", "running")
-    .not("queued_at", "is", null)
-    .not("provider_response_id", "is", null)
-    .order("claimed_at", { ascending: true })
-    .limit(MAX_CONCURRENT_SCOUTS);
-  if (error) throw error;
-  return (data || []) as RunningScoutJob[];
+function parseLeasedJobs(data: unknown): RunningScoutJob[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter((row): row is RunningScoutJob => Boolean(
+    row &&
+    typeof row === "object" &&
+    typeof row.id === "string" &&
+    typeof row.location === "string" &&
+    typeof row.category === "string" &&
+    typeof row.attempt_count === "number" &&
+    typeof row.max_attempts === "number" &&
+    typeof row.provider_response_id === "string"
+  ));
 }
 
 async function runningCount() {
@@ -141,83 +135,105 @@ async function runningCount() {
   return count || 0;
 }
 
-async function pollRunningJob(job: RunningScoutJob): Promise<PollResult> {
-  const provider = await pollBackgroundScout(job.provider_response_id);
+async function leaseRunningJobs() {
+  const { data, error } = await supabaseAdmin.rpc("lease_ai_scout_running_jobs", {
+    p_limit: MAX_CONCURRENT_SCOUTS,
+    p_lease_seconds: POLL_LEASE_SECONDS,
+  });
+  if (error) throw error;
+  return parseLeasedJobs(data);
+}
 
-  if (provider.status === "queued" || provider.status === "in_progress") {
-    await supabaseAdmin
-      .from("ai_scout_runs")
-      .update({
-        provider_status: provider.status,
-        worker_stage: "awaiting_openai",
-        notes: `OpenAI background discovery is ${provider.status}; worker will poll again.`,
-      })
-      .eq("id", job.id);
-
+async function snapshotProvider(job: RunningScoutJob): Promise<ProviderSnapshot> {
+  try {
+    const provider = await pollBackgroundScout(job.provider_response_id);
     return {
-      success: true,
-      pending: true,
-      job_id: job.id,
-      location: job.location,
-      category: job.category,
-      provider_status: provider.status,
-      message: "AI Scout background discovery is still processing.",
+      job,
+      status: provider.status,
+      outputText: provider.outputText,
+      error: provider.error,
+    };
+  } catch (error) {
+    return {
+      job,
+      status: "poll_error",
+      outputText: "",
+      error: error instanceof Error ? error.message : "Could not poll OpenAI background response",
     };
   }
+}
 
-  if (provider.status !== "completed") {
-    const message = provider.error || `OpenAI background response ended with status ${provider.status}`;
-    await finishJob(job, undefined, message);
-    return {
-      success: false,
-      pending: false,
-      job_id: job.id,
-      location: job.location,
-      category: job.category,
-      retrying: job.attempt_count < job.max_attempts,
-      error: message,
-      message,
-    };
-  }
-
-  if (!provider.outputText) {
-    const message = "AI Scout background response completed without output text";
-    await finishJob(job, undefined, message);
-    return {
-      success: false,
-      pending: false,
-      job_id: job.id,
-      location: job.location,
-      category: job.category,
-      error: message,
-      message,
-    };
-  }
-
+async function releaseLease(jobId: string, updates: Record<string, unknown> = {}) {
   await supabaseAdmin
     .from("ai_scout_runs")
-    .update({ worker_stage: "finalizing", provider_status: "completed" })
-    .eq("id", job.id);
+    .update({ ...updates, poll_lease_until: null })
+    .eq("id", jobId);
+}
 
-  const result = await processBackgroundScoutOutput(job, provider.outputText);
-  await finishJob(job, result);
+async function pollActivePool() {
+  const leasedJobs = await leaseRunningJobs();
+  if (!leasedJobs.length) return { polled: 0, finalized: null as string | null, pending: 0, failed: 0 };
+
+  const snapshots = await Promise.all(leasedJobs.map(snapshotProvider));
+  const completed: ProviderSnapshot[] = [];
+  let pending = 0;
+  let failed = 0;
+
+  for (const snapshot of snapshots) {
+    const { job, status } = snapshot;
+
+    if (status === "queued" || status === "in_progress") {
+      pending++;
+      await releaseLease(job.id, {
+        provider_status: status,
+        worker_stage: "awaiting_openai",
+        notes: `OpenAI background discovery is ${status}; worker will poll again.`,
+      });
+      continue;
+    }
+
+    if (status === "completed" && snapshot.outputText) {
+      completed.push(snapshot);
+      await releaseLease(job.id, {
+        provider_status: "completed",
+        worker_stage: "finalizing",
+        notes: "OpenAI discovery completed; SafariPlug is verifying sources.",
+      });
+      continue;
+    }
+
+    failed++;
+    const message = snapshot.error || (
+      status === "completed"
+        ? "AI Scout background response completed without output text"
+        : `OpenAI background response ended with status ${status}`
+    );
+    await finishJob(job, undefined, message);
+  }
+
+  // Finalize at most one completed response per request. This keeps the worker
+  // comfortably inside the gateway timeout while every active provider job is
+  // still polled fairly on each tick.
+  const nextCompleted = completed[0];
+  if (nextCompleted) {
+    try {
+      const result = await processBackgroundScoutOutput(nextCompleted.job, nextCompleted.outputText);
+      await finishJob(nextCompleted.job, result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not finalize AI Scout output";
+      await finishJob(nextCompleted.job, undefined, message);
+    }
+  }
 
   return {
-    success: true,
-    pending: false,
-    job_id: job.id,
-    location: job.location,
-    category: job.category,
-    events_found: result.inserted,
-    candidates: result.candidates,
-    verification_tiers: result.verificationTiers,
-    blocked_reasons: result.blockedReasons,
-    duration_seconds: Math.round(result.durationMs / 1000),
-    message: "AI Scout background mission completed.",
+    polled: snapshots.length,
+    finalized: nextCompleted?.job.id || null,
+    pending,
+    failed,
   };
 }
 
-async function claimAndStartNext(recovered: number) {
+async function claimAndStartOne() {
   const { data, error: claimError } = await supabaseAdmin.rpc("claim_next_ai_scout_job");
   if (claimError) throw claimError;
 
@@ -232,32 +248,37 @@ async function claimAndStartNext(recovered: number) {
         provider_response_id: provider.id,
         provider_status: provider.status,
         worker_stage: "awaiting_openai",
+        poll_lease_until: null,
         notes: `OpenAI background discovery started (${provider.status}).`,
       })
       .eq("id", job.id);
 
     return {
-      success: true,
-      pending: true,
       job_id: job.id,
       location: job.location,
       category: job.category,
       attempt: job.attempt_count,
       provider_status: provider.status,
-      recovered,
-      message: "AI Scout background discovery started; concurrent worker slot assigned.",
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not start AI Scout background response";
     await finishJob(job, undefined, message);
-    return {
-      success: false,
-      pending: false,
-      job_id: job.id,
-      retrying: job.attempt_count < job.max_attempts,
-      error: message,
-    };
+    return null;
   }
+}
+
+async function fillOpenSlots() {
+  const started: Array<{ job_id: string; location: string; category: string; attempt: number; provider_status: string }> = [];
+  let active = await runningCount();
+
+  while (active < MAX_CONCURRENT_SCOUTS) {
+    const next = await claimAndStartOne();
+    if (!next) break;
+    started.push(next);
+    active++;
+  }
+
+  return { active, started };
 }
 
 export async function GET(request: NextRequest) {
@@ -266,45 +287,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const runningJobs = await getRunningBackgroundJobs();
-    let polled: PollResult | null = null;
-
-    if (runningJobs.length) {
-      polled = await pollRunningJob(runningJobs[0]);
-    }
-
-    const { data: recovered, error: recoveryError } = await supabaseAdmin.rpc("requeue_stale_ai_scout_jobs", { p_stale_minutes: 2 });
+    const { data: recovered, error: recoveryError } = await supabaseAdmin.rpc("requeue_stale_ai_scout_jobs", {
+      p_stale_minutes: 5,
+    });
     if (recoveryError) console.error("SCOUT QUEUE RECOVERY ERROR:", recoveryError);
 
-    const active = await runningCount();
-    if (active < MAX_CONCURRENT_SCOUTS) {
-      const started = await claimAndStartNext(Number(recovered || 0));
-      if (started) {
-        return NextResponse.json({
-          ...started,
-          concurrent_active: Math.min(MAX_CONCURRENT_SCOUTS, active + 1),
-          max_concurrent: MAX_CONCURRENT_SCOUTS,
-          polled_job: polled?.job_id || null,
-        }, { status: started.success ? 202 : 500 });
-      }
-    }
-
-    if (polled) {
-      return NextResponse.json({
-        ...polled,
-        concurrent_active: active,
-        max_concurrent: MAX_CONCURRENT_SCOUTS,
-      }, { status: polled.success ? (polled.pending ? 202 : 200) : 500 });
-    }
+    const pool = await pollActivePool();
+    const slots = await fillOpenSlots();
 
     return NextResponse.json({
       success: true,
-      idle: true,
       recovered: Number(recovered || 0),
-      concurrent_active: active,
+      polled_jobs: pool.polled,
+      finalized_job: pool.finalized,
+      pending_provider_jobs: pool.pending,
+      failed_provider_jobs: pool.failed,
+      started_jobs: slots.started,
+      concurrent_active: slots.active,
       max_concurrent: MAX_CONCURRENT_SCOUTS,
-      message: "No queued AI Scout mission is ready.",
-    });
+      idle: slots.active === 0,
+      message: slots.active
+        ? "AI Scout worker pool processed successfully."
+        : "No queued or running AI Scout missions are ready.",
+    }, { status: slots.active ? 202 : 200 });
   } catch (error) {
     console.error("AI SCOUT STAGED WORKER ERROR:", error);
     return NextResponse.json({
