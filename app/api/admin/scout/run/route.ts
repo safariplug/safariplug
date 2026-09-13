@@ -20,6 +20,20 @@ async function findActiveMission(location: string, category: string) {
   return data;
 }
 
+async function wakeScoutWorker() {
+  try {
+    const { data, error } = await supabaseAdmin.rpc("invoke_ai_scout_worker");
+    if (error) {
+      console.error("SCOUT IMMEDIATE WAKE ERROR:", error);
+      return { requested: false, requestId: null as number | null };
+    }
+    return { requested: true, requestId: Number(data) || null };
+  } catch (error) {
+    console.error("SCOUT IMMEDIATE WAKE EXCEPTION:", error);
+    return { requested: false, requestId: null as number | null };
+  }
+}
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -56,6 +70,7 @@ export async function POST(request: Request) {
 
   const active = await findActiveMission(location, category);
   if (active) {
+    const wake = active.status === "queued" ? await wakeScoutWorker() : { requested: false, requestId: null };
     return NextResponse.json(
       {
         accepted: true,
@@ -67,6 +82,7 @@ export async function POST(request: Request) {
         status: active.status,
         worker_stage: active.worker_stage,
         provider_status: active.provider_status,
+        worker_wake_requested: wake.requested,
         message: `An active Scout mission already exists for ${active.location} / ${active.category}.`,
       },
       { status: 200 }
@@ -93,6 +109,7 @@ export async function POST(request: Request) {
     if (queueError?.code === "23505") {
       const duplicate = await findActiveMission(location, category);
       if (duplicate) {
+        const wake = duplicate.status === "queued" ? await wakeScoutWorker() : { requested: false, requestId: null };
         return NextResponse.json(
           {
             accepted: true,
@@ -103,6 +120,7 @@ export async function POST(request: Request) {
             status: duplicate.status,
             worker_stage: duplicate.worker_stage,
             provider_status: duplicate.provider_status,
+            worker_wake_requested: wake.requested,
             message: `An active Scout mission already exists for ${duplicate.location} / ${duplicate.category}.`,
           },
           { status: 200 }
@@ -113,6 +131,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not queue AI Scout mission." }, { status: 500 });
   }
 
+  const wake = await wakeScoutWorker();
+
   return NextResponse.json(
     {
       accepted: true,
@@ -122,7 +142,10 @@ export async function POST(request: Request) {
       location: job.location,
       category: job.category,
       status: job.status,
-      message: `AI Scout mission queued for ${job.location} / ${job.category}.`,
+      worker_wake_requested: wake.requested,
+      message: wake.requested
+        ? `AI Scout mission queued for ${job.location} / ${job.category}; worker wake requested immediately.`
+        : `AI Scout mission queued for ${job.location} / ${job.category}; cron will pick it up on the next worker tick.`,
     },
     { status: 202 }
   );
