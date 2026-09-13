@@ -162,6 +162,73 @@ function sameDestination(candidateCity: string, requestedLocation: string) {
   return Boolean(city && requested && (city === requested || city.includes(requested) || requested.includes(city)));
 }
 
+function htmlEntityDecode(value: string) {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function extractMetaContent(html: string, keys: string[]) {
+  for (const key of keys) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patterns = [
+      new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>`, "i"),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["'][^>]*>`, "i"),
+    ];
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match?.[1]) return htmlEntityDecode(match[1].trim());
+    }
+  }
+  return null;
+}
+
+function absoluteImageUrl(value: string | null, sourceUrl: string) {
+  if (!value) return null;
+  try {
+    const url = new URL(value, sourceUrl);
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function recoverSourceImage(sourceUrl: string, existingImage: string | null) {
+  const direct = httpUrl(existingImage);
+  if (direct) return direct;
+
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 SafariPlug Scout", Accept: "text/html,application/xhtml+xml" },
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    const metaImage = extractMetaContent(html, [
+      "og:image:secure_url",
+      "og:image",
+      "twitter:image:src",
+      "twitter:image",
+    ]);
+    const resolvedMeta = absoluteImageUrl(metaImage, response.url || sourceUrl);
+    if (resolvedMeta) return resolvedMeta;
+
+    const imageSrc = html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["'][^>]*>/i)?.[1]
+      || html.match(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["']image_src["'][^>]*>/i)?.[1]
+      || null;
+    return absoluteImageUrl(imageSrc, response.url || sourceUrl);
+  } catch {
+    return null;
+  }
+}
+
 async function verifySource(event: Candidate): Promise<VerificationResult> {
   const sourceUrl = httpUrl(event.source_url);
   const startAt = isoDate(event.start_at);
@@ -235,6 +302,7 @@ function prompt(location: string, category: string) {
     "For Music & Nightlife include concerts, DJ nights, live music, Afrobeat, Amapiano, reggae, R&B, rooftop events, parties, beach events, clubs, lounges, hotels, and recurring venue programming when the next occurrence is verifiable.",
     "Return genuinely upcoming candidates with a specific date, venue, destination, and the best direct source URL found.",
     "Where a social source reveals an event also listed on an official/ticketing page, prefer the stronger official/ticketing URL as source_url. Otherwise keep the public social URL so SafariPlug can send it for human review.",
+    "When an official event poster, ticketing artwork, or public social event image is directly available, include that exact image URL in image_url. Do not use generic stock photography as image_url.",
     "Never invent an event, date, venue, price, source, country, currency, image, social handle, or social post.",
     "Unknown price/currency/image must be null. Every datetime must include an explicit UTC offset or Z appropriate to the event location.",
     "Set confidence_score to an integer from 0 to 100 based on the evidence you found, but SafariPlug will independently recalculate final confidence after verification.",
@@ -333,6 +401,9 @@ export async function processBackgroundScoutOutput(job: QueuedScoutJob, raw: str
     const social = publicSocialPlatform(item.sourceUrl!);
     const finalConfidence = safariPlugConfidence(verification, item.score);
     const sourceType = social ? `social_${social}_${verification.tier}` : verification.tier;
+    const recoveredImage = await recoverSourceImage(item.sourceUrl!, item.event.image_url);
+    const imageNote = recoveredImage ? "Official/source image recovered." : "No official/source image recovered; SafariPlug category fallback will be used.";
+
     const { error } = await supabaseAdmin.from("ai_discovered_events").insert({
       title: item.title,
       description: item.description,
@@ -344,13 +415,13 @@ export async function processBackgroundScoutOutput(job: QueuedScoutJob, raw: str
       end_at: isoDate(item.event.end_at),
       price: amount,
       currency,
-      image_url: httpUrl(item.event.image_url),
+      image_url: recoveredImage,
       source_url: item.sourceUrl,
       source_name: item.sourceName,
       confidence_score: finalConfidence,
       status: "pending_review",
       review_status: "pending_review",
-      review_notes: `AI Scout verification: ${verification.tier}. Evidence: ${verification.reason}. Source channel: ${social ? `public ${social}` : "web"}. SafariPlug confidence: ${finalConfidence}%. Requested destination: ${job.location}.`,
+      review_notes: `AI Scout verification: ${verification.tier}. Evidence: ${verification.reason}. Source channel: ${social ? `public ${social}` : "web"}. SafariPlug confidence: ${finalConfidence}%. ${imageNote} Requested destination: ${job.location}.`,
       source_type: sourceType,
     });
     if (error) { blocked++; countReason(`insert_error_${error.code || "unknown"}`); continue; }
