@@ -6,9 +6,27 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+type ScoutResult = {
+  inserted: number;
+  candidates: number;
+  blocked: number;
+  duplicates: number;
+  sourceBlocked: number;
+  verificationTiers: Record<string, number>;
+  blockedReasons: Record<string, number>;
+  durationMs: number;
+};
+
+function compactCounts(values: Record<string, number>) {
+  return Object.entries(values)
+    .filter(([, count]) => count > 0)
+    .map(([key, count]) => `${key}:${count}`)
+    .join(", ") || "none";
+}
+
 async function finishJob(
   job: QueuedScoutJob,
-  result?: { inserted: number; candidates: number; blocked: number; duplicates: number; sourceBlocked: number; durationMs: number },
+  result?: ScoutResult,
   errorMessage?: string,
 ) {
   if (result) {
@@ -22,7 +40,12 @@ async function finishJob(
         completed_at: new Date().toISOString(),
         claimed_at: null,
         last_error: null,
-        notes: `Worker completed in ${Math.round(result.durationMs / 1000)}s. Candidates ${result.candidates}; blocked ${result.blocked}; source verification blocked ${result.sourceBlocked}; duplicates ${result.duplicates}; inserted ${result.inserted}.`,
+        notes: [
+          `Worker completed in ${Math.round(result.durationMs / 1000)}s.`,
+          `Candidates ${result.candidates}; inserted ${result.inserted}; blocked ${result.blocked}; source rejected ${result.sourceBlocked}; duplicates ${result.duplicates}.`,
+          `Verification tiers: ${compactCounts(result.verificationTiers)}.`,
+          `Candidate outcomes: ${compactCounts(result.blockedReasons)}.`,
+        ].join(" "),
       })
       .eq("id", job.id);
     return;
@@ -108,6 +131,8 @@ export async function GET(request: NextRequest) {
       attempt: job.attempt_count,
       events_found: result.inserted,
       candidates: result.candidates,
+      verification_tiers: result.verificationTiers,
+      blocked_reasons: result.blockedReasons,
       duration_seconds: Math.round(result.durationMs / 1000),
       recovered: Number(recovered || 0),
       message: "AI Scout queued mission completed.",
