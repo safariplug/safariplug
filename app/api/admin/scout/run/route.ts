@@ -17,16 +17,21 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase.auth.getClaims();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    if (!data?.claims) {
+    if (userError || !user) {
       return NextResponse.json(
         { error: "Authentication required." },
         { status: 401 }
       );
     }
 
-    if (data.claims.app_metadata?.role !== "admin") {
+    const { data: isAdmin, error: adminError } = await supabase.rpc("is_admin");
+
+    if (adminError || isAdmin !== true) {
       return NextResponse.json(
         { error: "Admin access required." },
         { status: 403 }
