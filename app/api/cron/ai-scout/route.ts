@@ -1,9 +1,14 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runAIScout } from "@/app/admin/ai-scout/actions/run-scout";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  acquireScoutLease,
+  hasActiveScoutRun,
+  releaseScoutLease,
+} from "@/lib/ai-scout-health";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 const ROTATION = [
   { location: "Nairobi", category: "Music & Nightlife" },
@@ -16,9 +21,9 @@ const ROTATION = [
 ] as const;
 
 const SCHEDULED_DAY_SLOTS: Record<number, number> = {
-  1: 0, // Monday
-  3: 1, // Wednesday
-  5: 2, // Friday
+  1: 0,
+  3: 1,
+  5: 2,
 };
 
 function getNairobiCalendarDate() {
@@ -44,17 +49,12 @@ function getTodayRotation() {
   const weekday = nairobiDate.getUTCDay();
   const scheduledSlot = SCHEDULED_DAY_SLOTS[weekday];
 
-  // The production scheduler runs Monday, Wednesday, and Friday. Advancing
-  // three positions per week means all seven location/category targets are
-  // covered over successive runs instead of permanently skipping entries.
   if (scheduledSlot !== undefined) {
     const weekIndex = Math.floor(daysSinceEpoch / 7);
     const rotationIndex = ((weekIndex * 3 + scheduledSlot) % ROTATION.length + ROTATION.length) % ROTATION.length;
     return ROTATION[rotationIndex];
   }
 
-  // Manual/diagnostic calls made on other days still receive a deterministic
-  // target without changing the scheduled three-times-weekly sequence.
   const fallbackIndex = ((daysSinceEpoch % ROTATION.length) + ROTATION.length) % ROTATION.length;
   return ROTATION[fallbackIndex];
 }
@@ -67,84 +67,52 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  const activeRun = await hasActiveScoutRun();
+  if (activeRun) {
+    return NextResponse.json(
+      {
+        accepted: false,
+        skipped: true,
+        run_id: activeRun.id,
+        message: `AI Scout is already running for ${activeRun.location} / ${activeRun.category}.`,
+      },
+      { status: 202 }
+    );
+  }
+
+  const leaseOwner = randomUUID();
+  const leaseAcquired = await acquireScoutLease(leaseOwner);
+  if (!leaseAcquired) {
+    return NextResponse.json(
+      { accepted: false, skipped: true, message: "Another AI Scout run acquired the lease first." },
+      { status: 202 }
+    );
+  }
+
   const { location, category } = getTodayRotation();
   const formData = new FormData();
   formData.append("location", location);
   formData.append("category", category);
 
-  try {
-    await runAIScout(formData);
+  void runAIScout(formData)
+    .catch((error: unknown) => {
+      console.error("AI SCOUT CRON BACKGROUND ERROR:", error);
+    })
+    .finally(async () => {
+      try {
+        await releaseScoutLease(leaseOwner);
+      } catch (error) {
+        console.error("AI SCOUT CRON LEASE RELEASE ERROR:", error);
+      }
+    });
 
-    // Verify the persisted result before reporting success. The cron endpoint
-    // must not return 200 merely because the server action returned normally.
-    const { data: latestRun, error: latestRunError } = await supabaseAdmin
-      .from("ai_scout_runs")
-      .select("id,status,events_found,created_at")
-      .eq("location", location)
-      .eq("category", category)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (latestRunError) {
-      console.error("AI SCOUT CRON RESULT CHECK ERROR:", latestRunError);
-      return NextResponse.json(
-        { success: false, location, category, error: "Scout ran, but its persisted result could not be verified." },
-        { status: 502 },
-      );
-    }
-
-    if (!latestRun) {
-      return NextResponse.json(
-        { success: false, location, category, error: "Scout ran, but no persisted run result was found." },
-        { status: 502 },
-      );
-    }
-
-    if (latestRun.status !== "completed") {
-      return NextResponse.json(
-        {
-          success: false,
-          location,
-          category,
-          run_id: latestRun.id,
-          error: `AI Scout did not complete successfully (status: ${latestRun.status}).`,
-        },
-        { status: 502 },
-      );
-    }
-
-    if (Number(latestRun.events_found || 0) === 0) {
-      await supabaseAdmin
-        .from("ai_scout_runs")
-        .update({ status: "failed" })
-        .eq("id", latestRun.id);
-
-      return NextResponse.json(
-        {
-          success: false,
-          location,
-          category,
-          run_id: latestRun.id,
-          error: "AI Scout completed without discoveries; the run was marked failed.",
-        },
-        { status: 502 },
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
+  return NextResponse.json(
+    {
+      accepted: true,
       location,
       category,
-      run_id: latestRun.id,
-      events_found: Number(latestRun.events_found || 0),
-      message: "AI Scout completed successfully.",
-    });
-  } catch (error) {
-    console.error("AI SCOUT CRON ERROR:", error);
-    return NextResponse.json(
-      { success: false, location, category, error: error instanceof Error ? error.message : "AI Scout failed" },
-      { status: 500 },
-    );
-  }
+      message: "Scheduled AI Scout mission started.",
+    },
+    { status: 202 }
+  );
 }
