@@ -45,7 +45,7 @@ export async function proxy(request: NextRequest) {
 
   // Keep the proxy in sync with the canonical server-side admin check.
   // Admin access is stored in public.admin_users and verified by the
-  // SECURITY DEFINER public.is_admin() RPC, not by JWT app_metadata.
+  // SECURITY INVOKER public.is_admin() RPC, not by JWT app_metadata.
   const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin');
 
   if (adminError || isAdmin !== true) {
