@@ -6,6 +6,20 @@ import { EVENT_CATEGORIES } from "@/lib/constants/events";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+async function findActiveMission(location: string, category: string) {
+  const { data } = await supabaseAdmin
+    .from("ai_scout_runs")
+    .select("id,location,category,status,queued_at,started_at,worker_stage,provider_status")
+    .in("status", ["queued", "running"])
+    .eq("category", category)
+    .ilike("location", location)
+    .not("queued_at", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -18,7 +32,6 @@ export async function POST(request: Request) {
   }
 
   const { data: isAdmin, error: adminError } = await supabase.rpc("is_admin");
-
   if (adminError || isAdmin !== true) {
     return NextResponse.json({ error: "Admin access required." }, { status: 403 });
   }
@@ -30,7 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const location = String(body.location ?? "").trim();
+  const location = String(body.location ?? "").trim().replace(/\s+/g, " ");
   const category = String(body.category ?? "").trim();
 
   if (!location) {
@@ -41,8 +54,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A valid Scout category is required." }, { status: 400 });
   }
 
-  // A mission is a durable queue record. Multiple destinations can be queued
-  // while another job is processing; workers claim them one at a time.
+  const active = await findActiveMission(location, category);
+  if (active) {
+    return NextResponse.json(
+      {
+        accepted: true,
+        queued: active.status === "queued",
+        existing: true,
+        run_id: active.id,
+        location: active.location,
+        category: active.category,
+        status: active.status,
+        worker_stage: active.worker_stage,
+        provider_status: active.provider_status,
+        message: `An active Scout mission already exists for ${active.location} / ${active.category}.`,
+      },
+      { status: 200 }
+    );
+  }
+
   const { data: job, error: queueError } = await supabaseAdmin
     .from("ai_scout_runs")
     .insert({
@@ -60,6 +90,25 @@ export async function POST(request: Request) {
     .single();
 
   if (queueError || !job) {
+    if (queueError?.code === "23505") {
+      const duplicate = await findActiveMission(location, category);
+      if (duplicate) {
+        return NextResponse.json(
+          {
+            accepted: true,
+            existing: true,
+            run_id: duplicate.id,
+            location: duplicate.location,
+            category: duplicate.category,
+            status: duplicate.status,
+            worker_stage: duplicate.worker_stage,
+            provider_status: duplicate.provider_status,
+            message: `An active Scout mission already exists for ${duplicate.location} / ${duplicate.category}.`,
+          },
+          { status: 200 }
+        );
+      }
+    }
     console.error("SCOUT QUEUE ERROR:", queueError);
     return NextResponse.json({ error: "Could not queue AI Scout mission." }, { status: 500 });
   }
@@ -68,6 +117,7 @@ export async function POST(request: Request) {
     {
       accepted: true,
       queued: true,
+      existing: false,
       run_id: job.id,
       location: job.location,
       category: job.category,
