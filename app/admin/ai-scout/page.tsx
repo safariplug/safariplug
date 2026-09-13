@@ -16,7 +16,9 @@ type ScoutQueueJob = {
   completed_at: string | null;
   attempt_count: number;
   max_attempts: number;
+  provider_failure_count: number | null;
   last_error: string | null;
+  last_provider_error: string | null;
   events_found: number | null;
   discoveries_found: number | null;
   sent_for_review: number | null;
@@ -25,9 +27,15 @@ type ScoutQueueJob = {
   notes: string | null;
 };
 
+function retryScheduled(job: ScoutQueueJob) {
+  if (job.status !== "queued" || !job.queued_at || !(job.provider_failure_count ?? 0)) return false;
+  return new Date(job.queued_at).getTime() > Date.now();
+}
+
 function stageLabel(job: ScoutQueueJob) {
   if (job.status === "completed") return "Completed";
   if (job.status === "failed") return "Failed";
+  if (retryScheduled(job)) return "Retry Scheduled";
   if (job.status === "queued") return "Queued";
   if (job.worker_stage === "awaiting_openai") {
     if (job.provider_status === "queued") return "AI Search Queued";
@@ -43,8 +51,16 @@ function stageDetail(job: ScoutQueueJob) {
     return `${job.discoveries_found ?? 0} candidates · ${job.sent_for_review ?? job.events_found ?? 0} sent for review`;
   }
 
+  if (retryScheduled(job)) {
+    const retryAt = new Date(job.queued_at!);
+    const retryText = Number.isNaN(retryAt.getTime()) ? "after provider backoff" : retryAt.toLocaleString("en-US", { timeZone: "UTC", timeZoneName: "short" });
+    return `OpenAI provider retry ${job.provider_failure_count ?? 0}/5 scheduled for ${retryText}. Scout attempt preserved.`;
+  }
+
   if (job.status === "queued") {
-    return "Waiting for the next worker slot.";
+    return (job.provider_failure_count ?? 0) > 0
+      ? `Provider retry ${job.provider_failure_count}/5 is ready and waiting for the next worker slot.`
+      : "Waiting for the next worker slot.";
   }
 
   if (job.worker_stage === "awaiting_openai") {
@@ -112,9 +128,9 @@ export default async function AIScoutPage() {
     .order("created_at", { ascending: false })
     .limit(10);
 
-  const { data: queue } = await supabaseAdmin
+  const { data: queue, error: queueError } = await supabaseAdmin
     .from("ai_scout_runs")
-    .select("id,location,category,status,queued_at,started_at,completed_at,attempt_count,max_attempts,last_error,events_found,discoveries_found,sent_for_review,worker_stage,provider_status,notes")
+    .select("id,location,category,status,queued_at,started_at,completed_at,attempt_count,max_attempts,provider_failure_count,last_error,last_provider_error,events_found,discoveries_found,sent_for_review,worker_stage,provider_status,notes")
     .not("queued_at", "is", null)
     .order("created_at", { ascending: false })
     .limit(10);
@@ -158,18 +174,23 @@ export default async function AIScoutPage() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">Scout Queue</h2>
-                <p className="mt-1 text-sm text-gray-600">Queued → Searching with AI → Verifying Sources → Completed/Failed. Stalled jobs retry automatically up to three attempts.</p>
+                <p className="mt-1 text-sm text-gray-600">Queued → Searching with AI → Verifying Sources → Completed/Failed. Transient provider failures retry with backoff while preserving Scout attempts.</p>
               </div>
               <ScoutAutoRefresh active={hasActiveMission} />
             </div>
 
             <div className="mt-5 space-y-3">
-              {!queueJobs.length ? (
-                <p className="text-sm text-gray-500">No queued Scout missions yet.</p>
+              {queueError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  Scout queue could not be loaded. Database response: {queueError.message}
+                </div>
+              ) : !queueJobs.length ? (
+                <p className="text-sm text-gray-500">No Scout mission history is available yet.</p>
               ) : (
                 queueJobs.map((job) => {
                   const detail = stageDetail(job);
                   const showError = job.status === "failed" && job.last_error;
+                  const showProviderError = (job.provider_failure_count ?? 0) > 0 && job.last_provider_error && job.status !== "failed";
                   const elapsed = elapsedLabel(job);
 
                   return (
@@ -190,6 +211,7 @@ export default async function AIScoutPage() {
                           {job.status === "completed" ? "Completed in" : job.status === "failed" ? "Stopped after" : "Elapsed"}: {elapsed}
                         </p>
                       ) : null}
+                      {showProviderError ? <p className="mt-2 text-xs text-amber-700">Last provider response: {job.last_provider_error}</p> : null}
                       {showError ? <p className="mt-2 text-sm text-red-600">{job.last_error}</p> : null}
 
                       {job.status === "completed" ? (
