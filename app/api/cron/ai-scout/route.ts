@@ -51,6 +51,19 @@ function getTodayRotation() {
   return ROTATION[((daysSinceEpoch % ROTATION.length) + ROTATION.length) % ROTATION.length];
 }
 
+async function findActive(location: string, category: string) {
+  const { data } = await supabaseAdmin
+    .from("ai_scout_runs")
+    .select("id,location,category,status,queued_at")
+    .in("status", ["queued", "running"])
+    .eq("category", category)
+    .ilike("location", location)
+    .not("queued_at", "is", null)
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const authorization = request.headers.get("authorization");
@@ -60,6 +73,19 @@ export async function GET(request: NextRequest) {
   }
 
   const { location, category } = getTodayRotation();
+  const existing = await findActive(location, category);
+  if (existing) {
+    return NextResponse.json({
+      accepted: true,
+      existing: true,
+      run_id: existing.id,
+      location: existing.location,
+      category: existing.category,
+      status: existing.status,
+      message: "Scheduled Scout mission already active; duplicate enqueue skipped.",
+    });
+  }
+
   const { data: job, error } = await supabaseAdmin
     .from("ai_scout_runs")
     .insert({
@@ -77,6 +103,20 @@ export async function GET(request: NextRequest) {
     .single();
 
   if (error || !job) {
+    if (error?.code === "23505") {
+      const duplicate = await findActive(location, category);
+      if (duplicate) {
+        return NextResponse.json({
+          accepted: true,
+          existing: true,
+          run_id: duplicate.id,
+          location: duplicate.location,
+          category: duplicate.category,
+          status: duplicate.status,
+          message: "Scheduled Scout mission already active; duplicate enqueue skipped.",
+        });
+      }
+    }
     console.error("AI SCOUT SCHEDULE QUEUE ERROR:", error);
     return NextResponse.json({ success: false, error: "Could not queue scheduled AI Scout mission." }, { status: 500 });
   }
@@ -85,6 +125,7 @@ export async function GET(request: NextRequest) {
     {
       accepted: true,
       queued: true,
+      existing: false,
       run_id: job.id,
       location: job.location,
       category: job.category,
