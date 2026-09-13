@@ -20,15 +20,17 @@ export default function ScoutControls() {
   const [location, setLocation] = useState("Nairobi");
   const [category, setCategory] = useState("Music & Nightlife");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
   async function runScout() {
     const destination = location.trim();
     if (!destination) return;
 
     setLoading(true);
+    setMessage("");
 
     try {
-      await fetch("/api/admin/scout/execute", {
+      const response = await fetch("/api/admin/scout/run", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -38,11 +40,30 @@ export default function ScoutControls() {
           category,
         }),
       });
+
+      const result = (await response.json().catch(() => ({}))) as {
+        accepted?: boolean;
+        error?: string;
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(result.error || `Scout request failed (${response.status})`);
+      }
+
+      setMessage(
+        result.message ||
+          (result.accepted
+            ? "Scout mission started. Findings will appear here when processing completes."
+            : "Scout mission accepted.")
+      );
+
+      window.setTimeout(() => window.location.reload(), 12000);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Scout request failed.");
     } finally {
       setLoading(false);
     }
-
-    window.location.reload();
   }
 
   return (
@@ -78,9 +99,10 @@ export default function ScoutControls() {
           disabled={loading || !location.trim()}
           className="rounded-xl bg-[#17231d] px-6 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Scanning..." : "Run Discovery Scan"}
+          {loading ? "Starting..." : "Run Scout Mission"}
         </button>
       </div>
+      {message ? <p className="text-sm font-medium text-slate-700">{message}</p> : null}
       <p className="text-sm text-slate-500">
         Search any destination. The suggestions above are featured locations, not a geographic restriction.
       </p>
