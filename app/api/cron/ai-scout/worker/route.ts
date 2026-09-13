@@ -12,7 +12,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
 
-const MAX_CONCURRENT_SCOUTS = 3;
+// Two simultaneous web-search jobs give useful throughput without needlessly
+// increasing the chance of hitting the account-wide OpenAI TPM ceiling.
+const MAX_CONCURRENT_SCOUTS = 2;
 const POLL_LEASE_SECONDS = 50;
 
 type RunningScoutJob = QueuedScoutJob & {
@@ -35,6 +37,18 @@ function compactCounts(values: Record<string, number>) {
     .join(", ") || "none";
 }
 
+function transientProviderError(message: string) {
+  const value = message.toLowerCase();
+  return value.includes("rate limit")
+    || value.includes("tokens per min")
+    || value.includes("tpm")
+    || value.includes("429")
+    || value.includes("temporarily unavailable")
+    || value.includes("server overloaded")
+    || value.includes("timeout")
+    || value.includes("timed out");
+}
+
 async function authorized(request: NextRequest) {
   const authorization = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
@@ -50,7 +64,12 @@ async function authorized(request: NextRequest) {
   return data === true;
 }
 
-async function finishJob(job: QueuedScoutJob, result?: BackgroundScoutResult, errorMessage?: string) {
+async function finishJob(
+  job: QueuedScoutJob,
+  result?: BackgroundScoutResult,
+  errorMessage?: string,
+  preserveAttempt = false,
+) {
   if (result) {
     await supabaseAdmin
       .from("ai_scout_runs")
@@ -76,7 +95,9 @@ async function finishJob(job: QueuedScoutJob, result?: BackgroundScoutResult, er
     return;
   }
 
-  const retry = job.attempt_count < job.max_attempts;
+  const effectiveAttempts = preserveAttempt ? Math.max(0, job.attempt_count - 1) : job.attempt_count;
+  const retry = preserveAttempt || effectiveAttempts < job.max_attempts;
+
   await supabaseAdmin
     .from("ai_scout_runs")
     .update({
@@ -86,12 +107,15 @@ async function finishJob(job: QueuedScoutJob, result?: BackgroundScoutResult, er
       provider_status: null,
       claimed_at: null,
       poll_lease_until: null,
+      attempt_count: preserveAttempt ? effectiveAttempts : job.attempt_count,
       started_at: retry ? null : undefined,
       completed_at: retry ? null : new Date().toISOString(),
       queued_at: retry ? new Date().toISOString() : undefined,
       last_error: errorMessage?.slice(0, 1000) || "AI Scout worker failed",
       notes: retry
-        ? `Background worker attempt ${job.attempt_count} failed; mission returned to queue for retry.`
+        ? preserveAttempt
+          ? "Transient provider capacity/rate-limit error; mission returned to queue without consuming a retry attempt."
+          : `Background worker attempt ${job.attempt_count} failed; mission returned to queue for retry.`
         : `Background worker attempt ${job.attempt_count} failed; retry limit exhausted.`,
     })
     .eq("id", job.id);
@@ -208,12 +232,9 @@ async function pollActivePool() {
         ? "AI Scout background response completed without output text"
         : `OpenAI background response ended with status ${status}`
     );
-    await finishJob(job, undefined, message);
+    await finishJob(job, undefined, message, transientProviderError(message));
   }
 
-  // Finalize at most one completed response per request. This keeps the worker
-  // comfortably inside the gateway timeout while every active provider job is
-  // still polled fairly on each tick.
   const nextCompleted = completed[0];
   if (nextCompleted) {
     try {
@@ -221,7 +242,7 @@ async function pollActivePool() {
       await finishJob(nextCompleted.job, result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not finalize AI Scout output";
-      await finishJob(nextCompleted.job, undefined, message);
+      await finishJob(nextCompleted.job, undefined, message, transientProviderError(message));
     }
   }
 
@@ -262,7 +283,7 @@ async function claimAndStartOne() {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not start AI Scout background response";
-    await finishJob(job, undefined, message);
+    await finishJob(job, undefined, message, transientProviderError(message));
     return null;
   }
 }
