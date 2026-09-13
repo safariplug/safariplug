@@ -6,7 +6,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 export async function POST(request: Request) {
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
-  if (!user || !user.email_confirmed_at) return NextResponse.json({ error: "authentication_required" }, { status: 401 });
+  if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) {
+    return NextResponse.json({ error: "authentication_required" }, { status: 401 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const tripId = typeof body.tripId === "string" ? body.tripId : "";

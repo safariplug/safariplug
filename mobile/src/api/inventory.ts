@@ -18,10 +18,11 @@ const NOT_CONFIGURED = new Set([
 
 export async function fetchInventory<T>(
   path: string,
-  params?: Record<string, string | number | boolean | undefined>
+  params?: Record<string, string | number | boolean | undefined>,
+  authenticated = false
 ): Promise<InventoryState<T>> {
   try {
-    const result = await apiGet<T>(path, params);
+    const result = await apiGet<T>(path, params, authenticated);
     const empty =
       result.data == null ||
       (Array.isArray(result.data) && result.data.length === 0);
@@ -69,11 +70,11 @@ export function fetchServices() {
 }
 
 export function fetchTrips() {
-  return fetchInventory<unknown[]>("/trips");
+  return fetchInventory<unknown[]>("/trips", undefined, true);
 }
 
 export function fetchBookings() {
-  return fetchInventory<unknown[]>("/bookings");
+  return fetchInventory<unknown[]>("/bookings", undefined, true);
 }
 
 export function fetchProviders() {

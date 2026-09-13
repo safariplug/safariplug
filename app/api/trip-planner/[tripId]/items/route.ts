@@ -41,10 +41,59 @@ export async function POST(request: Request, { params }: Params) {
   const eventId = typeof body.event_id === "string" ? body.event_id : null;
   const offeringId = typeof body.offering_id === "string" ? body.offering_id : null;
   const cityId = typeof body.city_id === "string" ? body.city_id : null;
+
+  let event: { id: string; title: string | null; city_id: string | null; start_at: string | null; end_at: string | null } | null = null;
+  if (eventId) {
+    const { data, error } = await supabaseAdmin
+      .from("events")
+      .select("id,title,city_id,start_at,end_at")
+      .eq("id", eventId)
+      .eq("status", "approved")
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data) return NextResponse.json({ error: "Approved event not found." }, { status: 404 });
+    event = data;
+  }
+
+  if (offeringId) {
+    const { data, error } = await supabaseAdmin
+      .from("service_offerings")
+      .select("id,name,service_profile_id")
+      .eq("id", offeringId)
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data) return NextResponse.json({ error: "Service offering not found." }, { status: 404 });
+  }
+
+  const matchColumn = eventId ? "event_id" : "offering_id";
+  const matchValue = eventId ?? offeringId;
+  if (!matchValue) {
+    const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", tripId);
+    const { data, error } = await supabaseAdmin.from("trip_items").insert({ trip_id: tripId, item_kind: kind, title, start_at: startAt, end_at: endAt, notes, event_id: null, appointment_id: null, offering_id: null, city_id: cityId, position: count ?? 0 }).select().single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ item: data }, { status: 201 });
+  }
+
+  const { data: existing } = await supabaseAdmin.from("trip_items").select("id,trip_id,appointment_id,event_id,offering_id,item_kind,position,start_at,end_at,notes,title,city_id").eq("trip_id", tripId).eq(matchColumn, matchValue).maybeSingle();
+  if (existing) return NextResponse.json({ item: existing, trip, added: false }, { status: 200 });
+
   const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", tripId);
-  const { data, error } = await supabaseAdmin.from("trip_items").insert({ trip_id: tripId, item_kind: kind, title, start_at: startAt, end_at: endAt, notes, event_id: eventId, appointment_id: null, offering_id: offeringId, city_id: cityId, position: count ?? 0 }).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ item: data }, { status: 201 });
+  const payload = {
+    trip_id: tripId,
+    appointment_id: null,
+    event_id: event?.id ?? null,
+    offering_id: offeringId,
+    item_kind: event ? "event" : "experience",
+    position: count ?? 0,
+    start_at: event?.start_at ?? startAt,
+    end_at: event?.end_at ?? endAt,
+    title: event?.title ?? title,
+    city_id: event?.city_id ?? cityId,
+    notes,
+  };
+  const { data, error } = await supabaseAdmin.from("trip_items").insert(payload).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ item: data, trip, added: true }, { status: 201 });
 }
 
 export async function PATCH(request: Request, { params }: Params) {

@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
 import { API_BASE_URL } from "../src/config";
 import { colors } from "../src/theme";
 
@@ -25,9 +26,11 @@ const SUGGESTIONS = [
 ];
 
 export default function ConciergeScreen() {
+  const params = useLocalSearchParams<{ request?: string | string[] }>();
+  const initialRequest = Array.isArray(params.request) ? params.request[0] : params.request;
   const [messages, setMessages] = useState<Message[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialRequest || "");
   const [busy, setBusy] = useState(false);
 
   async function send(value = text) {
