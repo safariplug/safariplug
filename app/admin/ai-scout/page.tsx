@@ -60,6 +60,19 @@ function stageDetail(job: ScoutQueueJob) {
   return job.notes || null;
 }
 
+function sourceEvidenceLabel(sourceType: string | null) {
+  if (!sourceType) return "Legacy discovery";
+  if (sourceType.startsWith("social_instagram_")) return "Public Instagram";
+  if (sourceType.startsWith("social_facebook_")) return "Public Facebook";
+  if (sourceType.startsWith("social_tiktok_")) return "Public TikTok";
+  if (sourceType.startsWith("social_x_")) return "Public X / Twitter";
+  if (sourceType === "strong") return "Web · Strong verification";
+  if (sourceType === "trusted_platform") return "Trusted event platform";
+  if (sourceType === "manual_review") return "Web · Manual verification needed";
+  if (sourceType === "social_public") return "Public social source";
+  return sourceType.replaceAll("_", " ");
+}
+
 export default async function AIScoutPage() {
   const { count: total } = await supabaseAdmin
     .from("ai_discovered_events")
@@ -77,7 +90,7 @@ export default async function AIScoutPage() {
 
   const { data: discoveries } = await supabaseAdmin
     .from("ai_discovered_events")
-    .select("id, title, city, venue_name, category, confidence_score, status, review_status")
+    .select("id, title, city, venue_name, category, confidence_score, status, review_status, source_type, source_name")
     .order("created_at", { ascending: false })
     .limit(10);
 
@@ -116,7 +129,7 @@ export default async function AIScoutPage() {
 
           <section className="mt-10 rounded-xl border p-6">
             <h2 className="text-xl font-semibold">Scout Mission Control</h2>
-            <p className="mt-2 text-gray-600">Queue discovery missions by destination. The worker processes them independently of your browser request.</p>
+            <p className="mt-2 text-gray-600">Queue discovery missions by destination. Scout searches the public web plus publicly discoverable social sources, then verifies candidates independently of your browser request.</p>
             <ScoutButton />
           </section>
 
@@ -172,7 +185,9 @@ export default async function AIScoutPage() {
                   <h3 className="font-bold">{event.title}</h3>
                   <p className="text-sm text-gray-600">{event.city} · {event.venue_name}</p>
                   <p className="text-sm">{event.category}</p>
-                  <p className="text-sm">Confidence: {event.confidence_score}%</p>
+                  <p className="text-sm">SafariPlug confidence: {event.confidence_score}%</p>
+                  <p className="text-sm">Source evidence: {sourceEvidenceLabel(event.source_type)}</p>
+                  {event.source_name ? <p className="text-sm">Source: {event.source_name}</p> : null}
                   <p className="text-sm">Status: {event.status}</p>
                   <p className="text-sm">Review: {event.review_status}</p>
 
