@@ -7,6 +7,7 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
 const MAX_CANDIDATES = 12;
 const MAX_INSERTS = 8;
 const FETCH_CONCURRENCY = 4;
+const MAX_OUTPUT_TOKENS = 6000;
 
 const TRUSTED_EVENT_HOSTS = [
   "quicket.co.ug",
@@ -347,6 +348,7 @@ export async function startBackgroundScout(job: QueuedScoutJob) {
   const response = await openAI().responses.create({
     model: OPENAI_MODEL,
     background: true,
+    max_output_tokens: MAX_OUTPUT_TOKENS,
     tools: [{ type: "web_search" }],
     input: [
       {
