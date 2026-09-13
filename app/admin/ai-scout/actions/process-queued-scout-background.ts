@@ -4,6 +4,10 @@ import { EVENT_CATEGORIES } from "@/lib/constants/events";
 import type { QueuedScoutJob } from "./process-queued-scout";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
+const MAX_CANDIDATES = 12;
+const MAX_INSERTS = 8;
+const FETCH_CONCURRENCY = 4;
+
 const TRUSTED_EVENT_HOSTS = [
   "quicket.co.ug",
   "quicket.co.ke",
@@ -36,6 +40,19 @@ type Candidate = {
 type DiscoveryResponse = { events: Candidate[] };
 type VerificationTier = "strong" | "trusted_platform" | "social_public" | "manual_review" | "reject";
 type VerificationResult = { tier: VerificationTier; reason: string };
+
+type PreparedCandidate = {
+  event: Candidate;
+  title: string;
+  description: string;
+  venueName: string;
+  city: string;
+  sourceUrl: string | null;
+  sourceName: string;
+  startAt: string | null;
+  score: number;
+  reason: string;
+};
 
 export type BackgroundScoutResult = {
   inserted: number;
@@ -118,7 +135,14 @@ function dateEvidence(startAt: string) {
   const shortMonth = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
   const day = date.toLocaleString("en-US", { day: "numeric", timeZone: "UTC" });
   const year = date.toLocaleString("en-US", { year: "numeric", timeZone: "UTC" });
-  return [`${month} ${day} ${year}`, `${day} ${month} ${year}`, `${shortMonth} ${day} ${year}`, `${day} ${shortMonth} ${year}`, `${month} ${day}`, `${day} ${month}`].map(identity);
+  return [
+    `${month} ${day} ${year}`,
+    `${day} ${month} ${year}`,
+    `${shortMonth} ${day} ${year}`,
+    `${day} ${shortMonth} ${year}`,
+    `${month} ${day}`,
+    `${day} ${month}`,
+  ].map(identity);
 }
 
 function hostname(sourceUrl: string) {
@@ -150,7 +174,6 @@ function safariPlugConfidence(verification: VerificationResult, modelScore: numb
     verification.tier === "social_public" ? 76 :
     verification.tier === "manual_review" ? 68 :
     0;
-
   if (!base) return 0;
   const boundedModel = Math.max(0, Math.min(100, modelScore));
   return Math.max(base - 5, Math.min(99, Math.round(base * 0.85 + boundedModel * 0.15)));
@@ -190,8 +213,7 @@ function absoluteImageUrl(value: string | null, sourceUrl: string) {
   if (!value) return null;
   try {
     const url = new URL(value, sourceUrl);
-    if (!["http:", "https:"].includes(url.protocol)) return null;
-    return url.toString();
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : null;
   } catch {
     return null;
   }
@@ -200,26 +222,18 @@ function absoluteImageUrl(value: string | null, sourceUrl: string) {
 async function recoverSourceImage(sourceUrl: string, existingImage: string | null) {
   const direct = httpUrl(existingImage);
   if (direct) return direct;
-
   try {
     const response = await fetch(sourceUrl, {
       headers: { "User-Agent": "Mozilla/5.0 SafariPlug Scout", Accept: "text/html,application/xhtml+xml" },
       cache: "no-store",
       redirect: "follow",
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(3000),
     });
     if (!response.ok) return null;
-
     const html = await response.text();
-    const metaImage = extractMetaContent(html, [
-      "og:image:secure_url",
-      "og:image",
-      "twitter:image:src",
-      "twitter:image",
-    ]);
+    const metaImage = extractMetaContent(html, ["og:image:secure_url", "og:image", "twitter:image:src", "twitter:image"]);
     const resolvedMeta = absoluteImageUrl(metaImage, response.url || sourceUrl);
     if (resolvedMeta) return resolvedMeta;
-
     const imageSrc = html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["'][^>]*>/i)?.[1]
       || html.match(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["']image_src["'][^>]*>/i)?.[1]
       || null;
@@ -276,6 +290,16 @@ async function verifySource(event: Candidate): Promise<VerificationResult> {
   }
 }
 
+async function mapBatched<T, R>(items: T[], size: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let offset = 0; offset < items.length; offset += size) {
+    const batch = items.slice(offset, offset + size);
+    const values = await Promise.all(batch.map((item, index) => fn(item, offset + index)));
+    results.push(...values);
+  }
+  return results;
+}
+
 async function existingKeys() {
   const { data } = await supabaseAdmin.from("ai_discovered_events").select("title,city,start_at,source_url").limit(1000);
   const keys = new Set<string>();
@@ -306,7 +330,7 @@ function prompt(location: string, category: string) {
     "Never invent an event, date, venue, price, source, country, currency, image, social handle, or social post.",
     "Unknown price/currency/image must be null. Every datetime must include an explicit UTC offset or Z appropriate to the event location.",
     "Set confidence_score to an integer from 0 to 100 based on the evidence you found, but SafariPlug will independently recalculate final confidence after verification.",
-    "Return at most 12 distinct candidates. Return ONLY valid JSON exactly in this shape:",
+    `Return at most ${MAX_CANDIDATES} distinct candidates. Return ONLY valid JSON exactly in this shape:`,
     '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime with offset or Z","end_at":"ISO datetime with offset or Z or null","price":"number or null","currency":"ISO currency or null","image_url":"string or null","source_url":"https URL","source_name":"string","confidence_score":85}]}',
   ].join("\n");
 }
@@ -317,13 +341,18 @@ function openAI() {
 }
 
 export async function startBackgroundScout(job: QueuedScoutJob) {
-  if (!EVENT_CATEGORIES.includes(job.category as (typeof EVENT_CATEGORIES)[number])) throw new Error(`Unsupported Scout category: ${job.category}`);
+  if (!EVENT_CATEGORIES.includes(job.category as (typeof EVENT_CATEGORIES)[number])) {
+    throw new Error(`Unsupported Scout category: ${job.category}`);
+  }
   const response = await openAI().responses.create({
     model: OPENAI_MODEL,
     background: true,
     tools: [{ type: "web_search" }],
     input: [
-      { role: "system", content: "You are SafariPlug AI Scout, an Africa-wide discovery intelligence engine. Find useful real candidates across the public web and publicly discoverable social sources, preserve source URLs, never fabricate details, and return JSON only." },
+      {
+        role: "system",
+        content: "You are SafariPlug AI Scout, an Africa-wide discovery intelligence engine. Find useful real candidates across the public web and publicly discoverable social sources, preserve source URLs, never fabricate details, and return JSON only.",
+      },
       { role: "user", content: prompt(job.location, job.category) },
     ],
   });
@@ -338,6 +367,27 @@ export async function pollBackgroundScout(responseId: string) {
     outputText: response.output_text?.trim() || "",
     error: response.error?.message || null,
   };
+}
+
+function prepareCandidate(event: Candidate, job: QueuedScoutJob): PreparedCandidate {
+  const title = text(event.title);
+  const description = text(event.description);
+  const venueName = text(event.venue_name);
+  const city = text(event.city) || job.location;
+  const sourceUrl = httpUrl(event.source_url);
+  const sourceName = text(event.source_name);
+  const startAt = isoDate(event.start_at);
+  const score = confidence(event.confidence_score);
+  let reason = "";
+  if (!title) reason = "missing_title";
+  else if (!description) reason = "missing_description";
+  else if (!venueName) reason = "missing_venue";
+  else if (!sourceUrl) reason = "missing_source_url";
+  else if (!sourceName) reason = "missing_source_name";
+  else if (!startAt) reason = "invalid_or_missing_datetime";
+  else if (new Date(startAt).getTime() <= Date.now()) reason = "event_not_future";
+  else if (!sameDestination(city, job.location)) reason = "destination_mismatch";
+  return { event, title, description, venueName, city, sourceUrl, sourceName, startAt, score, reason };
 }
 
 export async function processBackgroundScoutOutput(job: QueuedScoutJob, raw: string): Promise<BackgroundScoutResult> {
@@ -357,39 +407,34 @@ export async function processBackgroundScoutOutput(job: QueuedScoutJob, raw: str
   let blocked = 0;
   let duplicates = 0;
   let sourceBlocked = 0;
+  let inserted = 0;
   const countReason = (reason: string) => { reasons[reason] = (reasons[reason] || 0) + 1; };
 
-  const prepared = parsed.events.slice(0, 12).map((event) => {
-    const title = text(event.title);
-    const description = text(event.description);
-    const venueName = text(event.venue_name);
-    const city = text(event.city) || job.location;
-    const sourceUrl = httpUrl(event.source_url);
-    const sourceName = text(event.source_name);
-    const startAt = isoDate(event.start_at);
-    const score = confidence(event.confidence_score);
-    let reason = "";
-    if (!title) reason = "missing_title";
-    else if (!description) reason = "missing_description";
-    else if (!venueName) reason = "missing_venue";
-    else if (!sourceUrl) reason = "missing_source_url";
-    else if (!sourceName) reason = "missing_source_name";
-    else if (!startAt) reason = "invalid_or_missing_datetime";
-    else if (new Date(startAt).getTime() <= Date.now()) reason = "event_not_future";
-    else if (!sameDestination(city, job.location)) reason = "destination_mismatch";
-    return { event, title, description, venueName, city, sourceUrl, sourceName, startAt, score, reason };
+  const prepared = parsed.events.slice(0, MAX_CANDIDATES).map((event) => prepareCandidate(event, job));
+  const verifications = await mapBatched(prepared, FETCH_CONCURRENCY, async (item) => item.reason ? null : verifySource(item.event));
+
+  const imageCandidates = prepared.map((item, index) => {
+    const verification = verifications[index];
+    const shouldRecover = !item.reason && verification && verification.tier !== "reject" && item.sourceUrl;
+    return shouldRecover ? { sourceUrl: item.sourceUrl!, imageUrl: item.event.image_url } : null;
+  });
+  const recoveredImages = await mapBatched(imageCandidates, FETCH_CONCURRENCY, async (item) => {
+    if (!item) return null;
+    return recoverSourceImage(item.sourceUrl, item.imageUrl);
   });
 
-  const verifications = await Promise.all(prepared.map(async (item) => item.reason ? null : verifySource(item.event)));
-  let inserted = 0;
-
-  for (let index = 0; index < prepared.length && inserted < 8; index++) {
+  for (let index = 0; index < prepared.length && inserted < MAX_INSERTS; index++) {
     const item = prepared[index];
     if (item.reason) { blocked++; countReason(item.reason); continue; }
+
     const date = item.startAt!.slice(0, 10);
     const key = `${identity(item.title)}|${identity(item.city)}|${date}`;
     const sourceKey = `${item.sourceUrl!.toLowerCase()}|${identity(item.title)}|${date}`;
-    if (seen.has(key) || known.has(key) || known.has(sourceKey)) { duplicates++; countReason("duplicate"); continue; }
+    if (seen.has(key) || known.has(key) || known.has(sourceKey)) {
+      duplicates++;
+      countReason("duplicate");
+      continue;
+    }
 
     const verification = verifications[index]!;
     tiers[verification.tier]++;
@@ -401,8 +446,10 @@ export async function processBackgroundScoutOutput(job: QueuedScoutJob, raw: str
     const social = publicSocialPlatform(item.sourceUrl!);
     const finalConfidence = safariPlugConfidence(verification, item.score);
     const sourceType = social ? `social_${social}_${verification.tier}` : verification.tier;
-    const recoveredImage = await recoverSourceImage(item.sourceUrl!, item.event.image_url);
-    const imageNote = recoveredImage ? "Official/source image recovered." : "No official/source image recovered; SafariPlug category fallback will be used.";
+    const recoveredImage = recoveredImages[index];
+    const imageNote = recoveredImage
+      ? "Official/source image recovered."
+      : "No official/source image recovered; SafariPlug category fallback will be used.";
 
     const { error } = await supabaseAdmin.from("ai_discovered_events").insert({
       title: item.title,
@@ -424,8 +471,22 @@ export async function processBackgroundScoutOutput(job: QueuedScoutJob, raw: str
       review_notes: `AI Scout verification: ${verification.tier}. Evidence: ${verification.reason}. Source channel: ${social ? `public ${social}` : "web"}. SafariPlug confidence: ${finalConfidence}%. ${imageNote} Requested destination: ${job.location}.`,
       source_type: sourceType,
     });
-    if (error) { blocked++; countReason(`insert_error_${error.code || "unknown"}`); continue; }
-    seen.add(key); known.add(key); known.add(sourceKey); inserted++;
+
+    if (error) {
+      if (error.code === "23505") {
+        duplicates++;
+        countReason("duplicate_database_guard");
+        continue;
+      }
+      blocked++;
+      countReason(`insert_error_${error.code || "unknown"}`);
+      continue;
+    }
+
+    seen.add(key);
+    known.add(key);
+    known.add(sourceKey);
+    inserted++;
   }
 
   return {
