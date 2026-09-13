@@ -173,7 +173,7 @@ async function snapshotProvider(job: RunningScoutJob): Promise<ProviderSnapshot>
     const provider = await pollBackgroundScout(job.provider_response_id);
     return {
       job,
-      status: provider.status,
+      status: provider.status || "unknown",
       outputText: provider.outputText,
       error: provider.error,
     };
@@ -263,14 +263,15 @@ async function claimAndStartOne() {
 
   try {
     const provider = await startBackgroundScout(job);
+    const providerStatus = provider.status || "queued";
     await supabaseAdmin
       .from("ai_scout_runs")
       .update({
         provider_response_id: provider.id,
-        provider_status: provider.status,
+        provider_status: providerStatus,
         worker_stage: "awaiting_openai",
         poll_lease_until: null,
-        notes: `OpenAI background discovery started (${provider.status}).`,
+        notes: `OpenAI background discovery started (${providerStatus}).`,
       })
       .eq("id", job.id);
 
@@ -279,7 +280,7 @@ async function claimAndStartOne() {
       location: job.location,
       category: job.category,
       attempt: job.attempt_count,
-      provider_status: provider.status,
+      provider_status: providerStatus,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not start AI Scout background response";
