@@ -1,0 +1,331 @@
+import OpenAI from "openai";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { EVENT_CATEGORIES } from "@/lib/constants/events";
+import type { QueuedScoutJob } from "./process-queued-scout";
+
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
+const TRUSTED_EVENT_HOSTS = [
+  "quicket.co.ug",
+  "quicket.co.ke",
+  "mookh.com",
+  "hustlesasa.shop",
+  "madfun.com",
+  "gig.co.ke",
+  "ticketyetu.com",
+  "eventbrite.com",
+  "allevents.in",
+  "ticketmaster.com",
+];
+
+type Candidate = {
+  title: string;
+  description: string;
+  venue_name: string | null;
+  venue_address: string | null;
+  city: string;
+  start_at: string | null;
+  end_at: string | null;
+  price: number | null;
+  currency: string | null;
+  image_url: string | null;
+  source_url: string;
+  source_name: string;
+  confidence_score: number;
+};
+
+type DiscoveryResponse = { events: Candidate[] };
+type VerificationTier = "strong" | "trusted_platform" | "manual_review" | "reject";
+type VerificationResult = { tier: VerificationTier; reason: string };
+
+export type BackgroundScoutResult = {
+  inserted: number;
+  candidates: number;
+  blocked: number;
+  duplicates: number;
+  sourceBlocked: number;
+  verificationTiers: Record<string, number>;
+  blockedReasons: Record<string, number>;
+  durationMs: number;
+};
+
+function text(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function identity(value: unknown) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function httpUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim().replace(/[)\],.]+$/, ""));
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    if (url.hostname.toLowerCase() === "example.com") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function isoDate(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const raw = value.trim();
+  if (!/Z$/i.test(raw) && !/[+-]\d{2}:?\d{2}$/.test(raw)) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function confidence(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(100, Math.round(number))) : 0;
+}
+
+function price(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function meaningfulMatch(haystack: string, value: string, minimum: number) {
+  const tokens = identity(value).split(" ").filter((token) => token.length >= 4);
+  if (!tokens.length) return false;
+  return tokens.filter((token) => haystack.includes(token)).length >= Math.min(minimum, tokens.length);
+}
+
+function dateEvidence(startAt: string) {
+  const date = new Date(startAt);
+  if (Number.isNaN(date.getTime())) return [];
+  const month = date.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
+  const shortMonth = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const day = date.toLocaleString("en-US", { day: "numeric", timeZone: "UTC" });
+  const year = date.toLocaleString("en-US", { year: "numeric", timeZone: "UTC" });
+  return [`${month} ${day} ${year}`, `${day} ${month} ${year}`, `${shortMonth} ${day} ${year}`, `${day} ${shortMonth} ${year}`, `${month} ${day}`, `${day} ${month}`].map(identity);
+}
+
+function trustedPlatform(sourceUrl: string) {
+  try {
+    const host = new URL(sourceUrl).hostname.toLowerCase().replace(/^www\./, "");
+    return TRUSTED_EVENT_HOSTS.some((trusted) => host === trusted || host.endsWith(`.${trusted}`));
+  } catch {
+    return false;
+  }
+}
+
+function sameDestination(candidateCity: string, requestedLocation: string) {
+  const city = identity(candidateCity);
+  const requested = identity(requestedLocation);
+  return Boolean(city && requested && (city === requested || city.includes(requested) || requested.includes(city)));
+}
+
+async function verifySource(event: Candidate): Promise<VerificationResult> {
+  const sourceUrl = httpUrl(event.source_url);
+  const startAt = isoDate(event.start_at);
+  if (!sourceUrl || !startAt) return { tier: "reject", reason: "missing_source_or_datetime" };
+  const trusted = trustedPlatform(sourceUrl);
+  const score = confidence(event.confidence_score);
+
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 SafariPlug Scout", Accept: "text/html,application/xhtml+xml" },
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!response.ok) {
+      if (trusted && score >= 70) return { tier: "trusted_platform", reason: `trusted_platform_http_${response.status}` };
+      if (score >= 80) return { tier: "manual_review", reason: `source_http_${response.status}` };
+      return { tier: "reject", reason: `source_http_${response.status}` };
+    }
+
+    const page = identity(stripHtml(await response.text())).slice(0, 200000);
+    if (!page) {
+      if (trusted && score >= 70) return { tier: "trusted_platform", reason: "trusted_platform_dynamic_page" };
+      return score >= 80 ? { tier: "manual_review", reason: "empty_or_dynamic_page" } : { tier: "reject", reason: "empty_source_page" };
+    }
+
+    const titleMatch = meaningfulMatch(page, event.title, 2);
+    const dateMatch = dateEvidence(startAt).some((variant) => variant && page.includes(variant));
+    const venueMatch = !text(event.venue_name) || meaningfulMatch(page, text(event.venue_name), 1);
+    if (titleMatch && dateMatch && venueMatch) return { tier: "strong", reason: "title_date_venue_match" };
+    if (trusted && titleMatch && (dateMatch || venueMatch)) return { tier: "trusted_platform", reason: "trusted_platform_partial_match" };
+    if (titleMatch || (dateMatch && venueMatch)) return { tier: "manual_review", reason: "partial_source_match" };
+    if (trusted && score >= 80) return { tier: "manual_review", reason: "trusted_platform_low_page_evidence" };
+    return { tier: "reject", reason: "source_evidence_mismatch" };
+  } catch {
+    if (trusted && score >= 70) return { tier: "trusted_platform", reason: "trusted_platform_fetch_blocked" };
+    if (score >= 80) return { tier: "manual_review", reason: "source_fetch_blocked" };
+    return { tier: "reject", reason: "source_fetch_failed" };
+  }
+}
+
+async function existingKeys() {
+  const { data } = await supabaseAdmin.from("ai_discovered_events").select("title,city,start_at,source_url").limit(1000);
+  const keys = new Set<string>();
+  for (const row of data || []) {
+    const title = identity(row.title);
+    const city = identity(row.city);
+    const date = String(row.start_at || "").slice(0, 10);
+    const source = String(row.source_url || "").trim().toLowerCase();
+    if (title && city && date) keys.add(`${title}|${city}|${date}`);
+    if (source && title && date) keys.add(`${source}|${title}|${date}`);
+  }
+  return keys;
+}
+
+function prompt(location: string, category: string) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(new Date());
+  return [
+    `Today is ${today} UTC. Discover real upcoming ${category} events or experiences specifically in ${location}, Africa.`,
+    `The requested destination ${location} is authoritative. Do not substitute another city.`,
+    "Search official venue and organizer pages, legitimate ticketing platforms, public organizer social posts, local event calendars, tourism sources, and reputable local publications.",
+    "For Music & Nightlife include concerts, DJ nights, live music, Afrobeat, Amapiano, reggae, R&B, rooftop events, parties, beach events, clubs, lounges, hotels, and recurring venue programming when the next occurrence is verifiable.",
+    "Return genuinely upcoming candidates with a specific date, venue, destination, and the best direct source URL found.",
+    "Never invent an event, date, venue, price, source, country, currency, or image.",
+    "Unknown price/currency/image must be null. Every datetime must include an explicit UTC offset or Z appropriate to the event location.",
+    "Return at most 12 distinct candidates. Return ONLY valid JSON exactly in this shape:",
+    '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime with offset or Z","end_at":"ISO datetime with offset or Z or null","price":"number or null","currency":"ISO currency or null","image_url":"string or null","source_url":"https URL","source_name":"string","confidence_score":0}]}',
+  ].join("\n");
+}
+
+function openAI() {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
+export async function startBackgroundScout(job: QueuedScoutJob) {
+  if (!EVENT_CATEGORIES.includes(job.category as (typeof EVENT_CATEGORIES)[number])) throw new Error(`Unsupported Scout category: ${job.category}`);
+  const response = await openAI().responses.create({
+    model: OPENAI_MODEL,
+    background: true,
+    tools: [{ type: "web_search" }],
+    input: [
+      { role: "system", content: "You are SafariPlug AI Scout, an Africa-wide discovery intelligence engine. Find useful real candidates, preserve source URLs, never fabricate details, and return JSON only." },
+      { role: "user", content: prompt(job.location, job.category) },
+    ],
+  });
+  return { id: response.id, status: response.status };
+}
+
+export async function pollBackgroundScout(responseId: string) {
+  const response = await openAI().responses.retrieve(responseId);
+  return {
+    id: response.id,
+    status: response.status,
+    outputText: response.output_text?.trim() || "",
+    error: response.error?.message || null,
+  };
+}
+
+export async function processBackgroundScoutOutput(job: QueuedScoutJob, raw: string): Promise<BackgroundScoutResult> {
+  const started = Date.now();
+  let parsed: DiscoveryResponse;
+  try {
+    parsed = JSON.parse(raw) as DiscoveryResponse;
+  } catch {
+    throw new Error("AI Scout returned invalid JSON");
+  }
+  if (!parsed || !Array.isArray(parsed.events)) throw new Error("AI Scout returned an invalid response shape");
+
+  const known = await existingKeys();
+  const seen = new Set<string>();
+  const reasons: Record<string, number> = {};
+  const tiers: Record<VerificationTier, number> = { strong: 0, trusted_platform: 0, manual_review: 0, reject: 0 };
+  let blocked = 0;
+  let duplicates = 0;
+  let sourceBlocked = 0;
+  const countReason = (reason: string) => { reasons[reason] = (reasons[reason] || 0) + 1; };
+
+  const prepared = parsed.events.slice(0, 12).map((event) => {
+    const title = text(event.title);
+    const description = text(event.description);
+    const venueName = text(event.venue_name);
+    const city = text(event.city) || job.location;
+    const sourceUrl = httpUrl(event.source_url);
+    const sourceName = text(event.source_name);
+    const startAt = isoDate(event.start_at);
+    const score = confidence(event.confidence_score);
+    let reason = "";
+    if (!title) reason = "missing_title";
+    else if (!description) reason = "missing_description";
+    else if (!venueName) reason = "missing_venue";
+    else if (!sourceUrl) reason = "missing_source_url";
+    else if (!sourceName) reason = "missing_source_name";
+    else if (!startAt) reason = "invalid_or_missing_datetime";
+    else if (score < 55) reason = "confidence_below_55";
+    else if (new Date(startAt).getTime() <= Date.now()) reason = "event_not_future";
+    else if (!sameDestination(city, job.location)) reason = "destination_mismatch";
+    return { event, title, description, venueName, city, sourceUrl, sourceName, startAt, score, reason };
+  });
+
+  const verifications = await Promise.all(prepared.map(async (item) => item.reason ? null : verifySource(item.event)));
+  let inserted = 0;
+
+  for (let index = 0; index < prepared.length && inserted < 8; index++) {
+    const item = prepared[index];
+    if (item.reason) { blocked++; countReason(item.reason); continue; }
+    const date = item.startAt!.slice(0, 10);
+    const key = `${identity(item.title)}|${identity(item.city)}|${date}`;
+    const sourceKey = `${item.sourceUrl!.toLowerCase()}|${identity(item.title)}|${date}`;
+    if (seen.has(key) || known.has(key) || known.has(sourceKey)) { duplicates++; countReason("duplicate"); continue; }
+
+    const verification = verifications[index]!;
+    tiers[verification.tier]++;
+    countReason(verification.reason);
+    if (verification.tier === "reject") { sourceBlocked++; continue; }
+
+    const amount = price(item.event.price);
+    const currency = amount !== null ? text(item.event.currency).toUpperCase() || null : null;
+    const { error } = await supabaseAdmin.from("ai_discovered_events").insert({
+      title: item.title,
+      description: item.description,
+      category: job.category,
+      city: item.city,
+      venue_name: item.venueName,
+      venue_address: text(item.event.venue_address) || null,
+      start_at: item.startAt,
+      end_at: isoDate(item.event.end_at),
+      price: amount,
+      currency,
+      image_url: httpUrl(item.event.image_url),
+      source_url: item.sourceUrl,
+      source_name: item.sourceName,
+      confidence_score: item.score,
+      status: "pending_review",
+      review_status: "pending_review",
+      review_notes: `AI Scout verification: ${verification.tier}. Evidence: ${verification.reason}. Requested destination: ${job.location}.`,
+      source_type: verification.tier,
+    });
+    if (error) { blocked++; countReason(`insert_error_${error.code || "unknown"}`); continue; }
+    seen.add(key); known.add(key); known.add(sourceKey); inserted++;
+  }
+
+  return {
+    inserted,
+    candidates: parsed.events.length,
+    blocked,
+    duplicates,
+    sourceBlocked,
+    verificationTiers: tiers,
+    blockedReasons: reasons,
+    durationMs: Date.now() - started,
+  };
+}
