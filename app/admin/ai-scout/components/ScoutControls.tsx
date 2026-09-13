@@ -12,19 +12,32 @@ const featuredLocations = [
   "Watamu",
   "Lamu",
   "Zanzibar",
-  "Kampala",
   "Dar es Salaam",
+  "Kampala",
+  "Kigali",
+  "Addis Ababa",
+  "Accra",
+  "Lagos",
+  "Abuja",
+  "Cape Town",
+  "Johannesburg",
+  "Durban",
+  "Marrakech",
+  "Cairo",
 ];
 
 export default function ScoutControls() {
-  const [location, setLocation] = useState("Nairobi");
+  const [location, setLocation] = useState("");
   const [category, setCategory] = useState("Music & Nightlife");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   async function runScout() {
     const destination = location.trim();
-    if (!destination) return;
+    if (!destination) {
+      setMessage("Choose or enter a destination before starting a Scout mission.");
+      return;
+    }
 
     setLoading(true);
     setMessage("");
@@ -54,8 +67,8 @@ export default function ScoutControls() {
       setMessage(
         result.message ||
           (result.accepted
-            ? "Scout mission started. Findings will appear here when processing completes."
-            : "Scout mission accepted.")
+            ? `Scout mission started for ${destination}. Findings will appear here when processing completes.`
+            : `Scout mission accepted for ${destination}.`)
       );
 
       window.setTimeout(() => window.location.reload(), 12000);
@@ -73,9 +86,9 @@ export default function ScoutControls() {
           list="safariplug-featured-destinations"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
-          placeholder="Any city or destination"
+          placeholder="Choose or enter any African city or destination"
           maxLength={80}
-          className="min-w-[240px] rounded-xl border px-4 py-3"
+          className="min-w-[280px] flex-1 rounded-xl border px-4 py-3"
           aria-label="Scout destination"
         />
         <datalist id="safariplug-featured-destinations">
@@ -88,6 +101,7 @@ export default function ScoutControls() {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           className="rounded-xl border px-4 py-3"
+          aria-label="Scout category"
         >
           {EVENT_CATEGORIES.map((item) => (
             <option key={item}>{item}</option>
@@ -104,7 +118,7 @@ export default function ScoutControls() {
       </div>
       {message ? <p className="text-sm font-medium text-slate-700">{message}</p> : null}
       <p className="text-sm text-slate-500">
-        Search any destination. The suggestions above are featured locations, not a geographic restriction.
+        Scout is Africa-wide. Enter any city or destination; the suggestions are shortcuts, not geographic restrictions.
       </p>
     </div>
   );
