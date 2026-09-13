@@ -319,18 +319,12 @@ function prompt(location: string, category: string) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(new Date());
   return [
     `Today is ${today} UTC. Discover real upcoming ${category} events or experiences specifically in ${location}, Africa.`,
-    `The requested destination ${location} is authoritative. Do not substitute another city.`,
-    "Run TWO discovery passes before producing the final JSON:",
-    "PASS 1 — Web: official venue and organizer pages, legitimate ticketing platforms, local event calendars, tourism sources, hotels, clubs, lounges, promoters, and reputable local publications.",
-    "PASS 2 — Public social discovery: search publicly accessible/indexed Instagram, Facebook, TikTok and X/Twitter pages or posts from venues, promoters, artists, organizers and event brands. Prefer direct post/profile/event URLs when they are publicly discoverable.",
-    "Public social sources are discovery evidence only. Do not invent content from private accounts, stories, closed groups, login-only pages, or posts you cannot actually find.",
+    "Use official venue and organizer pages, legitimate ticketing platforms, local event calendars, tourism sources, hotels, clubs, lounges, and reputable local publications.",
     "For Music & Nightlife include concerts, DJ nights, live music, Afrobeat, Amapiano, reggae, R&B, rooftop events, parties, beach events, clubs, lounges, hotels, and recurring venue programming when the next occurrence is verifiable.",
-    "Return genuinely upcoming candidates with a specific date, venue, destination, and the best direct source URL found.",
-    "Where a social source reveals an event also listed on an official/ticketing page, prefer the stronger official/ticketing URL as source_url. Otherwise keep the public social URL so SafariPlug can send it for human review.",
-    "When an official event poster, ticketing artwork, or public social event image is directly available, include that exact image URL in image_url. Do not use generic stock photography as image_url.",
-    "Never invent an event, date, venue, price, source, country, currency, image, social handle, or social post.",
-    "Unknown price/currency/image must be null. Every datetime must include an explicit UTC offset or Z appropriate to the event location.",
-    "Set confidence_score to an integer from 0 to 100 based on the evidence you found, but SafariPlug will independently recalculate final confidence after verification.",
+    `Return genuinely upcoming candidates with a specific date, venue, ${location} location, and a source URL.`,
+    "Never invent an event, date, venue, price, source, country, or currency.",
+    "Unknown price/currency must be null. Every datetime must include an explicit UTC offset or Z appropriate to the event location.",
+    "Set confidence_score to an integer from 0 to 100 based on the evidence you found, but SafariPlug will independently verify the source.",
     `Return at most ${MAX_CANDIDATES} distinct candidates. Return ONLY valid JSON exactly in this shape:`,
     '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime with offset or Z","end_at":"ISO datetime with offset or Z or null","price":"number or null","currency":"ISO currency or null","image_url":"string or null","source_url":"https URL","source_name":"string","confidence_score":85}]}',
   ].join("\n");
@@ -353,7 +347,7 @@ export async function startBackgroundScout(job: QueuedScoutJob) {
     input: [
       {
         role: "system",
-        content: "You are SafariPlug AI Scout, an Africa-wide discovery intelligence engine. Find useful real candidates across the public web and publicly discoverable social sources, preserve source URLs, never fabricate details, and return JSON only.",
+        content: "You are SafariPlug AI Scout. Find high-quality real candidates, preserve source URLs, and return JSON only.",
       },
       { role: "user", content: prompt(job.location, job.category) },
     ],
