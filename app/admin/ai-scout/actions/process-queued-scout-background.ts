@@ -4,10 +4,11 @@ import { EVENT_CATEGORIES } from "@/lib/constants/events";
 import type { QueuedScoutJob } from "./process-queued-scout";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
-const MAX_CANDIDATES = 12;
+const MAX_CANDIDATES = 8;
 const MAX_INSERTS = 8;
 const FETCH_CONCURRENCY = 4;
-const MAX_OUTPUT_TOKENS = 6000;
+const MAX_OUTPUT_TOKENS = 4500;
+const MAX_TOOL_CALLS = 12;
 
 const TRUSTED_EVENT_HOSTS = [
   "quicket.co.ug",
@@ -66,6 +67,52 @@ export type BackgroundScoutResult = {
   durationMs: number;
 };
 
+const DISCOVERY_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    events: {
+      type: "array",
+      maxItems: MAX_CANDIDATES,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          venue_name: { type: ["string", "null"] },
+          venue_address: { type: ["string", "null"] },
+          city: { type: "string" },
+          start_at: { type: ["string", "null"] },
+          end_at: { type: ["string", "null"] },
+          price: { type: ["number", "null"] },
+          currency: { type: ["string", "null"] },
+          image_url: { type: ["string", "null"] },
+          source_url: { type: "string" },
+          source_name: { type: "string" },
+          confidence_score: { type: "integer", minimum: 0, maximum: 100 },
+        },
+        required: [
+          "title",
+          "description",
+          "venue_name",
+          "venue_address",
+          "city",
+          "start_at",
+          "end_at",
+          "price",
+          "currency",
+          "image_url",
+          "source_url",
+          "source_name",
+          "confidence_score",
+        ],
+      },
+    },
+  },
+  required: ["events"],
+} as const;
+
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -91,6 +138,25 @@ function httpUrl(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+function usableImageUrl(value: unknown): string | null {
+  const url = httpUrl(value);
+  if (!url) return null;
+  const lower = url.toLowerCase();
+  if (
+    lower.includes("undefined") ||
+    lower.includes("placeholder") ||
+    lower.includes("default-og") ||
+    lower.includes("og-default") ||
+    lower.includes("default_og") ||
+    lower.includes("default-og-image") ||
+    lower.includes("favicon") ||
+    /(?:^|[\/_-])logo(?:[._\/-]|$)/i.test(lower)
+  ) {
+    return null;
+  }
+  return url;
 }
 
 function isoDate(value: unknown): string | null {
@@ -214,14 +280,14 @@ function absoluteImageUrl(value: string | null, sourceUrl: string) {
   if (!value) return null;
   try {
     const url = new URL(value, sourceUrl);
-    return ["http:", "https:"].includes(url.protocol) ? url.toString() : null;
+    return usableImageUrl(url.toString());
   } catch {
     return null;
   }
 }
 
 async function recoverSourceImage(sourceUrl: string, existingImage: string | null) {
-  const direct = httpUrl(existingImage);
+  const direct = usableImageUrl(existingImage);
   if (direct) return direct;
   try {
     const response = await fetch(sourceUrl, {
@@ -320,19 +386,18 @@ function prompt(location: string, category: string) {
   return [
     `Today is ${today} UTC. Discover real upcoming ${category} events or experiences specifically in ${location}, Africa.`,
     `The requested destination ${location} is authoritative. Do not substitute another city.`,
-    "Run TWO discovery passes before producing the final JSON:",
-    "PASS 1 — Web: official venue and organizer pages, legitimate ticketing platforms, local event calendars, tourism sources, hotels, clubs, lounges, promoters, and reputable local publications.",
-    "PASS 2 — Public social discovery: search publicly accessible/indexed Instagram, Facebook, TikTok and X/Twitter pages or posts from venues, promoters, artists, organizers and event brands. Prefer direct post/profile/event URLs when they are publicly discoverable.",
-    "Public social sources are discovery evidence only. Do not invent content from private accounts, stories, closed groups, login-only pages, or posts you cannot actually find.",
+    "Search the web efficiently in two passes, then stop and produce the JSON response.",
+    "PASS 1 — Official venue/organizer pages, legitimate ticketing platforms, local event calendars, tourism sources, hotels, clubs, lounges, promoters, and reputable local publications.",
+    "PASS 2 — Publicly accessible/indexed Instagram, Facebook, TikTok and X/Twitter pages or posts from venues, promoters, artists, organizers and event brands.",
+    "Do not search private accounts, stories, closed groups, login-only pages, or anything you cannot actually access.",
     "For Music & Nightlife include concerts, DJ nights, live music, Afrobeat, Amapiano, reggae, R&B, rooftop events, parties, beach events, clubs, lounges, hotels, and recurring venue programming when the next occurrence is verifiable.",
-    "Return genuinely upcoming candidates with a specific date, venue, destination, and the best direct source URL found.",
-    "Where a social source reveals an event also listed on an official/ticketing page, prefer the stronger official/ticketing URL as source_url. Otherwise keep the public social URL so SafariPlug can send it for human review.",
-    "When an official event poster, ticketing artwork, or public social event image is directly available, include that exact image URL in image_url. Do not use generic stock photography as image_url.",
+    "Return only genuinely upcoming candidates with a specific date, venue, requested destination, and the best direct source URL found.",
+    "Prefer official or ticketing URLs over social URLs when both corroborate the same event.",
+    "Use a direct event/poster image only when it is genuinely event-specific. Never use stock photography, generic social-share images, logos, favicons, placeholders, or invented image URLs.",
     "Never invent an event, date, venue, price, source, country, currency, image, social handle, or social post.",
     "Unknown price/currency/image must be null. Every datetime must include an explicit UTC offset or Z appropriate to the event location.",
-    "Set confidence_score to an integer from 0 to 100 based on the evidence you found, but SafariPlug will independently recalculate final confidence after verification.",
-    `Return at most ${MAX_CANDIDATES} distinct candidates. Return ONLY valid JSON exactly in this shape:`,
-    '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime with offset or Z","end_at":"ISO datetime with offset or Z or null","price":"number or null","currency":"ISO currency or null","image_url":"string or null","source_url":"https URL","source_name":"string","confidence_score":85}]}',
+    "Set confidence_score to 0–100 based on evidence; SafariPlug independently recalculates final confidence after verification.",
+    `Return at most ${MAX_CANDIDATES} distinct candidates and match the required JSON schema exactly.`,
   ].join("\n");
 }
 
@@ -345,29 +410,49 @@ export async function startBackgroundScout(job: QueuedScoutJob) {
   if (!EVENT_CATEGORIES.includes(job.category as (typeof EVENT_CATEGORIES)[number])) {
     throw new Error(`Unsupported Scout category: ${job.category}`);
   }
+
   const response = await openAI().responses.create({
     model: OPENAI_MODEL,
     background: true,
     max_output_tokens: MAX_OUTPUT_TOKENS,
+    max_tool_calls: MAX_TOOL_CALLS,
+    reasoning: { effort: "minimal" },
+    parallel_tool_calls: false,
     tools: [{ type: "web_search" }],
+    text: {
+      verbosity: "low",
+      format: {
+        type: "json_schema",
+        name: "safariplug_scout_events",
+        strict: true,
+        schema: DISCOVERY_SCHEMA,
+      },
+    },
     input: [
       {
         role: "system",
-        content: "You are SafariPlug AI Scout, an Africa-wide discovery intelligence engine. Find useful real candidates across the public web and publicly discoverable social sources, preserve source URLs, never fabricate details, and return JSON only.",
+        content: "You are SafariPlug AI Scout, an Africa-wide discovery intelligence engine. Search efficiently, preserve real source URLs, never fabricate details, and return only the required JSON structure.",
       },
       { role: "user", content: prompt(job.location, job.category) },
     ],
   });
+
   return { id: response.id, status: response.status };
 }
 
 export async function pollBackgroundScout(responseId: string) {
   const response = await openAI().responses.retrieve(responseId);
+  const incompleteReason = response.incomplete_details?.reason || null;
+  const incompleteMessage = incompleteReason
+    ? `OpenAI background response incomplete: ${incompleteReason}`
+    : null;
+
   return {
     id: response.id,
     status: response.status,
     outputText: response.output_text?.trim() || "",
-    error: response.error?.message || null,
+    error: response.error?.message || incompleteMessage,
+    incompleteReason,
   };
 }
 
