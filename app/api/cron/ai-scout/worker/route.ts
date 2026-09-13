@@ -194,6 +194,13 @@ async function releaseLease(jobId: string, updates: Record<string, unknown> = {}
     .eq("id", jobId);
 }
 
+async function updateWhileLeased(jobId: string, updates: Record<string, unknown>) {
+  await supabaseAdmin
+    .from("ai_scout_runs")
+    .update(updates)
+    .eq("id", jobId);
+}
+
 async function pollActivePool() {
   const leasedJobs = await leaseRunningJobs();
   if (!leasedJobs.length) return { polled: 0, finalized: null as string | null, pending: 0, failed: 0 };
@@ -218,7 +225,9 @@ async function pollActivePool() {
 
     if (status === "completed" && snapshot.outputText) {
       completed.push(snapshot);
-      await releaseLease(job.id, {
+      // Keep the polling lease while finalization is pending/in progress so an
+      // overlapping worker invocation cannot finalize the same response twice.
+      await updateWhileLeased(job.id, {
         provider_status: "completed",
         worker_stage: "finalizing",
         notes: "OpenAI discovery completed; SafariPlug is verifying sources.",
