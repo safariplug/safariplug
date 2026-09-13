@@ -68,12 +68,12 @@ export default async function AIScoutPage() {
   const { count: pending } = await supabaseAdmin
     .from("ai_discovered_events")
     .select("*", { count: "exact", head: true })
-    .eq("status", "pending_review");
+    .eq("review_status", "pending_review");
 
   const { count: approved } = await supabaseAdmin
     .from("ai_discovered_events")
     .select("*", { count: "exact", head: true })
-    .eq("status", "approved");
+    .eq("review_status", "approved");
 
   const { data: discoveries } = await supabaseAdmin
     .from("ai_discovered_events")
@@ -177,13 +177,13 @@ export default async function AIScoutPage() {
                   <p className="text-sm">Review: {event.review_status}</p>
 
                   <div className="mt-4 flex gap-3">
-                    {event.status === "pending_review" && (
+                    {event.review_status === "pending_review" && (
                       <Link href={`/admin/ai-events/edit/${event.id}`} className="rounded-lg bg-orange-500 px-4 py-2 text-white">
                         Preview & Verify
                       </Link>
                     )}
 
-                    {event.status === "approved" && (
+                    {event.review_status === "approved" && (
                       <form action={`/api/admin/scout/publish/${event.id}`} method="POST">
                         <button className="rounded-lg bg-blue-600 px-4 py-2 text-white">Publish to SafariPlug</button>
                       </form>
