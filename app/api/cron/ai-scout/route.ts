@@ -15,22 +15,48 @@ const ROTATION = [
   { location: "Nairobi", category: "Events & Experiences" },
 ] as const;
 
+const SCHEDULED_DAY_SLOTS: Record<number, number> = {
+  1: 0, // Monday
+  3: 1, // Wednesday
+  5: 2, // Friday
+};
+
+function getNairobiCalendarDate() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Nairobi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = Number(values.year);
+  const month = Number(values.month);
+  const day = Number(values.day);
+
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 function getTodayRotation() {
-  const day = Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Africa/Nairobi",
-      weekday: "short",
-    })
-      .format(new Date())
-      .replace("Sun", "0")
-      .replace("Mon", "1")
-      .replace("Tue", "2")
-      .replace("Wed", "3")
-      .replace("Thu", "4")
-      .replace("Fri", "5")
-      .replace("Sat", "6")
-  );
-  return ROTATION[Number.isInteger(day) ? day : 0] ?? ROTATION[0];
+  const nairobiDate = getNairobiCalendarDate();
+  const epochMonday = Date.UTC(2026, 0, 5);
+  const daysSinceEpoch = Math.floor((nairobiDate.getTime() - epochMonday) / 86_400_000);
+  const weekday = nairobiDate.getUTCDay();
+  const scheduledSlot = SCHEDULED_DAY_SLOTS[weekday];
+
+  // The production scheduler runs Monday, Wednesday, and Friday. Advancing
+  // three positions per week means all seven location/category targets are
+  // covered over successive runs instead of permanently skipping entries.
+  if (scheduledSlot !== undefined) {
+    const weekIndex = Math.floor(daysSinceEpoch / 7);
+    const rotationIndex = ((weekIndex * 3 + scheduledSlot) % ROTATION.length + ROTATION.length) % ROTATION.length;
+    return ROTATION[rotationIndex];
+  }
+
+  // Manual/diagnostic calls made on other days still receive a deterministic
+  // target without changing the scheduled three-times-weekly sequence.
+  const fallbackIndex = ((daysSinceEpoch % ROTATION.length) + ROTATION.length) % ROTATION.length;
+  return ROTATION[fallbackIndex];
 }
 
 export async function GET(request: NextRequest) {
