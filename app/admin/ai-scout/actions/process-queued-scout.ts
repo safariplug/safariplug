@@ -4,6 +4,19 @@ import { EVENT_CATEGORIES } from "@/lib/constants/events";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
 
+const TRUSTED_EVENT_HOSTS = [
+  "quicket.co.ug",
+  "quicket.co.ke",
+  "mookh.com",
+  "hustlesasa.shop",
+  "madfun.com",
+  "gig.co.ke",
+  "ticketyetu.com",
+  "eventbrite.com",
+  "allevents.in",
+  "ticketmaster.com",
+];
+
 export type QueuedScoutJob = {
   id: string;
   location: string;
@@ -29,6 +42,13 @@ type Candidate = {
 };
 
 type DiscoveryResponse = { events: Candidate[] };
+
+type VerificationTier = "strong" | "trusted_platform" | "manual_review" | "reject";
+
+type VerificationResult = {
+  tier: VerificationTier;
+  reason: string;
+};
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -101,13 +121,38 @@ function dateEvidence(startAt: string) {
   const shortMonth = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
   const day = date.toLocaleString("en-US", { day: "numeric", timeZone: "UTC" });
   const year = date.toLocaleString("en-US", { year: "numeric", timeZone: "UTC" });
-  return [`${month} ${day} ${year}`, `${day} ${month} ${year}`, `${shortMonth} ${day} ${year}`, `${day} ${shortMonth} ${year}`, `${month} ${day}`, `${day} ${month}`].map(identity);
+  return [
+    `${month} ${day} ${year}`,
+    `${day} ${month} ${year}`,
+    `${shortMonth} ${day} ${year}`,
+    `${day} ${shortMonth} ${year}`,
+    `${month} ${day}`,
+    `${day} ${month}`,
+  ].map(identity);
 }
 
-async function verifySource(event: Candidate) {
+function trustedPlatform(sourceUrl: string) {
+  try {
+    const host = new URL(sourceUrl).hostname.toLowerCase().replace(/^www\./, "");
+    return TRUSTED_EVENT_HOSTS.some((trusted) => host === trusted || host.endsWith(`.${trusted}`));
+  } catch {
+    return false;
+  }
+}
+
+function sameDestination(candidateCity: string, requestedLocation: string) {
+  const city = identity(candidateCity);
+  const requested = identity(requestedLocation);
+  return Boolean(city && requested && (city === requested || city.includes(requested) || requested.includes(city)));
+}
+
+async function verifySource(event: Candidate): Promise<VerificationResult> {
   const sourceUrl = httpUrl(event.source_url);
   const startAt = isoDate(event.start_at);
-  if (!sourceUrl || !startAt) return false;
+  if (!sourceUrl || !startAt) return { tier: "reject", reason: "missing_source_or_datetime" };
+
+  const trusted = trustedPlatform(sourceUrl);
+  const score = confidence(event.confidence_score);
 
   try {
     const response = await fetch(sourceUrl, {
@@ -116,18 +161,51 @@ async function verifySource(event: Candidate) {
       redirect: "follow",
       signal: AbortSignal.timeout(7000),
     });
-    if (!response.ok) return false;
+
+    if (!response.ok) {
+      if (trusted && score >= 70) return { tier: "trusted_platform", reason: `trusted_platform_http_${response.status}` };
+      if (score >= 80) return { tier: "manual_review", reason: `source_http_${response.status}` };
+      return { tier: "reject", reason: `source_http_${response.status}` };
+    }
+
     const contentType = response.headers.get("content-type") || "";
-    if (contentType && !contentType.toLowerCase().includes("text/html")) return false;
+    if (contentType && !contentType.toLowerCase().includes("text/html")) {
+      if (trusted && score >= 70) return { tier: "trusted_platform", reason: "trusted_platform_non_html" };
+      return { tier: "manual_review", reason: "source_non_html" };
+    }
 
     const page = identity(stripHtml(await response.text())).slice(0, 250000);
-    if (!page) return false;
-    if (!meaningfulMatch(page, event.title, 2)) return false;
-    if (!dateEvidence(startAt).some((variant) => variant && page.includes(variant))) return false;
-    if (text(event.venue_name) && !meaningfulMatch(page, text(event.venue_name), 1)) return false;
-    return true;
+    if (!page) {
+      if (trusted && score >= 70) return { tier: "trusted_platform", reason: "trusted_platform_dynamic_page" };
+      if (score >= 80) return { tier: "manual_review", reason: "empty_or_dynamic_page" };
+      return { tier: "reject", reason: "empty_source_page" };
+    }
+
+    const titleMatch = meaningfulMatch(page, event.title, 2);
+    const dateMatch = dateEvidence(startAt).some((variant) => variant && page.includes(variant));
+    const venueMatch = !text(event.venue_name) || meaningfulMatch(page, text(event.venue_name), 1);
+
+    if (titleMatch && dateMatch && venueMatch) {
+      return { tier: "strong", reason: "title_date_venue_match" };
+    }
+
+    if (trusted && titleMatch && (dateMatch || venueMatch)) {
+      return { tier: "trusted_platform", reason: "trusted_platform_partial_match" };
+    }
+
+    if (titleMatch || (dateMatch && venueMatch)) {
+      return { tier: "manual_review", reason: "partial_source_match" };
+    }
+
+    if (trusted && score >= 80) {
+      return { tier: "manual_review", reason: "trusted_platform_low_page_evidence" };
+    }
+
+    return { tier: "reject", reason: "source_evidence_mismatch" };
   } catch {
-    return false;
+    if (trusted && score >= 70) return { tier: "trusted_platform", reason: "trusted_platform_fetch_blocked" };
+    if (score >= 80) return { tier: "manual_review", reason: "source_fetch_blocked" };
+    return { tier: "reject", reason: "source_fetch_failed" };
   }
 }
 
@@ -156,12 +234,13 @@ function prompt(location: string, category: string) {
     `The requested destination ${location} is authoritative. Do not substitute Nairobi, Kenya, or another city.`,
     "Perform one comprehensive search covering official venue/organizer pages, legitimate ticketing platforms, public organizer social posts, local event calendars, tourism sources, and reputable local publications.",
     "For Music & Nightlife include concerts, DJ nights, live music, Afrobeat, Amapiano, reggae, R&B, rooftop events, parties, beach events, clubs, lounges, hotels, and recurring venue programming when the next occurrence is verifiable.",
-    "Return only genuinely upcoming events with a specific verifiable date, venue, and direct source URL.",
+    "Return genuinely upcoming candidates with a specific date, venue, destination, and the best direct source URL you found.",
+    "Do not discard a real event merely because the source is a ticketing platform, organizer social page, local calendar, or dynamically rendered event page.",
     "Never invent an event, date, venue, price, source, country, currency, or image.",
     "Unknown price/currency/image must be null. Unknown price never means free.",
     "Every datetime must include an explicit UTC offset or Z appropriate to the event location.",
     "Prefer direct event pages over generic homepages or calendar roots.",
-    "Return at most 10 distinct candidates.",
+    "Return at most 12 distinct candidates.",
     "Return ONLY valid JSON exactly in this shape:",
     '{"events":[{"title":"string","description":"string","venue_name":"string or null","venue_address":"string or null","city":"string","start_at":"ISO datetime with offset or Z","end_at":"ISO datetime with offset or Z or null","price":"number or null","currency":"ISO currency or null","image_url":"string or null","source_url":"https URL","source_name":"string","confidence_score":0}]}',
   ].join("\n");
@@ -181,7 +260,7 @@ export async function processQueuedScout(job: QueuedScoutJob) {
     input: [
       {
         role: "system",
-        content: "You are SafariPlug AI Scout, an Africa-wide discovery intelligence engine. Accuracy and verifiable live-web evidence are more important than volume. Return JSON only.",
+        content: "You are SafariPlug AI Scout, an Africa-wide discovery intelligence engine. Find useful real candidates, preserve source URLs, and never fabricate details. Return JSON only.",
       },
       { role: "user", content: prompt(job.location, job.category) },
     ],
@@ -201,13 +280,19 @@ export async function processQueuedScout(job: QueuedScoutJob) {
 
   const known = await existingKeys();
   const seen = new Set<string>();
+  const reasons: Record<string, number> = {};
+  const tiers: Record<VerificationTier, number> = { strong: 0, trusted_platform: 0, manual_review: 0, reject: 0 };
   let inserted = 0;
   let blocked = 0;
   let duplicates = 0;
   let sourceBlocked = 0;
 
+  const countReason = (reason: string) => {
+    reasons[reason] = (reasons[reason] || 0) + 1;
+  };
+
   for (const event of parsed.events) {
-    if (inserted >= 5) break;
+    if (inserted >= 8) break;
 
     const title = text(event.title);
     const description = text(event.description);
@@ -220,20 +305,37 @@ export async function processQueuedScout(job: QueuedScoutJob) {
     const endAt = isoDate(event.end_at);
     const score = confidence(event.confidence_score);
 
-    if (!title || !description || !venueName || !sourceUrl || !sourceName || !startAt || score < 60 || new Date(startAt).getTime() <= Date.now()) {
+    let baseReason = "";
+    if (!title) baseReason = "missing_title";
+    else if (!description) baseReason = "missing_description";
+    else if (!venueName) baseReason = "missing_venue";
+    else if (!sourceUrl) baseReason = "missing_source_url";
+    else if (!sourceName) baseReason = "missing_source_name";
+    else if (!startAt) baseReason = "invalid_or_missing_datetime";
+    else if (score < 55) baseReason = "confidence_below_55";
+    else if (new Date(startAt).getTime() <= Date.now()) baseReason = "event_not_future";
+    else if (!sameDestination(city, job.location)) baseReason = "destination_mismatch";
+
+    if (baseReason) {
       blocked++;
+      countReason(baseReason);
       continue;
     }
 
-    const date = startAt.slice(0, 10);
+    const date = startAt!.slice(0, 10);
     const key = `${identity(title)}|${identity(city)}|${date}`;
-    const sourceKey = `${sourceUrl.toLowerCase()}|${identity(title)}|${date}`;
+    const sourceKey = `${sourceUrl!.toLowerCase()}|${identity(title)}|${date}`;
     if (seen.has(key) || known.has(key) || known.has(sourceKey)) {
       duplicates++;
+      countReason("duplicate");
       continue;
     }
 
-    if (!(await verifySource(event))) {
+    const verification = await verifySource(event);
+    tiers[verification.tier]++;
+    countReason(verification.reason);
+
+    if (verification.tier === "reject") {
       sourceBlocked++;
       continue;
     }
@@ -241,6 +343,7 @@ export async function processQueuedScout(job: QueuedScoutJob) {
     const amount = price(event.price);
     const currency = amount !== null ? text(event.currency).toUpperCase() || null : null;
     const imageUrl = httpUrl(event.image_url);
+    const reviewNotes = `AI Scout verification: ${verification.tier}. Evidence: ${verification.reason}. Requested destination: ${job.location}.`;
 
     const { error } = await supabaseAdmin.from("ai_discovered_events").insert({
       title,
@@ -258,10 +361,14 @@ export async function processQueuedScout(job: QueuedScoutJob) {
       source_name: sourceName,
       confidence_score: score,
       status: "pending_review",
+      review_status: "pending_review",
+      review_notes: reviewNotes,
+      source_type: verification.tier,
     });
 
     if (error) {
       blocked++;
+      countReason(`insert_error_${error.code || "unknown"}`);
       continue;
     }
 
@@ -277,6 +384,8 @@ export async function processQueuedScout(job: QueuedScoutJob) {
     blocked,
     duplicates,
     sourceBlocked,
+    verificationTiers: tiers,
+    blockedReasons: reasons,
     durationMs: Date.now() - started,
   };
 }
