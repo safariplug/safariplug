@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/Toast";
+import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,6 +23,15 @@ export const metadata: Metadata = {
   description:
     "SafariPlug Intelligence discovers events, experiences, hidden gems and places worth knowing across Africa.",
   applicationName: "SafariPlug",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SafariPlug",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   keywords: [
     "Africa events",
     "Nairobi events",
@@ -50,6 +60,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#000000",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -58,6 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full bg-black text-white antialiased">
         <ToastProvider>{children}</ToastProvider>
+        <PWAInstallPrompt />
       </body>
     </html>
   );
