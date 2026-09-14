@@ -9,6 +9,7 @@ export function PWAServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
 
     let reloading = false;
+    let registration: ServiceWorkerRegistration | null = null;
 
     const handleControllerChange = () => {
       if (reloading) return;
@@ -16,14 +17,19 @@ export function PWAServiceWorker() {
       window.location.reload();
     };
 
+    const checkForUpdate = () => {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      void registration?.update().catch(() => undefined);
+    };
+
     const register = async () => {
       try {
-        const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
 
         if (registration.waiting) setWaitingWorker(registration.waiting);
 
         registration.addEventListener("updatefound", () => {
-          const worker = registration.installing;
+          const worker = registration?.installing;
           if (!worker) return;
 
           worker.addEventListener("statechange", () => {
@@ -38,6 +44,8 @@ export function PWAServiceWorker() {
     };
 
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+    document.addEventListener("visibilitychange", checkForUpdate);
+    window.addEventListener("online", checkForUpdate);
 
     if (document.readyState === "complete") {
       void register();
@@ -47,6 +55,8 @@ export function PWAServiceWorker() {
 
     return () => {
       window.removeEventListener("load", register);
+      window.removeEventListener("online", checkForUpdate);
+      document.removeEventListener("visibilitychange", checkForUpdate);
       navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
     };
   }, []);
