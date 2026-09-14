@@ -40,6 +40,7 @@ export function PWAInstallPrompt() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIOSHelp, setShowIOSHelp] = useState(false);
   const [dismissed, setDismissed] = useState(true);
+  const [installed, setInstalled] = useState(false);
 
   const excluded = useMemo(
     () =>
@@ -50,7 +51,9 @@ export function PWAInstallPrompt() {
   );
 
   useEffect(() => {
-    if (excluded || isStandalone()) return;
+    const standalone = isStandalone();
+    setInstalled(standalone);
+    if (excluded || standalone) return;
 
     const activeDismissal = dismissalIsActive();
     setDismissed(activeDismissal);
@@ -66,6 +69,7 @@ export function PWAInstallPrompt() {
       setInstallEvent(null);
       setShowIOSHelp(false);
       setDismissed(true);
+      setInstalled(true);
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -77,7 +81,7 @@ export function PWAInstallPrompt() {
     };
   }, [excluded]);
 
-  if (excluded || dismissed || isStandalone() || (!installEvent && !showIOSHelp)) {
+  if (excluded || dismissed || installed || (!installEvent && !showIOSHelp)) {
     return null;
   }
 
