@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/Toast";
 import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
+import { PWAServiceWorker } from "@/components/pwa/PWAServiceWorker";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -75,6 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full bg-black text-white antialiased">
         <ToastProvider>{children}</ToastProvider>
+        <PWAServiceWorker />
         <PWAInstallPrompt />
       </body>
     </html>
