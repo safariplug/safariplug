@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import EventCard from "@/components/EventCard";
 import EventFilters from "@/app/events/components/EventFilters";
@@ -110,9 +111,14 @@ export default async function EventsPage({
               <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">Discover what&apos;s happening</h1>
               <p className="mt-3 max-w-2xl text-gray-400">Curated events, experiences and adventures across Africa — searched and filtered in one place.</p>
             </div>
-            <div className="rounded-full border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm font-semibold text-zinc-300">
-              {filteredEvents.length} {filteredEvents.length === 1 ? "experience" : "experiences"}
-            </div>
+            <Link
+              href="/experiences"
+              className="inline-flex items-center gap-2 self-start rounded-full border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:border-amber-400/50 hover:text-amber-300 md:self-auto"
+              aria-label="Browse SafariPlug experiences"
+            >
+              <span>{filteredEvents.length} {filteredEvents.length === 1 ? "experience" : "experiences"}</span>
+              <span aria-hidden="true">→</span>
+            </Link>
           </div>
         </header>
 
