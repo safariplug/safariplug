@@ -15,19 +15,19 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["travel", "lifestyle", "entertainment"],
     icons: [
       {
-        src: "/pwa-icons/192",
+        src: "/pwa-icons/icon-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/pwa-icons/512",
+        src: "/pwa-icons/icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/pwa-icons/512",
+        src: "/pwa-icons/icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
