@@ -2,18 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
-const desktopLinks = [
-  { href: "/events", label: "Discover" },
-  { href: "/concierge", label: "AI Concierge" },
-  { href: "/account/saved", label: "Saved" },
-  { href: "/account/trips", label: "My Trips" },
-  { href: "/account/appointments", label: "My Bookings" },
-  { href: "/account", label: "Account" },
-];
-
-const mobileLinks = [
+const links = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/events", label: "Discover", icon: DiscoverIcon },
   { href: "/account/trips", label: "Trips", icon: TripsIcon },
@@ -21,80 +12,92 @@ const mobileLinks = [
   { href: "/account", label: "Profile", icon: ProfileIcon },
 ];
 
+const BLOCKED_PREFIXES = [
+  "/admin",
+  "/auth",
+  "/api",
+  "/business",
+  "/driver",
+  "/become-a-driver",
+  "/become-a-service-provider",
+];
+
+function detectStandalone() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+function isBlocked(pathname: string) {
+  return BLOCKED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
-  if (href === "/events") return pathname === "/events" || pathname.startsWith("/events/");
+  if (href === "/events") {
+    return pathname === "/events" || pathname.startsWith("/events/");
+  }
   if (href === "/account") return pathname === "/account";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function TravelerNav() {
+export function PWAStandaloneNav() {
   const pathname = usePathname();
+  const [standalone, setStandalone] = useState(false);
 
   useEffect(() => {
-    document.body.classList.add("has-traveler-mobile-nav");
-    return () => document.body.classList.remove("has-traveler-mobile-nav");
+    const media = window.matchMedia("(display-mode: standalone)");
+    const sync = () => setStandalone(detectStandalone());
+
+    sync();
+    media.addEventListener?.("change", sync);
+    window.addEventListener("appinstalled", sync);
+
+    return () => {
+      media.removeEventListener?.("change", sync);
+      window.removeEventListener("appinstalled", sync);
+    };
   }, []);
 
-  return (
-    <>
-      <header className="hidden border-b border-white/10 bg-black/90 backdrop-blur-md md:block">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 lg:px-8">
-          <Link href="/" className="shrink-0" aria-label="SafariPlug home">
-            <img
-              src="/brand/safariplug-wordmark-light.png"
-              alt="SafariPlug"
-              className="h-7 w-auto"
-            />
-          </Link>
-          <nav className="flex items-center gap-1 overflow-x-auto" aria-label="Traveler navigation">
-            {desktopLinks.map((link) => {
-              const active = isActive(pathname, link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition ${
-                    active
-                      ? "bg-[#c9a86a]/15 text-[#e7c98d]"
-                      : "text-white/55 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </header>
+  const visible = standalone && !isBlocked(pathname);
 
-      <nav
-        className="traveler-inline-mobile-nav fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-2 pt-2 backdrop-blur-xl md:hidden"
-        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
-        aria-label="Mobile traveler navigation"
-      >
-        <div className="mx-auto grid max-w-md grid-cols-5">
-          {mobileLinks.map((link) => {
-            const active = isActive(pathname, link.href);
-            const Icon = link.icon;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={active ? "page" : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-semibold transition active:scale-95 ${
-                  active ? "text-[#e7c98d]" : "text-white/50 hover:text-white"
-                }`}
-              >
-                <Icon active={active} />
-                <span>{link.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
-    </>
+  useEffect(() => {
+    document.body.classList.toggle("has-pwa-standalone-nav", visible);
+    return () => document.body.classList.remove("has-pwa-standalone-nav");
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-[70] border-t border-white/10 bg-black/95 px-2 pt-2 backdrop-blur-xl md:hidden"
+      style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+      aria-label="SafariPlug app navigation"
+    >
+      <div className="mx-auto grid max-w-md grid-cols-5">
+        {links.map((link) => {
+          const active = isActive(pathname, link.href);
+          const Icon = link.icon;
+
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-current={active ? "page" : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-semibold transition active:scale-95 ${
+                active ? "text-[#e7c98d]" : "text-white/50 hover:text-white"
+              }`}
+            >
+              <Icon active={active} />
+              <span>{link.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
