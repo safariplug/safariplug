@@ -70,7 +70,7 @@ export default function TravelerNav() {
       </header>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-2 pt-2 backdrop-blur-xl md:hidden"
+        className="traveler-inline-mobile-nav fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-2 pt-2 backdrop-blur-xl md:hidden"
         style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
         aria-label="Mobile traveler navigation"
       >
