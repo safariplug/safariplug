@@ -1,4 +1,4 @@
-const VERSION = "safariplug-pwa-v1";
+const VERSION = "safariplug-pwa-v2";
 const STATIC_CACHE = `${VERSION}-static`;
 const OFFLINE_CACHE = `${VERSION}-offline`;
 const OFFLINE_URL = "/offline";
@@ -41,7 +41,12 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(OFFLINE_CACHE).then((cache) => cache.addAll(PRECACHE_URLS)),
   );
-  self.skipWaiting();
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (event) => {
