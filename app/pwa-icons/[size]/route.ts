@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 
 const SUPPORTED_SIZES = new Set([192, 512]);
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(
   request: Request,
