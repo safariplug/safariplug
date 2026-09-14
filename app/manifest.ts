@@ -15,10 +15,16 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["travel", "lifestyle", "entertainment"],
     icons: [
       {
-        src: "/brand/safariplug-full-lockup.png",
-        sizes: "any",
+        src: "/pwa-icons/192",
+        sizes: "192x192",
         type: "image/png",
         purpose: "any",
+      },
+      {
+        src: "/pwa-icons/512",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any maskable",
       },
     ],
     shortcuts: [
