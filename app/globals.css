@@ -28,8 +28,13 @@ body {
 }
 
 @media (max-width: 767px) {
-  body.has-traveler-mobile-nav {
+  body.has-traveler-mobile-nav,
+  body.has-pwa-standalone-nav {
     padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+
+  html[data-app-mode="standalone"] .traveler-inline-mobile-nav {
+    display: none;
   }
 }
 
