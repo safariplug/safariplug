@@ -36,6 +36,16 @@ body {
   html[data-app-mode="standalone"] .traveler-inline-mobile-nav {
     display: none;
   }
+
+  html[data-app-mode="standalone"] {
+    overscroll-behavior-y: contain;
+  }
+
+  html[data-app-mode="standalone"] a,
+  html[data-app-mode="standalone"] button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
 }
 
 @keyframes safariplug-page-enter {
@@ -49,13 +59,34 @@ body {
   }
 }
 
+@keyframes safariplug-route-progress {
+  0% {
+    transform: translateX(-110%);
+  }
+  55% {
+    transform: translateX(125%);
+  }
+  100% {
+    transform: translateX(310%);
+  }
+}
+
 .safariplug-page-transition {
   min-height: 100%;
   animation: safariplug-page-enter 220ms ease-out both;
 }
 
+.safariplug-route-progress {
+  animation: safariplug-route-progress 900ms ease-in-out infinite;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .safariplug-page-transition {
     animation: none;
+  }
+
+  .safariplug-route-progress {
+    animation-duration: 1800ms;
   }
 }
