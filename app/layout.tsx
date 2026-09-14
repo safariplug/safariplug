@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/Toast";
 import { PWAAppMode } from "@/components/pwa/PWAAppMode";
 import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
+import { PWAPremiumFeedback } from "@/components/pwa/PWAPremiumFeedback";
 import { PWAServiceWorker } from "@/components/pwa/PWAServiceWorker";
 import { PWAStandaloneNav } from "@/components/pwa/PWAStandaloneNav";
 import "./globals.css";
@@ -79,6 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full bg-black text-white antialiased">
         <ToastProvider>{children}</ToastProvider>
         <PWAAppMode />
+        <PWAPremiumFeedback />
         <PWAStandaloneNav />
         <PWAServiceWorker />
         <PWAInstallPrompt />
