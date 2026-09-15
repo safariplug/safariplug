@@ -1,177 +1,36 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-function handleWhatsAppOutreach(phone: string, draft: string) {
-  const cleanPhone = phone.replace(/[^0-9]/g, "");
+type Partner = { id:string; venue_or_promoter_name:string; contact_person:string|null; email_or_phone:string|null; instagram_handle:string|null; outreach_stage:string; notes:string|null };
+type Invitation = { id:string; business_name:string; partner_type:string; status:string; contact_email:string|null; whatsapp_phone:string|null; created_at:string };
 
-  if (!cleanPhone) return false;
+const stages=["prospect","contacted","pitch_sent","partnered"];
+const invitationNeedsAction=new Set(["draft","ready_for_approval","approved"]);
 
-  window.open(
-    `https://wa.me/${cleanPhone}?text=${encodeURIComponent(draft)}`,
-    "_blank"
-  );
-  return true;
+export default function PartnerCRMPage(){
+ const [partners,setPartners]=useState<Partner[]>([]); const [invitations,setInvitations]=useState<Invitation[]>([]); const [loading,setLoading]=useState(true); const [showNew,setShowNew]=useState(false); const [name,setName]=useState(""); const [contact,setContact]=useState(""); const [email,setEmail]=useState(""); const [instagram,setInstagram]=useState(""); const [msg,setMsg]=useState<string|null>(null);
+ useEffect(()=>{void load()},[]);
+ async function load(){setLoading(true);const [p,i]=await Promise.all([supabase.from("safari_partners").select("*").order("created_at",{ascending:false}),supabase.from("partner_invitations").select("id,business_name,partner_type,status,contact_email,whatsapp_phone,created_at").order("created_at",{ascending:false}).limit(8)]);if(p.error)console.error(p.error.message);else setPartners((p.data||[]) as Partner[]);if(!i.error)setInvitations((i.data||[]) as Invitation[]);setLoading(false)}
+ async function addPartner(e:FormEvent<HTMLFormElement>){e.preventDefault();if(!name.trim())return;const {error}=await supabase.from("safari_partners").insert({venue_or_promoter_name:name.trim(),contact_person:contact.trim()||null,email_or_phone:email.trim()||null,instagram_handle:instagram.trim()||null,outreach_stage:"prospect"});if(error){setMsg(error.message);return}setName("");setContact("");setEmail("");setInstagram("");setShowNew(false);await load()}
+ const counts=useMemo(()=>Object.fromEntries(stages.map(s=>[s,partners.filter(p=>p.outreach_stage===s).length])),[partners]);
+ const actionInvites=invitations.filter(i=>invitationNeedsAction.has(i.status)).length;
+ const opened=invitations.filter(i=>i.status==="opened").length; const onboarding=invitations.filter(i=>["signup_started","onboarding"].includes(i.status)).length;
+ return <main className="min-h-screen bg-[#070707] p-5 text-white md:p-10"><div className="mx-auto max-w-7xl">
+  <header className="border-b border-zinc-800 pb-7"><div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"><div><p className="font-mono text-[11px] font-bold uppercase tracking-[.22em] text-amber-400">SafariPlug // Partner Growth Command Center</p><h1 className="mt-2 text-3xl font-bold md:text-4xl">Partner CRM</h1><p className="mt-2 max-w-2xl text-sm text-zinc-400">Discover → Invite → Onboard → Verify → Activate → Manage. One workspace for SafariPlug supply growth.</p></div><div className="flex flex-wrap gap-2"><Link href="/admin/ai-sales" className="rounded-xl border border-zinc-700 px-4 py-2 text-sm">Find Partners with AI</Link><Link href="/admin/ai-sales/invitations" className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-black">✉ Invite Partner</Link><button onClick={()=>setShowNew(true)} className="rounded-xl border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-300">+ Add Partner Manually</button></div></div></header>
+  <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Prospects" value={counts.prospect||0} href="/admin/ai-sales"/><Metric label="Invites need action" value={actionInvites} href="/admin/ai-sales/invitations" alert={actionInvites>0}/><Metric label="Opened invitations" value={opened} href="/admin/ai-sales/invitations"/><Metric label="Onboarding" value={onboarding} href="/admin/ai-sales/invitations"/></section>
+  <section className="mt-7 grid gap-3 md:grid-cols-3"><Quick title="Discover partners" text="Use AI Supplier Scout to research real hospitality, travel and local-service prospects." href="/admin/ai-sales" cta="Open AI Scout →"/><Quick title="Recruit a vendor" text="Add email or WhatsApp, let AI draft the introduction, then review and approve before sending." href="/admin/ai-sales/invitations" cta="Invite Partner →"/><Quick title="Manage active relationships" text="Track contacts and relationship stages without mixing recruitment with vendor activation." href="#pipeline" cta="View pipeline ↓"/></section>
+  {invitations.length>0&&<section className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950"><div className="flex items-center justify-between border-b border-zinc-800 p-5"><div><h2 className="font-semibold">Recruitment activity</h2><p className="text-xs text-zinc-500">Latest invitation and enrollment states</p></div><Link href="/admin/ai-sales/invitations" className="text-sm font-semibold text-amber-400">Manage invitations →</Link></div><div className="divide-y divide-zinc-900">{invitations.map(i=><div key={i.id} className="flex flex-col justify-between gap-2 p-4 sm:flex-row sm:items-center"><div><p className="font-medium">{i.business_name}</p><p className="text-xs text-zinc-500">{i.partner_type} · {i.contact_email||i.whatsapp_phone}</p></div><span className="w-fit rounded-full border border-zinc-700 px-3 py-1 font-mono text-[10px] uppercase text-amber-300">{i.status.replaceAll("_"," ")}</span></div>)}</div></section>}
+  <section id="pipeline" className="mt-8 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950"><div className="border-b border-zinc-800 p-5"><h2 className="font-semibold">Relationship pipeline</h2><p className="mt-1 text-xs text-zinc-500">Existing CRM partner records. Recruitment invitations are managed above.</p></div>{loading?<div className="p-16 text-center text-sm text-zinc-500">Loading partner operations…</div>:partners.length===0?<div className="p-16 text-center"><p className="text-zinc-400">No relationship records yet.</p><div className="mt-5 flex justify-center gap-2"><Link href="/admin/ai-sales/invitations" className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-black">Invite your first partner</Link><button onClick={()=>setShowNew(true)} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm">Add manually</button></div></div>:<div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-zinc-900/60 text-xs uppercase text-zinc-500"><tr><th className="p-4">Partner</th><th className="p-4">Contact</th><th className="p-4">Email / phone</th><th className="p-4">Stage</th><th className="p-4">Next action</th></tr></thead><tbody>{partners.map(p=><tr key={p.id} className="border-t border-zinc-900"><td className="p-4 font-semibold">{p.venue_or_promoter_name}</td><td className="p-4 text-zinc-400">{p.contact_person||"—"}</td><td className="p-4 text-zinc-400">{p.email_or_phone||"—"}</td><td className="p-4"><span className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-amber-300">{p.outreach_stage}</span></td><td className="p-4"><Link href="/admin/ai-sales/invitations" className="text-amber-400 hover:underline">Invite / follow up →</Link></td></tr>)}</tbody></table></div>}</section>
+  <div className="mt-6 flex flex-wrap gap-4 text-sm"><Link href="/admin" className="text-zinc-400 hover:text-white">← Admin Operations</Link><Link href="/admin/ai-sales" className="text-zinc-400 hover:text-white">AI Sales</Link><Link href="/admin/ai-sales/invitations" className="text-zinc-400 hover:text-white">Partner Invitations</Link></div>
+  {msg&&<p className="mt-5 rounded-xl border border-red-900 bg-red-950/30 p-3 text-sm text-red-300">{msg}</p>}
+  {showNew&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"><div className="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950 p-6"><div className="flex justify-between"><div><h2 className="text-xl font-bold">Add partner manually</h2><p className="mt-1 text-xs text-zinc-500">For an existing relationship. To recruit a new vendor, use Invite Partner.</p></div><button onClick={()=>setShowNew(false)} className="text-zinc-400">Close</button></div><form onSubmit={addPartner} className="mt-6 space-y-3"><Input label="Partner / business name *" value={name} set={setName} required/><Input label="Contact person" value={contact} set={setContact}/><Input label="Email or phone" value={email} set={setEmail}/><Input label="Instagram handle" value={instagram} set={setInstagram}/><button className="w-full rounded-xl bg-amber-500 px-4 py-3 font-bold text-black">Save relationship</button></form></div></div>}
+ </div></main>
 }
-
-type Partner = {
-  id: string;
-  venue_or_promoter_name: string;
-  contact_person: string | null;
-  email_or_phone: string | null;
-  instagram_handle: string | null;
-  outreach_stage: string;
-  notes: string | null;
-};
-
-export default function PartnerCRMPage() {
-  const [partners, setPartners] = useState<Partner[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
-  const [outreachDraft, setOutreachDraft] = useState("");
-  const [sending, setSending] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newContact, setNewContact] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newInstagram, setNewInstagram] = useState("");
-
-  useEffect(() => {
-    void fetchPartners();
-  }, []);
-
-  async function fetchPartners() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("safari_partners")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching partners:", error.message);
-    } else {
-      setPartners((data || []) as Partner[]);
-    }
-    setLoading(false);
-  }
-
-  async function handleAddPartner(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!newName.trim()) return;
-
-    const { error } = await supabase.from("safari_partners").insert({
-      venue_or_promoter_name: newName.trim(),
-      contact_person: newContact.trim() || null,
-      email_or_phone: newEmail.trim() || null,
-      instagram_handle: newInstagram.trim() || null,
-      outreach_stage: "prospect",
-    });
-
-    if (error) {
-      setStatusMsg(`Error adding partner: ${error.message}`);
-      return;
-    }
-
-    setNewName("");
-    setNewContact("");
-    setNewEmail("");
-    setNewInstagram("");
-    setShowNewModal(false);
-    await fetchPartners();
-  }
-
-  function handleGeneratePitch(partner: Partner) {
-    setSelectedPartner(partner);
-    const name = partner.contact_person || "Partner";
-    const venue = partner.venue_or_promoter_name;
-    setOutreachDraft(`Subject: Featuring ${venue} on SafariPlug\n\nHi ${name},\n\nI’ve been following ${venue} and love the energy you're bringing to the local scene.\n\nI’m reaching out from SafariPlug—our curated discovery engine highlighting the best experiences across Africa. We would love to spotlight your upcoming events directly to our growing audience of experience seekers.\n\nWould you be open to collaborating or sharing your event calendar so we can feature your listings?\n\nBest regards,\nErick Mwirigi\nSafariPlug Curation Team`);
-    setStatusMsg(null);
-  }
-
-  async function handleSendEmail() {
-    if (!selectedPartner?.email_or_phone) {
-      setStatusMsg("Partner email is missing.");
-      return;
-    }
-
-    setSending(true);
-    setStatusMsg(null);
-    try {
-      const response = await fetch("/api/admin/send-outreach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: selectedPartner.email_or_phone,
-          subject: "Collaboration Opportunity with SafariPlug",
-          message: outreachDraft,
-        }),
-      });
-      const result = (await response.json()) as { success?: boolean; error?: string };
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Failed to send outreach email.");
-      }
-      setStatusMsg("Outreach email dispatched successfully!");
-      await supabase.from("safari_partners").update({ outreach_stage: "contacted" }).eq("id", selectedPartner.id);
-      await fetchPartners();
-    } catch (error) {
-      setStatusMsg(`Error: ${error instanceof Error ? error.message : "Unexpected error"}`);
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <main className="min-h-screen bg-black p-8 font-sans text-white selection:bg-amber-500 selection:text-black md:p-12">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-10 flex flex-col justify-between gap-6 border-b border-zinc-800 pb-6 md:flex-row md:items-center">
-          <div>
-            <div className="mb-1 flex items-center gap-2">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-              <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">SafariPlug CRM // Partner Operations</span>
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">Venue &amp; Promoter Pipeline</h1>
-            <p className="mt-1 text-sm text-zinc-400">Track relationships and dispatch AI-crafted outreach campaigns.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowNewModal(true)} className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-black transition-colors hover:bg-amber-400">+ Add Venue Partner</button>
-            <Link href="/admin/marketing" className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-medium transition-colors hover:border-amber-500">&larr; Marketing Studio</Link>
-          </div>
-        </div>
-
-        <div className="mb-12 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-xl">
-          <div className="border-b border-zinc-800 bg-zinc-900/30 p-6">
-            <h2 className="font-mono text-sm uppercase tracking-wider text-zinc-300">Active Pipeline ({partners.length})</h2>
-          </div>
-          {loading ? (
-            <div className="animate-pulse py-20 text-center font-mono text-xs text-zinc-500">Loading partner database...</div>
-          ) : partners.length === 0 ? (
-            <div className="py-20 text-center font-mono text-xs text-zinc-500">No partner records found. Click <span className="text-amber-400">&quot;+ Add Venue Partner&quot;</span> to begin tracking.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left font-mono text-xs">
-                <thead><tr className="border-b border-zinc-800 bg-zinc-900/40 text-zinc-500"><th className="p-4">Venue / Promoter</th><th className="p-4">Contact</th><th className="p-4">Email / Phone</th><th className="p-4">Instagram</th><th className="p-4">Stage</th><th className="p-4 text-right">Actions</th></tr></thead>
-                <tbody>{partners.map((partner) => <tr key={partner.id} className="border-b border-zinc-900 transition-colors hover:bg-zinc-900/20"><td className="p-4 font-bold text-white">{partner.venue_or_promoter_name}</td><td className="p-4 text-zinc-300">{partner.contact_person || "N/A"}</td><td className="p-4 text-zinc-400">{partner.email_or_phone || "N/A"}</td><td className="p-4 text-zinc-400">{partner.instagram_handle ? `@${partner.instagram_handle}` : "N/A"}</td><td className="p-4"><span className="rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-[10px] uppercase text-amber-400">{partner.outreach_stage}</span></td><td className="p-4 text-right"><button onClick={() => handleGeneratePitch(partner)} className="rounded-lg bg-amber-500 px-3.5 py-1.5 font-bold text-black transition-colors hover:bg-amber-400">Draft AI Pitch</button></td></tr>)}</tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {showNewModal && <Modal title="Add Venue or Promoter" onClose={() => setShowNewModal(false)}><form onSubmit={handleAddPartner} className="space-y-4 font-mono text-xs">{[["Venue / Promoter Name *", newName, setNewName, true], ["Contact Person", newContact, setNewContact, false], ["Email or Phone", newEmail, setNewEmail, false], ["Instagram Handle", newInstagram, setNewInstagram, false]].map(([label, value, setter, required]) => <label key={label as string} className="block text-zinc-400">{label as string}<input required={required as boolean} value={value as string} onChange={(event) => (setter as (value: string) => void)(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-800 bg-black px-4 py-2.5 text-white outline-none focus:border-amber-500" /></label>)}<div className="flex justify-end gap-3 border-t border-zinc-800 pt-4"><button type="button" onClick={() => setShowNewModal(false)} className="rounded-xl bg-zinc-900 px-4 py-2 text-zinc-300">Cancel</button><button type="submit" className="rounded-xl bg-amber-500 px-4 py-2 font-bold text-black">Save Partner</button></div></form></Modal>}
-
-        {selectedPartner && <Modal title={`Pitch: ${selectedPartner.venue_or_promoter_name}`} onClose={() => setSelectedPartner(null)}><div className="space-y-4"><label className="block font-mono text-[11px] uppercase tracking-wider text-zinc-400">Recipient Email:<input value={selectedPartner.email_or_phone || ""} readOnly className="mt-2 w-full rounded-xl border border-zinc-800 bg-black px-4 py-2.5 text-xs text-zinc-300" /></label><label className="block font-mono text-[11px] uppercase tracking-wider text-zinc-400">AI-Crafted Message Draft:<textarea rows={8} value={outreachDraft} onChange={(event) => setOutreachDraft(event.target.value)} className="mt-2 w-full rounded-xl border border-zinc-800 bg-black p-4 text-xs leading-relaxed text-zinc-300 outline-none focus:border-amber-500" /></label>{statusMsg && <p className="rounded-xl border border-amber-900/50 bg-amber-950/40 p-3 font-mono text-xs text-amber-400">{statusMsg}</p>}</div><div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-zinc-800 pt-4"><button onClick={() => { if (!handleWhatsAppOutreach(selectedPartner.email_or_phone || "", outreachDraft)) setStatusMsg("A phone number is required for WhatsApp outreach."); }} disabled={!selectedPartner.email_or_phone} className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-5 py-2.5 font-mono text-xs font-bold text-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-500">Open WhatsApp</button><button onClick={handleSendEmail} disabled={sending || !selectedPartner.email_or_phone} className="rounded-xl bg-amber-500 px-5 py-2.5 font-mono text-xs font-bold text-black disabled:bg-zinc-800 disabled:text-zinc-500">{sending ? "Dispatching..." : "Send Email via Amani"}</button></div></Modal>}
-      </div>
-    </main>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"><div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl md:p-8"><div className="mb-6 flex items-center justify-between border-b border-zinc-800 pb-4"><h3 className="text-xl font-bold">{title}</h3><button onClick={onClose} className="rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-sm text-zinc-400 hover:text-white">Close</button></div>{children}</div></div>;
-}
+function Metric({label,value,href,alert=false}:{label:string;value:number;href:string;alert?:boolean}){return <Link href={href} className={`rounded-2xl border p-5 ${alert?"border-amber-500/50 bg-amber-500/10":"border-zinc-800 bg-zinc-950"}`}><p className="text-xs text-zinc-500">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p></Link>}
+function Quick({title,text,href,cta}:{title:string;text:string;href:string;cta:string}){return <Link href={href} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 transition hover:border-amber-500/50"><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-zinc-500">{text}</p><p className="mt-4 text-sm font-semibold text-amber-400">{cta}</p></Link>}
+function Input({label,value,set,required=false}:{label:string;value:string;set:(v:string)=>void;required?:boolean}){return <label className="block text-xs text-zinc-400">{label}<input required={required} value={value} onChange={e=>set(e.target.value)} className="mt-1 w-full rounded-xl border border-zinc-800 bg-black p-3 text-white outline-none focus:border-amber-500"/></label>}
