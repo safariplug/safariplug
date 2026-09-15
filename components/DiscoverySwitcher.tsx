@@ -4,6 +4,7 @@ const destinations = [
   { href: "/events", label: "Events", icon: "◉" },
   { href: "/experiences", label: "Experiences", icon: "✦" },
   { href: "/drivers", label: "Drivers", icon: "↗" },
+  { href: "/locals", label: "Locals", icon: "◎" },
   { href: "/hotels", label: "Stays", icon: "⌂" },
   { href: "/services", label: "Services", icon: "◇" },
   { href: "/concierge", label: "Ask Concierge", icon: "⌕" },
