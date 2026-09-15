@@ -1,285 +1,38 @@
 import Link from "next/link";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import {
-  approveSalesProspect,
-  rejectSalesProspect,
-} from "./actions";
-
-
-export default async function SalesReviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-
-  const { id } = await params;
-
-
-  const { data: prospect } =
-    await supabaseAdmin
-      .from("ai_sales_prospects")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-
-  if (!prospect) {
-
-    return (
-      <div className="p-8">
-        Prospect not found
-      </div>
-    );
-
-  }
-
-
-  const priority =
-    prospect.opportunity_score >= 85
-      ? "High"
-      : prospect.opportunity_score >= 60
-      ? "Medium"
-      : "Low";
-
-
-  return (
-
-    <main className="min-h-screen bg-gray-50 p-8">
-
-      <div className="mx-auto max-w-5xl">
-
-
-        <Link
-          href="/admin/ai-sales"
-          className="text-blue-600 hover:underline"
-        >
-          ← Back to Sales
-        </Link>
-
-
-
-        <div className="mt-6 rounded-2xl bg-white p-8 shadow">
-
-
-          <h1 className="text-3xl font-bold">
-            {prospect.business_name}
-          </h1>
-
-
-          <p className="mt-2 text-gray-600">
-            {prospect.city} · {prospect.category}
-          </p>
-
-
-
-          <div className="mt-8 grid gap-5 md:grid-cols-3">
-
-
-            <div className="rounded-xl border p-5">
-
-              <p className="text-gray-500">
-                Opportunity Score
-              </p>
-
-              <p className="text-3xl font-bold">
-                {prospect.opportunity_score}%
-              </p>
-
-            </div>
-
-
-
-            <div className="rounded-xl border p-5">
-
-              <p className="text-gray-500">
-                Priority
-              </p>
-
-              <p className="text-3xl font-bold">
-                {priority}
-              </p>
-
-            </div>
-
-
-
-            <div className="rounded-xl border p-5">
-
-              <p className="text-gray-500">
-                Status
-              </p>
-
-              <p className="text-xl font-bold">
-                {prospect.review_status}
-              </p>
-
-            </div>
-
-
-          </div>
-
-
-
-
-          <section className="mt-8 rounded-xl border p-6">
-
-
-            <h2 className="text-xl font-bold">
-              Partnership Intelligence
-            </h2>
-
-
-            <p className="mt-3 text-gray-700">
-
-              SafariPlug fit:
-
-              {" "}
-
-              {prospect.opportunity_score >= 80
-                ? "Strong partnership opportunity. High potential for discovery placement and traveler engagement."
-                : "Potential partner. Requires further qualification."
-              }
-
-            </p>
-
-
-          </section>
-
-
-
-
-
-          <section className="mt-8 rounded-xl border p-6">
-
-
-            <h2 className="text-xl font-bold">
-              Business Information
-            </h2>
-
-
-            <div className="mt-4 space-y-3">
-
-
-              <p>
-                Website:
-                {" "}
-                {prospect.website || "Not available"}
-              </p>
-
-
-              <p>
-                Instagram:
-                {" "}
-                {prospect.instagram || "Not available"}
-              </p>
-
-
-              <p>
-                Facebook:
-                {" "}
-                {prospect.facebook || "Not available"}
-              </p>
-
-
-              <p>
-                Contact:
-                {" "}
-                {prospect.contact_email || "Not available"}
-              </p>
-
-
-              <p>
-                Phone:
-                {" "}
-                {prospect.phone || "Not available"}
-              </p>
-
-
-            </div>
-
-
-          </section>
-
-
-
-
-
-
-          <section className="mt-8 rounded-xl border p-6">
-
-
-            <h2 className="text-xl font-bold">
-              Suggested Outreach Angle
-            </h2>
-
-
-            <p className="mt-3 text-gray-700">
-
-              "SafariPlug helps travelers discover the best
-              experiences across Africa. We would like
-              to feature this business as a recommended
-              experience partner."
-
-            </p>
-
-
-          </section>
-
-
-
-
-
-
-          <div className="mt-8 flex gap-4">
-
-
-            <form
-              action={approveSalesProspect.bind(
-                null,
-                prospect.id
-              )}
-            >
-
-              <button
-                className="rounded-xl bg-green-600 px-6 py-3 text-white font-bold"
-              >
-                Approve Partner
-              </button>
-
-            </form>
-
-
-
-
-
-            <form
-              action={rejectSalesProspect.bind(
-                null,
-                prospect.id
-              )}
-            >
-
-              <button
-                className="rounded-xl bg-red-600 px-6 py-3 text-white font-bold"
-              >
-                Reject
-              </button>
-
-            </form>
-
-
-          </div>
-
-
-
-        </div>
-
-
-      </div>
-
-
-    </main>
-
-  );
-
+import { approveSalesProspect, rejectSalesProspect } from "./actions";
+
+export const dynamic = "force-dynamic";
+
+export default async function SalesReviewPage({params}:{params:Promise<{id:string}>}) {
+  await requireAdmin();
+  const {id}=await params;
+  const {data:prospect,error}=await supabaseAdmin.from("ai_sales_prospects").select("*").eq("id",id).single();
+  if(error||!prospect)return <main className="min-h-screen bg-[#070707] p-8 text-white"><div className="mx-auto max-w-5xl"><Link href="/admin/crm" className="text-amber-400">← CRM</Link><p className="mt-8 text-zinc-400">Prospect not found.</p></div></main>;
+
+  const {data:partner}=await supabaseAdmin.from("safari_partners").select("id,outreach_stage,contact_person,email_or_phone,notes").eq("venue_or_promoter_name",prospect.business_name).maybeSingle();
+  const score=Number(prospect.opportunity_score||0);const priority=score>=85?"High":score>=60?"Medium":"Low";
+  const contactCount=[prospect.contact_email,prospect.phone,prospect.instagram,prospect.facebook].filter(Boolean).length;
+  const research=[prospect.description,prospect.notes,prospect.source_name,prospect.source_url].filter(Boolean);
+  const status=prospect.review_status||prospect.status||"pending review";
+  return <main className="min-h-screen bg-[#070707] p-5 text-white md:p-10"><div className="mx-auto max-w-6xl">
+    <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/admin/crm" className="text-sm text-amber-400">← CRM 2.0</Link><div className="flex gap-3 text-sm"><Link href="/admin/ai-sales" className="text-zinc-400">Lead Discovery</Link><Link href="/admin/ai-sales/invitations" className="text-zinc-400">Outreach Review</Link></div></div>
+    <header className="mt-6 border-b border-zinc-800 pb-7"><p className="font-mono text-[11px] font-bold uppercase tracking-[.22em] text-amber-400">Organization 360</p><h1 className="mt-2 text-4xl font-bold">{prospect.business_name}</h1><p className="mt-2 text-sm text-zinc-400">{prospect.category||"Uncategorized"} · {prospect.city||"City not recorded"}</p></header>
+    <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><Metric label="Opportunity" value={`${score}%`}/><Metric label="Priority" value={priority}/><Metric label="Review" value={String(status).replaceAll("_"," ")}/><Metric label="Contact signals" value={String(contactCount)}/><Metric label="Relationship" value={partner?.outreach_stage?.replaceAll("_"," ")||"Not enrolled"}/></section>
+    <div className="mt-7 grid gap-5 lg:grid-cols-[1.4fr_.8fr]">
+      <div className="space-y-5"><Panel title="AI research brief"><p className="text-sm leading-7 text-zinc-300">{prospect.description||"No research summary is stored yet. Keep this prospect in review until evidence is sufficient."}</p>{prospect.notes&&<p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-zinc-500">{prospect.notes}</p>}<div className="mt-4 flex flex-wrap gap-2">{prospect.source_name&&<Tag>{prospect.source_name}</Tag>}{prospect.source_url&&<a href={prospect.source_url} target="_blank" rel="noreferrer" className="rounded-full border border-zinc-800 px-3 py-1 text-xs text-amber-400">Open source ↗</a>}</div></Panel>
+      <Panel title="Contact intelligence"><div className="grid gap-3 sm:grid-cols-2"><Field label="Email" value={prospect.contact_email}/><Field label="Phone" value={prospect.phone}/><Field label="Website" value={prospect.website}/><Field label="Instagram" value={prospect.instagram}/><Field label="Facebook" value={prospect.facebook}/><Field label="CRM contact" value={partner?.contact_person||partner?.email_or_phone}/></div></Panel>
+      <Panel title="Partnership thesis"><p className="text-sm leading-7 text-zinc-300">{score>=80?"Strong partnership opportunity. Prioritize evidence validation, identify the right decision-maker, then prepare a tailored value proposition for human approval.":score>=60?"Promising prospect. Complete qualification and contact research before preparing outreach.":"Early-stage prospect. Gather stronger evidence of traveler relevance and commercial fit before outreach."}</p></Panel></div>
+      <div className="space-y-5"><Panel title="Next best action"><p className="text-sm leading-6 text-zinc-300">{contactCount===0?"Research a verified business contact before outreach.":status==="pending_review"||status==="pending review"?"Review the evidence and decide whether this organization belongs in the partner pipeline.":partner?`Relationship is ${partner.outreach_stage?.replaceAll("_"," ")||"active"}. Continue from Partner CRM.`:"If approved, enroll the organization into Partner CRM, then draft outreach for human review."}</p><div className="mt-4 grid gap-2"><Link href="/admin/ai-sales/invitations" className="rounded-xl border border-zinc-800 p-3 text-sm hover:border-amber-500/50">Prepare / review outreach →</Link><Link href="/admin/ai-sales/partners" className="rounded-xl border border-zinc-800 p-3 text-sm hover:border-amber-500/50">Open Partner CRM →</Link></div></Panel>
+      <Panel title="Governance"><p className="text-sm leading-6 text-zinc-400">AI may research, score and draft. A person must approve prospect acceptance and external outreach. No message is sent from this screen.</p></Panel>
+      <Panel title="Activity snapshot"><div className="space-y-3 text-sm"><Activity label="AI discovery" detail={prospect.created_at?new Date(prospect.created_at).toLocaleString():"Recorded"}/>{prospect.updated_at&&<Activity label="Last prospect update" detail={new Date(prospect.updated_at).toLocaleString()}/>}<Activity label="Research evidence" detail={`${research.length} stored signal${research.length===1?"":"s"}`}/>{partner&&<Activity label="CRM relationship" detail={partner.outreach_stage?.replaceAll("_"," ")||"Created"}/>}</div></Panel></div>
+    </div>
+    <section className="mt-7 rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><h2 className="font-semibold">Human decision</h2><p className="mt-1 text-sm text-zinc-500">Approval enrolls this prospect into the existing Partner CRM. Rejection removes it from the active prospect queue.</p><div className="mt-5 flex flex-wrap gap-3"><form action={approveSalesProspect.bind(null,prospect.id)}><button className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-bold text-black">Approve & enroll</button></form><form action={rejectSalesProspect.bind(null,prospect.id)}><button className="rounded-xl border border-red-900 px-5 py-3 text-sm font-semibold text-red-300">Reject prospect</button></form></div></section>
+  </div></main>;
 }
+function Metric({label,value}:{label:string;value:string}){return <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4"><p className="text-xs text-zinc-500">{label}</p><p className="mt-2 truncate text-xl font-bold capitalize">{value}</p></div>}
+function Panel({title,children}:{title:string;children:React.ReactNode}){return <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><h2 className="font-semibold">{title}</h2><div className="mt-4">{children}</div></section>}
+function Field({label,value}:{label:string;value:string|null|undefined}){return <div className="rounded-xl border border-zinc-900 p-3"><p className="text-xs text-zinc-600">{label}</p><p className="mt-1 break-all text-sm text-zinc-300">{value||"Not available"}</p></div>}
+function Tag({children}:{children:React.ReactNode}){return <span className="rounded-full border border-zinc-800 px-3 py-1 text-xs text-zinc-400">{children}</span>}
+function Activity({label,detail}:{label:string;detail:string}){return <div className="border-l border-zinc-800 pl-3"><p className="text-zinc-300">{label}</p><p className="text-xs text-zinc-600">{detail}</p></div>}
