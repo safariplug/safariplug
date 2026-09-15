@@ -3,135 +3,39 @@ import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type TripItem = {
-  id: string;
-  item_kind: string | null;
-  title: string | null;
-  start_at: string | null;
-  end_at: string | null;
-  notes: string | null;
-  position: number | null;
-  city_id: string | null;
-  event_id: string | null;
-  appointment_id: string | null;
-  offering_id: string | null;
-  booking_id: string | null;
-  food_order_id: string | null;
-  hotel_booking_pricing_ledger_id: string | null;
+  id: string; item_kind: string | null; title: string | null; start_at: string | null; end_at: string | null; notes: string | null; position: number | null; city_id: string | null; event_id: string | null; appointment_id: string | null; offering_id: string | null; booking_id: string | null; food_order_id: string | null; hotel_booking_pricing_ledger_id: string | null; local_request_id: string | null;
 };
+type LocalRequest = { id: string; activity: string | null; city: string | null; requested_start: string; requested_end: string; status: string; notes: string | null; };
 
-export default async function TripDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function TripDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/account/trips/${id}`)}`);
 
-  const { data: trip, error: tripError } = await supabase
-    .from("trips")
-    .select("id,title,start_on,end_on,status,destination_city_id")
-    .eq("id", id)
-    .eq("traveler_id", user.id)
-    .maybeSingle();
-
+  const { data: trip, error: tripError } = await supabase.from("trips").select("id,title,start_on,end_on,status,destination_city_id").eq("id", id).eq("traveler_id", user.id).maybeSingle();
   if (tripError || !trip) notFound();
 
-  const { data: items } = await supabase
-    .from("trip_items")
-    .select("id,item_kind,title,start_at,end_at,notes,position,city_id,event_id,appointment_id,offering_id,booking_id,food_order_id,hotel_booking_pricing_ledger_id")
-    .eq("trip_id", id)
-    .order("position", { ascending: true })
-    .order("start_at", { ascending: true, nullsFirst: false });
-
+  const [{ data: items }, { data: localRequests }] = await Promise.all([
+    supabase.from("trip_items").select("id,item_kind,title,start_at,end_at,notes,position,city_id,event_id,appointment_id,offering_id,booking_id,food_order_id,hotel_booking_pricing_ledger_id,local_request_id").eq("trip_id", id).order("position", { ascending: true }).order("start_at", { ascending: true, nullsFirst: false }),
+    supabase.from("local_requests").select("id,activity,city,requested_start,requested_end,status,notes").eq("trip_id", id).eq("traveler_id", user.id).order("requested_start", { ascending: true }),
+  ]);
   const itinerary = (items ?? []) as TripItem[];
+  const requestMap = new Map((localRequests ?? []).map((request) => [request.id, request as LocalRequest]));
 
-  return (
-    <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
-      <section className="bg-[#111] text-white">
-        <div className="mx-auto max-w-5xl px-6 pb-14 pt-10 sm:px-10">
-          <Link href="/trips" className="text-xs font-semibold uppercase tracking-[.18em] text-white/45 hover:text-white">← My trips</Link>
-          <div className="mt-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[.28em] text-white/40">SafariPlug itinerary</p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">{trip.title || "Untitled trip"}</h1>
-              <p className="mt-4 text-sm text-white/55">
-                {trip.start_on || "Date not set"}{trip.end_on ? ` — ${trip.end_on}` : ""}
-              </p>
-            </div>
-            <span className="w-fit rounded-full border border-white/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.16em] text-white/60">
-              {trip.status || "draft"}
-            </span>
-          </div>
-        </div>
-      </section>
+  return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
+    <section className="bg-[#111] text-white"><div className="mx-auto max-w-5xl px-6 pb-14 pt-10 sm:px-10"><Link href="/account/trips" className="text-xs font-semibold uppercase tracking-[.18em] text-white/45 hover:text-white">← My trips</Link><div className="mt-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end"><div><p className="text-[11px] font-semibold uppercase tracking-[.28em] text-white/40">SafariPlug itinerary</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">{trip.title || "Untitled trip"}</h1><p className="mt-4 text-sm text-white/55">{trip.start_on || "Date not set"}{trip.end_on ? ` — ${trip.end_on}` : ""}</p></div><span className="w-fit rounded-full border border-white/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.16em] text-white/60">{trip.status || "draft"}</span></div></div></section>
 
-      <section className="mx-auto max-w-5xl px-6 py-10 sm:px-10">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">Your journey</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight">{itinerary.length ? `${itinerary.length} itinerary item${itinerary.length === 1 ? "" : "s"}` : "Nothing added yet"}</h2>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/events" className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold">Find experiences</Link>
-            <Link href="/concierge" className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white">Ask Concierge</Link>
-          </div>
-        </div>
+    <section className="mx-auto max-w-5xl px-6 py-10 sm:px-10"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">Your journey</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">{itinerary.length ? `${itinerary.length} itinerary item${itinerary.length === 1 ? "" : "s"}` : "Nothing added yet"}</h2></div><div className="flex flex-wrap gap-2"><Link href="/events" className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold">Find experiences</Link><Link href="/locals" className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold">Find a Local</Link><Link href="/concierge" className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white">Ask Concierge</Link></div></div>
 
-        {itinerary.length ? (
-          <div className="mt-6 space-y-3">
-            {itinerary.map((item, index) => (
-              <article key={item.id} className="rounded-[1.5rem] border border-black/8 bg-white p-5 shadow-sm">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">{index + 1}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-black/35">{formatKind(item.item_kind)}</p>
-                      {item.booking_id && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-emerald-700">Experience booking</span>}
-                      {item.appointment_id && <span className="rounded-full bg-amber-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-amber-700">Appointment</span>}
-                      {item.food_order_id && <span className="rounded-full bg-orange-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-orange-700">Food order</span>}
-                      {item.hotel_booking_pricing_ledger_id && <span className="rounded-full bg-sky-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-sky-700">Hotel booking</span>}
-                    </div>
-                    <h3 className="mt-2 text-lg font-semibold">{item.title || fallbackTitle(item.item_kind)}</h3>
-                    {item.start_at && <p className="mt-2 text-sm text-black/50">{formatDate(item.start_at)}{item.end_at ? ` — ${formatDate(item.end_at)}` : ""}</p>}
-                    {item.notes && <p className="mt-2 text-sm leading-6 text-black/55">{item.notes}</p>}
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-6 rounded-[1.75rem] border border-dashed border-black/15 bg-white px-6 py-16 text-center">
-            <p className="text-lg font-semibold">Build this trip as you go.</p>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-black/50">Add experiences, service appointments and bookings to keep the whole journey together.</p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <Link href="/events" className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white">Explore events</Link>
-              <Link href="/services" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold">Browse services</Link>
-              <Link href="/hotels" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold">Find a hotel</Link>
-            </div>
-          </div>
-        )}
-      </section>
-    </main>
-  );
+      {!!localRequests?.length && <div className="mt-6 rounded-[1.5rem] border border-black/8 bg-white p-5"><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-black/35">Local requests</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{localRequests.map((request)=><div key={request.id} className="rounded-xl bg-black/[.035] p-4"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{request.activity || "Local request"}</h3><RequestStatus status={request.status}/></div><p className="mt-2 text-xs text-black/45">{request.city || "Location not specified"} · {formatDate(request.requested_start)}</p>{request.notes && <p className="mt-2 text-sm text-black/55">{request.notes}</p>}<p className="mt-3 text-[11px] text-black/45">{request.status === "requested" ? "Waiting for the Local to respond. This is not yet a confirmed booking." : request.status === "accepted" ? "The Local accepted your request. Acceptance does not by itself represent a paid booking." : request.status === "declined" ? "The Local declined this request. You can choose another Local." : request.status === "cancelled" ? "You cancelled this request." : "Request status updated."}</p></div>)}</div></div>}
+
+      {itinerary.length ? <div className="mt-6 space-y-3">{itinerary.map((item,index)=>{const localRequest=item.local_request_id?requestMap.get(item.local_request_id):undefined;return <article key={item.id} className="rounded-[1.5rem] border border-black/8 bg-white p-5 shadow-sm"><div className="flex items-start gap-4"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">{index+1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-black/35">{formatKind(item.item_kind)}</p>{item.booking_id&&<Badge text="Experience booking"/>}{item.appointment_id&&<Badge text="Appointment"/>}{item.food_order_id&&<Badge text="Food order"/>}{item.hotel_booking_pricing_ledger_id&&<Badge text="Hotel booking"/>}{localRequest&&<RequestStatus status={localRequest.status}/>}</div><h3 className="mt-2 text-lg font-semibold">{item.title||fallbackTitle(item.item_kind)}</h3>{item.start_at&&<p className="mt-2 text-sm text-black/50">{formatDate(item.start_at)}{item.end_at?` — ${formatDate(item.end_at)}`:""}</p>}{item.notes&&<p className="mt-2 text-sm leading-6 text-black/55">{item.notes}</p>}</div></div></article>})}</div>:<div className="mt-6 rounded-[1.75rem] border border-dashed border-black/15 bg-white px-6 py-16 text-center"><p className="text-lg font-semibold">Build this trip as you go.</p><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-black/50">Add experiences, Local requests, service appointments and real bookings to keep the whole journey together.</p><div className="mt-5 flex flex-wrap justify-center gap-2"><Link href="/events" className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white">Explore events</Link><Link href="/locals" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold">Find a Local</Link><Link href="/services" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold">Browse services</Link><Link href="/hotels" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold">Find a hotel</Link></div></div>}
+    </section>
+  </main>;
 }
-
-function formatKind(kind: string | null) {
-  return (kind || "plan").replace(/_/g, " ");
-}
-
-function fallbackTitle(kind: string | null) {
-  switch (kind) {
-    case "hotel": return "Hotel stay";
-    case "service": return "Service appointment";
-    case "restaurant": return "Restaurant";
-    case "food_order": return "Food order";
-    case "event": return "Experience or event";
-    default: return "Trip item";
-  }
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-}
+function Badge({text}:{text:string}){return <span className="rounded-full bg-black/[.05] px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-black/60">{text}</span>}
+function RequestStatus({status}:{status:string}){const label=status==="requested"?"Pending":status.charAt(0).toUpperCase()+status.slice(1);return <span className="rounded-full border border-black/10 bg-white px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-black/60">Local · {label}</span>}
+function formatKind(kind:string|null){return (kind||"plan").replace(/_/g," ")}
+function fallbackTitle(kind:string|null){switch(kind){case"hotel":return"Hotel stay";case"service":return"Service appointment";case"restaurant":return"Restaurant";case"food_order":return"Food order";case"event":return"Experience or event";case"local":return"Local connection";default:return"Trip item"}}
+function formatDate(value:string){return new Intl.DateTimeFormat("en",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value))}
