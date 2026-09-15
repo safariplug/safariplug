@@ -23,6 +23,7 @@ async function ownedProfile(userId: string, profileId?: string) {
   return data ? { ...data, business } : null;
 }
 function slugify(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+function safePhotoUrl(value: unknown) { const url=String(value||"").trim(); return /^https:\/\//i.test(url) && url.length<=2048 ? url : null; }
 
 export async function POST(request: Request) {
   try {
@@ -61,19 +62,23 @@ export async function POST(request: Request) {
       const { data,error } = await supabaseAdmin.from("service_profiles").update(patch).eq("id",profile.id).select("*").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({profile:data});
     }
     if (action === "toggle_booking") {
-      const open=Boolean(body.open); const {data,error}=await supabaseAdmin.from("service_profiles").update({booking_status:open?"open":"closed",status:"active"}).eq("id",profile.id).select("id,status,booking_status").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({profile:data});
+      const open=Boolean(body.open);
+      if(open){const {count}=await supabaseAdmin.from("service_staff").select("id",{count:"exact",head:true}).eq("service_profile_id",profile.id).eq("status","active").not("personal_photo_url","is",null);if(!count)return NextResponse.json({error:"Add at least one active team member with a personal photo before opening bookings."},{status:409});}
+      const {data,error}=await supabaseAdmin.from("service_profiles").update({booking_status:open?"open":"closed",status:"active"}).eq("id",profile.id).select("id,status,booking_status").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({profile:data});
     }
     if (action === "create_offering") {
       if (!body.name || !body.durationMinutes) return NextResponse.json({error:"Service name and duration are required."},{status:400});
-      const baseSlug=slugify(String(body.name));
-      const slug=`${baseSlug}-${Date.now().toString(36)}`;
+      const baseSlug=slugify(String(body.name)); const slug=`${baseSlug}-${Date.now().toString(36)}`;
       const {data,error}=await supabaseAdmin.from("service_offerings").insert({service_profile_id:profile.id,category_id:profile.category_id,name:String(body.name).trim(),slug,description:body.description||null,duration_minutes:Number(body.durationMinutes),price:Number(body.price??0),currency:body.currency||"KES",status:body.active===false?"draft":"active",requires_confirmation:Boolean(body.requiresConfirmation)}).select("id,name,description,duration_minutes,price,currency,status,requires_confirmation").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({offering:data},{status:201});
     }
     if (action === "update_offering") {
       if(!body.offeringId)return NextResponse.json({error:"Offering is required."},{status:400}); const {data:offering}=await supabaseAdmin.from("service_offerings").select("id").eq("id",body.offeringId).eq("service_profile_id",profile.id).maybeSingle(); if(!offering)return NextResponse.json({error:"Offering not found."},{status:404}); const patch:any={}; for(const [key,value] of [["name",body.name],["description",body.description],["duration_minutes",body.durationMinutes],["price",body.price],["currency",body.currency],["status",body.status],["requires_confirmation",body.requiresConfirmation]] as const)if(value!==undefined)patch[key]=value; const {data,error}=await supabaseAdmin.from("service_offerings").update(patch).eq("id",body.offeringId).select("*").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({offering:data});
     }
     if (action === "create_staff") {
-      if(!body.displayName)return NextResponse.json({error:"Team member name is required."},{status:400}); const {data,error}=await supabaseAdmin.from("service_staff").insert({service_profile_id:profile.id,display_name:String(body.displayName).trim(),bio:body.bio||null,status:"active"}).select("id,display_name,bio,status").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({staff:data},{status:201});
+      const photo=safePhotoUrl(body.personalPhotoUrl); if(!body.displayName||!photo)return NextResponse.json({error:"Team member name and a secure HTTPS personal photo URL are required."},{status:400}); const {data,error}=await supabaseAdmin.from("service_staff").insert({service_profile_id:profile.id,display_name:String(body.displayName).trim(),bio:body.bio||null,personal_photo_url:photo,status:"active"}).select("id,display_name,bio,personal_photo_url,status").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({staff:data},{status:201});
+    }
+    if (action === "update_staff_photo") {
+      const photo=safePhotoUrl(body.personalPhotoUrl); if(!body.staffId||!photo)return NextResponse.json({error:"Team member and a secure HTTPS personal photo URL are required."},{status:400}); const {data,error}=await supabaseAdmin.from("service_staff").update({personal_photo_url:photo}).eq("id",body.staffId).eq("service_profile_id",profile.id).select("id,display_name,bio,personal_photo_url,status").maybeSingle(); if(error)return NextResponse.json({error:error.message},{status:400}); if(!data)return NextResponse.json({error:"Team member not found."},{status:404}); return NextResponse.json({staff:data});
     }
     if (action === "assign_staff") {
       const {data:staff}=await supabaseAdmin.from("service_staff").select("id").eq("id",body.staffId).eq("service_profile_id",profile.id).maybeSingle(); const {data:offering}=await supabaseAdmin.from("service_offerings").select("id").eq("id",body.offeringId).eq("service_profile_id",profile.id).maybeSingle(); if(!staff||!offering)return NextResponse.json({error:"Staff member or service not found."},{status:404}); const {error}=await supabaseAdmin.from("service_staff_offerings").upsert({staff_id:staff.id,offering_id:offering.id}); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({ok:true});
