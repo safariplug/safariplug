@@ -27,8 +27,10 @@ function cleanText(value: unknown) { return typeof value === "string" ? value.tr
 
 async function executeScout(city: string, category: string) {
   const prospects = await discoverBusinesses(city, category);
-  let inserted = 0;
+  let inserted = 0; let contactReady=0; let needsContactResearch=0;
   for (const prospect of prospects) {
+    const hasDirectContact=Boolean(prospect.contact_email||prospect.phone);
+    if(hasDirectContact) contactReady+=1; else needsContactResearch+=1;
     const intelligence = scoreProspect({ business_name: prospect.business_name, category: prospect.category, city: prospect.city });
     const { data: existingProspect, error: lookupError } = await supabaseAdmin.from("ai_sales_prospects").select("id").eq("business_name", prospect.business_name).eq("city", city).maybeSingle();
     if (lookupError) throw lookupError;
@@ -44,7 +46,7 @@ async function executeScout(city: string, category: string) {
     if (error) throw error;
     inserted += 1;
   }
-  return { discovered: prospects.length, inserted };
+  return { discovered: prospects.length, inserted, contactReady, needsContactResearch };
 }
 
 export async function runSalesScout(formData: FormData) {
@@ -67,7 +69,7 @@ export async function runSalesScoutForm(_previousState:SalesScoutFormState,formD
   const city=cleanText(formData.get("city"))||"Nairobi";
   const category=cleanText(formData.get("category"))||"Hotels";
   const result=await runSalesScout(formData);
-  return {status:"success",message:`Supplier Scout completed for ${category} in ${city}: ${result.discovered} discovered, ${result.inserted} new prospect${result.inserted===1?"":"s"} added for review.`};
+  return {status:"success",message:`Supplier Scout completed for ${category} in ${city}: ${result.discovered} qualified, ${result.contactReady} contact-ready, ${result.needsContactResearch} need contact research, ${result.inserted} new prospect${result.inserted===1?"":"s"} added for review.`};
  }catch(error:unknown){
   console.error("SUPPLIER SCOUT FORM ERROR:",error);
   const detail=error instanceof Error?error.message:"Supplier Scout failed";
@@ -79,9 +81,9 @@ export async function runScheduledSalesScout() {
   const pairs=SCOUT_CITIES.flatMap((city)=>SCOUT_CATEGORIES.map((category)=>({city,category})));
   const dayIndex=Math.floor(Date.now()/86_400_000); const start=(dayIndex*6)%pairs.length;
   const selected=Array.from({length:6},(_,index)=>pairs[(start+index)%pairs.length]);
-  let discovered=0; let inserted=0;
-  const completed:Array<{city:string;category:string;discovered:number;inserted:number}>=[];
-  for(const pair of selected){const result=await executeScout(pair.city,pair.category);discovered+=result.discovered;inserted+=result.inserted;completed.push({...pair,...result});}
+  let discovered=0; let inserted=0; let contactReady=0; let needsContactResearch=0;
+  const completed:Array<{city:string;category:string;discovered:number;inserted:number;contactReady:number;needsContactResearch:number}>=[];
+  for(const pair of selected){const result=await executeScout(pair.city,pair.category);discovered+=result.discovered;inserted+=result.inserted;contactReady+=result.contactReady;needsContactResearch+=result.needsContactResearch;completed.push({...pair,...result});}
   revalidatePath("/admin/ai-sales");
-  return {discovered,inserted,completed};
+  return {discovered,inserted,contactReady,needsContactResearch,completed};
 }
