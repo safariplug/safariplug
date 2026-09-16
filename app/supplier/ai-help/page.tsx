@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const starters = [
   "What should I complete next?",
@@ -10,11 +10,37 @@ const starters = [
   "Help me describe my services clearly.",
 ];
 
+const reviewLabels: Record<string, string> = {
+  business_details: "Business details",
+  business_images: "Business images",
+  services_pricing: "Services & pricing",
+  team: "Team information",
+  personal_photos: "Personal photos",
+  availability: "Availability",
+  verification: "Verification",
+  payout_details: "Payout details",
+  other: "Other requested change",
+};
+
+type ReviewContext = {
+  onboarding_status?: string;
+  completion_percent?: number;
+  review_items?: string[];
+  review_note?: string | null;
+};
+
 export default function SupplierAIHelpPage() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [context, setContext] = useState<ReviewContext | null>(null);
+
+  useEffect(() => { void (async () => {
+    const response = await fetch("/api/supplier/ai-assist", { cache: "no-store" });
+    const data = await response.json().catch(() => null);
+    if (response.ok) setContext(data);
+  })(); }, []);
 
   async function ask(value = question) {
     const q = value.trim();
@@ -27,9 +53,22 @@ export default function SupplierAIHelpPage() {
     setAnswer(data?.answer || "No guidance returned.");
   }
 
+  const requestedFixes = Array.isArray(context?.review_items) ? context.review_items : [];
+
   return <main className="mx-auto max-w-4xl px-6 py-10">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug Supplier</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">AI onboarding helper</h1></div><Link href="/supplier" className="rounded-full border border-black/15 px-4 py-2 text-sm">Back to onboarding</Link></div>
     <p className="mt-3 max-w-2xl text-black/55">Ask for help with descriptions, requested fixes, services, or what to do next. AI gives suggestions only; review everything before saving.</p>
+
+    {requestedFixes.length > 0 && <section className="mt-7 rounded-3xl border border-amber-200 bg-amber-50 p-5 md:p-6">
+      <p className="text-xs font-semibold uppercase tracking-[.18em] text-amber-900/60">SafariPlug requested changes</p>
+      <h2 className="mt-2 text-xl font-semibold">Get help fixing each item</h2>
+      <p className="mt-2 text-sm text-black/55">Choose a requested fix and the AI helper will explain what to update using your current supplier information.</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">{requestedFixes.map((item) => {
+        const label = reviewLabels[item] || item.replaceAll("_", " ");
+        return <button key={item} onClick={() => void ask(`SafariPlug requested a change for: ${label}. Explain exactly what I should review or update, using only my existing supplier information and the staff note. Do not invent missing information.`)} className="rounded-xl border border-amber-900/10 bg-white px-4 py-3 text-left text-sm font-medium hover:bg-amber-100/50">Help me fix: {label}</button>;
+      })}</div>
+      {context?.review_note && <div className="mt-4 rounded-2xl bg-white/70 p-4"><p className="text-xs font-semibold uppercase tracking-[.14em] text-black/40">Staff note</p><p className="mt-2 text-sm leading-6 text-black/70">{context.review_note}</p></div>}
+    </section>}
 
     <section className="mt-7 rounded-3xl border border-black/10 p-5 md:p-6">
       <label className="text-sm font-medium">What do you need help with?</label>

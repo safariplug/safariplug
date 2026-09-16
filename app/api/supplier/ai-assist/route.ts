@@ -5,15 +5,33 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 const FALLBACK_ID = "00000000-0000-0000-0000-000000000000";
 
-export async function POST(request: Request) {
+async function getSupplierAccount() {
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user || user.is_anonymous) return NextResponse.json({ error: "Supplier authentication required." }, { status: 401 });
-
+  if (authError || !user || user.is_anonymous) return { error: NextResponse.json({ error: "Supplier authentication required." }, { status: 401 }) };
   const { data: account } = await supabaseAdmin.from("supplier_accounts")
     .select("id,business_id,onboarding_status,completion_percent,review_items,review_note")
     .eq("user_id", user.id).maybeSingle();
-  if (!account) return NextResponse.json({ error: "Supplier account not found." }, { status: 404 });
+  if (!account) return { error: NextResponse.json({ error: "Supplier account not found." }, { status: 404 }) };
+  return { account };
+}
+
+export async function GET() {
+  const result = await getSupplierAccount();
+  if (result.error) return result.error;
+  const account = result.account!;
+  return NextResponse.json({
+    onboarding_status: account.onboarding_status,
+    completion_percent: account.completion_percent,
+    review_items: Array.isArray(account.review_items) ? account.review_items : [],
+    review_note: account.review_note || null,
+  });
+}
+
+export async function POST(request: Request) {
+  const result = await getSupplierAccount();
+  if (result.error) return result.error;
+  const account = result.account!;
 
   const body = await request.json().catch(() => null) as { question?: string } | null;
   const question = String(body?.question || "").trim().slice(0, 1200);
@@ -32,7 +50,7 @@ export async function POST(request: Request) {
     model: process.env.OPENAI_ASSIST_MODEL || "gpt-5-mini",
     max_output_tokens: 700,
     input: [
-      { role: "system", content: "You are SafariPlug Supplier Copilot. Help a supplier complete onboarding clearly and practically. Use only the supplied account context. Never invent facts, prices, licenses, verification, approval, publishing, or booking status. You may draft descriptions or service wording, explain requested fixes, and suggest what to complete next. Be concise and action-oriented. Make clear that AI suggestions are drafts and the supplier must review before saving." },
+      { role: "system", content: "You are SafariPlug Supplier Copilot. Help a supplier complete onboarding clearly and practically. Use only the supplied account context. Never invent facts, prices, licenses, verification, approval, publishing, or booking status. You may draft descriptions or service wording, explain requested fixes, and suggest what to complete next. Be concise and action-oriented. When a staff-requested fix is referenced, explain exactly what the supplier can update based only on the known profile data and staff note. Make clear that AI suggestions are drafts and the supplier must review before saving." },
       { role: "user", content: JSON.stringify({ question, onboarding_status: account.onboarding_status, completion_percent: account.completion_percent, requested_fixes: account.review_items, staff_note: account.review_note, business, profile, offerings: offerings ?? [] }) },
     ],
   });
