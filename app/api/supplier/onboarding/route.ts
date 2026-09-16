@@ -22,7 +22,7 @@ async function supplierContext() {
   if (error || !user || user.is_anonymous) return null;
   const { data: account } = await supabaseAdmin
     .from("supplier_accounts")
-    .select("id,user_id,business_id,contact_name,invitation_status,onboarding_status,completion_percent,accepted_at")
+    .select("id,user_id,business_id,contact_name,invitation_status,onboarding_status,completion_percent,accepted_at,review_items,review_note,review_requested_at")
     .eq("user_id", user.id)
     .maybeSingle();
   return account ? { user, account } : null;
@@ -49,7 +49,7 @@ export async function GET() {
     .order("created_at");
   const { data: staff } = await supabaseAdmin
     .from("service_staff")
-    .select("id,display_name,bio,status")
+    .select("id,display_name,bio,status,personal_photo_url")
     .eq("service_profile_id", profile?.id ?? FALLBACK_ID)
     .order("created_at");
   const staffIds = (staff ?? []).map((member) => member.id);
@@ -115,7 +115,17 @@ export async function POST(request: Request) {
     if (completion.error) return NextResponse.json({ error: completion.error.message }, { status: 500 });
     if ((completion.data ?? 0) < 80) return NextResponse.json({ error: "Please complete at least 80% of your supplier profile before submitting." }, { status: 422 });
     const now = new Date().toISOString();
-    const { error } = await supabaseAdmin.from("supplier_accounts").update({ onboarding_status: "submitted", invitation_status: "accepted", accepted_at: ctx.account.accepted_at ?? now, submitted_at: now, completion_percent: completion.data ?? 0, updated_at: now }).eq("id", ctx.account.id).eq("user_id", ctx.user.id);
+    const { error } = await supabaseAdmin.from("supplier_accounts").update({
+      onboarding_status: "submitted",
+      invitation_status: "accepted",
+      accepted_at: ctx.account.accepted_at ?? now,
+      submitted_at: now,
+      completion_percent: completion.data ?? 0,
+      review_items: [],
+      review_note: null,
+      review_requested_at: null,
+      updated_at: now,
+    }).eq("id", ctx.account.id).eq("user_id", ctx.user.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const { error: businessError } = await supabaseAdmin.from("businesses").update({ status: "pending" }).eq("id", ctx.account.business_id).eq("owner_id", ctx.user.id);
     if (businessError) return NextResponse.json({ error: businessError.message }, { status: 500 });
