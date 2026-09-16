@@ -21,5 +21,7 @@ begin
  return request_id;
 end; $$;
 revoke execute on function public.invoke_supplier_scout_worker() from public,anon,authenticated;
-do $$ declare existing_job bigint; begin select jobid into existing_job from cron.job where jobname='safariplug-supplier-scout-worker' limit 1; if existing_job is not null then perform cron.unschedule(existing_job); end if; end $$;
-select cron.schedule('safariplug-supplier-scout-worker','* * * * *','select public.invoke_supplier_scout_worker();');
+
+-- The worker schedule is intentionally enabled only after the matching application
+-- route is deployed to production. This prevents pg_cron from repeatedly calling a
+-- route that does not exist during database-first deployment.
