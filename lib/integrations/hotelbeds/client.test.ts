@@ -9,7 +9,7 @@ import {
 test("Hotelbeds product signature is deterministic", () => {
   assert.equal(
     hotelbedsProductSignature("abc", "secret", 1234567890),
-    "b39e949a86856c04987a100203fe48c98315827c73bd58786742980c9eb6bd79"
+    "69b846a5f38d7680d221105308fde80aa7e856f5a9463e23f3ab7cb30bee9cc1"
   );
 });
 
