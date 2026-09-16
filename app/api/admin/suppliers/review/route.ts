@@ -7,7 +7,7 @@ export async function GET() {
     await requireAdmin();
     const { data, error } = await supabaseAdmin
       .from("supplier_accounts")
-      .select("id,business_id,contact_name,invitation_status,onboarding_status,completion_percent,submitted_at,approved_at,businesses!inner(id,name,description,phone,email,city_id,status),service_profiles(id,status,booking_status,service_categories(name,slug),service_offerings(id,name,price,currency,status,duration_minutes))")
+      .select("id,business_id,contact_name,invitation_status,onboarding_status,completion_percent,submitted_at,approved_at,businesses!inner(id,name,description,phone,email,city_id,status,service_profiles(id,status,booking_status,service_categories(name,slug),service_offerings(id,name,price,currency,status,duration_minutes)))")
       .in("onboarding_status", ["submitted", "changes_requested", "approved", "rejected", "live"])
       .order("submitted_at", { ascending: false });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
