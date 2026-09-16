@@ -24,7 +24,6 @@ const CITY_COUNTRY: Record<string, string> = {
 };
 
 function normalizeText(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
-function normalizeOptionalText(value: unknown): string | undefined { const text = normalizeText(value); return text || undefined; }
 function isValidHttpUrl(value: unknown): value is string {
   if (typeof value !== "string" || !value.trim()) return false;
   try { const url = new URL(value.trim()); return url.protocol === "http:" || url.protocol === "https:"; } catch { return false; }
@@ -36,6 +35,15 @@ function normalizeSourceUrl(value: unknown): string | undefined {
   if (lower.startsWith("http://localhost") || lower.startsWith("https://localhost") || lower.includes("example.com") || lower.includes("/admin/ai-scout") || lower.includes("/admin/ai-sales")) return undefined;
   return url;
 }
+function normalizePublicUrl(value: unknown): string | undefined { return normalizeSourceUrl(value); }
+function isValidEmail(value: unknown): boolean {
+  const email=normalizeText(value);
+  const lower=email.toLowerCase();
+  if(!email || lower.includes("[email") || lower.includes("protected") || lower.includes("example.com") || lower.includes("example.org") || lower.includes("example.net") || lower.includes("noreply") || lower.includes("no-reply")) return false;
+  if(/[\[\]<>\s]/.test(email)) return false;
+  return /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email);
+}
+function hasUsefulPhone(value: unknown): boolean { const phone=normalizeText(value); return phone.replace(/\D/g,"").length>=7; }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
 
 function normalizeProspect(value: unknown, city: string, category: string): DiscoveryResult | undefined {
@@ -47,12 +55,13 @@ function normalizeProspect(value: unknown, city: string, category: string): Disc
   const sourceUrl = normalizeSourceUrl(value.source_url);
   const sourceName = normalizeText(value.source_name);
   if (!businessName || discoveredCategory !== category || discoveredCity.toLowerCase() !== city.toLowerCase() || !description || !sourceUrl || !sourceName) return undefined;
-  const notes = [normalizeText(value.notes), `Source: ${sourceName} - ${sourceUrl}`].filter(Boolean).join("\n");
-  return {
-    business_name: businessName, category, city,
-    website: normalizeOptionalText(value.website), instagram: normalizeOptionalText(value.instagram), facebook: normalizeOptionalText(value.facebook),
-    contact_email: normalizeOptionalText(value.contact_email), phone: normalizeOptionalText(value.phone), source_url: sourceUrl, source_name: sourceName, description, notes,
-  };
+  const website=normalizePublicUrl(value.website), instagram=normalizePublicUrl(value.instagram), facebook=normalizePublicUrl(value.facebook);
+  const contactEmail=isValidEmail(value.contact_email)?normalizeText(value.contact_email):undefined;
+  const phone=hasUsefulPhone(value.phone)?normalizeText(value.phone):undefined;
+  if (!contactEmail && !phone && !website && !instagram && !facebook) return undefined;
+  const contactReadiness=contactEmail||phone?"Contact-ready: public email or phone found.":"Needs contact research: official public web/social property found, but no public email or phone was verified.";
+  const notes = [normalizeText(value.notes), contactReadiness, `Source: ${sourceName} - ${sourceUrl}`].filter(Boolean).join("\n");
+  return { business_name: businessName, category, city, website, instagram, facebook, contact_email:contactEmail, phone, source_url: sourceUrl, source_name: sourceName, description, notes };
 }
 
 export async function discoverBusinesses(city: string, category: string): Promise<DiscoveryResult[]> {
@@ -61,9 +70,14 @@ export async function discoverBusinesses(city: string, category: string): Promis
   const country = CITY_COUNTRY[city] || "an African country";
   const searchPrompt = [
     `Find real businesses in ${city}, ${country}, Africa that operate in the ${category} category and could be relevant SafariPlug partners.`,
-    "Use live web search.",
+    "Use live web search. Discovery is not complete until you also perform contact enrichment for each candidate.",
+    "For every candidate, actively search the official website, contact page, official Instagram/Facebook profile, and other credible public sources for a business email or business phone number.",
+    "Prioritize prospects with a publicly verified business email or phone number because they are immediately actionable for governed outreach.",
+    "If no public email or phone can be verified, include the business only when at least one official website, Instagram URL, or Facebook URL is verified so a human or later enrichment step has an actionable research path.",
+    "Do not return a business that has no verified email, phone, official website, official Instagram URL, and official Facebook URL.",
+    "Never return obfuscated or redacted email text such as [email protected], [email protected], email protected, placeholder/example addresses, or no-reply addresses as a contact email. Use null instead.",
     "Only return genuine businesses with externally verifiable information.",
-    "Never invent or infer a business, website, social account, email, phone number, address, or description.",
+    "Never invent or infer a business, website, social account, email, phone number, address, decision-maker, or description.",
     "If a field is unavailable or not supported by a source, return null.",
     "Do not calculate or return a sales score.",
     "Do not contact, message, email, publish, approve, or modify any business.",
@@ -73,7 +87,7 @@ export async function discoverBusinesses(city: string, category: string): Promis
     "If a public business phone number is explicitly shown as WhatsApp-capable by the source, mention that fact in notes; otherwise do not claim WhatsApp availability.",
     "Never use localhost, example.com, SafariPlug URLs, or generic placeholder businesses.",
     "Return only businesses whose city and category match the requested values.",
-    "Return at most 10 prospects. Return an empty prospects array when no credible prospects are found.",
+    "Return at most 10 prospects. Return an empty prospects array when no credible actionable prospects are found.",
     "Return only valid JSON with exactly this structure:",
     "{", '  "prospects": [', "    {", '      "business_name": "string",', '      "category": "string",', '      "city": "string",', '      "website": "string or null",', '      "instagram": "string or null",', '      "facebook": "string or null",', '      "contact_email": "string or null",', '      "phone": "string or null",', '      "description": "string",', '      "source_url": "string",', '      "source_name": "string",', '      "notes": "string or null"', "    }", "  ]", "}",
   ].join("\n");
@@ -82,7 +96,7 @@ export async function discoverBusinesses(city: string, category: string): Promis
     model: process.env.OPENAI_SALES_SCOUT_MODEL || "gpt-5-mini",
     tools: [{ type: "web_search" }],
     input: [
-      { role: "system", content: "You are SafariPlug Supplier Discovery for Africa. Use live web information, never fabricate fields, use null for unknowns, require a credible external source for every prospect, and return only valid JSON." },
+      { role: "system", content: "You are SafariPlug Supplier Discovery for Africa. Discover and enrich contacts using live web information. Never fabricate fields. Prefer verified public business email/phone; reject obfuscated or placeholder contact data; otherwise require an official public website or social profile for later contact research. Return only valid JSON." },
       { role: "user", content: searchPrompt },
     ],
   });
