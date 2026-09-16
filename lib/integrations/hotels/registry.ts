@@ -1,4 +1,5 @@
 import { UnavailableHotelAdapter } from "./not-configured";
+import { HotelbedsHotelAdapter } from "./hotelbeds";
 import { LockTripHotelAdapter } from "./locktrip";
 import { HOTEL_PROVIDER_NAMES, type HotelAdapter } from "./adapter";
 import {
@@ -10,6 +11,7 @@ import {
 const factories = new Map<HotelProviderKey, () => HotelAdapter>();
 
 registerHotelAdapter("locktrip", () => new LockTripHotelAdapter());
+registerHotelAdapter("hotelbeds", () => new HotelbedsHotelAdapter());
 
 export function registerHotelAdapter(
   key: HotelProviderKey,
