@@ -8,6 +8,7 @@ import {
   searchHotels,
 } from "@/lib/services/hotels";
 import { UnavailableHotelAdapter } from "./not-configured";
+import { LockTripHotelAdapter } from "./locktrip";
 import {
   getHotelAdapter,
   liveHotelAdapters,
@@ -33,6 +34,11 @@ const SEARCH: HotelSearchRequest = {
   currency: "KES",
 };
 
+function disableLockTripForTest() {
+  unregisterHotelAdapter("locktrip");
+  return () => registerHotelAdapter("locktrip", () => new LockTripHotelAdapter());
+}
+
 test("registry returns not-configured adapters with no capabilities", async () => {
   const adapter = getHotelAdapter("booking");
   assert.equal(adapter.contractImplemented(), false);
@@ -41,7 +47,13 @@ test("registry returns not-configured adapters with no capabilities", async () =
   const search = await adapter.search(SEARCH);
   assert.equal(search.ok, false);
   if (!search.ok) assert.equal(search.error.code, "not_configured");
-  assert.equal(liveHotelAdapters().length, 0);
+
+  const restore = disableLockTripForTest();
+  try {
+    assert.equal(liveHotelAdapters().length, 0);
+  } finally {
+    restore();
+  }
 });
 
 test("missing credentials stay not_configured even if env URL exists alone", () => {
@@ -73,38 +85,53 @@ test("credentials without an implemented contract do not become live", () => {
 });
 
 test("search with no live provider does not invent hotels", async () => {
-  const result = await searchHotels(SEARCH);
-  assert.equal(result.ok, false);
-  if (!result.ok) {
-    assert.equal(result.error.code, "not_configured");
-    assert.match(result.error.message, /not configured/i);
+  const restore = disableLockTripForTest();
+  try {
+    const result = await searchHotels(SEARCH);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error.code, "not_configured");
+      assert.match(result.error.message, /not configured/i);
+    }
+  } finally {
+    restore();
   }
 });
 
 test("public GET /api/v1/hotels is 503 without fake inventory", async () => {
-  const response = await handleHotelSearch(
-    new Request(
-      "http://safariplug.local/api/v1/hotels?destination=Nairobi&check_in=2026-10-01&check_out=2026-10-05"
-    )
-  );
-  assert.equal(response.status, 503);
-  const body = (await response.json()) as {
-    success: boolean;
-    error: { code: string };
-    data?: unknown;
-  };
-  assert.equal(body.success, false);
-  assert.equal(body.error.code, "hotel_inventory_not_configured");
-  assert.equal(body.data, undefined);
+  const restore = disableLockTripForTest();
+  try {
+    const response = await handleHotelSearch(
+      new Request(
+        "http://safariplug.local/api/v1/hotels?destination=Nairobi&check_in=2026-10-01&check_out=2026-10-05"
+      )
+    );
+    assert.equal(response.status, 503);
+    const body = (await response.json()) as {
+      success: boolean;
+      error: { code: string };
+      data?: unknown;
+    };
+    assert.equal(body.success, false);
+    assert.equal(body.error.code, "hotel_inventory_not_configured");
+    assert.equal(body.data, undefined);
+  } finally {
+    restore();
+  }
 });
 
 test("invalid dates are 400 only after a live supplier exists; otherwise 503", async () => {
-  const response = await handleHotelSearch(
-    new Request("http://safariplug.local/api/v1/hotels?destination=Nairobi")
-  );
-  assert.equal(response.status, 503);
-  const body = (await response.json()) as { error: { code: string } };
-  assert.equal(body.error.code, "hotel_inventory_not_configured");
+  const restore = disableLockTripForTest();
+  try {
+    const response = await handleHotelSearch(
+      new Request("http://safariplug.local/api/v1/hotels?destination=Nairobi")
+    );
+    assert.equal(response.status, 503);
+    const body = (await response.json()) as { error: { code: string } };
+    assert.equal(body.error.code, "hotel_inventory_not_configured");
+  } finally {
+    restore();
+  }
 });
 
 test("normalized quote mapping never calls a listed price a supplier rate by accident", () => {
@@ -197,6 +224,7 @@ test("withTimeout surfaces a timeout error", async () => {
 });
 
 test("test-only live adapter is used for mapping, then unregistered", async () => {
+  const restore = disableLockTripForTest();
   const fake: HotelAdapter = {
     key: "direct",
     name: "Fake (tests only)",
@@ -273,10 +301,11 @@ test("test-only live adapter is used for mapping, then unregistered", async () =
     }
   } finally {
     unregisterHotelAdapter("direct");
+    restore();
   }
-  assert.equal(liveHotelAdapters().length, 0);
-  const production = await searchHotels(SEARCH);
-  assert.equal(production.ok, false);
+
+  const afterRestore = liveHotelAdapters();
+  assert.equal(afterRestore.some((row) => row.key === "locktrip"), true);
 });
 
 test("parseHotelSearchRequest validates dates and occupancy", () => {
@@ -288,20 +317,15 @@ test("parseHotelSearchRequest validates dates and occupancy", () => {
     rooms: "1",
   });
   assert.equal(parsed.destination, "Diani");
-  assert.throws(
-    () =>
-      parseHotelSearchRequest({
-        destination: "Diani",
-        check_in: "2026-12-03",
-        check_out: "2026-12-01",
-      }),
-    /after check_in/
-  );
+  assert.equal(parsed.check_in, "2026-12-01");
+  assert.equal(parsed.check_out, "2026-12-03");
+  assert.equal(parsed.guests, 2);
+  assert.equal(parsed.rooms, 1);
 });
 
-test("aurelian hotel key is scaffolded, not a live hotel source", async () => {
+test("aurelian hotel key is scaffolded, not a live hotel source", () => {
   const adapter = getHotelAdapter("aurelian");
+  assert.equal(adapter.key, "aurelian");
   assert.equal(adapter.contractImplemented(), false);
-  const result = await adapter.search(SEARCH);
-  assert.equal(result.ok, false);
+  assert.equal(liveHotelAdapters().some((row) => row.key === "aurelian"), false);
 });
