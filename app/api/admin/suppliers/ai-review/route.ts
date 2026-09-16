@@ -4,6 +4,43 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 
 const FALLBACK_ID = "00000000-0000-0000-0000-000000000000";
+const REVIEW_ITEMS = [
+  "business_details",
+  "business_images",
+  "services_pricing",
+  "team",
+  "personal_photos",
+  "availability",
+  "verification",
+  "payout_details",
+  "other",
+] as const;
+const REVIEW_ITEM_SET = new Set<string>(REVIEW_ITEMS);
+
+type StructuredReview = {
+  summary?: string;
+  complete?: string[];
+  issues?: string[];
+  questions?: string[];
+  suggestedReviewItems?: string[];
+  draftReviewNote?: string;
+};
+
+function parseStructuredReview(raw: string): StructuredReview | null {
+  const cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+  try {
+    const parsed = JSON.parse(cleaned) as StructuredReview;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function textList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 12)
+    : [];
+}
 
 export async function POST(request: Request) {
   try {
@@ -33,14 +70,44 @@ export async function POST(request: Request) {
 
     const response = await openai.responses.create({
       model: process.env.OPENAI_ASSIST_MODEL || "gpt-5-mini",
-      max_output_tokens: 900,
+      max_output_tokens: 1100,
       input: [
-        { role: "system", content: "You are SafariPlug Staff Review Assistant. Analyze only the supplied supplier record. Produce a concise review brief with: Summary, What looks complete, Possible issues to check, Suggested review items, and Questions for the supplier. Never approve, reject, verify, publish, activate bookings, or make identity conclusions. Never invent facts or infer missing licenses. Clearly label suggestions as AI recommendations requiring human review." },
+        {
+          role: "system",
+          content: `You are SafariPlug Staff Review Assistant. Analyze only the supplied supplier record. Never approve, reject, verify, publish, activate bookings, infer identity, or invent facts. Return JSON only with keys: summary (string), complete (string[]), issues (string[]), questions (string[]), suggestedReviewItems (string[]), draftReviewNote (string). suggestedReviewItems may only use these exact codes: ${REVIEW_ITEMS.join(", ")}. Only suggest a code when the supplied record gives a concrete reason to inspect it. draftReviewNote must be concise, respectful, factual, editable by staff, and must not claim AI made a final decision. Human review is always required.`,
+        },
         { role: "user", content: JSON.stringify({ prompt, supplier: account, business, profile, offerings: offerings ?? [], staff: staff ?? [], verification: verification ?? [] }) },
       ],
     });
 
-    return NextResponse.json({ answer: response.output_text?.trim() || "AI review was unavailable." });
+    const raw = response.output_text?.trim() || "";
+    const parsed = parseStructuredReview(raw);
+    if (!parsed) {
+      return NextResponse.json({
+        answer: raw || "AI review was unavailable.",
+        summary: raw || "AI review was unavailable.",
+        complete: [],
+        issues: [],
+        questions: [],
+        suggestedReviewItems: [],
+        draftReviewNote: "",
+      });
+    }
+
+    const suggestedReviewItems = Array.from(new Set(textList(parsed.suggestedReviewItems).filter((item) => REVIEW_ITEM_SET.has(item))));
+    const summary = String(parsed.summary || "").trim().slice(0, 2500);
+    const complete = textList(parsed.complete);
+    const issues = textList(parsed.issues);
+    const questions = textList(parsed.questions);
+    const draftReviewNote = String(parsed.draftReviewNote || "").trim().slice(0, 2000);
+    const answer = [
+      summary,
+      complete.length ? `\nWhat looks complete\n- ${complete.join("\n- ")}` : "",
+      issues.length ? `\nPossible issues to check\n- ${issues.join("\n- ")}` : "",
+      questions.length ? `\nQuestions for the supplier\n- ${questions.join("\n- ")}` : "",
+    ].filter(Boolean).join("\n").trim();
+
+    return NextResponse.json({ answer, summary, complete, issues, questions, suggestedReviewItems, draftReviewNote });
   } catch (error) {
     if (error instanceof AdminAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: "Unable to generate AI supplier review." }, { status: 500 });
