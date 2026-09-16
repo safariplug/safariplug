@@ -1,89 +1,12 @@
 "use server";
-
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
-import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
-import { discoverBusinesses } from "./discovery";
-import { scoreProspect } from "./scoring";
-
-export type SalesScoutFormState = { status:"idle"|"success"|"error"; message:string };
-
-const SCOUT_CITIES = [
-  "Nairobi", "Mombasa", "Diani", "Kilifi", "Malindi", "Watamu", "Lamu",
-  "Zanzibar", "Kampala", "Dar es Salaam", "Accra", "Lagos",
-  "Cape Town", "Johannesburg", "Cairo", "Casablanca",
-] as const;
-
-const SCOUT_CATEGORIES = [
-  "Barbers", "Hair & Beauty", "Spas & Massage", "Tattoo Artists & Body Art",
-  "Nails", "Lashes & Brows", "Fitness & Personal Training",
-  "Yoga/Pilates/Mindfulness", "Diving & Marine", "Surfing & Board Sports",
-  "Water Sports & Kite", "Tours & Local Guides", "Photography & Content",
-  "Private Chefs & Cooking", "Hotels", "Restaurants", "Nightlife",
-  "Tour Operators", "Experiences",
-] as const;
-
-function cleanText(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
-
-async function executeScout(city: string, category: string) {
-  const prospects = await discoverBusinesses(city, category);
-  let inserted = 0; let contactReady=0; let needsContactResearch=0;
-  for (const prospect of prospects) {
-    const hasDirectContact=Boolean(prospect.contact_email||prospect.phone);
-    if(hasDirectContact) contactReady+=1; else needsContactResearch+=1;
-    const intelligence = scoreProspect({ business_name: prospect.business_name, category: prospect.category, city: prospect.city });
-    const { data: existingProspect, error: lookupError } = await supabaseAdmin.from("ai_sales_prospects").select("id").eq("business_name", prospect.business_name).eq("city", city).maybeSingle();
-    if (lookupError) throw lookupError;
-    if (existingProspect) continue;
-    const { error } = await supabaseAdmin.from("ai_sales_prospects").insert({
-      business_name: prospect.business_name, category: prospect.category, city: prospect.city,
-      website: prospect.website, instagram: prospect.instagram, facebook: prospect.facebook,
-      contact_email: prospect.contact_email, phone: prospect.phone, source_url: prospect.source_url,
-      source_name: prospect.source_name, description: prospect.description, opportunity_score: intelligence.score,
-      notes: [`${intelligence.priority} priority. ${intelligence.reason}`,prospect.notes].filter(Boolean).join("\n"),
-      status:"pending_review", review_status:"pending_review",
-    });
-    if (error) throw error;
-    inserted += 1;
-  }
-  return { discovered: prospects.length, inserted, contactReady, needsContactResearch };
-}
-
-export async function runSalesScout(formData: FormData) {
-  try { await requireAdmin(); }
-  catch (error: unknown) {
-    if (error instanceof AdminAuthError) throw new Error(error.message);
-    console.error("SALES ACTION AUTH ERROR:", error);
-    throw new Error(error instanceof Error ? error.message : "Request failed");
-  }
-  const city=cleanText(formData.get("city"))||"Nairobi";
-  const category=cleanText(formData.get("category"))||"Hotels";
-  if(!SCOUT_CITIES.includes(city as typeof SCOUT_CITIES[number])||!SCOUT_CATEGORIES.includes(category as typeof SCOUT_CATEGORIES[number])) throw new Error("Invalid Supplier Scout city or category");
-  const result=await executeScout(city,category);
-  revalidatePath("/admin/ai-sales");
-  return result;
-}
-
-export async function runSalesScoutForm(_previousState:SalesScoutFormState,formData:FormData):Promise<SalesScoutFormState>{
- try{
-  const city=cleanText(formData.get("city"))||"Nairobi";
-  const category=cleanText(formData.get("category"))||"Hotels";
-  const result=await runSalesScout(formData);
-  return {status:"success",message:`Supplier Scout completed for ${category} in ${city}: ${result.discovered} qualified, ${result.contactReady} contact-ready, ${result.needsContactResearch} need contact research, ${result.inserted} new prospect${result.inserted===1?"":"s"} added for review.`};
- }catch(error:unknown){
-  console.error("SUPPLIER SCOUT FORM ERROR:",error);
-  const detail=error instanceof Error?error.message:"Supplier Scout failed";
-  return {status:"error",message:`Supplier Scout failed: ${detail}`};
- }
-}
-
-export async function runScheduledSalesScout() {
-  const pairs=SCOUT_CITIES.flatMap((city)=>SCOUT_CATEGORIES.map((category)=>({city,category})));
-  const dayIndex=Math.floor(Date.now()/86_400_000); const start=(dayIndex*6)%pairs.length;
-  const selected=Array.from({length:6},(_,index)=>pairs[(start+index)%pairs.length]);
-  let discovered=0; let inserted=0; let contactReady=0; let needsContactResearch=0;
-  const completed:Array<{city:string;category:string;discovered:number;inserted:number;contactReady:number;needsContactResearch:number}>=[];
-  for(const pair of selected){const result=await executeScout(pair.city,pair.category);discovered+=result.discovered;inserted+=result.inserted;contactReady+=result.contactReady;needsContactResearch+=result.needsContactResearch;completed.push({...pair,...result});}
-  revalidatePath("/admin/ai-sales");
-  return {discovered,inserted,contactReady,needsContactResearch,completed};
-}
+import { AdminAuthError,requireAdmin } from "@/lib/auth/require-admin";
+export type SalesScoutFormState={status:"idle"|"success"|"error";message:string};
+const SCOUT_CITIES=["Nairobi","Mombasa","Diani","Kilifi","Malindi","Watamu","Lamu","Zanzibar","Kampala","Dar es Salaam","Accra","Lagos","Cape Town","Johannesburg","Cairo","Casablanca"] as const;
+const SCOUT_CATEGORIES=["Barbers","Hair & Beauty","Spas & Massage","Tattoo Artists & Body Art","Nails","Lashes & Brows","Fitness & Personal Training","Yoga/Pilates/Mindfulness","Diving & Marine","Surfing & Board Sports","Water Sports & Kite","Tours & Local Guides","Photography & Content","Private Chefs & Cooking","Hotels","Restaurants","Nightlife","Tour Operators","Experiences"] as const;
+function clean(v:unknown){return typeof v==="string"?v.trim():""}
+async function enqueue(city:string,category:string){const {data,error}=await supabaseAdmin.from("supplier_scout_jobs").insert({city,category,status:"queued",queued_at:new Date().toISOString()}).select("id").single();if(error)throw error;return data.id as string}
+export async function runSalesScout(formData:FormData){try{await requireAdmin()}catch(e:unknown){if(e instanceof AdminAuthError)throw new Error(e.message);throw new Error(e instanceof Error?e.message:"Request failed")}const city=clean(formData.get("city"))||"Nairobi",category=clean(formData.get("category"))||"Hotels";if(!SCOUT_CITIES.includes(city as typeof SCOUT_CITIES[number])||!SCOUT_CATEGORIES.includes(category as typeof SCOUT_CATEGORIES[number]))throw new Error("Invalid Supplier Scout city or category");const jobId=await enqueue(city,category);revalidatePath("/admin/ai-sales");return {jobId,city,category}}
+export async function runSalesScoutForm(_previous:SalesScoutFormState,formData:FormData):Promise<SalesScoutFormState>{try{const r=await runSalesScout(formData);return {status:"success",message:`Supplier Scout queued for ${r.category} in ${r.city}. You can leave this page; discovery will continue in the background. Job ${r.jobId.slice(0,8)}.`}}catch(e:unknown){console.error("SUPPLIER SCOUT QUEUE ERROR",e);return {status:"error",message:`Supplier Scout failed to queue: ${e instanceof Error?e.message:"Request failed"}`}}}
+export async function runScheduledSalesScout(){const pairs=SCOUT_CITIES.flatMap(city=>SCOUT_CATEGORIES.map(category=>({city,category})));const dayIndex=Math.floor(Date.now()/86_400_000),start=(dayIndex*6)%pairs.length,selected=Array.from({length:6},(_,i)=>pairs[(start+i)%pairs.length]);const jobs:string[]=[];for(const pair of selected)jobs.push(await enqueue(pair.city,pair.category));return {queued:jobs.length,jobs,selected}}
