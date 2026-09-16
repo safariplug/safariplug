@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const [{ data: offerings }, { data: staff }, { data: verification }] = await Promise.all([
       supabaseAdmin.from("service_offerings").select("name,description,duration_minutes,price,currency,status").eq("service_profile_id", profileId).limit(30),
       supabaseAdmin.from("service_staff").select("display_name,personal_photo_url,status").eq("service_profile_id", profileId).limit(30),
-      supabaseAdmin.from("verification_cases").select("status,verification_type,created_at,updated_at").eq("business_id", account.business_id).limit(20),
+      supabaseAdmin.from("verification_cases").select("status,subject_type,created_at,updated_at").eq("subject_type", "provider").eq("subject_id", account.business_id).limit(20),
     ]);
 
     const response = await openai.responses.create({
