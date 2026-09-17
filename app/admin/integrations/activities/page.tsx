@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { hotelbedsActivitiesConfigured } from "@/lib/integrations/hotelbeds/activities";
 import { hotelbedsProductConfig } from "@/lib/integrations/hotelbeds/client";
+import ActivitiesProbe from "./ActivitiesProbe";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export default async function ActivitiesIntegrationPage() {
           </p>
           <h1 className="mt-2 text-3xl font-extrabold">Activities Booking API</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            Governed foundation for Activities search, details/check-rate, confirmation and post-booking operations. No supplier booking is triggered from this page.
+            Governed foundation for Activities search, details/check-rate, confirmation and post-booking operations. Supplier booking remains disabled from verification controls.
           </p>
         </header>
 
@@ -45,13 +46,7 @@ export default async function ActivitiesIntegrationPage() {
           </p>
         </section>
 
-        <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-6">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-amber-400">Next controlled step</p>
-          <h2 className="mt-2 text-lg font-bold">Add a quota-safe Activities verification action</h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
-            The next patch will add an explicit admin-only test search using a chosen destination and passenger ages. It will not run on page load and will never create a booking.
-          </p>
-        </section>
+        <ActivitiesProbe />
       </div>
     </main>
   );
