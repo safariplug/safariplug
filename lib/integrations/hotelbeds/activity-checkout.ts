@@ -293,3 +293,34 @@ export function normalizeActivityAnswers(
 export function activityBookingReference(payload: unknown) {
   return text(record(record(payload)?.booking)?.reference);
 }
+
+
+export function buildHotelbedsActivityBookingRequest(input: {
+  selection: import("./activity-selection-token").HotelbedsActivitySelectionTokenPayload;
+  holder: ReturnType<typeof normalizeActivityHolder>;
+  paxes: ReturnType<typeof normalizeActivityPaxes>;
+  answers?: ReturnType<typeof normalizeActivityAnswers>;
+  clientReference: string;
+  responseLanguage?: string;
+}) {
+  const activity: Record<string, unknown> = {
+    rateKey: input.selection.rateKey,
+    from: input.selection.from,
+    to: input.selection.to,
+    paxes: input.paxes,
+  };
+  if (input.selection.sessionCode) activity.session = input.selection.sessionCode;
+  if (input.selection.languageCode) activity.language = input.selection.languageCode;
+  if (input.answers?.length) activity.answers = input.answers;
+
+  return {
+    language: input.responseLanguage || "en",
+    clientReference: input.clientReference.slice(0, 20),
+    holder: input.holder,
+    activities: [activity],
+  };
+}
+
+export function activityBookingStatus(payload: unknown) {
+  return text(record(record(payload)?.booking)?.status)?.toUpperCase() || null;
+}
