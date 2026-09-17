@@ -7,6 +7,7 @@ import {
   hotelbedsContentEnvironment,
 } from "@/lib/integrations/hotels/hotelbeds-content";
 import { syncOneHotelbedsContentPage } from "@/lib/integrations/hotels/hotelbeds-content-sync";
+import { buildHotelbedsCertificationPlan } from "@/lib/integrations/hotels/hotelbeds-certification-plan";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
@@ -41,10 +42,27 @@ async function cacheStatus() {
   return { cachedHotels: count ?? 0, syncState: stateResult.data ?? null };
 }
 
+async function certificationPlan() {
+  const ready = readiness();
+  const cache = await cacheStatus();
+  return {
+    readiness: ready,
+    cache,
+    plan: buildHotelbedsCertificationPlan({
+      apiKey: ready.apiKey,
+      secret: ready.secret,
+      certificate: ready.certificate,
+      privateKey: ready.privateKey,
+      contentConfigured: ready.contentConfigured,
+      cachedHotels: cache.cachedHotels,
+    }),
+  };
+}
+
 export async function GET() {
   try {
     await requireAdmin();
-    return NextResponse.json({ readiness: readiness(), cache: await cacheStatus() });
+    return NextResponse.json(await certificationPlan());
   } catch (error) {
     const status = error instanceof AdminAuthError ? error.status : 500;
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to inspect Hotelbeds." }, { status });
@@ -56,6 +74,10 @@ export async function POST(request: Request) {
     await requireAdmin();
     const body = await request.json().catch(() => ({})) as { action?: string };
     const action = String(body.action || "health");
+
+    if (action === "certification_plan") {
+      return NextResponse.json(await certificationPlan());
+    }
 
     if (action === "health") {
       const adapter = new HotelbedsHotelAdapter();
