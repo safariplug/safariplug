@@ -4,6 +4,7 @@ import { gunzipSync } from "node:zlib";
 import type { HotelAdapter } from "./adapter";
 import { hotelError } from "./errors";
 import { convertCurrency } from "@/lib/currency/exchange-rates";
+import { sealHotelbedsBookingToken } from "./hotelbeds-booking-token";
 import type {
   CircuitState,
   HotelAvailabilityRequest,
@@ -42,6 +43,8 @@ type HotelbedsRate = {
   rooms?: number;
   adults?: number;
   children?: number;
+  rateComments?: string;
+  promotions?: Array<{ code?: string; name?: string }>;
   cancellationPolicies?: Array<{ amount?: string | number; from?: string }>;
 };
 
@@ -58,6 +61,7 @@ type HotelbedsHotel = {
   categoryName?: string;
   destinationCode?: string;
   destinationName?: string;
+  address?: string;
   latitude?: string | number;
   longitude?: string | number;
   minRate?: string | number;
@@ -77,6 +81,7 @@ type HotelbedsAvailability = {
 
 type HotelbedsCheckRate = {
   hotel?: HotelbedsHotel;
+  hotels?: { hotels?: HotelbedsHotel[] };
 };
 
 type HotelbedsBooking = {
@@ -192,6 +197,12 @@ function firstRate(hotel: HotelbedsHotel) {
     if (rate?.rateKey) return { room, rate };
   }
   return null;
+}
+
+function rateNotices(rate: HotelbedsRate) {
+  const promotionNames = (rate.promotions || []).map((item) => item.name?.trim()).filter((value): value is string => Boolean(value));
+  const comments = rate.rateComments?.trim() ? [rate.rateComments.trim()] : [];
+  return [...promotionNames, ...comments];
 }
 
 function cancellationText(rate: HotelbedsRate) {
@@ -321,6 +332,30 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
         const supplierCurrency = String(hotel.currency || "EUR").toUpperCase();
         const net = Number(rate?.net ?? rate?.sellingRate ?? hotel.minRate);
         const customer = Number.isFinite(net) ? await retailAmount(net, supplierCurrency, request.currency) : null;
+        const cancellation = rate ? cancellationText(rate) : null;
+        const notices = rate ? rateNotices(rate) : [];
+        const bookingToken = rate?.rateKey && Number.isFinite(net)
+          ? sealHotelbedsBookingToken({
+              rateKey: rate.rateKey,
+              rateType: rate.rateType || "BOOKABLE",
+              rateClass: rate.rateClass || null,
+              supplierNet: net,
+              supplierCurrency,
+              propertyId: String(hotel.code ?? ""),
+              propertyName: hotel.name || "Hotelbeds hotel",
+              hotelAddress: hotel.address || null,
+              hotelCategory: hotel.categoryName || hotel.categoryCode || null,
+              hotelDestination: hotel.destinationName || hotel.destinationCode || null,
+              roomId: selected?.room.code || null,
+              roomName: selected?.room.name || null,
+              boardCode: rate.boardCode || null,
+              boardName: rate.boardName || null,
+              cancellation,
+              notices,
+              checkIn: request.check_in,
+              checkOut: request.check_out,
+            })
+          : undefined;
         return {
           provider: this.key,
           property_id: String(hotel.code ?? ""),
@@ -329,7 +364,7 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
           rate_id: rate?.rateKey || null,
           currency: customer?.currency || (request.currency || DEFAULT_CUSTOMER_CURRENCY).toUpperCase(),
           total: customer,
-          cancellation: rate ? cancellationText(rate) : null,
+          cancellation,
           availability: rate?.rateKey ? "available" as const : "unknown" as const,
           source: "supplier" as const,
           supplier_context: {
@@ -338,6 +373,8 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
             rate_class: rate?.rateClass || undefined,
             board_code: rate?.boardCode || undefined,
             board_name: rate?.boardName || undefined,
+            booking_token: bookingToken,
+            notices,
           },
         };
       }));
@@ -352,7 +389,31 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
     return requestJson<HotelbedsCheckRate>(url, "POST", { rooms: [{ rateKey }] });
   }
 
-  async createBooking(input: { holder: { name: string; surname: string }; rooms: Array<{ rateKey: string; paxes: Array<{ roomId: number; type: "AD" | "CH"; name: string; surname: string }> }>; clientReference: string; remark?: string; tolerance?: number }) {
+  async checkRateSelection(rateKey: string) {
+    const response = await this.checkRate(rateKey);
+    const hotel = response.hotel || response.hotels?.hotels?.[0];
+    if (!hotel) throw new Error("Hotelbeds CheckRate did not return a hotel.");
+    const selected = firstRate(hotel);
+    if (!selected?.rate.rateKey) throw new Error("Hotelbeds CheckRate did not return a bookable rate.");
+    const supplierCurrency = String(hotel.currency || "EUR").toUpperCase();
+    const supplierNet = Number(selected.rate.net ?? selected.rate.sellingRate ?? hotel.minRate);
+    if (!Number.isFinite(supplierNet) || supplierNet < 0) throw new Error("Hotelbeds CheckRate returned an invalid price.");
+    return {
+      rateKey: selected.rate.rateKey,
+      rateType: selected.rate.rateType || "BOOKABLE",
+      rateClass: selected.rate.rateClass || null,
+      supplierNet,
+      supplierCurrency,
+      roomId: selected.room.code || null,
+      roomName: selected.room.name || null,
+      boardCode: selected.rate.boardCode || null,
+      boardName: selected.rate.boardName || null,
+      cancellation: cancellationText(selected.rate),
+      notices: rateNotices(selected.rate),
+    };
+  }
+
+  async createBooking(input: { holder: { name: string; surname: string }; rooms: Array<{ rateKey: string; paxes: Array<{ roomId: number; type: "AD" | "CH"; name: string; surname: string; age?: number }> }>; clientReference: string; remark?: string; tolerance?: number }) {
     const url = new URL("/hotel-api/1.0/bookings", mtlsBaseUrl());
     return requestJson<HotelbedsBooking>(url, "POST", input, { timeoutMs: HOTELBEDS_BOOKING_TIMEOUT_MS });
   }
