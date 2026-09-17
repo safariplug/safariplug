@@ -32,11 +32,13 @@ export default function HotelbedsActions() {
     try {
       const endpoint = action === "health"
         ? "/api/admin/integrations/hotelbeds/mtls-health"
-        : "/api/admin/integrations/hotelbeds/verify";
+        : action === "availability_probe"
+          ? "/api/admin/integrations/hotelbeds/mtls-availability"
+          : "/api/admin/integrations/hotelbeds/verify";
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: action === "health" ? undefined : JSON.stringify({ action }),
+        body: action === "health" || action === "availability_probe" ? undefined : JSON.stringify({ action }),
       });
       const raw = await response.text();
       let payload: ErrorPayload = {};
