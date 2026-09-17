@@ -3,7 +3,22 @@
 import { useState } from "react";
 
 type Result = Record<string, unknown>;
+type ErrorPayload = Result & {
+  error?: string;
+  message?: string;
+  details?: string;
+  supplierError?: { message?: string; code?: string };
+};
 type Action = "certification_plan" | "health" | "availability_probe" | "content_sample" | "sync_one_page";
+
+function verificationError(payload: ErrorPayload, status: number) {
+  const message = payload.error
+    || payload.message
+    || payload.details
+    || payload.supplierError?.message
+    || `Hotelbeds verification failed with HTTP ${status}.`;
+  return `HTTP ${status}: ${message}`;
+}
 
 export default function HotelbedsActions() {
   const [busy, setBusy] = useState<string | null>(null);
@@ -20,8 +35,16 @@ export default function HotelbedsActions() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      const payload = await response.json() as Result & { error?: string };
-      if (!response.ok) throw new Error(payload.error || "Hotelbeds verification failed.");
+      const raw = await response.text();
+      let payload: ErrorPayload = {};
+      if (raw) {
+        try {
+          payload = JSON.parse(raw) as ErrorPayload;
+        } catch {
+          payload = { message: raw.slice(0, 500) };
+        }
+      }
+      if (!response.ok) throw new Error(verificationError(payload, response.status));
       setResult(payload);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Hotelbeds verification failed.");
