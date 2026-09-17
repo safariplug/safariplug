@@ -8,6 +8,10 @@ import {
 } from "@/lib/integrations/hotels/hotelbeds-content";
 import { syncOneHotelbedsContentPage } from "@/lib/integrations/hotels/hotelbeds-content-sync";
 import { buildHotelbedsCertificationPlan } from "@/lib/integrations/hotels/hotelbeds-certification-plan";
+import {
+  buildHotelbedsCertificationStay,
+  summarizeHotelbedsAvailabilityProbe,
+} from "@/lib/integrations/hotels/hotelbeds-certification-probe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +63,63 @@ async function certificationPlan() {
   };
 }
 
+async function runAvailabilityProbe() {
+  const ready = readiness();
+  if (!ready.apiKey || !ready.secret || !ready.certificate || !ready.privateKey) {
+    return NextResponse.json({ error: "Hotelbeds availability probe requires API credentials and mTLS material." }, { status: 409 });
+  }
+
+  const { data: cachedHotels, error } = await supabaseAdmin
+    .from("hotelbeds_hotel_content")
+    .select("hotel_code,name,destination_name")
+    .order("hotel_code", { ascending: true })
+    .limit(20);
+
+  if (error) {
+    return NextResponse.json({ error: `Unable to load cached Hotelbeds hotels: ${error.message}` }, { status: 500 });
+  }
+  if (!cachedHotels?.length) {
+    return NextResponse.json({ error: "No cached Hotelbeds hotels are available for the certification probe." }, { status: 409 });
+  }
+
+  const codes = cachedHotels.map((hotel) => Number(hotel.hotel_code)).filter((code) => Number.isInteger(code) && code > 0);
+  if (!codes.length) {
+    return NextResponse.json({ error: "Cached Hotelbeds hotel codes are invalid." }, { status: 409 });
+  }
+
+  const stay = buildHotelbedsCertificationStay();
+  const adapter = new HotelbedsHotelAdapter();
+  const result = await adapter.search({
+    destination: codes.join(","),
+    check_in: stay.checkIn,
+    check_out: stay.checkOut,
+    guests: 2,
+    adults: 2,
+    rooms: 1,
+    currency: "KES",
+    provider: "hotelbeds",
+  });
+
+  if (!result.ok) {
+    return NextResponse.json({
+      ok: false,
+      supplierRequestCount: 1,
+      testedHotels: codes.length,
+      request: { checkIn: stay.checkIn, checkOut: stay.checkOut, guests: 2, rooms: 1, currency: "KES" },
+      supplierError: result.error,
+    }, { status: 502 });
+  }
+
+  const summary = summarizeHotelbedsAvailabilityProbe(result.data.results);
+  return NextResponse.json({
+    ok: true,
+    supplierRequestCount: 1,
+    testedHotels: codes.length,
+    request: { checkIn: stay.checkIn, checkOut: stay.checkOut, guests: 2, rooms: 1, currency: "KES" },
+    ...summary,
+  });
+}
+
 export async function GET() {
   try {
     await requireAdmin();
@@ -77,6 +138,10 @@ export async function POST(request: Request) {
 
     if (action === "certification_plan") {
       return NextResponse.json(await certificationPlan());
+    }
+
+    if (action === "availability_probe") {
+      return runAvailabilityProbe();
     }
 
     if (action === "health") {
