@@ -70,15 +70,21 @@ export async function POST(request: Request) {
   } catch (error) {
     const status = error instanceof AdminAuthError ? error.status : 502;
     const supplierError = error instanceof HotelbedsProductRequestError ? error : null;
+    const cacheRoutesUnavailable = supplierError?.status === 404;
+
     return NextResponse.json(
       {
         ok: false,
-        error:
-          error instanceof Error
+        error: cacheRoutesUnavailable
+          ? "Hotelbeds Transfers Cache Routes is unavailable for this test account/environment. Do not retry this catalogue lookup. Booking API connectivity is separate; ask Hotelbeds to enable or confirm Cache Routes access for the Transfers API key."
+          : error instanceof Error
             ? error.message
             : "Hotelbeds Transfers route catalogue lookup failed.",
         supplierRequestCount: status === 502 ? 1 : 0,
         bookingCreated: false,
+        ...(cacheRoutesUnavailable
+          ? { capability: "cache_routes_unavailable" }
+          : {}),
         ...(supplierError
           ? {
               supplierStatus: supplierError.status,
