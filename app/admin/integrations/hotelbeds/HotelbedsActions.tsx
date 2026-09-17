@@ -30,10 +30,13 @@ export default function HotelbedsActions() {
     setError("");
     setResult(null);
     try {
-      const response = await fetch("/api/admin/integrations/hotelbeds/verify", {
+      const endpoint = action === "health"
+        ? "/api/admin/integrations/hotelbeds/mtls-health"
+        : "/api/admin/integrations/hotelbeds/verify";
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: action === "health" ? undefined : JSON.stringify({ action }),
       });
       const raw = await response.text();
       let payload: ErrorPayload = {};
