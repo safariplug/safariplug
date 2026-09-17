@@ -17,6 +17,10 @@ export type HotelbedsBookingTokenPayload = {
   boardName?: string | null;
   cancellation?: string | null;
   notices?: string[];
+  rateCommentsId?: string | null;
+  preflighted?: boolean;
+  checkRateCompleted?: boolean;
+  preflightedAt?: string | null;
   checkIn: string;
   checkOut: string;
   issuedAt: number;
