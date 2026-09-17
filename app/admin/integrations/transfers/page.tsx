@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { describeTransferProviders } from "@/lib/integrations/transfers";
 import { hotelbedsTransfersConfigured } from "@/lib/integrations/hotelbeds/transfers";
 import { hotelbedsProductConfig } from "@/lib/integrations/hotelbeds/client";
+import TransferProbe from "./TransferProbe";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +44,11 @@ export default async function TransferConnectivityPage() {
             <FlowStep step="3" title="Post-booking" note="Retrieve booking details or simulate cancellation first" />
           </div>
           <p className="mt-4 text-xs leading-5 text-zinc-500">
-            The server foundation already supports simple Availability, booking creation, booking retrieval and cancellation simulation. No supplier booking is triggered from this page.
+            The server foundation already supports simple Availability, booking creation, booking retrieval and cancellation simulation. Verification controls cannot create a supplier booking.
           </p>
         </section>
+
+        <TransferProbe />
 
         <section className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950">
           <table className="w-full text-left text-sm">
@@ -67,22 +70,12 @@ export default async function TransferConnectivityPage() {
                   </td>
                   <td className="p-4 text-amber-400">{row.status}</td>
                   <td className="p-4 text-zinc-400">{row.configured ? "yes" : "no"}</td>
-                  <td className="p-4 text-zinc-400">
-                    {row.contract_implemented ? "implemented" : "none"}
-                  </td>
+                  <td className="p-4 text-zinc-400">{row.contract_implemented ? "implemented" : "none"}</td>
                   <td className="max-w-sm p-4 text-zinc-500">{row.reason}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </section>
-
-        <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-6">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-amber-400">Next controlled step</p>
-          <h2 className="mt-2 text-lg font-bold">Add a route-based verification action</h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
-            The next patch will let an admin enter pickup/drop-off codes and run one explicit Availability request. It will not run automatically and cannot create a booking.
-          </p>
         </section>
       </div>
     </main>
