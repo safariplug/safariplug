@@ -12,6 +12,10 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
+function cacheEnabled() {
+  return process.env.SAFARIPLUG_HOTELBEDS_TRANSFERS_CACHE_ENABLED?.trim().toLowerCase() === "true";
+}
+
 function extractRoutes(payload: unknown): HotelbedsTransferRoute[] {
   if (Array.isArray(payload)) return payload as HotelbedsTransferRoute[];
   if (!payload || typeof payload !== "object") return [];
@@ -39,6 +43,18 @@ function sanitizeRoute(route: HotelbedsTransferRoute) {
 export async function POST(request: Request) {
   try {
     await requireAdmin();
+    if (!cacheEnabled()) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Hotelbeds Transfers Cache Routes is intentionally disabled in SafariPlug until Hotelbeds confirms access. No supplier request was made.",
+          supplierRequestCount: 0,
+          bookingCreated: false,
+          capability: "cache_routes_disabled",
+        },
+        { status: 503 }
+      );
+    }
     const body = (await request.json()) as { destinationCode?: string };
     const destinationCode = String(body.destinationCode || "").trim().toUpperCase();
 
