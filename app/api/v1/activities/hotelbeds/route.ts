@@ -4,14 +4,16 @@ import {
   hotelbedsActivitiesConfigured,
   searchHotelbedsActivities,
 } from "@/lib/integrations/hotelbeds/activities";
+import {
+  extractHotelbedsActivitySelections,
+  sanitizeHotelbedsActivitySearch,
+} from "@/lib/integrations/hotelbeds/activity-checkout";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 function fail(status: number, message: string) {
-  return NextResponse.json(
-    { error: "hotelbeds_activities_error", message },
-    { status }
-  );
+  return NextResponse.json({ error: "hotelbeds_activities_error", message }, { status });
 }
 
 function validDate(value: string) {
@@ -33,7 +35,10 @@ export async function GET() {
     provider: "hotelbeds",
     product: "activities",
     configured: hotelbedsActivitiesConfigured(),
-    booking_actions_exposed: false,
+    search_exposed: true,
+    details_exposed: true,
+    supplierRequestMade: false,
+    bookingCreated: false,
   });
 }
 
@@ -64,7 +69,7 @@ export async function POST(request: Request) {
     if (action === "search") {
       const destinationCode = String(body.destinationCode || "").trim();
       if (!destinationCode) return fail(400, "destinationCode is required.");
-      const data = await searchHotelbedsActivities({
+      const supplier = await searchHotelbedsActivities({
         destinationCode,
         from,
         to,
@@ -72,14 +77,33 @@ export async function POST(request: Request) {
         language,
         text: typeof body.text === "string" ? body.text.slice(0, 120) : undefined,
       });
-      return NextResponse.json({ provider: "hotelbeds", product: "activities", action, data });
+      const results = sanitizeHotelbedsActivitySearch(supplier);
+      return NextResponse.json({
+        provider: "hotelbeds",
+        product: "activities",
+        action,
+        supplierRequestCount: 1,
+        bookingCreated: false,
+        resultCount: results.length,
+        results,
+        search: { destinationCode, from, to, ages: paxes.map((pax) => pax.age) },
+      });
     }
 
     if (action === "details") {
       const code = String(body.code || "").trim();
       if (!code) return fail(400, "code is required.");
-      const data = await getHotelbedsActivityDetails({ code, from, to, paxes, language });
-      return NextResponse.json({ provider: "hotelbeds", product: "activities", action, data });
+      const supplier = await getHotelbedsActivityDetails({ code, from, to, paxes, language });
+      const results = extractHotelbedsActivitySelections(supplier, paxes);
+      return NextResponse.json({
+        provider: "hotelbeds",
+        product: "activities",
+        action,
+        supplierRequestCount: 1,
+        bookingCreated: false,
+        resultCount: results.length,
+        results,
+      });
     }
 
     return fail(400, "Unsupported Hotelbeds Activities action.");
