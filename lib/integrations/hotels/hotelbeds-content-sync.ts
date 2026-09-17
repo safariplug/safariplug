@@ -3,6 +3,8 @@ import { fetchHotelbedsHotelContentPage } from "./hotelbeds-content";
 
 type JsonRecord = Record<string, unknown>;
 
+const HOTELBEDS_STORAGE_BATCH_SIZE = 50;
+
 export type NormalizedHotelbedsContentRow = {
   hotel_code: number;
   language: string;
@@ -95,6 +97,20 @@ export function normalizeHotelbedsContentHotel(
   };
 }
 
+async function storeHotelbedsContentRows(rows: NormalizedHotelbedsContentRow[]) {
+  for (let offset = 0; offset < rows.length; offset += HOTELBEDS_STORAGE_BATCH_SIZE) {
+    const batch = rows.slice(offset, offset + HOTELBEDS_STORAGE_BATCH_SIZE);
+    const { error } = await supabaseAdmin
+      .from("hotelbeds_hotel_content")
+      .upsert(batch, { onConflict: "hotel_code" });
+
+    if (error) {
+      const batchNumber = Math.floor(offset / HOTELBEDS_STORAGE_BATCH_SIZE) + 1;
+      throw new Error(`Unable to store Hotelbeds hotel content batch ${batchNumber}: ${error.message}`);
+    }
+  }
+}
+
 export async function syncOneHotelbedsContentPage() {
   const { data: existingState, error: stateError } = await supabaseAdmin
     .from("hotelbeds_content_sync_state")
@@ -151,10 +167,7 @@ export async function syncOneHotelbedsContentPage() {
       .filter((row): row is NormalizedHotelbedsContentRow => Boolean(row));
 
     if (rows.length) {
-      const { error: upsertError } = await supabaseAdmin
-        .from("hotelbeds_hotel_content")
-        .upsert(rows, { onConflict: "hotel_code" });
-      if (upsertError) throw new Error(`Unable to store Hotelbeds hotel content: ${upsertError.message}`);
+      await storeHotelbedsContentRows(rows);
     }
 
     const supplierTotal = page.total ?? state.supplier_total ?? null;
