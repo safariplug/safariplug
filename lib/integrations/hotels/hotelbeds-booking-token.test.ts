@@ -19,6 +19,7 @@ const payload = {
   boardName: "Bed & Breakfast",
   cancellation: "Free cancellation",
   notices: ["City tax payable locally"],
+  rateCommentsId: "RC-123",
   checkIn: "2026-10-01",
   checkOut: "2026-10-05",
 };
@@ -29,9 +30,11 @@ test("Hotelbeds booking token is encrypted, authenticated and expires", () => {
   try {
     const token = sealHotelbedsBookingToken(payload, 1000, 60);
     assert.equal(token.includes("rate-key-1"), false);
+    assert.equal(token.includes("RC-123"), false);
     const opened = openHotelbedsBookingToken(token, 1020);
     assert.equal(opened.rateKey, "rate-key-1");
     assert.equal(opened.supplierNet, 100);
+    assert.equal(opened.rateCommentsId, "RC-123");
     assert.deepEqual(opened.notices, ["City tax payable locally"]);
 
     const [iv, tag, ciphertext] = token.split(".");
