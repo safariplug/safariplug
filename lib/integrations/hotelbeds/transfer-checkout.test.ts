@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import {
   buildHotelbedsTransferBookingRequest,
   extractHotelbedsTransferSelections,
@@ -13,7 +13,7 @@ import {
 const originalSecret = process.env.SAFARIPLUG_HOTELBEDS_TRANSFERS_SECRET;
 process.env.SAFARIPLUG_HOTELBEDS_TRANSFERS_SECRET = "test-transfer-secret";
 
-test.after(() => {
+after(() => {
   if (originalSecret === undefined) delete process.env.SAFARIPLUG_HOTELBEDS_TRANSFERS_SECRET;
   else process.env.SAFARIPLUG_HOTELBEDS_TRANSFERS_SECRET = originalSecret;
 });
