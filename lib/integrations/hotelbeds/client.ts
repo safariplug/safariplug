@@ -9,6 +9,18 @@ type ProductConfig = {
   baseUrl: string;
 };
 
+export class HotelbedsProductRequestError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "HotelbedsProductRequestError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 function env(name: string) {
   return process.env[name]?.trim() || undefined;
 }
@@ -90,14 +102,16 @@ export async function hotelbedsProductRequest<T>(
 
     if (!response.ok) {
       const candidate = data as {
-        error?: { message?: string };
+        error?: { code?: string; message?: string };
+        code?: string;
         message?: string;
       };
-      throw new Error(
+      const message =
         candidate.error?.message ||
-          candidate.message ||
-          `Hotelbeds ${product} returned HTTP ${response.status}.`
-      );
+        candidate.message ||
+        `Hotelbeds ${product} returned HTTP ${response.status}.`;
+      const code = candidate.error?.code || candidate.code;
+      throw new HotelbedsProductRequestError(message, response.status, code);
     }
 
     return data as T;
