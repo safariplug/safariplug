@@ -3,6 +3,7 @@ import {
   hotelbedsTransfersConfigured,
   searchHotelbedsTransfers,
 } from "@/lib/integrations/hotelbeds/transfers";
+import { extractHotelbedsTransferSelections } from "@/lib/integrations/hotelbeds/transfer-checkout";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,9 @@ export async function GET() {
     provider: "hotelbeds",
     product: "transfers",
     configured: hotelbedsTransfersConfigured(),
-    booking_actions_exposed: false,
+    availability_exposed: true,
+    checkout_selection_tokens: true,
+    supplier_confirmation_requires_payment: true,
   });
 }
 
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
 
   const action = String(body.action || "availability").trim().toLowerCase();
   if (action !== "availability") {
-    return fail(400, "Only transfer availability is exposed publicly.");
+    return fail(400, "Only transfer availability is exposed on this endpoint.");
   }
 
   const fromType = String(body.fromType || "").toUpperCase();
@@ -50,7 +53,8 @@ export async function POST(request: Request) {
   const fromCode = String(body.fromCode || "").trim();
   const toCode = String(body.toCode || "").trim();
   const outbound = String(body.outbound || "");
-  const inbound = typeof body.inbound === "string" && body.inbound ? body.inbound : undefined;
+  const inbound =
+    typeof body.inbound === "string" && body.inbound ? body.inbound : undefined;
   const adults = Math.floor(Number(body.adults || 0));
   const children = Math.max(0, Math.floor(Number(body.children || 0)));
   const infants = Math.max(0, Math.floor(Number(body.infants || 0)));
@@ -58,7 +62,9 @@ export async function POST(request: Request) {
   if (!LOCATION_TYPES.has(fromType) || !LOCATION_TYPES.has(toType)) {
     return fail(400, "Unsupported transfer location type.");
   }
-  if (!fromCode || !toCode) return fail(400, "fromCode and toCode are required.");
+  if (!fromCode || !toCode) {
+    return fail(400, "fromCode and toCode are required.");
+  }
   if (!validDateTime(outbound) || (inbound && !validDateTime(inbound))) {
     return fail(400, "Valid outbound/inbound date-times are required.");
   }
@@ -79,8 +85,31 @@ export async function POST(request: Request) {
       children,
       infants,
     });
-    return NextResponse.json({ provider: "hotelbeds", product: "transfers", action, data });
+
+    const checkoutSelections = extractHotelbedsTransferSelections(data, {
+      fromType,
+      fromCode,
+      toType,
+      toCode,
+      outbound,
+      inbound,
+      adults,
+      children,
+      infants,
+    });
+
+    return NextResponse.json({
+      provider: "hotelbeds",
+      product: "transfers",
+      action,
+      data,
+      checkoutSelections,
+      bookingCreated: false,
+    });
   } catch (error) {
-    return fail(502, error instanceof Error ? error.message : "Hotelbeds Transfers request failed.");
+    return fail(
+      502,
+      error instanceof Error ? error.message : "Hotelbeds Transfers request failed."
+    );
   }
 }
