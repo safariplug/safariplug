@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { HotelbedsHotelAdapter } from "@/lib/integrations/hotels/hotelbeds";
 import { openHotelbedsBookingToken, sealHotelbedsBookingToken } from "@/lib/integrations/hotels/hotelbeds-booking-token";
 import { assertHotelbedsBookingRateReady, buildHotelbedsVoucher, hotelbedsRequiresCheckRate } from "@/lib/integrations/hotels/hotelbeds-certification";
+import { resolveHotelbedsRateComments } from "@/lib/integrations/hotels/hotelbeds-rate-comments";
+import { assertHotelbedsPreflightAccepted, mergeHotelbedsNotices } from "@/lib/integrations/hotels/hotelbeds-checkout-preflight";
 import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 
@@ -88,13 +90,32 @@ export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
 
   try {
-    if (action === "prepare") {
+    if (action === "preflight") {
       const rawToken = String(body.bookingToken || "");
       if (!rawToken) return errorResponse(400, "bookingToken is required.");
       const original = openHotelbedsBookingToken(rawToken);
-      const paxes = normalizePaxes(body.paxes);
       const customerCurrency = String(body.currency || "KES").toUpperCase();
       if (customerCurrency !== "KES") return errorResponse(400, "Hotel M-Pesa checkout currently supports KES only.");
+
+      if (original.preflighted) {
+        const percent = markupPercent();
+        const supplierRetail = retailSupplierAmount(original.supplierNet, percent);
+        const converted = await convertCurrency(supplierRetail, original.supplierCurrency, customerCurrency);
+        return NextResponse.json({
+          provider: "hotelbeds",
+          status: "preflight_ready",
+          bookingToken: rawToken,
+          pricing: { customerRetailAmount: converted.amount, customerCurrency, markupPercent: percent },
+          rate: {
+            rateType: original.rateType,
+            roomName: original.roomName,
+            boardName: original.boardName,
+            cancellation: original.cancellation,
+            notices: original.notices || [],
+            checkRateCompleted: original.checkRateCompleted === true,
+          },
+        });
+      }
 
       let final = original;
       let checkRateCompleted = false;
@@ -108,14 +129,15 @@ export async function POST(request: Request) {
         };
         checkRateCompleted = true;
       }
-      assertHotelbedsBookingRateReady({ rateKey: final.rateKey, rateType: final.rateType }, checkRateCompleted);
 
-      const percent = markupPercent();
-      const supplierRetail = retailSupplierAmount(final.supplierNet, percent);
-      const converted = await convertCurrency(supplierRetail, final.supplierCurrency, customerCurrency);
-      const bookingId = `hotelbeds-${randomUUID()}`;
-      const tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : null;
-      const holder = paxes.find((pax) => pax.type === "AD") || paxes[0];
+      let resolvedNotices: string[] = [];
+      if (final.rateCommentsId && !hotelbedsRequiresCheckRate(original.rateType)) {
+        const resolved = await resolveHotelbedsRateComments({ rateCommentsId: final.rateCommentsId, checkIn: final.checkIn });
+        resolvedNotices = resolved.notices;
+      }
+      const notices = mergeHotelbedsNotices(final.notices, resolvedNotices);
+      assertHotelbedsBookingRateReady({ rateKey: final.rateKey, rateType: final.rateType }, checkRateCompleted);
+      const preflightedAt = new Date().toISOString();
       const governedToken = sealHotelbedsBookingToken({
         rateKey: final.rateKey,
         rateType: final.rateType,
@@ -132,10 +154,48 @@ export async function POST(request: Request) {
         boardCode: final.boardCode || null,
         boardName: final.boardName || null,
         cancellation: final.cancellation || null,
-        notices: final.notices || [],
+        notices,
+        rateCommentsId: final.rateCommentsId || null,
+        preflighted: true,
+        checkRateCompleted,
+        preflightedAt,
         checkIn: final.checkIn,
         checkOut: final.checkOut,
       });
+      const percent = markupPercent();
+      const supplierRetail = retailSupplierAmount(final.supplierNet, percent);
+      const converted = await convertCurrency(supplierRetail, final.supplierCurrency, customerCurrency);
+      return NextResponse.json({
+        provider: "hotelbeds",
+        status: "preflight_ready",
+        bookingToken: governedToken,
+        pricing: { customerRetailAmount: converted.amount, customerCurrency, markupPercent: percent },
+        rate: { rateType: final.rateType, roomName: final.roomName, boardName: final.boardName, cancellation: final.cancellation, notices, checkRateCompleted },
+      });
+    }
+
+    if (action === "prepare") {
+      const rawToken = String(body.bookingToken || "");
+      if (!rawToken) return errorResponse(400, "bookingToken is required.");
+      const final = openHotelbedsBookingToken(rawToken);
+      const paxes = normalizePaxes(body.paxes);
+      const customerCurrency = String(body.currency || "KES").toUpperCase();
+      if (customerCurrency !== "KES") return errorResponse(400, "Hotel M-Pesa checkout currently supports KES only.");
+      assertHotelbedsPreflightAccepted({
+        preflighted: final.preflighted === true,
+        termsAccepted: body.termsAccepted === true,
+        rateType: final.rateType,
+        checkRateCompleted: final.checkRateCompleted === true,
+      });
+      const checkRateCompleted = final.checkRateCompleted === true;
+      assertHotelbedsBookingRateReady({ rateKey: final.rateKey, rateType: final.rateType }, checkRateCompleted);
+
+      const percent = markupPercent();
+      const supplierRetail = retailSupplierAmount(final.supplierNet, percent);
+      const converted = await convertCurrency(supplierRetail, final.supplierCurrency, customerCurrency);
+      const bookingId = `hotelbeds-${randomUUID()}`;
+      const tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : null;
+      const holder = paxes.find((pax) => pax.type === "AD") || paxes[0];
 
       const { data: ledger, error: ledgerError } = await supabase.from("hotel_booking_pricing_ledger").insert({
         customer_user_id: user.id,
@@ -154,8 +214,10 @@ export async function POST(request: Request) {
         booking_status: "payment_pending",
         supplier_settlement_status: "pending",
         metadata: {
-          bookingToken: governedToken,
+          bookingToken: rawToken,
           checkRateCompleted,
+          preflightedAt: final.preflightedAt || null,
+          termsAcceptedAt: new Date().toISOString(),
           tripId,
           paxes,
           holder: { name: holder.name, surname: holder.surname },
