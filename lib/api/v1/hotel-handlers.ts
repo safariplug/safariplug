@@ -18,7 +18,7 @@ export function hotelInventoryNotConfigured(): Response {
 
 function fromHotelError(code: string, message: string): Response {
   if (code === "not_configured" || code === "contract_required") {
-    return hotelInventoryNotConfigured();
+    return jsonError(503, "hotel_inventory_not_configured", message);
   }
   if (code === "bad_request") return jsonError(400, "bad_request", message);
   if (code === "timeout") return jsonError(503, "unavailable", message);
@@ -30,25 +30,35 @@ function requireLiveInventory(): Response | null {
   return null;
 }
 
+function searchInput(url: URL) {
+  return {
+    destination: url.searchParams.get("destination") ?? undefined,
+    check_in: url.searchParams.get("check_in") ?? undefined,
+    check_out: url.searchParams.get("check_out") ?? undefined,
+    guests: url.searchParams.get("guests") ?? undefined,
+    rooms: url.searchParams.get("rooms") ?? undefined,
+    currency: url.searchParams.get("currency") ?? undefined,
+    adults: url.searchParams.get("adults") ?? undefined,
+    children: url.searchParams.get("children") ?? undefined,
+    child_ages: url.searchParams.get("child_ages") ?? undefined,
+    provider: url.searchParams.get("provider") ?? undefined,
+  };
+}
+
 export async function handleHotelSearch(request: Request): Promise<Response> {
   const blocked = requireLiveInventory();
   if (blocked) return blocked;
   try {
     const url = new URL(request.url);
-    const query = parseHotelSearchRequest({
-      destination: url.searchParams.get("destination") ?? undefined,
-      check_in: url.searchParams.get("check_in") ?? undefined,
-      check_out: url.searchParams.get("check_out") ?? undefined,
-      guests: url.searchParams.get("guests") ?? undefined,
-      rooms: url.searchParams.get("rooms") ?? undefined,
-      currency: url.searchParams.get("currency") ?? undefined,
-    });
+    const query = parseHotelSearchRequest(searchInput(url));
     const result = await searchHotels(query);
     if (!result.ok) return fromHotelError(result.error.code, result.error.message);
+    const providerCount = new Set(result.data.results.map((item) => item.provider)).size;
     return jsonOk(result.data.results, {
       meta: {
         inventory: "supplier",
-        providers: liveHotelAdapters().length,
+        providers: providerCount,
+        provider_filter: query.provider || null,
         total: result.data.results.length,
       },
     });
@@ -70,14 +80,7 @@ export async function handleHotelAvailability(request: Request): Promise<Respons
     if (!property_id) {
       throw new ParamError("property_id is required.");
     }
-    const query = parseHotelSearchRequest({
-      destination: url.searchParams.get("destination") ?? undefined,
-      check_in: url.searchParams.get("check_in") ?? undefined,
-      check_out: url.searchParams.get("check_out") ?? undefined,
-      guests: url.searchParams.get("guests") ?? undefined,
-      rooms: url.searchParams.get("rooms") ?? undefined,
-      currency: url.searchParams.get("currency") ?? undefined,
-    });
+    const query = parseHotelSearchRequest(searchInput(url));
     const result = await hotelAvailability({ ...query, property_id });
     if (!result.ok) return fromHotelError(result.error.code, result.error.message);
     return jsonOk(result.data);
@@ -100,7 +103,7 @@ export async function handleHotelQuote(request: Request): Promise<Response> {
     body = {};
   }
   const result = await hotelQuote({
-    provider: "direct",
+    provider: typeof body.provider === "string" ? body.provider as "hotelbeds" : "direct",
     property_id: String(body.property_id || ""),
     room_id: String(body.room_id || ""),
     rate_id: typeof body.rate_id === "string" ? body.rate_id : null,

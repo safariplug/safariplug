@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { HotelbedsHotelAdapter, hotelbedsSignature } from "./hotelbeds";
+import { HotelbedsHotelAdapter, buildHotelbedsOccupancies, hotelbedsSignature } from "./hotelbeds";
 
 test("hotelbeds signature is sha256(apiKey + secret + unix timestamp)", () => {
   assert.equal(
@@ -31,4 +31,33 @@ test("hotelbeds remains not configured without all server credentials", () => {
       else process.env[name] = value;
     }
   }
+});
+
+test("hotelbeds certification occupancies preserve all rooms and child ages", () => {
+  assert.deepEqual(
+    buildHotelbedsOccupancies({ rooms: 2, guests: 6, adults: 5, children: 1, child_ages: [7] }),
+    [
+      { rooms: 1, adults: 3, children: 1, paxes: [{ type: "CH", age: 7 }] },
+      { rooms: 1, adults: 2, children: 0 },
+    ]
+  );
+});
+
+test("hotelbeds rejects children without matching ages", () => {
+  assert.throws(
+    () => buildHotelbedsOccupancies({ rooms: 1, guests: 3, adults: 2, children: 1 }),
+    /age for every child/
+  );
+});
+
+test("hotelbeds generic capabilities do not claim unsupported quote or confirm", () => {
+  const adapter = new HotelbedsHotelAdapter();
+  assert.deepEqual(adapter.capabilities(), {
+    search: true,
+    availability: false,
+    quote: false,
+    hold: false,
+    confirm: false,
+    cancel: false,
+  });
 });

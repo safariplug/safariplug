@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { request as httpsRequest } from "node:https";
+import { gunzipSync } from "node:zlib";
 import type { HotelAdapter } from "./adapter";
 import { hotelError } from "./errors";
 import { convertCurrency } from "@/lib/currency/exchange-rates";
@@ -25,6 +26,9 @@ import type {
 
 const DEFAULT_MARKUP_PERCENT = 10;
 const DEFAULT_CUSTOMER_CURRENCY = "KES";
+const HOTELBEDS_MAX_HOTELS_PER_AVAILABILITY = 2000;
+const HOTELBEDS_DEFAULT_TIMEOUT_MS = 15000;
+const HOTELBEDS_BOOKING_TIMEOUT_MS = 65000;
 
 type HotelbedsRate = {
   rateKey?: string;
@@ -86,6 +90,11 @@ type HotelbedsBooking = {
   };
 };
 
+type RequestOptions = {
+  requireMtls?: boolean;
+  timeoutMs?: number;
+};
+
 function env(name: string) {
   return process.env[name]?.trim() || undefined;
 }
@@ -140,8 +149,10 @@ function parseDestinationMap(): Record<string, number[]> {
 
 function hotelCodesForDestination(destination: string): number[] {
   const direct = destination.split(",").map((value) => Number(value.trim())).filter((code) => Number.isInteger(code) && code > 0);
-  if (direct.length && destination.split(",").every((value) => /^\s*\d+\s*$/.test(value))) return direct.slice(0, 200);
-  return (parseDestinationMap()[destination.trim().toLowerCase()] || []).slice(0, 200);
+  if (direct.length && destination.split(",").every((value) => /^\s*\d+\s*$/.test(value))) {
+    return direct.slice(0, HOTELBEDS_MAX_HOTELS_PER_AVAILABILITY);
+  }
+  return (parseDestinationMap()[destination.trim().toLowerCase()] || []).slice(0, HOTELBEDS_MAX_HOTELS_PER_AVAILABILITY);
 }
 
 function distributeAdults(guests: number, rooms: number) {
@@ -151,6 +162,27 @@ function distributeAdults(guests: number, rooms: number) {
     const base = Math.floor(adultCount / roomCount);
     const remainder = adultCount % roomCount;
     return base + (index < remainder ? 1 : 0);
+  });
+}
+
+export function buildHotelbedsOccupancies(request: Pick<HotelSearchRequest, "rooms" | "guests" | "adults" | "children" | "child_ages">) {
+  const roomCount = Math.max(1, Math.floor(request.rooms));
+  const adults = Math.max(roomCount, Math.floor(request.adults ?? request.guests));
+  const children = Math.max(0, Math.floor(request.children || 0));
+  const ages = request.child_ages || [];
+  if (children > 0 && ages.length !== children) {
+    throw new Error("Hotelbeds requires an age for every child.");
+  }
+  const childAgesByRoom = Array.from({ length: roomCount }, () => [] as number[]);
+  ages.forEach((age, index) => childAgesByRoom[index % roomCount].push(age));
+  return distributeAdults(adults, roomCount).map((roomAdults, index) => {
+    const childAges = childAgesByRoom[index];
+    return {
+      rooms: 1,
+      adults: roomAdults,
+      children: childAges.length,
+      ...(childAges.length ? { paxes: childAges.map((age) => ({ type: "CH" as const, age })) } : {}),
+    };
   });
 }
 
@@ -165,8 +197,8 @@ function firstRate(hotel: HotelbedsHotel) {
 function cancellationText(rate: HotelbedsRate) {
   const policy = rate.cancellationPolicies?.[0];
   if (!policy) return rate.rateClass === "NRF" ? "Non-refundable" : null;
-  if (Number(policy.amount || 0) === 0 && policy.from) return `Free cancellation until ${policy.from}`;
-  if (policy.from) return `Cancellation charges apply from ${policy.from}`;
+  if (Number(policy.amount || 0) === 0 && policy.from) return `Free cancellation until ${policy.from} (hotel destination local time)`;
+  if (policy.from) return `Cancellation charges apply from ${policy.from} (hotel destination local time)`;
   return rate.rateClass === "NRF" ? "Non-refundable" : "Cancellation restrictions may apply";
 }
 
@@ -179,8 +211,10 @@ async function retailAmount(amount: number, supplierCurrency: string, requestedC
   return { amount: converted.amount, currency: target };
 }
 
-function requestJson<T>(url: URL, method: "GET" | "POST" | "DELETE", body?: unknown, requireMtls = true): Promise<T> {
+function requestJson<T>(url: URL, method: "GET" | "POST" | "DELETE", body?: unknown, options: RequestOptions = {}): Promise<T> {
   const auth = credentials();
+  const requireMtls = options.requireMtls ?? true;
+  const timeoutMs = options.timeoutMs ?? HOTELBEDS_DEFAULT_TIMEOUT_MS;
   if (!auth.apiKey || !auth.secret) return Promise.reject(new Error("Hotelbeds API key and secret are not configured."));
   if (requireMtls && (!auth.cert || !auth.key)) return Promise.reject(new Error("Hotelbeds mTLS certificate and private key are not configured."));
   const payload = body === undefined ? undefined : JSON.stringify(body);
@@ -194,17 +228,22 @@ function requestJson<T>(url: URL, method: "GET" | "POST" | "DELETE", body?: unkn
       rejectUnauthorized: true,
       headers: {
         Accept: "application/json",
-        "Accept-Encoding": "identity",
+        "Accept-Encoding": "gzip",
         "Api-key": auth.apiKey!,
         "X-Signature": signature,
         ...(payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {}),
       },
-      timeout: 15000,
+      timeout: timeoutMs,
     }, (response) => {
       const chunks: Buffer[] = [];
       response.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
       response.on("end", () => {
-        const text = Buffer.concat(chunks).toString("utf8");
+        const raw = Buffer.concat(chunks);
+        let decoded = raw;
+        if (String(response.headers["content-encoding"] || "").toLowerCase().includes("gzip")) {
+          try { decoded = gunzipSync(raw); } catch (error) { reject(error); return; }
+        }
+        const text = decoded.toString("utf8");
         let parsed: unknown = {};
         try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { message: text }; }
         const status = response.statusCode || 500;
@@ -229,7 +268,7 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
   readonly circuit: CircuitState = "closed";
 
   capabilities(): HotelCapabilities {
-    return { search: true, availability: true, quote: true, hold: false, confirm: false, cancel: false };
+    return { search: true, availability: false, quote: false, hold: false, confirm: false, cancel: false };
   }
 
   credentialsPresent() {
@@ -255,7 +294,7 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
     }
     try {
       const url = new URL("/hotel-api/1.0/status", standardBaseUrl());
-      await requestJson(url, "GET", undefined, false);
+      await requestJson(url, "GET", undefined, { requireMtls: false });
       return { provider: this.key, status: "healthy", configured: true, contract_implemented: true, reachable: true, authenticated: true, latency_ms: Date.now() - started, last_success_at: checkedAt, last_error: null, checked_at: checkedAt };
     } catch (error) {
       return { provider: this.key, status: "degraded", configured: true, contract_implemented: true, reachable: false, authenticated: false, latency_ms: Date.now() - started, last_success_at: null, last_error: error instanceof Error ? error.message : "Hotelbeds health check failed.", checked_at: checkedAt };
@@ -267,15 +306,14 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
     const hotelCodes = hotelCodesForDestination(request.destination);
     if (!hotelCodes.length) return { ok: false, error: hotelError("bad_request", `No Hotelbeds hotel-code mapping is configured for ${request.destination}.`, false) };
     try {
-      const roomCount = Math.max(1, Math.floor(request.rooms));
-      const adults = Math.max(roomCount, Math.floor(request.adults ?? request.guests));
-      const children = Math.max(0, Math.floor(request.children || 0));
-      const occupancies = distributeAdults(adults, roomCount).map((roomAdults, index) => ({ rooms: 1, adults: roomAdults, children: index === 0 ? children : 0 }));
+      const occupancies = buildHotelbedsOccupancies(request);
+      const sourceMarket = env("SAFARIPLUG_HOTEL_HOTELBEDS_SOURCE_MARKET");
       const url = new URL("/hotel-api/1.0/hotels", mtlsBaseUrl());
       const response = await requestJson<HotelbedsAvailability>(url, "POST", {
         stay: { checkIn: request.check_in, checkOut: request.check_out },
         occupancies,
         hotels: { hotel: hotelCodes },
+        ...(sourceMarket ? { sourceMarket } : {}),
       });
       const results = await Promise.all((response.hotels?.hotels || []).map(async (hotel) => {
         const selected = firstRate(hotel);
@@ -297,6 +335,9 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
           supplier_context: {
             search_key: rate?.rateType || undefined,
             region_id: hotel.destinationCode || undefined,
+            rate_class: rate?.rateClass || undefined,
+            board_code: rate?.boardCode || undefined,
+            board_name: rate?.boardName || undefined,
           },
         };
       }));
@@ -313,7 +354,7 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
 
   async createBooking(input: { holder: { name: string; surname: string }; rooms: Array<{ rateKey: string; paxes: Array<{ roomId: number; type: "AD" | "CH"; name: string; surname: string }> }>; clientReference: string; remark?: string; tolerance?: number }) {
     const url = new URL("/hotel-api/1.0/bookings", mtlsBaseUrl());
-    return requestJson<HotelbedsBooking>(url, "POST", input);
+    return requestJson<HotelbedsBooking>(url, "POST", input, { timeoutMs: HOTELBEDS_BOOKING_TIMEOUT_MS });
   }
 
   async getBooking(reference: string) {
