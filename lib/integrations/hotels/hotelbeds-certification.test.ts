@@ -7,6 +7,7 @@ import {
   certificationNotices,
   hotelbedsRequiresCheckRate,
 } from "./hotelbeds-certification";
+import { prepareHotelbedsRateForBooking } from "./hotelbeds-booking-workflow";
 import {
   hotelbedsContentBaseUrl,
   hotelbedsContentConfigured,
@@ -72,6 +73,27 @@ test("Hotelbeds only CheckRates RECHECK rates", () => {
     /must complete CheckRate/
   );
   assert.doesNotThrow(() => assertHotelbedsBookingRateReady({ rateKey: "rk", rateType: "RECHECK" }, true));
+});
+
+test("BOOKABLE rate does not make an unnecessary CheckRate call", async () => {
+  let calls = 0;
+  const prepared = await prepareHotelbedsRateForBooking({
+    checkRate: async () => { calls += 1; return { ok: true }; },
+  }, { rateKey: "bookable-rate", rateType: "BOOKABLE" });
+  assert.equal(calls, 0);
+  assert.equal(prepared.checkRateRequired, false);
+  assert.equal(prepared.checked, null);
+});
+
+test("RECHECK rate makes exactly one CheckRate call", async () => {
+  let calls = 0;
+  const prepared = await prepareHotelbedsRateForBooking({
+    checkRate: async (rateKey) => { calls += 1; return { rateKey, status: "checked" }; },
+  }, { rateKey: "recheck-rate", rateType: "RECHECK" });
+  assert.equal(calls, 1);
+  assert.equal(prepared.checkRateRequired, true);
+  assert.equal(prepared.checkRateCompleted, true);
+  assert.deepEqual(prepared.checked, { rateKey: "recheck-rate", status: "checked" });
 });
 
 test("certification notices include promotions and rate comments", () => {
