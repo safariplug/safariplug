@@ -43,10 +43,13 @@ export function assertHotelbedsBookingRateReady(rate: HotelbedsCertificationRate
 }
 
 export function certificationNotices(rate: HotelbedsCertificationRate) {
-  return [
-    ...(rate.promotions || []).map((promotion) => promotion.name?.trim()).filter((value): value is string => Boolean(value)),
+  const notices = [
+    ...(rate.promotions || [])
+      .map((promotion) => promotion.name?.trim() || promotion.code?.trim())
+      .filter((value): value is string => Boolean(value)),
     ...(rate.rateComments || []).map((comment) => comment.trim()).filter(Boolean),
   ];
+  return [...new Set(notices)];
 }
 
 export function buildHotelbedsVoucher(input: HotelbedsVoucherInput) {
