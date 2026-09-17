@@ -102,8 +102,14 @@ export async function POST(request: Request) {
       provider: "hotelbeds",
       product: "transfers",
       action,
-      data,
-      checkoutSelections,
+      results: checkoutSelections.map((selection) => ({
+        selectionToken: selection.token,
+        supplierAmount: selection.supplierAmount,
+        supplierCurrency: selection.supplierCurrency,
+        cancellationPolicies: selection.cancellationPolicies,
+        service: selection.serviceSummary,
+      })),
+      resultCount: checkoutSelections.length,
       bookingCreated: false,
     });
   } catch (error) {
