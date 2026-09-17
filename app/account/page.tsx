@@ -8,16 +8,17 @@ export default async function AccountPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.is_anonymous) redirect(`/login?next=${encodeURIComponent("/account")}`);
 
-  const [trips, foodOrders, appointments, eventBookings, hotelBookings, localRequests] = await Promise.all([
+  const [trips, foodOrders, appointments, eventBookings, hotelBookings, transferBookings, localRequests] = await Promise.all([
     countRows(supabase, "trips", "traveler_id", user.id),
     countRows(supabase, "food_orders", "customer_user_id", user.id),
     countRows(supabase, "service_appointments", "customer_user_id", user.id),
     countRows(supabase, "bookings", "traveler_id", user.id),
     countRows(supabase, "hotel_booking_pricing_ledger", "customer_user_id", user.id),
+    countRows(supabase, "transfer_booking_pricing_ledger", "customer_user_id", user.id),
     countRows(supabase, "local_requests", "traveler_id", user.id),
   ]);
 
-  const totalActivity = foodOrders + appointments + eventBookings + hotelBookings + localRequests;
+  const totalActivity = foodOrders + appointments + eventBookings + hotelBookings + transferBookings + localRequests;
   const firstName = String(user.user_metadata?.full_name || user.email || "Traveler").split(/[ @]/)[0];
 
   return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
@@ -31,6 +32,7 @@ export default async function AccountPage() {
         <StatusCard href="/account/appointments" label="Appointments" value={appointments} description="Services you requested" />
         <StatusCard href="/account/orders" label="Food orders" value={foodOrders} description="Restaurant order activity" />
         <StatusCard href="/hotels" label="Hotel bookings" value={hotelBookings} description="Real supplier booking records" />
+        <StatusCard href="/account/transfers" label="Transfer bookings" value={transferBookings} description="Supplier transfer checkout records" />
         <StatusCard href="/events" label="Experience bookings" value={eventBookings} description="Booked experiences" />
       </div>
 
@@ -43,6 +45,7 @@ export default async function AccountPage() {
         <AccountCard href="/hotels" title="Stays" description="Search hotel inventory through configured SafariPlug supplier connections." />
         <AccountCard href="/services" title="Services" description="Find live providers for massage, barbering, beauty, nails, tattoo, fitness, diving and more." />
         <AccountCard href="/restaurants" title="Restaurants & food" description="Browse restaurants with real online ordering enabled and open their live menus." />
+        <AccountCard href="/account/transfers" title="Transfer bookings" description="Review Hotelbeds transfer payments, confirmations and cancellations." />
         <AccountCard href="/drivers" title="Drivers & transfers" description="Find eligible verified drivers and request transport through SafariPlug." />
         <AccountCard href="/events" title="Events & experiences" description="Discover approved SafariPlug experiences and add the ones you want to your journey." />
         <AccountCard href="/account/saved" title="Saved" description="Return to places and experiences you saved for later." />

@@ -48,6 +48,13 @@ export default async function TransferConnectivityPage() {
           </p>
         </section>
 
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div><p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Payment safety</p><h2 className="mt-2 text-lg font-bold">Confirmation reconciliation</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-zinc-500">Paid bookings with an indeterminate supplier confirmation are never retried automatically.</p></div>
+            <Link href="/admin/integrations/transfers/reconciliation" className="rounded-xl border border-amber-400/40 px-4 py-2 text-sm font-bold text-amber-300">Open reconciliation →</Link>
+          </div>
+        </section>
+
         <TransferProbe />
 
         <section className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950">
