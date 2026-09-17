@@ -44,6 +44,7 @@ type HotelbedsRate = {
   adults?: number;
   children?: number;
   rateComments?: string;
+  rateCommentsId?: string;
   promotions?: Array<{ code?: string; name?: string }>;
   cancellationPolicies?: Array<{ amount?: string | number; from?: string }>;
 };
@@ -352,6 +353,7 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
               boardName: rate.boardName || null,
               cancellation,
               notices,
+              rateCommentsId: rate.rateCommentsId || null,
               checkIn: request.check_in,
               checkOut: request.check_out,
             })
@@ -410,6 +412,7 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
       boardName: selected.rate.boardName || null,
       cancellation: cancellationText(selected.rate),
       notices: rateNotices(selected.rate),
+      rateCommentsId: selected.rate.rateCommentsId || null,
     };
   }
 
