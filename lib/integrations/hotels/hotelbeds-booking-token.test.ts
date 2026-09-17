@@ -33,7 +33,12 @@ test("Hotelbeds booking token is encrypted, authenticated and expires", () => {
     assert.equal(opened.rateKey, "rate-key-1");
     assert.equal(opened.supplierNet, 100);
     assert.deepEqual(opened.notices, ["City tax payable locally"]);
-    assert.throws(() => openHotelbedsBookingToken(`${token}x`, 1020));
+
+    const [iv, tag, ciphertext] = token.split(".");
+    const replacement = ciphertext[0] === "A" ? "B" : "A";
+    const tampered = [iv, tag, `${replacement}${ciphertext.slice(1)}`].join(".");
+    assert.throws(() => openHotelbedsBookingToken(tampered, 1020));
+
     assert.throws(() => openHotelbedsBookingToken(token, 1060), /expired/);
   } finally {
     if (previous === undefined) delete process.env.SAFARIPLUG_HOTEL_HOTELBEDS_SECRET;
