@@ -16,8 +16,32 @@ export type HotelbedsTransferAvailabilityInput = {
   infants?: number;
 };
 
+export type HotelbedsTransferRoute = {
+  code?: string;
+  from?: { type?: string; code?: string };
+  to?: { type?: string; code?: string };
+};
+
 export function hotelbedsTransfersConfigured() {
   return hotelbedsProductConfigured("transfers");
+}
+
+export async function getHotelbedsTransferRoutes(
+  destinationCode: string,
+  limit = 25,
+  offset = 0
+) {
+  const params = new URLSearchParams({
+    fields: "ALL",
+    destinationCode: destinationCode.trim().toUpperCase(),
+    offset: String(Math.max(0, Math.floor(offset))),
+    limit: String(Math.min(100, Math.max(1, Math.floor(limit)))),
+  });
+
+  return hotelbedsProductRequest<HotelbedsTransferRoute[] | Record<string, unknown>>(
+    "transfers",
+    `/transfer-cache-api/1.0/routes?${params.toString()}`
+  );
 }
 
 export async function searchHotelbedsTransfers(
