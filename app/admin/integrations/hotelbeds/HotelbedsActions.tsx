@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 type Result = Record<string, unknown>;
-type Action = "certification_plan" | "health" | "content_sample" | "sync_one_page";
+type Action = "certification_plan" | "health" | "availability_probe" | "content_sample" | "sync_one_page";
 
 export default function HotelbedsActions() {
   const [busy, setBusy] = useState<string | null>(null);
@@ -39,6 +39,9 @@ export default function HotelbedsActions() {
         <button disabled={Boolean(busy)} onClick={() => void run("health")} className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-black disabled:opacity-50">
           {busy === "health" ? "Checking…" : "Verify API health"}
         </button>
+        <button disabled={Boolean(busy)} onClick={() => void run("availability_probe")} className="rounded-xl border border-emerald-800 bg-emerald-950/20 px-4 py-2 text-sm font-semibold text-emerald-300 disabled:opacity-50">
+          {busy === "availability_probe" ? "Probing…" : "Run 1 availability probe"}
+        </button>
         <button disabled={Boolean(busy)} onClick={() => void run("content_sample")} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
           {busy === "content_sample" ? "Checking…" : "Test 1 content record"}
         </button>
@@ -46,7 +49,7 @@ export default function HotelbedsActions() {
           {busy === "sync_one_page" ? "Syncing…" : "Sync one page"}
         </button>
       </div>
-      <p className="text-xs leading-5 text-zinc-500">The certification plan is read-only. Payment, supplier booking and actual cancellation remain explicit manual actions; SafariPlug will not trigger them from this screen.</p>
+      <p className="text-xs leading-5 text-zinc-500">The certification plan is read-only. “Run 1 availability probe” makes exactly one Hotelbeds Availability request using up to 20 cached hotel codes. Payment, supplier booking and actual cancellation remain explicit manual actions.</p>
       {error ? <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-300">{error}</div> : null}
       {result ? <pre className="max-h-96 overflow-auto rounded-xl border border-zinc-800 bg-black p-4 text-xs leading-5 text-zinc-300">{JSON.stringify(result, null, 2)}</pre> : null}
     </div>
