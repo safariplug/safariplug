@@ -31,6 +31,36 @@ function prefix(product: HotelbedsProduct) {
     : "SAFARIPLUG_HOTELBEDS_TRANSFERS";
 }
 
+function scalar(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function supplierErrorDetails(data: unknown) {
+  if (!data || typeof data !== "object") return {} as { message?: string; code?: string };
+  const candidate = data as Record<string, unknown>;
+  const nested = candidate.error && typeof candidate.error === "object"
+    ? candidate.error as Record<string, unknown>
+    : undefined;
+
+  const message =
+    scalar(nested?.message) ||
+    scalar(nested?.description) ||
+    scalar(candidate.message) ||
+    scalar(candidate.description) ||
+    scalar(candidate.error);
+
+  const code =
+    scalar(nested?.code) ||
+    scalar(nested?.errorCode) ||
+    scalar(candidate.code) ||
+    scalar(candidate.errorCode) ||
+    (typeof candidate.error === "string" && candidate.error !== message
+      ? scalar(candidate.error)
+      : undefined);
+
+  return { message, code };
+}
+
 export function hotelbedsProductSignature(
   apiKey: string,
   secret: string,
@@ -101,17 +131,12 @@ export async function hotelbedsProductRequest<T>(
     }
 
     if (!response.ok) {
-      const candidate = data as {
-        error?: { code?: string; message?: string };
-        code?: string;
-        message?: string;
-      };
-      const message =
-        candidate.error?.message ||
-        candidate.message ||
-        `Hotelbeds ${product} returned HTTP ${response.status}.`;
-      const code = candidate.error?.code || candidate.code;
-      throw new HotelbedsProductRequestError(message, response.status, code);
+      const details = supplierErrorDetails(data);
+      throw new HotelbedsProductRequestError(
+        details.message || `Hotelbeds ${product} returned HTTP ${response.status}.`,
+        response.status,
+        details.code
+      );
     }
 
     return data as T;
