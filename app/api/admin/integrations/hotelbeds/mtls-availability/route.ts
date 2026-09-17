@@ -70,6 +70,12 @@ function preflight() {
   return { certificate, key, apiKey, secret };
 }
 
+type SupplierErrorPayload = {
+  error?: { message?: string; code?: string | number } | string;
+  message?: string;
+  code?: string | number;
+};
+
 type AvailabilityPayload = {
   hotels?: {
     total?: number;
@@ -112,6 +118,17 @@ function cancellationSummary(rate: NonNullable<ReturnType<typeof firstRate>>["ra
   return rate.rateClass === "NRF" ? "Non-refundable" : "Cancellation restrictions may apply";
 }
 
+function supplierErrorMessage(payload: SupplierErrorPayload) {
+  if (typeof payload.error === "string") return payload.error;
+  return payload.error?.message || payload.message || "";
+}
+
+function supplierErrorCode(payload: SupplierErrorPayload) {
+  const code = typeof payload.error === "object" ? payload.error?.code : undefined;
+  const value = code ?? payload.code;
+  return value === undefined || value === null ? null : String(value);
+}
+
 function runAvailability(codes: number[]) {
   const { certificate, key, apiKey, secret } = preflight();
   const stay = buildHotelbedsCertificationStay();
@@ -124,7 +141,7 @@ function runAvailability(codes: number[]) {
     hotels: { hotel: codes },
   });
 
-  return new Promise<{ status: number; body: AvailabilityPayload | { error?: { message?: string }; message?: string } }>((resolve, reject) => {
+  return new Promise<{ status: number; body: AvailabilityPayload | SupplierErrorPayload }>((resolve, reject) => {
     const request = httpsRequest(url, {
       method: "POST",
       cert: certificate,
@@ -149,7 +166,7 @@ function runAvailability(codes: number[]) {
           try { decoded = gunzipSync(raw); } catch (error) { reject(error); return; }
         }
         const text = decoded.toString("utf8");
-        let parsed: AvailabilityPayload | { error?: { message?: string }; message?: string } = {};
+        let parsed: AvailabilityPayload | SupplierErrorPayload = {};
         try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { message: text.slice(0, 500) }; }
         resolve({ status: response.statusCode || 500, body: parsed });
       });
@@ -185,13 +202,15 @@ export async function POST() {
 
     const started = Date.now();
     const result = await runAvailability(codes);
-    const candidate = result.body as { error?: { message?: string }; message?: string };
 
     if (result.status < 200 || result.status >= 300) {
+      const candidate = result.body as SupplierErrorPayload;
       return NextResponse.json({
-        error: candidate.error?.message || candidate.message || `Hotelbeds Availability returned HTTP ${result.status}.`,
+        error: supplierErrorMessage(candidate) || `Hotelbeds Availability returned HTTP ${result.status}.`,
         supplierStatus: result.status,
+        supplierCode: supplierErrorCode(candidate),
         supplierRequestCount: 1,
+        transportAuthenticated: true,
         testedHotels: codes.length,
         environment: environment(),
         endpointMode: "mtls",
