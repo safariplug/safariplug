@@ -34,13 +34,25 @@ export default async function IntegrationsPage() {
           <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">
             Partner integrations
           </p>
-          <h1 className="mt-2 text-3xl font-extrabold">Aurelian Hospitality</h1>
+          <h1 className="mt-2 text-3xl font-extrabold">Integration Operations</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
-            SafariPlug remains the discovery source of truth. Aurelian can pull
-            approved experiences from the existing inbound API. Outbound push
-            waits for a documented Aurelian API contract.
+            Monitor partner connectivity, supplier readiness, and controlled inventory syncs.
           </p>
         </header>
+
+        <section className="grid gap-4 md:grid-cols-2">
+          <Link href="/admin/integrations/hotelbeds" className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-6 transition hover:border-amber-400/60">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-amber-400">Hotel supplier</p>
+            <h2 className="mt-2 text-xl font-bold">Hotelbeds readiness</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Verify test API health, inspect mTLS readiness, and sync static hotel content into SafariPlug storage.</p>
+            <p className="mt-4 font-mono text-xs font-bold text-amber-400">Open Hotelbeds →</p>
+          </Link>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Experience partner</p>
+            <h2 className="mt-2 text-xl font-bold">Aurelian Hospitality</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">SafariPlug remains the discovery source of truth. Aurelian can pull approved experiences from the existing inbound API.</p>
+          </div>
+        </section>
 
         <section className="grid gap-4 md:grid-cols-3">
           <StatusCard
@@ -66,7 +78,7 @@ export default async function IntegrationsPage() {
         </section>
 
         <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-lg font-bold">Manual inventory record</h2>
+          <h2 className="text-lg font-bold">Manual Aurelian inventory record</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
             Loads approved SafariPlug events, maps them to the Aurelian
             inventory payload, and writes sync tracking rows. It will not call
