@@ -1,3 +1,4 @@
+import { createPrivateKey, createPublicKey, X509Certificate } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin, AdminAuthError } from "@/lib/auth/require-admin";
 import { HotelbedsHotelAdapter } from "@/lib/integrations/hotels/hotelbeds";
@@ -34,11 +35,39 @@ function pemDiagnostics() {
   const certificateValid = certificate.startsWith("-----BEGIN CERTIFICATE-----") && certificate.endsWith("-----END CERTIFICATE-----");
   const privateKeyValid = /-----BEGIN (?:RSA )?PRIVATE KEY-----/.test(privateKey) && /-----END (?:RSA )?PRIVATE KEY-----$/.test(privateKey);
   const caValid = !ca || (ca.startsWith("-----BEGIN CERTIFICATE-----") && ca.endsWith("-----END CERTIFICATE-----"));
+
+  let certificateParseValid = false;
+  let privateKeyParseValid = false;
+  let keyPairMatches = false;
+
+  try {
+    if (certificateValid) {
+      const parsedCertificate = new X509Certificate(certificate);
+      certificateParseValid = true;
+      if (privateKeyValid) {
+        try {
+          const parsedPrivateKey = createPrivateKey(privateKey);
+          privateKeyParseValid = true;
+          const certificatePublicKey = parsedCertificate.publicKey.export({ type: "spki", format: "der" });
+          const privatePublicKey = createPublicKey(parsedPrivateKey).export({ type: "spki", format: "der" });
+          keyPairMatches = Buffer.from(certificatePublicKey).equals(Buffer.from(privatePublicKey));
+        } catch {
+          privateKeyParseValid = false;
+        }
+      }
+    }
+  } catch {
+    certificateParseValid = false;
+  }
+
   return {
     certificatePresent: Boolean(certificate),
     certificateValid,
+    certificateParseValid,
     privateKeyPresent: Boolean(privateKey),
     privateKeyValid,
+    privateKeyParseValid,
+    keyPairMatches,
     caPresent: Boolean(ca),
     caValid,
   };
@@ -48,8 +77,11 @@ function pemPreflightError() {
   const diagnostic = pemDiagnostics();
   if (!diagnostic.certificatePresent) return "Hotelbeds mTLS certificate is missing.";
   if (!diagnostic.certificateValid) return "Hotelbeds mTLS certificate is not valid PEM. It must begin with BEGIN CERTIFICATE and end with END CERTIFICATE.";
+  if (!diagnostic.certificateParseValid) return "Hotelbeds mTLS certificate has valid PEM markers but its certificate body cannot be parsed. Replace the Hostinger certificate value from the original issued PEM file.";
   if (!diagnostic.privateKeyPresent) return "Hotelbeds mTLS private key is missing.";
   if (!diagnostic.privateKeyValid) return "Hotelbeds mTLS private key is not valid PEM. It must begin and end with a PRIVATE KEY PEM header/footer.";
+  if (!diagnostic.privateKeyParseValid) return "Hotelbeds mTLS private key has valid PEM markers but its key body cannot be parsed. Replace the Hostinger private-key value from the unencrypted server key file.";
+  if (!diagnostic.keyPairMatches) return "Hotelbeds mTLS certificate and private key are individually valid but do not match each other.";
   if (diagnostic.caPresent && !diagnostic.caValid) return "Hotelbeds custom CA value is present but is not valid certificate PEM. Remove the optional CA variable unless Hotelbeds explicitly supplied a CA bundle.";
   return null;
 }
