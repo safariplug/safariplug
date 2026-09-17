@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const quickFind = [
   ["Experiences", "Things to do", "/experiences", "✦"],
-  ["Drivers", "Rides & transfers", "/drivers", "↗"],
+  ["Transfers", "Rides & pickups", "/transfers", "↗"],
   ["Hotels", "Places to stay", "/hotels", "▦"],
   ["Services", "Barber, massage & more", "/services", "✧"],
   ["Food", "Restaurants & dining", "/restaurants", "⌁"],
@@ -18,7 +18,7 @@ const quickFind = [
 
 const platformAreas = [
   { title: "Experiences", text: "Tours, nightlife, beaches, safari, food, live music and hidden gems.", href: "/experiences", image: "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=1200&q=85" },
-  { title: "Drivers & Transfers", text: "Airport pickups, event transport, safari transfers and driver requests.", href: "/drivers", image: "https://images.unsplash.com/photo-1515569067071-ec3b51335dd0?auto=format&fit=crop&w=1200&q=85" },
+  { title: "Drivers & Transfers", text: "Airport pickups, event transport, safari transfers and driver requests.", href: "/transfers", image: "https://images.unsplash.com/photo-1515569067071-ec3b51335dd0?auto=format&fit=crop&w=1200&q=85" },
   { title: "Hotels", text: "Find stays and move into connected availability when providers are ready.", href: "/hotels", image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=85" },
   { title: "Local Services", text: "Barbers, massage, beauty, wellness and other trusted local professionals.", href: "/services", image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&q=85" },
 ];
@@ -65,7 +65,7 @@ export default async function HomePage() {
       </section>
 
       <section className="border-y border-white/10 bg-[#0d0d10] py-16 md:py-20"><div className="mx-auto grid max-w-7xl gap-5 px-5 md:grid-cols-2 md:px-8 lg:px-10">
-        <div className="rounded-[1.8rem] border border-white/10 bg-[#111114] p-7 md:p-9"><p className="text-xs font-black uppercase tracking-[0.25em] text-[#c9a86a]">Drivers & transfers</p><h2 className="mt-4 font-serif text-4xl font-medium text-white">Need a ride, pickup or transfer?</h2><p className="mt-4 leading-7 text-white/55">Request airport transfers, event transport, safari transfers or a specific driver when available.</p><Link href="/drivers" className="mt-6 inline-flex rounded-full border border-[#c9a86a]/40 bg-[#c9a86a]/10 px-5 py-3 text-sm font-bold text-[#e7c98d]">Drivers & transfers →</Link></div>
+        <div className="rounded-[1.8rem] border border-white/10 bg-[#111114] p-7 md:p-9"><p className="text-xs font-black uppercase tracking-[0.25em] text-[#c9a86a]">Drivers & transfers</p><h2 className="mt-4 font-serif text-4xl font-medium text-white">Need a ride, pickup or transfer?</h2><p className="mt-4 leading-7 text-white/55">Request airport transfers, event transport, safari transfers or a specific driver when available.</p><Link href="/transfers" className="mt-6 inline-flex rounded-full border border-[#c9a86a]/40 bg-[#c9a86a]/10 px-5 py-3 text-sm font-bold text-[#e7c98d]">Transfers →</Link></div>
         <div className="rounded-[1.8rem] border border-white/10 bg-[#111114] p-7 md:p-9"><p className="text-xs font-black uppercase tracking-[0.25em] text-[#c9a86a]">Personal services</p><h2 className="mt-4 font-serif text-4xl font-medium text-white">Need a barber, massage or local professional?</h2><p className="mt-4 leading-7 text-white/55">Find services that are useful during a real trip, not just tourist attractions.</p><Link href="/services" className="mt-6 inline-flex rounded-full border border-[#c9a86a]/40 bg-[#c9a86a]/10 px-5 py-3 text-sm font-bold text-[#e7c98d]">Browse services →</Link></div>
       </div></section>
 
