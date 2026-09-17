@@ -17,6 +17,43 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
 
+function normalizedPem(primary: string, fallback: string) {
+  const raw = process.env[primary]?.trim() || process.env[fallback]?.trim() || "";
+  if (!raw) return "";
+  const unquoted = (
+    (raw.startsWith('"') && raw.endsWith('"'))
+    || (raw.startsWith("'") && raw.endsWith("'"))
+  ) ? raw.slice(1, -1).trim() : raw;
+  return unquoted.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").trim();
+}
+
+function pemDiagnostics() {
+  const certificate = normalizedPem("SAFARIPLUG_HOTEL_HOTELBEDS_CERT_PEM", "SAFARIPLUG_HOTEL_HOTELBEDS_CERT");
+  const privateKey = normalizedPem("SAFARIPLUG_HOTEL_HOTELBEDS_PRIVATE_KEY_PEM", "SAFARIPLUG_HOTEL_HOTELBEDS_PRIVATE_KEY");
+  const ca = normalizedPem("SAFARIPLUG_HOTEL_HOTELBEDS_CA_PEM", "SAFARIPLUG_HOTEL_HOTELBEDS_CA");
+  const certificateValid = certificate.startsWith("-----BEGIN CERTIFICATE-----") && certificate.endsWith("-----END CERTIFICATE-----");
+  const privateKeyValid = /-----BEGIN (?:RSA )?PRIVATE KEY-----/.test(privateKey) && /-----END (?:RSA )?PRIVATE KEY-----$/.test(privateKey);
+  const caValid = !ca || (ca.startsWith("-----BEGIN CERTIFICATE-----") && ca.endsWith("-----END CERTIFICATE-----"));
+  return {
+    certificatePresent: Boolean(certificate),
+    certificateValid,
+    privateKeyPresent: Boolean(privateKey),
+    privateKeyValid,
+    caPresent: Boolean(ca),
+    caValid,
+  };
+}
+
+function pemPreflightError() {
+  const diagnostic = pemDiagnostics();
+  if (!diagnostic.certificatePresent) return "Hotelbeds mTLS certificate is missing.";
+  if (!diagnostic.certificateValid) return "Hotelbeds mTLS certificate is not valid PEM. It must begin with BEGIN CERTIFICATE and end with END CERTIFICATE.";
+  if (!diagnostic.privateKeyPresent) return "Hotelbeds mTLS private key is missing.";
+  if (!diagnostic.privateKeyValid) return "Hotelbeds mTLS private key is not valid PEM. It must begin and end with a PRIVATE KEY PEM header/footer.";
+  if (diagnostic.caPresent && !diagnostic.caValid) return "Hotelbeds custom CA value is present but is not valid certificate PEM. Remove the optional CA variable unless Hotelbeds explicitly supplied a CA bundle.";
+  return null;
+}
+
 function readiness() {
   return {
     environment: hotelbedsContentEnvironment(),
@@ -31,6 +68,7 @@ function readiness() {
       || process.env.SAFARIPLUG_HOTEL_HOTELBEDS_PRIVATE_KEY?.trim()
     ),
     contentConfigured: hotelbedsContentConfigured(),
+    pem: pemDiagnostics(),
   };
 }
 
@@ -67,6 +105,10 @@ async function runAvailabilityProbe() {
   const ready = readiness();
   if (!ready.apiKey || !ready.secret || !ready.certificate || !ready.privateKey) {
     return NextResponse.json({ error: "Hotelbeds availability probe requires API credentials and mTLS material." }, { status: 409 });
+  }
+  const preflightError = pemPreflightError();
+  if (preflightError) {
+    return NextResponse.json({ error: preflightError, pem: pemDiagnostics(), supplierRequestCount: 0 }, { status: 409 });
   }
 
   const { data: cachedHotels, error } = await supabaseAdmin
@@ -146,6 +188,10 @@ export async function POST(request: Request) {
     }
 
     if (action === "health") {
+      const preflightError = pemPreflightError();
+      if (preflightError) {
+        return NextResponse.json({ error: preflightError, readiness: readiness(), pem: pemDiagnostics(), cache: await cacheStatus() }, { status: 409 });
+      }
       const adapter = new HotelbedsHotelAdapter();
       const health = await adapter.health();
       return NextResponse.json({ readiness: readiness(), health, cache: await cacheStatus() });
