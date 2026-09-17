@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 export type HotelbedsBookingTokenPayload = {
   rateKey: string;
   rateType: string;
+  rateClass?: string | null;
   supplierNet: number;
   supplierCurrency: string;
   propertyId: string;
@@ -15,6 +16,7 @@ export type HotelbedsBookingTokenPayload = {
   boardCode?: string | null;
   boardName?: string | null;
   cancellation?: string | null;
+  notices?: string[];
   checkIn: string;
   checkOut: string;
   issuedAt: number;
@@ -55,7 +57,7 @@ export function openHotelbedsBookingToken(token: string, nowSeconds = Math.floor
     decipher.final(),
   ]).toString("utf8");
   const payload = JSON.parse(plaintext) as HotelbedsBookingTokenPayload;
-  if (!payload.rateKey || !payload.propertyId || !Number.isFinite(payload.supplierNet)) {
+  if (!payload.rateKey || !payload.propertyId || !Number.isFinite(payload.supplierNet) || payload.supplierNet < 0) {
     throw new Error("Invalid Hotelbeds booking token payload.");
   }
   if (payload.expiresAt <= nowSeconds) throw new Error("Hotelbeds booking token has expired. Please search again.");
