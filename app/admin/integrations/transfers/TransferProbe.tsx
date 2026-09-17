@@ -31,9 +31,15 @@ export default function TransferProbe() {
           infants: Number(form.get("infants") || 0),
         }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || `Transfers probe failed with HTTP ${response.status}.`);
+      const payload = (await response.json()) as ProbeResult;
       setResult(payload);
+      if (!response.ok) {
+        const message = typeof payload.error === "string"
+          ? payload.error
+          : `Transfers probe failed with HTTP ${response.status}.`;
+        setError(message);
+        return;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transfers probe failed.");
     } finally {
