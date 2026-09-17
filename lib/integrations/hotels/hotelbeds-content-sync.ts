@@ -97,17 +97,37 @@ export function normalizeHotelbedsContentHotel(
   };
 }
 
+export function isHotelbedsStatementTimeout(message: string) {
+  return /statement timeout|canceling statement due to statement timeout/i.test(message);
+}
+
+export function splitHotelbedsStorageBatch<T>(batch: T[]): [T[], T[]] {
+  const midpoint = Math.ceil(batch.length / 2);
+  return [batch.slice(0, midpoint), batch.slice(midpoint)];
+}
+
+async function upsertHotelbedsContentBatch(batch: NormalizedHotelbedsContentRow[], label: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("hotelbeds_hotel_content")
+    .upsert(batch, { onConflict: "hotel_code" });
+
+  if (!error) return;
+
+  if (isHotelbedsStatementTimeout(error.message) && batch.length > 1) {
+    const [left, right] = splitHotelbedsStorageBatch(batch);
+    await upsertHotelbedsContentBatch(left, `${label}.1`);
+    if (right.length) await upsertHotelbedsContentBatch(right, `${label}.2`);
+    return;
+  }
+
+  throw new Error(`Unable to store Hotelbeds hotel content batch ${label}: ${error.message}`);
+}
+
 async function storeHotelbedsContentRows(rows: NormalizedHotelbedsContentRow[]) {
   for (let offset = 0; offset < rows.length; offset += HOTELBEDS_STORAGE_BATCH_SIZE) {
     const batch = rows.slice(offset, offset + HOTELBEDS_STORAGE_BATCH_SIZE);
-    const { error } = await supabaseAdmin
-      .from("hotelbeds_hotel_content")
-      .upsert(batch, { onConflict: "hotel_code" });
-
-    if (error) {
-      const batchNumber = Math.floor(offset / HOTELBEDS_STORAGE_BATCH_SIZE) + 1;
-      throw new Error(`Unable to store Hotelbeds hotel content batch ${batchNumber}: ${error.message}`);
-    }
+    const batchNumber = Math.floor(offset / HOTELBEDS_STORAGE_BATCH_SIZE) + 1;
+    await upsertHotelbedsContentBatch(batch, String(batchNumber));
   }
 }
 
