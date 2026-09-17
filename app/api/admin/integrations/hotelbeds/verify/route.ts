@@ -103,6 +103,7 @@ async function runAvailabilityProbe() {
   if (!result.ok) {
     return NextResponse.json({
       ok: false,
+      error: result.error.message,
       supplierRequestCount: 1,
       testedHotels: codes.length,
       request: { checkIn: stay.checkIn, checkOut: stay.checkOut, guests: 2, rooms: 1, currency: "KES" },
