@@ -4,6 +4,18 @@ import { FormEvent, useState } from "react";
 
 type ProbeResult = Record<string, unknown>;
 
+function nonJsonPayload(response: Response, text: string): ProbeResult {
+  const trimmed = text.trim();
+  return {
+    ok: false,
+    error: `SafariPlug transfer probe returned non-JSON HTTP ${response.status}.`,
+    httpStatus: response.status,
+    responseType: trimmed.startsWith("<") ? "html" : "text",
+    supplierRequestCount: null,
+    bookingCreated: false,
+  };
+}
+
 export default function TransferProbe() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ProbeResult | null>(null);
@@ -18,7 +30,7 @@ export default function TransferProbe() {
     try {
       const response = await fetch("/api/admin/integrations/hotelbeds/transfers-availability", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           fromType: form.get("fromType"),
           fromCode: form.get("fromCode"),
@@ -31,9 +43,17 @@ export default function TransferProbe() {
           infants: Number(form.get("infants") || 0),
         }),
       });
-      const payload = (await response.json()) as ProbeResult;
+
+      const text = await response.text();
+      let payload: ProbeResult;
+      try {
+        payload = text ? (JSON.parse(text) as ProbeResult) : {};
+      } catch {
+        payload = nonJsonPayload(response, text);
+      }
+
       setResult(payload);
-      if (!response.ok) {
+      if (!response.ok || payload.ok === false) {
         const message = typeof payload.error === "string"
           ? payload.error
           : `Transfers probe failed with HTTP ${response.status}.`;
