@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { extractHotelbedsContentPage, normalizeHotelbedsContentHotel } from "./hotelbeds-content-sync";
+import {
+  extractHotelbedsContentPage,
+  isHotelbedsStatementTimeout,
+  normalizeHotelbedsContentHotel,
+  splitHotelbedsStorageBatch,
+} from "./hotelbeds-content-sync";
 
 test("Hotelbeds content page extraction supports the documented top-level hotel array", () => {
   const page = extractHotelbedsContentPage({
@@ -47,4 +52,16 @@ test("Hotelbeds content normalization keeps searchable fields and raw supplier c
 test("Hotelbeds content normalization refuses rows without a valid supplier hotel code", () => {
   assert.equal(normalizeHotelbedsContentHotel({ name: "No code" }), null);
   assert.equal(normalizeHotelbedsContentHotel({ code: -1, name: "Bad code" }), null);
+});
+
+test("Hotelbeds storage recognizes PostgreSQL statement timeouts", () => {
+  assert.equal(isHotelbedsStatementTimeout("canceling statement due to statement timeout"), true);
+  assert.equal(isHotelbedsStatementTimeout("statement timeout"), true);
+  assert.equal(isHotelbedsStatementTimeout("duplicate key value violates unique constraint"), false);
+});
+
+test("Hotelbeds storage splits timed-out batches deterministically", () => {
+  assert.deepEqual(splitHotelbedsStorageBatch([1, 2, 3, 4]), [[1, 2], [3, 4]]);
+  assert.deepEqual(splitHotelbedsStorageBatch([1, 2, 3]), [[1, 2], [3]]);
+  assert.deepEqual(splitHotelbedsStorageBatch([1]), [[1], []]);
 });
