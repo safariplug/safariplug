@@ -16,6 +16,19 @@ function nonJsonPayload(response: Response, text: string): ProbeResult {
   };
 }
 
+function failureMessage(payload: ProbeResult, responseStatus: number) {
+  const base = typeof payload.error === "string"
+    ? payload.error
+    : `Transfers probe failed with HTTP ${responseStatus}.`;
+  const supplierCode = typeof payload.supplierCode === "string" ? payload.supplierCode : "";
+  const supplierStatus = typeof payload.supplierStatus === "number" ? payload.supplierStatus : null;
+  const details = [
+    supplierStatus ? `Supplier HTTP ${supplierStatus}` : "",
+    supplierCode ? `Supplier code ${supplierCode}` : "",
+  ].filter(Boolean);
+  return details.length ? `${base} ${details.join(" · ")}.` : base;
+}
+
 export default function TransferProbe() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ProbeResult | null>(null);
@@ -54,10 +67,7 @@ export default function TransferProbe() {
 
       setResult(payload);
       if (!response.ok || payload.ok === false) {
-        const message = typeof payload.error === "string"
-          ? payload.error
-          : `Transfers probe failed with HTTP ${response.status}.`;
-        setError(message);
+        setError(failureMessage(payload, response.status));
         return;
       }
     } catch (err) {

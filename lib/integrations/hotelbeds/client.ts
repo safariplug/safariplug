@@ -35,25 +35,52 @@ function scalar(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function firstErrorRecord(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  for (const item of value) {
+    const record = asRecord(item);
+    if (record) return record;
+  }
+  return undefined;
+}
+
 function supplierErrorDetails(data: unknown) {
   if (!data || typeof data !== "object") return {} as { message?: string; code?: string };
   const candidate = data as Record<string, unknown>;
-  const nested = candidate.error && typeof candidate.error === "object"
-    ? candidate.error as Record<string, unknown>
-    : undefined;
+  const nested = asRecord(candidate.error);
+  const firstArrayError =
+    firstErrorRecord(candidate.errors) ||
+    firstErrorRecord(candidate.error) ||
+    firstErrorRecord(nested?.errors);
 
   const message =
+    scalar(firstArrayError?.message) ||
+    scalar(firstArrayError?.description) ||
+    scalar(firstArrayError?.detail) ||
     scalar(nested?.message) ||
     scalar(nested?.description) ||
+    scalar(nested?.detail) ||
     scalar(candidate.message) ||
     scalar(candidate.description) ||
+    scalar(candidate.detail) ||
     scalar(candidate.error);
 
   const code =
+    scalar(firstArrayError?.code) ||
+    scalar(firstArrayError?.errorCode) ||
+    scalar(firstArrayError?.type) ||
     scalar(nested?.code) ||
     scalar(nested?.errorCode) ||
+    scalar(nested?.type) ||
     scalar(candidate.code) ||
     scalar(candidate.errorCode) ||
+    scalar(candidate.type) ||
     (typeof candidate.error === "string" && candidate.error !== message
       ? scalar(candidate.error)
       : undefined);
