@@ -28,8 +28,25 @@ function normalizedPem(primary: string, fallback: string) {
   return unquoted.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").trim();
 }
 
+function certificatePem() {
+  const encoded = process.env.SAFARIPLUG_HOTEL_HOTELBEDS_CERT_B64?.trim();
+  if (encoded) {
+    try {
+      return Buffer.from(encoded, "base64").toString("utf8").replace(/\r\n/g, "\n").trim();
+    } catch {
+      return "";
+    }
+  }
+  return normalizedPem("SAFARIPLUG_HOTEL_HOTELBEDS_CERT_PEM", "SAFARIPLUG_HOTEL_HOTELBEDS_CERT");
+}
+
+function prepareCertificateForAdapter() {
+  const certificate = certificatePem();
+  if (certificate) process.env.SAFARIPLUG_HOTEL_HOTELBEDS_CERT_PEM = certificate;
+}
+
 function pemDiagnostics() {
-  const certificate = normalizedPem("SAFARIPLUG_HOTEL_HOTELBEDS_CERT_PEM", "SAFARIPLUG_HOTEL_HOTELBEDS_CERT");
+  const certificate = certificatePem();
   const privateKey = normalizedPem("SAFARIPLUG_HOTEL_HOTELBEDS_PRIVATE_KEY_PEM", "SAFARIPLUG_HOTEL_HOTELBEDS_PRIVATE_KEY");
   const ca = normalizedPem("SAFARIPLUG_HOTEL_HOTELBEDS_CA_PEM", "SAFARIPLUG_HOTEL_HOTELBEDS_CA");
   const certificateValid = certificate.startsWith("-----BEGIN CERTIFICATE-----") && certificate.endsWith("-----END CERTIFICATE-----");
@@ -62,6 +79,7 @@ function pemDiagnostics() {
 
   return {
     certificatePresent: Boolean(certificate),
+    certificateSource: process.env.SAFARIPLUG_HOTEL_HOTELBEDS_CERT_B64?.trim() ? "base64" : "pem",
     certificateValid,
     certificateParseValid,
     privateKeyPresent: Boolean(privateKey),
@@ -76,8 +94,8 @@ function pemDiagnostics() {
 function pemPreflightError() {
   const diagnostic = pemDiagnostics();
   if (!diagnostic.certificatePresent) return "Hotelbeds mTLS certificate is missing.";
-  if (!diagnostic.certificateValid) return "Hotelbeds mTLS certificate is not valid PEM. It must begin with BEGIN CERTIFICATE and end with END CERTIFICATE.";
-  if (!diagnostic.certificateParseValid) return "Hotelbeds mTLS certificate has valid PEM markers but its certificate body cannot be parsed. Replace the Hostinger certificate value from the original issued PEM file.";
+  if (!diagnostic.certificateValid) return "Hotelbeds mTLS certificate is not valid PEM after decoding. Regenerate SAFARIPLUG_HOTEL_HOTELBEDS_CERT_B64 from the original issued PEM file.";
+  if (!diagnostic.certificateParseValid) return "Hotelbeds mTLS certificate has valid PEM markers but its certificate body cannot be parsed. Regenerate SAFARIPLUG_HOTEL_HOTELBEDS_CERT_B64 from the original issued PEM file.";
   if (!diagnostic.privateKeyPresent) return "Hotelbeds mTLS private key is missing.";
   if (!diagnostic.privateKeyValid) return "Hotelbeds mTLS private key is not valid PEM. It must begin and end with a PRIVATE KEY PEM header/footer.";
   if (!diagnostic.privateKeyParseValid) return "Hotelbeds mTLS private key has valid PEM markers but its key body cannot be parsed. Replace the Hostinger private-key value from the unencrypted server key file.";
@@ -92,7 +110,8 @@ function readiness() {
     apiKey: Boolean(process.env.SAFARIPLUG_HOTEL_HOTELBEDS_API_KEY?.trim()),
     secret: Boolean(process.env.SAFARIPLUG_HOTEL_HOTELBEDS_SECRET?.trim()),
     certificate: Boolean(
-      process.env.SAFARIPLUG_HOTEL_HOTELBEDS_CERT_PEM?.trim()
+      process.env.SAFARIPLUG_HOTEL_HOTELBEDS_CERT_B64?.trim()
+      || process.env.SAFARIPLUG_HOTEL_HOTELBEDS_CERT_PEM?.trim()
       || process.env.SAFARIPLUG_HOTEL_HOTELBEDS_CERT?.trim()
     ),
     privateKey: Boolean(
@@ -161,6 +180,7 @@ async function runAvailabilityProbe() {
     return NextResponse.json({ error: "Cached Hotelbeds hotel codes are invalid." }, { status: 409 });
   }
 
+  prepareCertificateForAdapter();
   const stay = buildHotelbedsCertificationStay();
   const adapter = new HotelbedsHotelAdapter();
   const result = await adapter.search({
@@ -224,6 +244,7 @@ export async function POST(request: Request) {
       if (preflightError) {
         return NextResponse.json({ error: preflightError, readiness: readiness(), pem: pemDiagnostics(), cache: await cacheStatus() }, { status: 409 });
       }
+      prepareCertificateForAdapter();
       const adapter = new HotelbedsHotelAdapter();
       const health = await adapter.health();
       return NextResponse.json({ readiness: readiness(), health, cache: await cacheStatus() });
