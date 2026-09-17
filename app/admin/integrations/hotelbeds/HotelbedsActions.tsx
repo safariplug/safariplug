@@ -7,6 +7,8 @@ type ErrorPayload = Result & {
   error?: string;
   message?: string;
   details?: string;
+  supplierStatus?: number;
+  supplierCode?: string;
   supplierError?: { message?: string; code?: string };
 };
 type Action = "certification_plan" | "health" | "availability_probe" | "content_sample" | "sync_one_page";
@@ -17,7 +19,10 @@ function verificationError(payload: ErrorPayload, status: number) {
     || payload.details
     || payload.supplierError?.message
     || `Hotelbeds verification failed with HTTP ${status}.`;
-  return `HTTP ${status}: ${message}`;
+  const supplierStatus = typeof payload.supplierStatus === "number" ? ` Supplier HTTP ${payload.supplierStatus}.` : "";
+  const supplierCode = payload.supplierCode || payload.supplierError?.code;
+  const code = supplierCode ? ` Supplier code: ${supplierCode}.` : "";
+  return `HTTP ${status}: ${message}${supplierStatus}${code}`;
 }
 
 export default function HotelbedsActions() {
