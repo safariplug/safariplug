@@ -3,13 +3,14 @@
 import { useState } from "react";
 
 type Result = Record<string, unknown>;
+type Action = "certification_plan" | "health" | "content_sample" | "sync_one_page";
 
 export default function HotelbedsActions() {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
 
-  async function run(action: "health" | "content_sample" | "sync_one_page") {
+  async function run(action: Action) {
     setBusy(action);
     setError("");
     setResult(null);
@@ -32,6 +33,9 @@ export default function HotelbedsActions() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3">
+        <button disabled={Boolean(busy)} onClick={() => void run("certification_plan")} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-black disabled:opacity-50">
+          {busy === "certification_plan" ? "Inspecting…" : "Inspect certification plan"}
+        </button>
         <button disabled={Boolean(busy)} onClick={() => void run("health")} className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-black disabled:opacity-50">
           {busy === "health" ? "Checking…" : "Verify API health"}
         </button>
@@ -42,7 +46,7 @@ export default function HotelbedsActions() {
           {busy === "sync_one_page" ? "Syncing…" : "Sync one page"}
         </button>
       </div>
-      <p className="text-xs leading-5 text-zinc-500">Each content action is explicit. SafariPlug does not poll Hotelbeds automatically from this screen, which helps protect the evaluation quota.</p>
+      <p className="text-xs leading-5 text-zinc-500">The certification plan is read-only. Payment, supplier booking and actual cancellation remain explicit manual actions; SafariPlug will not trigger them from this screen.</p>
       {error ? <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-300">{error}</div> : null}
       {result ? <pre className="max-h-96 overflow-auto rounded-xl border border-zinc-800 bg-black p-4 text-xs leading-5 text-zinc-300">{JSON.stringify(result, null, 2)}</pre> : null}
     </div>
