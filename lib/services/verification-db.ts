@@ -102,6 +102,22 @@ export async function persistVerificationMutation(
       return { ok: false };
     }
   }
+  if (current.subject_type === "local") {
+    const approved = current.status === "approved";
+    const { error } = await client
+      .from("local_profiles")
+      .update({
+        identity_liveness_verified_at: approved ? current.reviewed_at : null,
+        verification_state: approved ? "verified" : current.status === "rejected" ? "rejected" : "pending",
+        service_status: approved ? "pending_review" : "paused",
+      })
+      .eq("id", current.subject_id);
+    if (error) {
+      console.error("verification.apply_local", error.message);
+      return { ok: false };
+    }
+  }
+
   if (current.subject_type === "service_staff") {
     const approved = current.status === "approved";
     const { error } = await client
