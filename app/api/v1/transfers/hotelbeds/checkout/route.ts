@@ -16,6 +16,7 @@ import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 import { normalizeTransferCheckoutIntentKey, transferPaymentSafeToRetry } from "@/lib/integrations/hotelbeds/transfer-payment-safety";
+import { publicTransferCheckoutLedger } from "@/lib/integrations/hotelbeds/transfer-public-ledger";
 
 export const dynamic = "force-dynamic";
 
@@ -370,7 +371,7 @@ export async function POST(request: Request) {
           markupPercent: percent,
         },
         payment,
-        ledger: updated || ledger,
+        ledger: publicTransferCheckoutLedger(updated || ledger),
       });
     }
 
@@ -465,7 +466,7 @@ export async function POST(request: Request) {
         status: "cancelled",
         preview,
         providerBooking: cancelled,
-        ledger: updated || ledger,
+        ledger: publicTransferCheckoutLedger(updated || ledger),
         refund:
           "Supplier cancellation does not automatically issue an M-Pesa refund. Any customer refund due is handled separately.",
       });
@@ -514,7 +515,7 @@ export async function POST(request: Request) {
         product: "transfers",
         status: "failed",
         bookingCreated: false,
-        ledger: workingLedger,
+        ledger: publicTransferCheckoutLedger(workingLedger),
         message: "M-Pesa payment failed; Hotelbeds was not booked.",
       });
     }
@@ -526,7 +527,7 @@ export async function POST(request: Request) {
         status: "payment_pending",
         bookingCreated: false,
         supplierStatus: "awaiting_customer_payment",
-        ledger: workingLedger,
+        ledger: publicTransferCheckoutLedger(workingLedger),
       });
     }
 
@@ -536,7 +537,7 @@ export async function POST(request: Request) {
         product: "transfers",
         status: "confirmed",
         bookingCreated: true,
-        ledger: workingLedger,
+        ledger: publicTransferCheckoutLedger(workingLedger),
         providerBooking: metadataRecord(workingLedger.metadata).providerBooking || null,
       });
     }
@@ -550,7 +551,7 @@ export async function POST(request: Request) {
         bookingCreated: false,
         supplierStatus: "confirmation_indeterminate",
         reconciliation: "manual_required",
-        ledger: workingLedger,
+        ledger: publicTransferCheckoutLedger(workingLedger),
         message:
           "Payment succeeded, but Hotelbeds confirmation returned an indeterminate result. SafariPlug will not retry blindly because that could create a duplicate transfer booking.",
       });
@@ -595,7 +596,7 @@ export async function POST(request: Request) {
         bookingCreated: true,
         bookingReference: reference,
         providerBooking,
-        ledger: updated,
+        ledger: publicTransferCheckoutLedger(updated),
       });
     } catch (error) {
       const timestamp = new Date().toISOString();
@@ -626,7 +627,7 @@ export async function POST(request: Request) {
         bookingCreated: false,
         supplierStatus: "confirmation_indeterminate",
         reconciliation: "manual_required",
-        ledger: pending || workingLedger,
+        ledger: publicTransferCheckoutLedger(pending || workingLedger),
         message:
           "Payment succeeded, but Hotelbeds confirmation could not be proven. SafariPlug will not retry automatically because a duplicate transfer booking could result.",
       });
