@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { HotelbedsHotelAdapter } from "@/lib/integrations/hotels/hotelbeds";
 import { openHotelbedsBookingToken, sealHotelbedsBookingToken } from "@/lib/integrations/hotels/hotelbeds-booking-token";
 import { assertHotelbedsBookingRateReady, buildHotelbedsVoucher, hotelbedsRequiresCheckRate } from "@/lib/integrations/hotels/hotelbeds-certification";
