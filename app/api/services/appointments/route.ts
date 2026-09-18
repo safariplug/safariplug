@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
 import { sendExpoPushNotifications } from "@/lib/notifications/push";
+import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,8 @@ export async function POST(request: Request) {
       if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) return NextResponse.json({ error: "A verified SafariPlug client account is required for Concierge bookings." }, { status: 401 });
       customerUserId = user.id;
     } else if (user && !user.is_anonymous && (user.email_confirmed_at || user.phone_confirmed_at)) customerUserId = user.id;
+    if (!customerUserId) return NextResponse.json({ error: "Sign in and complete identity verification to book a personal service.", code: "traveler_verification_required", verificationUrl: "/account/verification" }, { status: 401 });
+    await assertTravelerVerified(customerUserId);
     const tripId = typeof b.tripId === "string" && b.tripId.trim() ? b.tripId.trim() : null;
     if (tripId && !customerUserId) return NextResponse.json({ error: "Sign in to attach a booking to a journey." }, { status: 401 });
     const { data: appointment, error } = await supabaseAdmin.rpc("create_service_appointment", { p_service_profile_id: b.serviceProfileId, p_offering_id: b.offeringId, p_staff_id: b.staffId, p_customer_user_id: customerUserId, p_customer_name: b.customerName, p_customer_email: b.customerEmail ?? null, p_customer_phone: b.customerPhone ?? null, p_starts_at: b.startsAt, p_customer_notes: b.customerNotes ?? null });
@@ -84,6 +87,8 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ appointment, customerLinked: Boolean(customerUserId), attachedToTrip, tripAttachmentError, notifications }, { status: 201 });
   } catch (error) {
+    const verification = travelerVerificationErrorResponse(error);
+    if (verification) return NextResponse.json(verification.body, { status: verification.status });
     console.error("Create service appointment failed", error);
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
