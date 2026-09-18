@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { LockTripHotelAdapter } from "@/lib/integrations/hotels/locktrip";
 import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { publicHotelCheckoutLedger } from "@/lib/integrations/hotels/hotel-public-ledger";
