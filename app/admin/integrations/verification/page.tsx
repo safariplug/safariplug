@@ -21,10 +21,7 @@ export default async function VerificationTrustPage() {
   const providers = await describeVerificationProviders();
   const hydrated = await hydrateVerificationStore(supabaseAdmin);
   const cases = hydrated.ok ? hydrated.store.listCases() : [];
-  const migrationPending = !hydrated.ok && hydrated.reason === "missing";
-
   const travelerCases = cases.filter((row) => row.subject_type === "traveler");
-  const travelerApproved = travelerCases.filter((row) => row.status === "approved").length;
   const travelerPending = travelerCases.filter((row) =>
     ["not_started", "pending", "in_review"].includes(row.status)
   ).length;
