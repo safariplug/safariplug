@@ -69,7 +69,7 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
   if (businessError || !business) notFound();
 
   const profileIds = (profiles || []).map((p) => p.id);
-  const [{ data: offerings }, { data: staff }, { data: verification }, { data: invites }, { data: followups, error: followupsError }] = await Promise.all([
+  const [{ data: offerings }, { data: staff }, { data: verification }, { data: invites }, { data: followups, error: followupsError }, { data: preparedDraft }] = await Promise.all([
     profileIds.length
       ? supabaseAdmin.from("service_offerings").select("id,name,price,currency,status,duration_minutes,service_profile_id").in("service_profile_id", profileIds)
       : Promise.resolve({ data: [] as Offering[] }),
@@ -95,6 +95,12 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
       .eq("supplier_id", supplier.id)
       .order("sent_at", { ascending: false })
       .limit(20),
+    supabaseAdmin
+      .from("supplier_onboarding_followup_drafts")
+      .select("id,recipient_email,subject,message,missing_requirements,comparison,prepared_at,status")
+      .eq("supplier_id", supplier.id)
+      .eq("status", "prepared")
+      .maybeSingle(),
   ]);
 
   const b = business as Business;
@@ -147,6 +153,21 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
         <SupplierFollowupPanel
           supplierId={supplier.id}
           eligible={["draft","onboarding","changes_requested"].includes(String(supplier.onboarding_status || ""))}
+          initialPreparedDraft={preparedDraft ? {
+            id: preparedDraft.id,
+            recipient: preparedDraft.recipient_email,
+            subject: preparedDraft.subject,
+            message: preparedDraft.message,
+            missingRequirements: Array.isArray(preparedDraft.missing_requirements) ? preparedDraft.missing_requirements.map(String) : [],
+            followupComparison: preparedDraft.comparison && typeof preparedDraft.comparison === "object" ? preparedDraft.comparison as {
+              previousSentAt: string;
+              resolvedSinceLast: string[];
+              stillMissing: string[];
+              newlyMissing: string[];
+            } : null,
+            source: "scheduled_prepared",
+            preparedAt: preparedDraft.prepared_at,
+          } : null}
           initialHistory={followupRows.map((row) => ({
             id: row.id,
             recipientEmail: row.recipient_email,
