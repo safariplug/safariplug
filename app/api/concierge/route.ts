@@ -288,7 +288,7 @@ function tripCompletion(input: {
   const hasTransport = ["transfer","driver_transfer","transport"].some((x) => kinds.has(x)) || input.openTransferRequests > 0;
   const transportStatus = uncoveredTransport ? "review" : hasTransport ? "covered" : "action";
 
-  const item = (kind: string, title: string, covered: boolean, href: string, optional = false) => {
+  const item = (kind: string, title: string, covered: boolean, href: string, optional = false): { kind: string; title: string; status: "covered" | "action" | "optional"; href: string; detail: string } => {
     const gap = missing.get(kind);
     return {
       kind,
@@ -299,12 +299,12 @@ function tripCompletion(input: {
     };
   };
 
-  const core = [
-    item("hotel", "Stay", hasStay, "/hotels"),
+  const core: Array<{ kind: string; title: string; status: "covered" | "action" | "review"; href: string; detail: string }> = [
+    { ...item("hotel", "Stay", hasStay, "/hotels"), status: hasStay ? "covered" : "action" },
     { ...item("transfer", "Transport", transportStatus === "covered", "/transfers"), status: transportStatus },
-    item("activity", "Things to do", hasActivity, "/activities"),
+    { ...item("activity", "Things to do", hasActivity, "/activities"), status: hasActivity ? "covered" : "action" },
   ];
-  const extras = [
+  const extras: Array<{ kind: string; title: string; status: "covered" | "optional"; href: string; detail: string }> = [
     item("local", "Verified Local", hasLocal, "/locals", true),
     item("service", "Personal service", hasService, "/services", true),
   ];
