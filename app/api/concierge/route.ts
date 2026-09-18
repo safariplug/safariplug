@@ -48,7 +48,8 @@ export async function POST(request: Request) {
     const client = await createSupabaseServerClient(); const { data: { user } } = await client.auth.getUser(); const registeredClient = !!user && !user.is_anonymous && !!(user.email_confirmed_at || user.phone_confirmed_at); if (!registeredClient) return NextResponse.json({ error: "registered_client_required", message: "SafariPlug Concierge is available to registered clients. Please sign in or create your free SafariPlug account to continue.", signInUrl: "/login?next=/concierge", signUpUrl: "/login?next=/concierge&mode=signup" }, { status: 401 });
     const payload = await request.json(); const messages = Array.isArray(payload?.messages) ? payload.messages.slice(-12) : []; if (!messages.length) return NextResponse.json({ error: "messages are required" }, { status: 400 });
     const tripId = typeof payload?.tripId === "string" && payload.tripId.trim() ? payload.tripId.trim() : null;
-    let tripContext = "";\n    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number } | null = null;
+    let tripContext = "";
+    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number } | null = null;
     if (tripId) {
       const { data: trip, error: tripError } = await supabaseAdmin.from("trips").select("id,title,destination_city_id,start_on,end_on,status,cities(name,country)").eq("id", tripId).eq("traveler_id", user!.id).maybeSingle();
       if (tripError) throw tripError;
