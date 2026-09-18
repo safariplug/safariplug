@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   createHotelbedsTransferBooking,
   getHotelbedsTransferBooking,
@@ -64,7 +65,6 @@ export async function POST(request: Request) {
   }
 
   const action = String(body.action || "").trim().toLowerCase();
-  const supabase = await createSupabaseServerClient();
 
   try {
     if (action === "preflight") {
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       const mpesa = getPaymentAdapter("mpesa");
       if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
 
-      const { data: existingIntent, error: existingIntentError } = await supabase
+      const { data: existingIntent, error: existingIntentError } = await supabaseAdmin
         .from("transfer_booking_pricing_ledger")
         .select("*")
         .eq("customer_user_id", user.id)
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
         clientReference: `SPT-${preparedBookingId.slice(-18)}`,
       });
 
-      const { data: ledger, error: ledgerError } = await supabase
+      const { data: ledger, error: ledgerError } = await supabaseAdmin
         .from("transfer_booking_pricing_ledger")
         .insert({
           customer_user_id: user.id,
@@ -226,7 +226,7 @@ export async function POST(request: Request) {
 
       if (ledgerError || !ledger) {
         if (ledgerError?.code === "23505") {
-          const { data: racedIntent, error: racedIntentError } = await supabase
+          const { data: racedIntent, error: racedIntentError } = await supabaseAdmin
             .from("transfer_booking_pricing_ledger")
             .select("*")
             .eq("customer_user_id", user.id)
@@ -252,7 +252,7 @@ export async function POST(request: Request) {
       }
 
       const paymentInitiationStartedAt = new Date().toISOString();
-      const { data: claimedLedger, error: claimError } = await supabase
+      const { data: claimedLedger, error: claimError } = await supabaseAdmin
         .from("transfer_booking_pricing_ledger")
         .update({
           payment_status: "pending",
@@ -298,7 +298,7 @@ export async function POST(request: Request) {
       } catch (error) {
         const message = error instanceof Error ? error.message : "M-Pesa payment initiation failed.";
         if (transferPaymentSafeToRetry(error)) {
-          await supabase
+          await supabaseAdmin
             .from("transfer_booking_pricing_ledger")
             .update({
               payment_status: "unpaid",
@@ -314,7 +314,7 @@ export async function POST(request: Request) {
           throw error;
         }
 
-        await supabase
+        await supabaseAdmin
           .from("transfer_booking_pricing_ledger")
           .update({
             payment_status: "pending",
@@ -340,7 +340,7 @@ export async function POST(request: Request) {
         });
       }
 
-      const { data: updated } = await supabase
+      const { data: updated } = await supabaseAdmin
         .from("transfer_booking_pricing_ledger")
         .update({
           payment_provider: "mpesa",
@@ -378,7 +378,7 @@ export async function POST(request: Request) {
     const bookingId = String(body.bookingId || body.preparedBookingId || "");
     if (!bookingId) return errorResponse(400, "bookingId is required.");
 
-    const { data: ledger, error: ledgerError } = await supabase
+    const { data: ledger, error: ledgerError } = await supabaseAdmin
       .from("transfer_booking_pricing_ledger")
       .select("*")
       .eq("customer_user_id", user.id)
@@ -444,7 +444,7 @@ export async function POST(request: Request) {
         false,
         language
       );
-      const { data: updated } = await supabase
+      const { data: updated } = await supabaseAdmin
         .from("transfer_booking_pricing_ledger")
         .update({
           booking_status: "cancelled",
@@ -499,7 +499,7 @@ export async function POST(request: Request) {
         if (paymentStatus === "succeeded") update.paid_at = new Date().toISOString();
         if (paymentStatus === "failed") update.booking_status = "failed";
 
-        const { data: refreshed } = await supabase
+        const { data: refreshed } = await supabaseAdmin
           .from("transfer_booking_pricing_ledger")
           .update(update)
           .eq("id", workingLedger.id)
@@ -569,7 +569,7 @@ export async function POST(request: Request) {
         throw new Error("Hotelbeds did not return a transfer booking reference.");
       }
       const confirmedAt = new Date().toISOString();
-      const { data: updated, error: updateError } = await supabase
+      const { data: updated, error: updateError } = await supabaseAdmin
         .from("transfer_booking_pricing_ledger")
         .update({
           provider_booking_reference: reference,
@@ -604,7 +604,7 @@ export async function POST(request: Request) {
         error instanceof Error
           ? error.message
           : "Hotelbeds transfer confirmation returned an unknown result.";
-      const { data: pending } = await supabase
+      const { data: pending } = await supabaseAdmin
         .from("transfer_booking_pricing_ledger")
         .update({
           booking_status: "payment_pending",

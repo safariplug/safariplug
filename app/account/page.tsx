@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import TravelerNav from "@/components/TravelerNav";
 import { getTravelerVerificationState } from "@/lib/services/traveler-verification";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export default async function AccountPage() {
   const supabase = await createSupabaseServerClient();
@@ -15,8 +16,8 @@ export default async function AccountPage() {
     countRows(supabase, "service_appointments", "customer_user_id", user.id),
     countRows(supabase, "bookings", "traveler_id", user.id),
     countRows(supabase, "hotel_booking_pricing_ledger", "customer_user_id", user.id),
-    countRows(supabase, "transfer_booking_pricing_ledger", "customer_user_id", user.id),
-    countRows(supabase, "activity_booking_pricing_ledger", "customer_user_id", user.id),
+    countAdminRows("transfer_booking_pricing_ledger", "customer_user_id", user.id),
+    countAdminRows("activity_booking_pricing_ledger", "customer_user_id", user.id),
     countRows(supabase, "local_requests", "traveler_id", user.id),
     getTravelerVerificationState(user.id),
   ]);
@@ -65,6 +66,11 @@ export default async function AccountPage() {
 
 async function countRows(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, table: string, ownerColumn: string, ownerId: string) {
   const { count } = await supabase.from(table).select("id", { count: "exact", head: true }).eq(ownerColumn, ownerId);
+  return count ?? 0;
+}
+
+async function countAdminRows(table: string, ownerColumn: string, ownerId: string) {
+  const { count } = await supabaseAdmin.from(table).select("id", { count: "exact", head: true }).eq(ownerColumn, ownerId);
   return count ?? 0;
 }
 

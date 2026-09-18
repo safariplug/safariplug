@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function AccountTransfersPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.is_anonymous) redirect("/login?next=/account/transfers");
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("transfer_booking_pricing_ledger")
     .select("id,prepared_booking_id,provider_booking_reference,customer_currency,retail_amount,payment_status,booking_status,created_at,metadata")
     .eq("customer_user_id", user.id)
