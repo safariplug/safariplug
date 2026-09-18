@@ -143,6 +143,11 @@ export default function HotelbedsActivityBookPage() {
         window.location.href = `/login?next=${encodeURIComponent(next)}`;
         return;
       }
+      if (!response.ok && body?.error === "traveler_verification_required") {
+        const next = window.location.pathname + window.location.search;
+        window.location.href = `/account/verification?next=${encodeURIComponent(next)}`;
+        return;
+      }
       if (!response.ok) throw new Error(body?.message || "Unable to start activity checkout.");
       if (!body?.bookingId) throw new Error("SafariPlug did not return an activity booking session.");
       window.location.href = `/activities/booking-result?provider=hotelbeds&bookingId=${encodeURIComponent(body.bookingId)}`;
