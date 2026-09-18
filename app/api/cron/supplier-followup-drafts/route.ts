@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -176,5 +177,22 @@ export async function GET(request: Request) {
       completed_at: new Date().toISOString(),
     });
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+
+export async function POST(request: Request) {
+  try {
+    await requireAdmin();
+    const secret = process.env.CRON_SECRET?.trim();
+    if (!secret) return NextResponse.json({ ok: false, error: "CRON_SECRET is not configured." }, { status: 503 });
+    const internalRequest = new Request(request.url, {
+      method: "GET",
+      headers: { authorization: `Bearer ${secret}` },
+    });
+    return GET(internalRequest);
+  } catch (error) {
+    if (error instanceof AdminAuthError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    return NextResponse.json({ ok: false, error: "Unable to run supplier follow-up preparation." }, { status: 500 });
   }
 }
