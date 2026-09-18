@@ -2,6 +2,8 @@ export const VERIFICATION_SUBJECT_TYPES = [
   "driver",
   "provider",
   "vehicle",
+  "local",
+  "traveler",
 ] as const;
 export type VerificationSubjectType = (typeof VERIFICATION_SUBJECT_TYPES)[number];
 
