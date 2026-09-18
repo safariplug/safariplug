@@ -50,6 +50,26 @@ function metadataRecord(value: unknown) {
     : {};
 }
 
+function checkoutIntentKey(value: unknown) {
+  const key = String(value || "").trim();
+  if (!/^[A-Za-z0-9._:-]{16,160}$/.test(key)) {
+    throw new Error("A valid checkout idempotency key is required.");
+  }
+  return key;
+}
+
+function safePaymentRetry(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return (
+    message.startsWith("mpesa_oauth_error:") ||
+    message === "mpesa_access_token_missing" ||
+    message === "mpesa_credentials_not_configured" ||
+    message === "mpesa_base_url_not_configured" ||
+    message === "invalid_mpesa_phone" ||
+    message === "invalid_payment_amount"
+  );
+}
+
 export async function POST(request: Request) {
   const user = await requireUser();
   if (!user) return errorResponse(401, "Authentication required.");
@@ -116,8 +136,47 @@ export async function POST(request: Request) {
       await assertTravelerVerified(user.id);
       const selectionToken = String(body.selectionToken || "");
       if (!selectionToken) return errorResponse(400, "selectionToken is required.");
+      const intentKey = checkoutIntentKey(body.idempotencyKey);
       if (body.termsAccepted !== true) {
         return errorResponse(400, "Accept the transfer rate and cancellation terms before payment.");
+      }
+
+      const mpesa = getPaymentAdapter("mpesa");
+      if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
+
+      const { data: existingIntent, error: existingIntentError } = await supabase
+        .from("transfer_booking_pricing_ledger")
+        .select("*")
+        .eq("customer_user_id", user.id)
+        .eq("provider", "hotelbeds")
+        .eq("checkout_intent_key", intentKey)
+        .maybeSingle();
+
+      if (existingIntentError) throw new Error(existingIntentError.message);
+      if (existingIntent) {
+        const existingMetadata = metadataRecord(existingIntent.metadata);
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "transfers",
+          status:
+            existingIntent.payment_status === "paid"
+              ? existingIntent.booking_status
+              : existingIntent.payment_reference
+                ? "payment_pending"
+                : existingMetadata.paymentInitiationIndeterminateAt
+                  ? "payment_initiation_indeterminate"
+                  : "payment_initializing",
+          bookingId: existingIntent.prepared_booking_id,
+          bookingCreated: existingIntent.booking_status === "confirmed",
+          paymentReused: true,
+          supplierStatus:
+            existingMetadata.paymentInitiationIndeterminateAt
+              ? "payment_initiation_indeterminate"
+              : "existing_checkout_intent",
+          reconciliation: existingMetadata.paymentInitiationIndeterminateAt
+            ? "manual_required"
+            : undefined,
+        });
       }
 
       const selection = openHotelbedsTransferSelectionToken(selectionToken);
@@ -154,6 +213,7 @@ export async function POST(request: Request) {
         .insert({
           customer_user_id: user.id,
           provider: "hotelbeds",
+          checkout_intent_key: intentKey,
           prepared_booking_id: preparedBookingId,
           supplier_currency: selection.supplierCurrency,
           customer_currency: customerCurrency,
@@ -183,24 +243,120 @@ export async function POST(request: Request) {
         .single();
 
       if (ledgerError || !ledger) {
+        if (ledgerError?.code === "23505") {
+          const { data: racedIntent, error: racedIntentError } = await supabase
+            .from("transfer_booking_pricing_ledger")
+            .select("*")
+            .eq("customer_user_id", user.id)
+            .eq("provider", "hotelbeds")
+            .eq("checkout_intent_key", intentKey)
+            .maybeSingle();
+          if (racedIntentError) throw new Error(racedIntentError.message);
+          if (racedIntent) {
+            return NextResponse.json({
+              provider: "hotelbeds",
+              product: "transfers",
+              status: "payment_initializing",
+              bookingId: racedIntent.prepared_booking_id,
+              bookingCreated: racedIntent.booking_status === "confirmed",
+              paymentReused: true,
+              supplierStatus: "existing_checkout_intent",
+            });
+          }
+        }
         throw new Error(
           ledgerError?.message || "Unable to create transfer checkout ledger entry."
         );
       }
 
-      const mpesa = getPaymentAdapter("mpesa");
-      if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
+      const paymentInitiationStartedAt = new Date().toISOString();
+      const { data: claimedLedger, error: claimError } = await supabase
+        .from("transfer_booking_pricing_ledger")
+        .update({
+          payment_status: "pending",
+          payment_initiation_started_at: paymentInitiationStartedAt,
+          metadata: {
+            ...metadataRecord(ledger.metadata),
+            paymentInitiationStartedAt,
+          },
+        })
+        .eq("id", ledger.id)
+        .eq("customer_user_id", user.id)
+        .eq("payment_status", "unpaid")
+        .is("payment_reference", null)
+        .is("payment_initiation_started_at", null)
+        .select("*")
+        .maybeSingle();
 
-      const payment = await mpesa.createPaymentIntent({
-        appointmentId: ledger.id,
-        amount: converted.amount,
-        currency: customerCurrency,
-        customerEmail: user.email,
-        customerPhone: phone,
-        returnUrl: `${SITE_URL}/account?transferBooking=${encodeURIComponent(preparedBookingId)}`,
-        idempotencyKey: `hotelbeds-transfer:${ledger.id}`,
-        callbackUrl: `${SITE_URL}/api/v1/transfers/hotelbeds/mpesa/callback`,
-      });
+      if (claimError) throw new Error(claimError.message);
+      if (!claimedLedger) {
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "transfers",
+          status: "payment_initializing",
+          bookingId: preparedBookingId,
+          bookingCreated: false,
+          paymentReused: true,
+          supplierStatus: "existing_payment_initiation",
+        });
+      }
+
+      let payment;
+      try {
+        payment = await mpesa.createPaymentIntent({
+          appointmentId: ledger.id,
+          amount: converted.amount,
+          currency: customerCurrency,
+          customerEmail: user.email,
+          customerPhone: phone,
+          returnUrl: `${SITE_URL}/account?transferBooking=${encodeURIComponent(preparedBookingId)}`,
+          idempotencyKey: `hotelbeds-transfer:${intentKey}`,
+          callbackUrl: `${SITE_URL}/api/v1/transfers/hotelbeds/mpesa/callback`,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "M-Pesa payment initiation failed.";
+        if (safePaymentRetry(error)) {
+          await supabase
+            .from("transfer_booking_pricing_ledger")
+            .update({
+              payment_status: "unpaid",
+              payment_initiation_started_at: null,
+              metadata: {
+                ...metadataRecord(claimedLedger.metadata),
+                paymentInitiationSafeFailureAt: new Date().toISOString(),
+                paymentInitiationError: message,
+              },
+            })
+            .eq("id", ledger.id)
+            .eq("customer_user_id", user.id);
+          throw error;
+        }
+
+        await supabase
+          .from("transfer_booking_pricing_ledger")
+          .update({
+            payment_status: "pending",
+            metadata: {
+              ...metadataRecord(claimedLedger.metadata),
+              paymentInitiationIndeterminateAt: new Date().toISOString(),
+              paymentInitiationError: message,
+            },
+          })
+          .eq("id", ledger.id)
+          .eq("customer_user_id", user.id);
+
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "transfers",
+          status: "payment_initiation_indeterminate",
+          bookingId: preparedBookingId,
+          bookingCreated: false,
+          supplierStatus: "payment_initiation_indeterminate",
+          reconciliation: "manual_required",
+          message:
+            "SafariPlug could not prove whether the M-Pesa request was created. It will not submit another payment request automatically because that could cause a duplicate charge.",
+        });
+      }
 
       const { data: updated } = await supabase
         .from("transfer_booking_pricing_ledger")
@@ -209,7 +365,7 @@ export async function POST(request: Request) {
           payment_reference: payment.providerReference,
           payment_status: "pending",
           metadata: {
-            ...metadataRecord(ledger.metadata),
+            ...metadataRecord(claimedLedger.metadata),
             mpesaPaymentId: payment.id,
           },
         })
