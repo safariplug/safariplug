@@ -199,7 +199,7 @@ export async function POST(request: Request) {
       const tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : null;
       const holder = paxes.find((pax) => pax.type === "AD") || paxes[0];
 
-      const { data: ledger, error: ledgerError } = await supabase.from("hotel_booking_pricing_ledger").insert({
+      const { data: ledger, error: ledgerError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").insert({
         customer_user_id: user.id,
         provider: "hotelbeds",
         quote_id: final.rateKey,
@@ -246,7 +246,7 @@ export async function POST(request: Request) {
         idempotencyKey: `hotelbeds:${ledger.id}`,
         callbackUrl: `${SITE_URL}/api/v1/hotels/mpesa/callback`,
       });
-      const { data: updated } = await supabase.from("hotel_booking_pricing_ledger").update({
+      const { data: updated } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update({
         payment_provider: "mpesa",
         payment_reference: payment.providerReference,
         payment_status: "pending",
@@ -266,7 +266,7 @@ export async function POST(request: Request) {
 
     const bookingId = String(body.bookingId || body.preparedBookingId || "");
     if (!bookingId) return errorResponse(400, "bookingId is required.");
-    const { data: ledger, error: ledgerError } = await supabase.from("hotel_booking_pricing_ledger").select("*").eq("customer_user_id", user.id).eq("provider", "hotelbeds").eq("prepared_booking_id", bookingId).maybeSingle();
+    const { data: ledger, error: ledgerError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").select("*").eq("customer_user_id", user.id).eq("provider", "hotelbeds").eq("prepared_booking_id", bookingId).maybeSingle();
     if (ledgerError) throw new Error(ledgerError.message);
     if (!ledger) return errorResponse(404, "Hotelbeds booking not found.");
     const metadata = ledger.metadata && typeof ledger.metadata === "object" && !Array.isArray(ledger.metadata) ? ledger.metadata as Record<string, unknown> : {};
@@ -287,7 +287,7 @@ export async function POST(request: Request) {
       if (ledger.booking_status !== "confirmed" || !ledger.provider_booking_reference) return errorResponse(409, "Only confirmed bookings can be cancelled.");
       const preview = await adapter.cancelBooking(ledger.provider_booking_reference, "SIMULATION");
       const cancelled = await adapter.cancelBooking(ledger.provider_booking_reference, "CANCELLATION");
-      const { data: updatedLedger } = await supabase.from("hotel_booking_pricing_ledger").update({
+      const { data: updatedLedger } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update({
         booking_status: "cancelled",
         metadata: { ...metadata, cancellationPreview: preview, cancellationResponse: cancelled, cancelledAt: new Date().toISOString(), refundStatus: "not_automated" },
       }).eq("id", ledger.id).select("*").single();
@@ -304,7 +304,7 @@ export async function POST(request: Request) {
         const paymentUpdate: Record<string, unknown> = { payment_status: status === "succeeded" ? "paid" : status === "failed" ? "failed" : "pending", metadata: { ...metadata, lastMpesaStatus: status } };
         if (status === "succeeded") paymentUpdate.paid_at = new Date().toISOString();
         if (status === "failed") paymentUpdate.booking_status = "failed";
-        const { data: refreshed } = await supabase.from("hotel_booking_pricing_ledger").update(paymentUpdate).eq("id", workingLedger.id).select("*").single();
+        const { data: refreshed } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update(paymentUpdate).eq("id", workingLedger.id).select("*").single();
         if (refreshed) workingLedger = refreshed;
       }
     }
@@ -358,7 +358,7 @@ export async function POST(request: Request) {
       const tripId = typeof currentMetadata.tripId === "string" ? currentMetadata.tripId : null;
       let itineraryItem = null;
       if (tripId) itineraryItem = await attachHotelToTrip({ supabase, userId: user.id, tripId, ledgerId: workingLedger.id, hotelName: token.propertyName, checkIn: token.checkIn, checkOut: token.checkOut, providerReference: reference });
-      const { data: updatedLedger, error: updateError } = await supabase.from("hotel_booking_pricing_ledger").update({
+      const { data: updatedLedger, error: updateError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update({
         provider_booking_reference: reference,
         booking_status: "confirmed",
         supplier_settlement_status: "settled",
@@ -370,7 +370,7 @@ export async function POST(request: Request) {
     } catch (error) {
       const timestamp = new Date().toISOString();
       const message = error instanceof Error ? error.message : "Hotelbeds confirmation returned an unknown result.";
-      const { data: pendingLedger } = await supabase.from("hotel_booking_pricing_ledger").update({
+      const { data: pendingLedger } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update({
         booking_status: "payment_pending",
         supplier_settlement_status: "pending",
         metadata: { ...currentMetadata, confirmAttemptIndeterminateAt: timestamp, confirmAttemptError: message },
