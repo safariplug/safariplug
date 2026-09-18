@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     const timeZone = profile.timezone || "Africa/Nairobi";
     const { data: offering } = await supabaseAdmin.from("service_offerings").select("id,duration_minutes,status").eq("id",offeringId).eq("service_profile_id",profileId).maybeSingle();
     if (!offering || offering.status !== "active") return NextResponse.json({ error:"Service is not currently available" }, { status:404 });
-    const { data: staffRows } = await supabaseAdmin.from("service_staff").select("id,display_name").eq("service_profile_id",profileId).eq("status","active");
+    const { data: staffRows } = await supabaseAdmin.from("service_staff").select("id,display_name,personal_photo_url").eq("service_profile_id",profileId).eq("status","active").not("personal_photo_url","is",null);
     const staff = staffRows ?? [];
     const staffIds = staff.map(s => s.id);
     if (!staffIds.length) return NextResponse.json({ timeZone, slots:[] });
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     const duration = Number(offering.duration_minutes);
     const now = Date.now() + Number(profile.booking_notice_minutes || 0) * 60_000;
     const max = Date.now() + Number(profile.max_booking_days || 90) * 86_400_000;
-    const result: { staffId:string; staffName:string; startsAt:string; endsAt:string; label:string }[] = [];
+    const result: { staffId:string; staffName:string; staffPhotoUrl:string|null; startsAt:string; endsAt:string; label:string }[] = [];
     for (const person of staff) {
       if (!qualified.has(person.id)) continue;
       const windows = (availability ?? []).filter(a => a.staff_id === person.id && Number(a.day_of_week) === weekday);
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
           if (start.getTime() < now || start.getTime() > max) continue;
           if ((blockouts ?? []).some(b => b.staff_id === person.id && overlaps(start,end,new Date(b.starts_at),new Date(b.ends_at)))) continue;
           if ((appointments ?? []).some(a => a.staff_id === person.id && overlaps(start,end,new Date(a.starts_at),new Date(a.ends_at)))) continue;
-          result.push({ staffId:person.id, staffName:person.display_name, startsAt:start.toISOString(), endsAt:end.toISOString(), label:new Intl.DateTimeFormat("en",{timeZone,hour:"numeric",minute:"2-digit"}).format(start) });
+          result.push({ staffId:person.id, staffName:person.display_name, staffPhotoUrl:person.personal_photo_url ?? null, startsAt:start.toISOString(), endsAt:end.toISOString(), label:new Intl.DateTimeFormat("en",{timeZone,hour:"numeric",minute:"2-digit"}).format(start) });
         }
       }
     }
