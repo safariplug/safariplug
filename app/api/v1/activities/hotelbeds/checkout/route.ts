@@ -20,6 +20,7 @@ import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 import { normalizeActivityCheckoutIntentKey, activityPreconfirmDefinitelyRejected, activityPaymentSafeToRetry } from "@/lib/integrations/hotelbeds/activity-payment-safety";
+import { publicActivityCheckoutLedger } from "@/lib/integrations/hotelbeds/activity-public-ledger";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -522,7 +523,7 @@ export async function POST(request: Request) {
           markupPercent: percent,
         },
         payment,
-        ledger: updated || paymentClaim,
+        ledger: publicActivityCheckoutLedger(updated || paymentClaim),
       });
     }
 
@@ -616,7 +617,7 @@ export async function POST(request: Request) {
         status: "cancelled",
         preview,
         providerBooking: cancelled,
-        ledger: updated || ledger,
+        ledger: publicActivityCheckoutLedger(updated || ledger),
         refund:
           "Supplier cancellation does not automatically issue an M-Pesa refund. Any customer refund due is handled separately.",
       });
@@ -667,7 +668,7 @@ export async function POST(request: Request) {
         status: "failed",
         bookingCreated: false,
         supplierStatus: "PRECONFIRMED_NOT_RECONFIRMED",
-        ledger: workingLedger,
+        ledger: publicActivityCheckoutLedger(workingLedger),
         message: "M-Pesa payment failed; the Hotelbeds activity was not reconfirmed.",
       });
     }
@@ -679,7 +680,7 @@ export async function POST(request: Request) {
         status: "payment_pending",
         bookingCreated: false,
         supplierStatus: "PRECONFIRMED",
-        ledger: workingLedger,
+        ledger: publicActivityCheckoutLedger(workingLedger),
       });
     }
 
@@ -689,7 +690,7 @@ export async function POST(request: Request) {
         product: "activities",
         status: "confirmed",
         bookingCreated: true,
-        ledger: workingLedger,
+        ledger: publicActivityCheckoutLedger(workingLedger),
         providerBooking: metadataRecord(workingLedger.metadata).providerBooking || null,
       });
     }
@@ -703,7 +704,7 @@ export async function POST(request: Request) {
         bookingCreated: false,
         supplierStatus: "reconfirmation_indeterminate",
         reconciliation: "manual_required",
-        ledger: workingLedger,
+        ledger: publicActivityCheckoutLedger(workingLedger),
         message:
           "Payment succeeded, but Hotelbeds activity reconfirmation could not be proven. SafariPlug will not retry blindly.",
       });
@@ -749,7 +750,7 @@ export async function POST(request: Request) {
         bookingCreated: true,
         bookingReference: reference,
         providerBooking,
-        ledger: updated,
+        ledger: publicActivityCheckoutLedger(updated),
       });
     } catch (error) {
       const timestamp = new Date().toISOString();
@@ -781,7 +782,7 @@ export async function POST(request: Request) {
         bookingCreated: false,
         supplierStatus: "reconfirmation_indeterminate",
         reconciliation: "manual_required",
-        ledger: pending || workingLedger,
+        ledger: publicActivityCheckoutLedger(pending || workingLedger),
         message:
           "Payment succeeded, but Hotelbeds activity reconfirmation could not be proven. SafariPlug will not retry automatically.",
       });
