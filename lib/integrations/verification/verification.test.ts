@@ -352,4 +352,5 @@ test("verification subject model includes Local and traveler", async () => {
   const { VERIFICATION_SUBJECT_TYPES } = await import("./types");
   assert.equal(VERIFICATION_SUBJECT_TYPES.includes("local"), true);
   assert.equal(VERIFICATION_SUBJECT_TYPES.includes("traveler"), true);
+  assert.equal(VERIFICATION_SUBJECT_TYPES.includes("service_staff"), true);
 });
