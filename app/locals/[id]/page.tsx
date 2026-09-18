@@ -24,10 +24,11 @@ export default async function LocalPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const { data: local } = await supabaseAdmin
     .from("local_profiles")
-    .select("id,display_name,bio,personal_photo_url,city,country,languages,interests,specialties,hourly_rate,currency")
+    .select("id,display_name,bio,personal_photo_url,identity_liveness_verified_at,city,country,languages,interests,specialties,hourly_rate,currency")
     .eq("id", id)
     .eq("service_status", "active")
     .eq("verification_state", "verified")
+    .not("identity_liveness_verified_at", "is", null)
     .maybeSingle();
 
   if (!local) notFound();
