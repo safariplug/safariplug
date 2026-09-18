@@ -271,6 +271,53 @@ function transportCoverage(
   }).slice(0,5);
 }
 
+function tripCompletion(input: {
+  arrangedKinds: string[];
+  openTransferRequests: number;
+  openLocalRequests: number;
+  gaps: Array<{ kind: string; title: string; detail: string; href: string; priority: "core" | "enhancement" }>;
+  transportNeeds: Array<{ transferCovered: boolean; attention: "covered" | "overlap" | "high" | "medium" | "review" }>;
+}) {
+  const kinds = new Set(input.arrangedKinds.map((x) => x.toLowerCase()));
+  const missing = new Map(input.gaps.map((gap) => [gap.kind, gap]));
+  const hasStay = ["hotel","stay","accommodation"].some((x) => kinds.has(x));
+  const hasActivity = ["activity","experience","event"].some((x) => kinds.has(x));
+  const hasService = ["service","appointment"].some((x) => kinds.has(x));
+  const hasLocal = ["local","local_request"].some((x) => kinds.has(x)) || input.openLocalRequests > 0;
+  const uncoveredTransport = input.transportNeeds.some((move) => !move.transferCovered && move.attention !== "review");
+  const hasTransport = ["transfer","driver_transfer","transport"].some((x) => kinds.has(x)) || input.openTransferRequests > 0;
+  const transportStatus = uncoveredTransport ? "review" : hasTransport ? "covered" : "action";
+
+  const item = (kind: string, title: string, covered: boolean, href: string, optional = false) => {
+    const gap = missing.get(kind);
+    return {
+      kind,
+      title,
+      status: covered ? "covered" as const : optional ? "optional" as const : "action" as const,
+      href,
+      detail: covered ? "Recorded in this journey." : gap?.detail || (optional ? "Optional enhancement for this journey." : "Not yet recorded for this journey."),
+    };
+  };
+
+  const core = [
+    item("hotel", "Stay", hasStay, "/hotels"),
+    { ...item("transfer", "Transport", transportStatus === "covered", "/transfers"), status: transportStatus },
+    item("activity", "Things to do", hasActivity, "/activities"),
+  ];
+  const extras = [
+    item("local", "Verified Local", hasLocal, "/locals", true),
+    item("service", "Personal service", hasService, "/services", true),
+  ];
+
+  return {
+    core,
+    extras,
+    coveredCore: core.filter((entry) => entry.status === "covered").length,
+    totalCore: core.length,
+    needsTransportReview: transportStatus === "review",
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(); const realIp = request.headers.get("x-real-ip")?.trim(); const ip = (forwarded || realIp || "unknown").slice(0, 120); const { data: allowed, error: rateError } = await supabaseAdmin.rpc("consume_concierge_rate_limit", { p_bucket: `concierge:${ip}`, p_limit: 20, p_window_seconds: 60 }); if (rateError) return NextResponse.json({ error: "Concierge is temporarily unavailable." }, { status: 503 }); if (allowed !== true) return NextResponse.json({ error: "Concierge is busy. Please wait a moment and try again." }, { status: 429 });
@@ -279,7 +326,7 @@ export async function POST(request: Request) {
     const tripId = typeof payload?.tripId === "string" && payload.tripId.trim() ? payload.tripId.trim() : null;
     let tripContext = "";
     let toolJourneyContext: ToolJourneyContext | null = null;
-    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number; gaps: Array<{ kind: string; title: string; detail: string; href: string; priority: "core" | "enhancement" }>; timing: { scheduledCount: number; issues: Array<{ type: "overlap" | "tight"; severity: "high" | "medium"; title: string; detail: string; firstItem: string; secondItem: string; gapMinutes: number | null }> }; optimization: { freeWindows: Array<{ startsAt: string; endsAt: string; minutes: number; after: string; before: string }>; packedDays: Array<{ date: string; scheduledItems: number }> }; locationTransitions: Array<{ from: string; to: string; fromVenue: string | null; toVenue: string | null; straightLineKm: number; gapMinutes: number }>; transportNeeds: Array<{ from: string; to: string; fromVenue: string | null; toVenue: string | null; straightLineKm: number; gapMinutes: number; transferCovered: boolean; transferRequestId: string | null; transferStatus: string | null; attention: "covered" | "overlap" | "high" | "medium" | "review" }> } | null = null;
+    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number; gaps: Array<{ kind: string; title: string; detail: string; href: string; priority: "core" | "enhancement" }>; timing: { scheduledCount: number; issues: Array<{ type: "overlap" | "tight"; severity: "high" | "medium"; title: string; detail: string; firstItem: string; secondItem: string; gapMinutes: number | null }> }; optimization: { freeWindows: Array<{ startsAt: string; endsAt: string; minutes: number; after: string; before: string }>; packedDays: Array<{ date: string; scheduledItems: number }> }; locationTransitions: Array<{ from: string; to: string; fromVenue: string | null; toVenue: string | null; straightLineKm: number; gapMinutes: number }>; transportNeeds: Array<{ from: string; to: string; fromVenue: string | null; toVenue: string | null; straightLineKm: number; gapMinutes: number; transferCovered: boolean; transferRequestId: string | null; transferStatus: string | null; attention: "covered" | "overlap" | "high" | "medium" | "review" }>; completion: { core: Array<{ kind: string; title: string; status: "covered" | "action" | "review"; href: string; detail: string }>; extras: Array<{ kind: string; title: string; status: "covered" | "optional"; href: string; detail: string }>; coveredCore: number; totalCore: number; needsTransportReview: boolean } } | null = null;
     if (tripId) {
       const { data: trip, error: tripError } = await supabaseAdmin.from("trips").select("id,title,destination_city_id,start_on,end_on,status,cities(name,country)").eq("id", tripId).eq("traveler_id", user!.id).maybeSingle();
       if (tripError) throw tripError;
@@ -318,6 +365,7 @@ export async function POST(request: Request) {
         openLocalRequests,
         openTransferRequests,
       });
+      const completion = tripCompletion({ arrangedKinds, openTransferRequests, openLocalRequests, gaps, transportNeeds });
       tripSummary = {
         id: trip.id,
         title: trip.title || null,
@@ -333,8 +381,9 @@ export async function POST(request: Request) {
         optimization,
         locationTransitions,
         transportNeeds,
+        completion,
       };
-      tripContext = `\nThe client is planning within their SafariPlug journey “${trip.title}”. Journey dates: ${trip.start_on || "not set"} to ${trip.end_on || "not set"}. Destination: ${city?.name || "not set"}. Existing itinerary items: ${itinerarySummary || "none"}. Existing Local requests: ${localSummary || "none"}. Existing transfer requests: ${transferSummary || "none"}. Detected journey gaps: ${gaps.map((gap) => gap.title).join("; ") || "none"}. Schedule issues: ${timing.issues.map((issue) => issue.detail).join("; ") || "none"}. Useful free windows between recorded items: ${optimization.freeWindows.map((window) => `${window.minutes} minutes after ${window.after} and before ${window.before}`).join("; ") || "none"}. Packed days: ${optimization.packedDays.map((day) => `${day.date} has ${day.scheduledItems} scheduled items`).join("; ") || "none"}. Recorded venue transitions: ${locationTransitions.map((move) => `${move.from} to ${move.to} is ${move.straightLineKm} km straight-line with ${move.gapMinutes} minutes recorded between items`).join("; ") || "none"}. Transport coverage review: ${transportNeeds.map((move) => `${move.from} to ${move.to}: ${move.transferCovered ? `existing transfer request (${move.transferStatus || "open"})` : `no matching transfer request; attention ${move.attention}`}`).join("; ") || "none"}. Use this existing journey state to avoid suggesting duplicate arrangements unless the client asks for alternatives. Prefer filling genuine gaps in the journey, but present them as optional next steps rather than requirements. Flag recorded schedule overlaps and tight turnarounds clearly, surface useful free windows and overly packed days, and prefer real discovery options with larger recorded-time cushions around adjacent itinerary items. Treat schedule buffer as recorded-time cushion only, and venue distance as straight-line distance only. Never present either as a driving or travel-time estimate. Treat a transfer as covered only when the recorded pickup and destination labels match the itinerary transition; otherwise describe transport as needing review, not as missing with certainty. Do not create a transfer request or contact a driver unless the client explicitly asks. Do not reschedule, cancel, or modify any itinerary item automatically. Do not invent free time outside the recorded itinerary windows. Do not imply that an item is confirmed merely because it exists in the itinerary; respect its recorded status. If a service is booked through this conversation, it is associated with the authenticated client; do not claim it has been added to the journey unless the booking system explicitly returns that relationship.`;
+      tripContext = `\nThe client is planning within their SafariPlug journey “${trip.title}”. Journey dates: ${trip.start_on || "not set"} to ${trip.end_on || "not set"}. Destination: ${city?.name || "not set"}. Existing itinerary items: ${itinerarySummary || "none"}. Existing Local requests: ${localSummary || "none"}. Existing transfer requests: ${transferSummary || "none"}. Detected journey gaps: ${gaps.map((gap) => gap.title).join("; ") || "none"}. Schedule issues: ${timing.issues.map((issue) => issue.detail).join("; ") || "none"}. Useful free windows between recorded items: ${optimization.freeWindows.map((window) => `${window.minutes} minutes after ${window.after} and before ${window.before}`).join("; ") || "none"}. Packed days: ${optimization.packedDays.map((day) => `${day.date} has ${day.scheduledItems} scheduled items`).join("; ") || "none"}. Recorded venue transitions: ${locationTransitions.map((move) => `${move.from} to ${move.to} is ${move.straightLineKm} km straight-line with ${move.gapMinutes} minutes recorded between items`).join("; ") || "none"}. Transport coverage review: ${transportNeeds.map((move) => `${move.from} to ${move.to}: ${move.transferCovered ? `existing transfer request (${move.transferStatus || "open"})` : `no matching transfer request; attention ${move.attention}`}`).join("; ") || "none"}. Core trip coverage: ${completion.coveredCore}/${completion.totalCore} recorded, with stay/transport/things-to-do treated as core and Local/personal services treated as optional enhancements. Use this existing journey state to avoid suggesting duplicate arrangements unless the client asks for alternatives. Prefer filling genuine gaps in the journey, but present them as optional next steps rather than requirements. Flag recorded schedule overlaps and tight turnarounds clearly, surface useful free windows and overly packed days, and prefer real discovery options with larger recorded-time cushions around adjacent itinerary items. Treat schedule buffer as recorded-time cushion only, and venue distance as straight-line distance only. Never present either as a driving or travel-time estimate. Treat a transfer as covered only when the recorded pickup and destination labels match the itinerary transition; otherwise describe transport as needing review, not as missing with certainty. Do not create a transfer request or contact a driver unless the client explicitly asks. Do not reschedule, cancel, or modify any itinerary item automatically. Do not invent free time outside the recorded itinerary windows. Do not imply that an item is confirmed merely because it exists in the itinerary; respect its recorded status. If a service is booked through this conversation, it is associated with the authenticated client; do not claim it has been added to the journey unless the booking system explicitly returns that relationship.`;
     }
     const sanitized = messages.map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 3000) })); const customerContext = `\nAuthenticated registered customer email: ${user!.email || "unknown"}. Account id: ${user!.id}. Do not reveal account internals.`; let input: any[] = [{ role: "system", content: SYSTEM + customerContext + tripContext }, ...sanitized]; let finalText = ""; const serviceResults = new Map<string, ServiceResult>(); const availabilityResults = new Map<string, Slot[]>(); const discoveryResults: any[] = []; let lastBooking: any = null;
     for (let turn = 0; turn < 4; turn++) {
