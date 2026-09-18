@@ -46,11 +46,12 @@ export async function updateDriverStatus(formData: FormData) {
   if (serviceStatus === "active") {
     const { data: driver, error: driverError } = await supabaseAdmin
       .from("driver_profiles")
-      .select("id,personal_photo_url,verification_state,driving_license_compliance_status")
+      .select("id,personal_photo_url,identity_liveness_verified_at,verification_state,driving_license_compliance_status")
       .eq("id", driverId)
       .maybeSingle();
     if (driverError || !driver) throw new Error("Driver could not be loaded.");
     if (driver.verification_state !== "verified") throw new Error("A driver must have verified identity before becoming active.");
+    if (!driver.identity_liveness_verified_at) throw new Error("A driver must complete approved external live identity/liveness verification before becoming active.");
     if (!driver.personal_photo_url) throw new Error("A driver must have a personal profile photo before becoming active.");
     if (driver.driving_license_compliance_status !== "compliant") throw new Error("The driving license must be compliant before the driver can become active.");
 

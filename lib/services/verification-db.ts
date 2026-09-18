@@ -103,6 +103,16 @@ export async function persistVerificationMutation(
     }
   }
   if (current.subject_type === "driver") {
+    if (current.status !== "approved") {
+      const { error: clearError } = await client
+        .from("driver_profiles")
+        .update({ identity_liveness_verified_at: null })
+        .eq("id", current.subject_id);
+      if (clearError) {
+        console.error("verification.clear_driver_liveness", clearError.message);
+        return { ok: false };
+      }
+    }
     const state =
       current.status === "approved"
         ? "verified"

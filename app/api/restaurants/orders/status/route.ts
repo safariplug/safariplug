@@ -13,8 +13,8 @@ async function supplierBusinessId(userId:string) { const {data}=await supabaseAd
 async function driverProfileId(userId:string) { const {data}=await supabaseAdmin.from("driver_profiles").select("id").eq("user_id",userId).maybeSingle(); return data?.id??null; }
 
 async function eligibleDriver(driverId:string, order:any) {
-  const {data:driver}=await supabaseAdmin.from("driver_profiles").select("id,personal_photo_url,service_city_id,service_lat,service_lng,service_radius_km,driving_license_compliance_status,service_status,verification_state").eq("id",driverId).maybeSingle();
-  if(!driver||driver.service_status!=="active"||driver.verification_state!=="verified"||!driver.personal_photo_url)return {error:"Selected driver is not available"};
+  const {data:driver}=await supabaseAdmin.from("driver_profiles").select("id,personal_photo_url,identity_liveness_verified_at,service_city_id,service_lat,service_lng,service_radius_km,driving_license_compliance_status,service_status,verification_state").eq("id",driverId).maybeSingle();
+  if(!driver||driver.service_status!=="active"||driver.verification_state!=="verified"||!driver.identity_liveness_verified_at||!driver.personal_photo_url)return {error:"Selected driver is not available"};
   if(driver.driving_license_compliance_status!=="compliant")return {error:"Selected driver license compliance is not current"};
   const {data:business}=await supabaseAdmin.from("businesses").select("city_id,latitude,longitude").eq("id",order.business_id).maybeSingle();
   if(!business)return {error:"Restaurant location is not configured"};
