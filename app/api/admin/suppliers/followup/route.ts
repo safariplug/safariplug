@@ -18,6 +18,16 @@ function reviewLabel(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function requirementLink(requirement: string) {
+  const base = `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/supplier/onboarding`;
+  if (requirement.includes("description")) return `${base}#business-details`;
+  if (requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
+  if (requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
+  if (requirement.includes("team member") || requirement.includes("personal photo")) return `${base}#team-availability`;
+  if (requirement.includes("verification")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/supplier/readiness`;
+  return base;
+}
+
 function deterministicDraft(input: {
   name: string;
   businessName: string;
@@ -32,7 +42,7 @@ function deterministicDraft(input: {
     ? `SafariPlug onboarding updates needed for ${input.businessName}`
     : `Continue your SafariPlug supplier setup for ${input.businessName}`;
   const requested = input.missingRequirements.length
-    ? `\n\nPlease complete the following:\n${input.missingRequirements.map((item) => `- ${item}`).join("\n")}`
+    ? `\n\nPlease complete the following:\n${input.missingRequirements.map((item) => `- ${item}: ${requirementLink(item)}`).join("\n")}`
     : "";
   const note = input.reviewNote ? `\n\nStaff note: ${input.reviewNote}` : "";
   const progress = Number.isFinite(input.completion) ? ` Your profile is currently ${input.completion}% complete.` : "";
@@ -72,6 +82,9 @@ function inferMissingRequirements(supplier: NonNullable<Awaited<ReturnType<typeo
   if (!business?.logo_url && !business?.cover_image_url) missing.push("Add a business logo or cover image");
   if (!profiles.length) missing.push("Create your service profile");
   if (profiles.length && !offerings.length) missing.push("Add at least one service offering with pricing and duration");
+  if (offerings.length && offerings.some((offering) => Number(offering.price || 0) <= 0 || Number(offering.duration_minutes || 0) <= 0)) {
+    missing.push("Complete pricing and duration for all service offerings");
+  }
   if (profiles.length && !staff.length) missing.push("Add at least one team member or service provider");
   if (staff.some((member) => !member.personal_photo_url)) missing.push("Add a personal photo for every listed team member");
   if (!supplier.verification_status) missing.push("Start supplier verification");
