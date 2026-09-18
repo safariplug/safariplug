@@ -18,7 +18,7 @@ export default async function DriverMarketplacePage() {
     describeDriverProviders(),
     supabaseAdmin
       .from("driver_profiles")
-      .select("id,display_name,personal_photo_url,provider_type,service_city,service_country,service_status,verification_state,driving_license_compliance_status,vehicles(id,status,registration_compliance_status,insurance_compliance_status)")
+      .select("id,display_name,personal_photo_url,identity_liveness_verified_at,provider_type,service_city,service_country,service_status,verification_state,driving_license_compliance_status,vehicles(id,status,registration_compliance_status,insurance_compliance_status)")
       .order("created_at", { ascending: false }),
   ]);
 
@@ -34,6 +34,7 @@ export default async function DriverMarketplacePage() {
     );
     const activationReady =
       driver.verification_state === "verified" &&
+      Boolean(driver.identity_liveness_verified_at) &&
       driver.driving_license_compliance_status === "compliant" &&
       Boolean(driver.personal_photo_url) &&
       eligibleVehicle;
@@ -60,7 +61,7 @@ export default async function DriverMarketplacePage() {
           <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">Driver operations</p>
           <h1 className="mt-2 text-3xl font-extrabold">Verification, compliance & activation</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            This is the operational control surface for drivers. A driver can only be activated after verified identity, a public personal photo, compliant license, and an active vehicle with compliant registration and insurance. The booking gates enforce the same trust requirements server-side.
+            This is the operational control surface for drivers. A driver can only be activated after verified identity + live liveness, a public personal photo, compliant license, and an active vehicle with compliant registration and insurance. The booking gates enforce the same trust requirements server-side.
           </p>
         </header>
 
@@ -124,7 +125,7 @@ export default async function DriverMarketplacePage() {
                             type="submit"
                             disabled={!driver.activationReady}
                             className="rounded-lg border border-emerald-500/30 px-3 py-2 text-xs font-semibold text-emerald-300 enabled:hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600"
-                            title={!driver.activationReady ? "Verification, public personal photo, license compliance, and a compliant active vehicle are required." : "Activate driver"}
+                            title={!driver.activationReady ? "Approved external identity/liveness, public personal photo, license compliance, and a compliant active vehicle are required." : "Activate driver"}
                           >
                             Activate
                           </button>
