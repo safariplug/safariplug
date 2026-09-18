@@ -22,8 +22,9 @@ export async function reviewLocal(formData: FormData) {
 
   const caseStatus = decision === "approve" ? "approved" : "rejected";
   const profileState = decision === "approve" ? "verified" : "rejected";
-  const { data: verificationCase } = await supabaseAdmin.from("verification_cases").select("id").eq("subject_type", "local").eq("subject_id", localId).in("status", ["pending", "in_review"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: verificationCase } = await supabaseAdmin.from("verification_cases").select("id,provider").eq("subject_type", "local").eq("subject_id", localId).in("status", ["pending", "in_review"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!verificationCase) throw new Error("No pending identity review exists for this Local.");
+  if (verificationCase.provider === "sumsub") throw new Error("Sumsub controls identity/liveness approval for this Local. Staff cannot manually approve or reject the external result.");
 
   const now = new Date().toISOString();
   const { error: caseError } = await supabaseAdmin.from("verification_cases").update({ status: caseStatus, reviewed_at: now, rejection_reason: decision === "reject" ? reason || "Identity review rejected." : null }).eq("id", verificationCase.id);
@@ -40,10 +41,11 @@ export async function setLocalActivation(formData: FormData) {
   const activate = value(formData, "activate") === "true";
   if (!localId) throw new Error("Local ID is required.");
 
-  const { data: local, error } = await supabaseAdmin.from("local_profiles").select("id,verification_state,personal_photo_url,languages,interests").eq("id", localId).maybeSingle();
+  const { data: local, error } = await supabaseAdmin.from("local_profiles").select("id,verification_state,identity_liveness_verified_at,personal_photo_url,languages,interests").eq("id", localId).maybeSingle();
   if (error || !local) throw new Error("Local profile could not be loaded.");
   if (activate) {
     if (local.verification_state !== "verified") throw new Error("Identity verification is required before activation.");
+    if (!local.identity_liveness_verified_at) throw new Error("Approved external live face/liveness verification is required before activation.");
     if (!local.personal_photo_url) throw new Error("A personal photo is required before activation.");
     if (!Array.isArray(local.languages) || !local.languages.length) throw new Error("At least one language is required before activation.");
     if (!Array.isArray(local.interests) || !local.interests.length) throw new Error("At least one interest is required before activation.");
