@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { initiateMpesaStkPush } from "@/lib/payments/mpesa";
 
 export const dynamic = "force-dynamic";
