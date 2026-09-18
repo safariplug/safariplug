@@ -71,7 +71,7 @@ export function SupplierFollowupPanel({ supplierId, eligible }: { supplierId: st
   }
 
   return (
-    <section className="mt-7 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <section id="onboarding-followup" className="mt-7 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">Onboarding follow-up</p>
