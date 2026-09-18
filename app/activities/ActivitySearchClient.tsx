@@ -163,7 +163,7 @@ export default function ActivitySearchClient() {
                     </p>
                   ) : null}
                   <button type="button" disabled={busy !== null} onClick={() => void loadDetails(activity)} className="mt-5 rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">
-                    {busy === "details" && selectedActivity?.code === activity.code ? "Checking live rates…" : "See live options →"}
+                    {busy === "details" ? "Checking live rates…" : "See live options →"}
                   </button>
                 </div>
               </article>
