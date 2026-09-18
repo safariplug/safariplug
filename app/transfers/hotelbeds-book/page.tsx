@@ -89,6 +89,15 @@ export default function HotelbedsTransferBookPage() {
     };
   }, [initialToken]);
 
+  function checkoutIdempotencyKey() {
+    const storageKey = `safariplug:hotelbeds-transfer-intent:${selectionToken.slice(-48)}`;
+    const existing = window.sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const created = window.crypto.randomUUID();
+    window.sessionStorage.setItem(storageKey, created);
+    return created;
+  }
+
   async function checkout(event: FormEvent) {
     event.preventDefault();
     if (!preflight || !selectionToken) {
@@ -124,6 +133,7 @@ export default function HotelbedsTransferBookPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "prepare",
+          idempotencyKey: checkoutIdempotencyKey(),
           selectionToken,
           currency: "KES",
           termsAccepted: true,
