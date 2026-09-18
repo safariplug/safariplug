@@ -48,13 +48,37 @@ export async function POST(request: Request) {
     const client = await createSupabaseServerClient(); const { data: { user } } = await client.auth.getUser(); const registeredClient = !!user && !user.is_anonymous && !!(user.email_confirmed_at || user.phone_confirmed_at); if (!registeredClient) return NextResponse.json({ error: "registered_client_required", message: "SafariPlug Concierge is available to registered clients. Please sign in or create your free SafariPlug account to continue.", signInUrl: "/login?next=/concierge", signUpUrl: "/login?next=/concierge&mode=signup" }, { status: 401 });
     const payload = await request.json(); const messages = Array.isArray(payload?.messages) ? payload.messages.slice(-12) : []; if (!messages.length) return NextResponse.json({ error: "messages are required" }, { status: 400 });
     const tripId = typeof payload?.tripId === "string" && payload.tripId.trim() ? payload.tripId.trim() : null;
-    let tripContext = "";
+    let tripContext = "";\n    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number } | null = null;
     if (tripId) {
       const { data: trip, error: tripError } = await supabaseAdmin.from("trips").select("id,title,destination_city_id,start_on,end_on,status,cities(name,country)").eq("id", tripId).eq("traveler_id", user!.id).maybeSingle();
       if (tripError) throw tripError;
       if (!trip) return NextResponse.json({ error: "journey_not_found" }, { status: 404 });
       const city = Array.isArray(trip.cities) ? trip.cities[0] : trip.cities;
-      tripContext = `\nThe client is planning within their SafariPlug journey “${trip.title}”. Journey dates: ${trip.start_on || "not set"} to ${trip.end_on || "not set"}. Destination: ${city?.name || "not set"}. When making recommendations, prefer options that fit this journey's destination and dates unless the client explicitly asks otherwise. If a service is booked through this conversation, it is associated with the authenticated client; do not claim it has been added to the journey unless the booking system explicitly returns that relationship.`;
+      const [itemsResult, localResult, transferResult] = await Promise.all([
+        supabaseAdmin.from("trip_items").select("id,item_kind,title,start_at,end_at").eq("trip_id", tripId).order("position", { ascending: true }).limit(50),
+        supabaseAdmin.from("local_requests").select("id,status,activity,requested_start,requested_end").eq("trip_id", tripId).eq("traveler_id", user!.id).limit(50),
+        supabaseAdmin.from("driver_transfer_requests").select("id,status,pickup_label,destination_label,requested_at").eq("trip_id", tripId).eq("traveler_id", user!.id).limit(50),
+      ]);
+      if (itemsResult.error || localResult.error || transferResult.error) throw itemsResult.error || localResult.error || transferResult.error;
+      const itinerary = itemsResult.data ?? [];
+      const locals = localResult.data ?? [];
+      const transfers = transferResult.data ?? [];
+      const arrangedKinds = [...new Set(itinerary.map((item: any) => String(item.item_kind || "plan")).filter(Boolean))];
+      const itinerarySummary = itinerary.slice(0, 12).map((item: any) => [item.item_kind || "plan", item.title || "Untitled item", item.start_at || "date not set"].join(" · ")).join("; ");
+      const localSummary = locals.slice(0, 8).map((item: any) => [item.activity || "Local request", item.status || "requested", item.requested_start || "date not set"].join(" · ")).join("; ");
+      const transferSummary = transfers.slice(0, 8).map((item: any) => [`${item.pickup_label || "Pickup"} → ${item.destination_label || "Destination"}`, item.status || "requested", item.requested_at || "date not set"].join(" · ")).join("; ");
+      tripSummary = {
+        id: trip.id,
+        title: trip.title || null,
+        destination: city?.name || null,
+        startOn: trip.start_on || null,
+        endOn: trip.end_on || null,
+        itemCount: itinerary.length,
+        arrangedKinds,
+        openLocalRequests: locals.filter((item: any) => !["declined","cancelled","completed"].includes(String(item.status || ""))).length,
+        openTransferRequests: transfers.filter((item: any) => !["declined","cancelled","completed"].includes(String(item.status || ""))).length,
+      };
+      tripContext = `\nThe client is planning within their SafariPlug journey “${trip.title}”. Journey dates: ${trip.start_on || "not set"} to ${trip.end_on || "not set"}. Destination: ${city?.name || "not set"}. Existing itinerary items: ${itinerarySummary || "none"}. Existing Local requests: ${localSummary || "none"}. Existing transfer requests: ${transferSummary || "none"}. Use this existing journey state to avoid suggesting duplicate arrangements unless the client asks for alternatives. Prefer filling genuine gaps in the journey. Do not imply that an item is confirmed merely because it exists in the itinerary; respect its recorded status. If a service is booked through this conversation, it is associated with the authenticated client; do not claim it has been added to the journey unless the booking system explicitly returns that relationship.`;
     }
     const sanitized = messages.map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 3000) })); const customerContext = `\nAuthenticated registered customer email: ${user!.email || "unknown"}. Account id: ${user!.id}. Do not reveal account internals.`; let input: any[] = [{ role: "system", content: SYSTEM + customerContext + tripContext }, ...sanitized]; let finalText = ""; const serviceResults = new Map<string, ServiceResult>(); const availabilityResults = new Map<string, Slot[]>(); let lastBooking: any = null;
     for (let turn = 0; turn < 4; turn++) {
@@ -66,6 +90,6 @@ export async function POST(request: Request) {
     }
     if (!finalText) finalText = "I’m sorry, I couldn’t complete that request. Please try again.";
     const cards: ConciergeCard[] = Array.from(serviceResults.values()).slice(0, 4).map(row => ({ ...row, slots: availabilityResults.get(`${row.profileId}:${row.offeringId}`) ?? [], availabilityChecked: availabilityResults.has(`${row.profileId}:${row.offeringId}`) }));
-    return NextResponse.json({ message: finalText, cards, actions: marketplaceActions(messages), booking: lastBooking, trip: tripId ? { id: tripId } : null });
+    return NextResponse.json({ message: finalText, cards, actions: marketplaceActions(messages), booking: lastBooking, trip: tripSummary || (tripId ? { id: tripId } : null) });
   } catch (error) { console.error("concierge", error); return NextResponse.json({ error: "SafariPlug Concierge is temporarily unavailable." }, { status: 500 }); }
 }
