@@ -5,7 +5,9 @@ import { supabase } from "@/lib/supabase";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Slot = { staffId: string; staffName: string; startsAt: string; endsAt: string; label: string };
-type Card = { profileId:string; offeringId:string; provider:string; slug:string; address:string|null; cityName:string|null; category:string; verified:boolean; claimed:boolean; timezone:string; service:string; description:string|null; durationMinutes:number; price:number; currency:string; slots:Slot[]; availabilityChecked:boolean };\ntype Action = { href:string; title:string; detail:string };\ntype Journey = { id:string; title?:string|null; destination?:string|null; startOn?:string|null; endOn?:string|null; itemCount?:number; arrangedKinds?:string[]; openLocalRequests?:number; openTransferRequests?:number };
+type Card = { profileId:string; offeringId:string; provider:string; slug:string; address:string|null; cityName:string|null; category:string; verified:boolean; claimed:boolean; timezone:string; service:string; description:string|null; durationMinutes:number; price:number; currency:string; slots:Slot[]; availabilityChecked:boolean };
+type Action = { href:string; title:string; detail:string };
+type Journey = { id:string; title?:string|null; destination?:string|null; startOn?:string|null; endOn?:string|null; itemCount?:number; arrangedKinds?:string[]; openLocalRequests?:number; openTransferRequests?:number };
 type Selection = { card: Card; slot: Slot };
 type AuthUserShape = { is_anonymous?: boolean; confirmed_at?: string|null; email_confirmed_at?: string|null; phone_confirmed_at?: string|null; user_metadata?: Record<string, unknown> };
 const suggestions=["Find me a hotel in Nairobi for this weekend","I need an airport transfer in Nairobi","Find me a verified Local for food and hidden gems","Find me a great barber in Nairobi this Saturday afternoon"];
