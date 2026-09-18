@@ -87,6 +87,16 @@ export default function HotelbedsActivityBookPage() {
     setPaxes((current) => current.map((row, i) => i === index ? { ...row, ...patch } : row));
   }
 
+  function checkoutIdempotencyKey() {
+    const token = preflight?.selectionToken || initialToken;
+    const storageKey = `safariplug:hotelbeds-activity-intent:${token.slice(-48)}`;
+    const existing = window.sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const created = window.crypto.randomUUID();
+    window.sessionStorage.setItem(storageKey, created);
+    return created;
+  }
+
   async function checkout(event: FormEvent) {
     event.preventDefault();
     if (!preflight?.selectionToken) {
@@ -120,6 +130,7 @@ export default function HotelbedsActivityBookPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "prepare",
+          idempotencyKey: checkoutIdempotencyKey(),
           selectionToken: preflight.selectionToken,
           currency: "KES",
           termsAccepted: true,
