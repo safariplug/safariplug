@@ -1,0 +1,18 @@
+name: Supplier Follow-up Draft Prep
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare overdue supplier follow-up drafts
+        env:
+          SAFARIPLUG_CRON_SECRET: ${{ secrets.SAFARIPLUG_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$SAFARIPLUG_CRON_SECRET"
+          curl --fail-with-body --silent --show-error             --max-time 120             -H "Authorization: Bearer ${SAFARIPLUG_CRON_SECRET}"             "https://safariplug.com/api/cron/supplier-followup-drafts"
