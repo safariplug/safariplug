@@ -28,6 +28,13 @@ export default async function VerificationTrustPage() {
   const travelerPending = travelerCases.filter((row) =>
     ["not_started", "pending", "in_review"].includes(row.status)
   ).length;
+  const driverCases = cases.filter((row) => row.subject_type === "driver");
+  const localCases = cases.filter((row) => row.subject_type === "local");
+  const specialistCases = cases.filter((row) => row.subject_type === "service_staff");
+  const specialistApproved = specialistCases.filter((row) => row.status === "approved").length;
+  const specialistPending = specialistCases.filter((row) =>
+    ["not_started", "pending", "in_review"].includes(row.status)
+  ).length;
 
   const identity = providers.find((row) => row.key === "identity_provider");
   const liveness = providers.find((row) => row.key === "liveness_provider");
@@ -52,25 +59,27 @@ export default async function VerificationTrustPage() {
           <h1 className="mt-2 text-3xl font-extrabold">Trust operations center</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
             Monitor identity, live face/liveness and other verification cases across travelers,
-            drivers, Locals and providers. External Sumsub decisions are provider-managed:
+            drivers, Locals, individual service specialists and providers. External Sumsub decisions are provider-managed:
             SafariPlug staff can revoke an approved case for safety, but cannot manually invent
             identity or liveness approval.
           </p>
         </header>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           <Metric label="Traveler cases" value={String(travelerCases.length)} />
-          <Metric label="Traveler approved" value={String(travelerApproved)} />
           <Metric label="Traveler pending" value={String(travelerPending)} />
+          <Metric label="Driver cases" value={String(driverCases.length)} />
+          <Metric label="Local cases" value={String(localCases.length)} />
+          <Metric label="Specialists approved" value={String(specialistApproved)} />
+          <Metric label="Specialists pending" value={String(specialistPending)} />
           <Metric label="Identity + liveness" value={sumsubReady ? "connected" : "not ready"} />
-          <Metric label="Verification schema" value={migrationPending ? "pending" : "ready"} />
         </section>
 
         <section className={`rounded-2xl border p-6 ${sumsubReady ? "border-emerald-900/60 bg-emerald-950/10" : "border-amber-900/60 bg-amber-950/10"}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">
-                Traveler booking gate
+                Marketplace trust gates
               </p>
               <h2 className="mt-2 text-xl font-bold">
                 {sumsubReady
@@ -78,17 +87,17 @@ export default async function VerificationTrustPage() {
                   : "Traveler trust-sensitive bookings remain blocked until verification is configured"}
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-                Specific-driver requests, specific-Local requests, personal-service appointments,
-                Hotelbeds Transfers payment and Hotelbeds Activities payment require an approved,
-                unexpired traveler verification case.
+                Travelers must be verified for trust-sensitive bookings. Drivers, Locals and each
+                specific service specialist must also have their own approved identity + live face/liveness
+                result before they can be represented as verified or bookable.
               </p>
             </div>
-            <Link
-              href="/account/verification"
-              className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300"
-            >
-              Open traveler verification UI →
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/account/verification" className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300">Traveler verification →</Link>
+              <Link href="/business/services/identity" className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300">Service specialist identity →</Link>
+              <Link href="/admin/integrations/drivers" className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300">Driver readiness →</Link>
+              <Link href="/admin/integrations/locals" className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300">Local readiness →</Link>
+            </div>
           </div>
         </section>
 
@@ -200,7 +209,7 @@ export default async function VerificationTrustPage() {
             <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">
               Other verification cases
             </p>
-            <h2 className="mt-2 text-xl font-bold">Drivers, Locals and providers</h2>
+            <h2 className="mt-2 text-xl font-bold">Drivers, Locals, service specialists and providers</h2>
           </div>
 
           <CreateCaseForm />
