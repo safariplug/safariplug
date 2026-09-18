@@ -7,14 +7,14 @@ export const dynamic = "force-dynamic";
 const interests = ["Nightlife", "Food & culture", "Hidden gems", "Shopping", "Photography", "Beach & outdoors", "Business & networking", "City companion"];
 
 export default async function LocalsPage() {
-  const { data } = await supabaseAdmin.from("local_profiles").select("id,display_name,bio,personal_photo_url,city,country,languages,interests,specialties,hourly_rate,currency,verification_state,service_status").eq("service_status", "active").eq("verification_state", "verified").order("created_at", { ascending: false }).limit(30);
+  const { data } = await supabaseAdmin.from("local_profiles").select("id,display_name,bio,personal_photo_url,identity_liveness_verified_at,city,country,languages,interests,specialties,hourly_rate,currency,verification_state,service_status").eq("service_status", "active").eq("verification_state", "verified").not("identity_liveness_verified_at","is",null).order("created_at", { ascending: false }).limit(30);
   const locals = data ?? [];
 
   return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
     <section className="bg-[#111] text-white"><div className="mx-auto max-w-7xl px-6 pb-16 pt-12 sm:px-10 sm:pb-20 sm:pt-16">
       <p className="text-[11px] font-semibold uppercase tracking-[.28em] text-[#c9a86a]">SafariPlug / Locals</p>
       <h1 className="mt-5 max-w-4xl text-5xl font-semibold tracking-[-.05em] sm:text-7xl">Meet the city through a local.<br/><span className="text-white/40">People, not generic itineraries.</span></h1>
-      <p className="mt-6 max-w-2xl text-base leading-7 text-white/60 sm:text-lg">Browse activated, verified local companions by city, language and interests. Public profiles only appear after SafariPlug verification.</p>
+      <p className="mt-6 max-w-2xl text-base leading-7 text-white/60 sm:text-lg">Browse activated Local companions by city, language and interests. Public profiles only appear after approved external identity + live face/liveness verification and SafariPlug activation.</p>
       <div className="mt-8 flex flex-wrap gap-3"><Link href="/locals/onboarding" className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-black">Become a SafariPlug Local →</Link><Link href={`/concierge?q=${encodeURIComponent("Help me find a local companion")}`} className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold">Ask Concierge</Link></div>
     </div></section>
     <DiscoverySwitcher current="/locals" />
