@@ -139,7 +139,7 @@ export async function POST(request: Request) {
       const mpesa = getPaymentAdapter("mpesa");
       if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
 
-      const { data: existingIntent, error: existingIntentError } = await supabase
+      const { data: existingIntent, error: existingIntentError } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .select("*")
         .eq("customer_user_id", user.id)
@@ -207,7 +207,7 @@ export async function POST(request: Request) {
         responseLanguage: "en",
       });
 
-      const { data: ledger, error: ledgerError } = await supabase
+      const { data: ledger, error: ledgerError } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .insert({
           customer_user_id: user.id,
@@ -251,7 +251,7 @@ export async function POST(request: Request) {
 
       if (ledgerError || !ledger) {
         if (ledgerError?.code === "23505") {
-          const { data: racedIntent, error: racedIntentError } = await supabase
+          const { data: racedIntent, error: racedIntentError } = await supabaseAdmin
             .from("activity_booking_pricing_ledger")
             .select("*")
             .eq("customer_user_id", user.id)
@@ -276,7 +276,7 @@ export async function POST(request: Request) {
       }
 
       const preconfirmStartedAt = new Date().toISOString();
-      const { data: claimedLedger, error: claimError } = await supabase
+      const { data: claimedLedger, error: claimError } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .update({
           preconfirm_initiation_started_at: preconfirmStartedAt,
@@ -312,7 +312,7 @@ export async function POST(request: Request) {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Hotelbeds activity preconfirmation failed.";
         if (activityPreconfirmDefinitelyRejected(error)) {
-          await supabase
+          await supabaseAdmin
             .from("activity_booking_pricing_ledger")
             .update({
               booking_status: "failed",
@@ -327,7 +327,7 @@ export async function POST(request: Request) {
           throw error;
         }
 
-        await supabase
+        await supabaseAdmin
           .from("activity_booking_pricing_ledger")
           .update({
             metadata: {
@@ -355,7 +355,7 @@ export async function POST(request: Request) {
       const supplierReference = activityBookingReference(preconfirmed);
       const supplierStatus = activityBookingStatus(preconfirmed);
       if (!supplierReference || supplierStatus !== "PRECONFIRMED") {
-        await supabase
+        await supabaseAdmin
           .from("activity_booking_pricing_ledger")
           .update({
             metadata: {
@@ -380,7 +380,7 @@ export async function POST(request: Request) {
       }
 
       const preconfirmedAt = new Date().toISOString();
-      const { data: heldLedger, error: holdUpdateError } = await supabase
+      const { data: heldLedger, error: holdUpdateError } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .update({
           provider_booking_reference: supplierReference,
@@ -401,7 +401,7 @@ export async function POST(request: Request) {
       }
 
       const paymentStartedAt = new Date().toISOString();
-      const { data: paymentClaim, error: paymentClaimError } = await supabase
+      const { data: paymentClaim, error: paymentClaimError } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .update({
           payment_status: "pending",
@@ -449,7 +449,7 @@ export async function POST(request: Request) {
       } catch (error) {
         const message = error instanceof Error ? error.message : "M-Pesa payment initiation failed.";
         if (activityPaymentSafeToRetry(error)) {
-          await supabase
+          await supabaseAdmin
             .from("activity_booking_pricing_ledger")
             .update({
               payment_status: "unpaid",
@@ -464,7 +464,7 @@ export async function POST(request: Request) {
           throw error;
         }
 
-        await supabase
+        await supabaseAdmin
           .from("activity_booking_pricing_ledger")
           .update({
             payment_status: "pending",
@@ -490,7 +490,7 @@ export async function POST(request: Request) {
         });
       }
 
-      const { data: updated } = await supabase
+      const { data: updated } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .update({
           payment_provider: "mpesa",
@@ -530,7 +530,7 @@ export async function POST(request: Request) {
     const bookingId = String(body.bookingId || body.preparedBookingId || "");
     if (!bookingId) return errorResponse(400, "bookingId is required.");
 
-    const { data: ledger, error: ledgerError } = await supabase
+    const { data: ledger, error: ledgerError } = await supabaseAdmin
       .from("activity_booking_pricing_ledger")
       .select("*")
       .eq("customer_user_id", user.id)
@@ -595,7 +595,7 @@ export async function POST(request: Request) {
         "CANCELLATION",
         "en"
       );
-      const { data: updated } = await supabase
+      const { data: updated } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .update({
           booking_status: "cancelled",
@@ -651,7 +651,7 @@ export async function POST(request: Request) {
           update.supplier_settlement_status = "failed";
         }
 
-        const { data: refreshed } = await supabase
+        const { data: refreshed } = await supabaseAdmin
           .from("activity_booking_pricing_ledger")
           .update(update)
           .eq("id", workingLedger.id)
@@ -724,7 +724,7 @@ export async function POST(request: Request) {
       }
 
       const confirmedAt = new Date().toISOString();
-      const { data: updated, error: updateError } = await supabase
+      const { data: updated, error: updateError } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .update({
           booking_status: "confirmed",
@@ -759,7 +759,7 @@ export async function POST(request: Request) {
           ? error.message
           : "Hotelbeds activity reconfirmation returned an unknown result.";
 
-      const { data: pending } = await supabase
+      const { data: pending } = await supabaseAdmin
         .from("activity_booking_pricing_ledger")
         .update({
           booking_status: "payment_pending",
