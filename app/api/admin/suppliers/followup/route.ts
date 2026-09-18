@@ -90,13 +90,14 @@ function inferMissingRequirements(supplier: NonNullable<Awaited<ReturnType<typeo
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const body = await request.json().catch(() => null) as {
       supplierId?: unknown;
       action?: unknown;
       subject?: unknown;
       message?: unknown;
       approved?: unknown;
+      nextFollowupDueAt?: unknown;
     } | null;
 
     const supplierId = clean(body?.supplierId, 100);
@@ -152,8 +153,29 @@ export async function POST(request: Request) {
     if (body?.approved !== true) return NextResponse.json({ error: "Staff review and explicit approval are required before sending." }, { status: 400 });
     const subject = clean(body?.subject, 180);
     const message = clean(body?.message, 5000);
+    const nextFollowupDueAt = clean(body?.nextFollowupDueAt, 100);
+    const parsedDue = nextFollowupDueAt ? Date.parse(nextFollowupDueAt) : NaN;
+    const dueAt = Number.isFinite(parsedDue) && parsedDue > Date.now()
+      ? new Date(parsedDue).toISOString()
+      : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
     if (!subject || !message) return NextResponse.json({ error: "Subject and message are required before sending." }, { status: 400 });
     if (!process.env.RESEND_API_KEY) return NextResponse.json({ error: "RESEND_API_KEY is not configured." }, { status: 500 });
+
+    const { data: recent } = await supabaseAdmin
+      .from("supplier_onboarding_followups")
+      .select("id,sent_at,subject")
+      .eq("supplier_id", supplierId)
+      .eq("status", "sent")
+      .gte("sent_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recent) {
+      return NextResponse.json({
+        error: `A supplier follow-up was already sent within the last 24 hours (${new Date(recent.sent_at).toLocaleString()}). Review the history before sending another reminder.`,
+        duplicateProtected: true,
+      }, { status: 409 });
+    }
 
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { error } = await resend.emails.send({
@@ -164,7 +186,32 @@ export async function POST(request: Request) {
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 502 });
 
-    return NextResponse.json({ success: true, recipient: to });
+    const sentAt = new Date().toISOString();
+    const { data: history, error: historyError } = await supabaseAdmin
+      .from("supplier_onboarding_followups")
+      .insert({
+        supplier_id: supplierId,
+        recipient_email: to,
+        subject,
+        message,
+        missing_requirements: context.missingRequirements,
+        status: "sent",
+        sent_at: sentAt,
+        next_followup_due_at: dueAt,
+        created_by: admin.id,
+      })
+      .select("id,sent_at,next_followup_due_at")
+      .single();
+
+    if (historyError || !history) {
+      return NextResponse.json({
+        error: "Email was sent, but SafariPlug could not record the follow-up history. Do not resend until the delivery is reconciled.",
+        sent: true,
+        recipient: to,
+      }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, recipient: to, followup: history });
   } catch (error) {
     if (error instanceof AdminAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to process supplier follow-up." }, { status: 500 });

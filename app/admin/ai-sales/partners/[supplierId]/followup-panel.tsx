@@ -10,12 +10,30 @@ type Draft = {
   source?: string;
 };
 
-export function SupplierFollowupPanel({ supplierId, eligible }: { supplierId: string; eligible: boolean }) {
+type FollowupHistory = {
+  id: string;
+  recipientEmail: string;
+  subject: string;
+  message: string;
+  missingRequirements: string[];
+  sentAt: string;
+  nextFollowupDueAt: string | null;
+  status: string;
+};
+
+function defaultDueDate() {
+  const d = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+export function SupplierFollowupPanel({ supplierId, eligible, initialHistory }: { supplierId: string; eligible: boolean; initialHistory: FollowupHistory[] }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [approved, setApproved] = useState(false);
   const [notice, setNotice] = useState("");
+  const [history, setHistory] = useState<FollowupHistory[]>(initialHistory);
+  const [nextFollowupDate, setNextFollowupDate] = useState(defaultDueDate());
 
   async function generate() {
     setLoading(true);
@@ -57,11 +75,24 @@ export function SupplierFollowupPanel({ supplierId, eligible }: { supplierId: st
           subject: draft.subject,
           message: draft.message,
           approved: true,
+          nextFollowupDueAt: nextFollowupDate ? `${nextFollowupDate}T09:00:00.000Z` : null,
         }),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.error || "Unable to send supplier follow-up.");
       setNotice(`Email sent to ${body.recipient || draft.recipient}.`);
+      if (body.followup) {
+        setHistory((current) => [{
+          id: String(body.followup.id),
+          recipientEmail: String(body.recipient || draft.recipient),
+          subject: draft.subject,
+          message: draft.message,
+          missingRequirements: draft.missingRequirements,
+          sentAt: String(body.followup.sent_at || new Date().toISOString()),
+          nextFollowupDueAt: body.followup.next_followup_due_at ? String(body.followup.next_followup_due_at) : null,
+          status: "sent",
+        }, ...current]);
+      }
       setApproved(false);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to send supplier follow-up.");
@@ -116,6 +147,18 @@ export function SupplierFollowupPanel({ supplierId, eligible }: { supplierId: st
             />
           </label>
 
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Next follow-up date</span>
+            <input
+              type="date"
+              value={nextFollowupDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(event) => setNextFollowupDate(event.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-black p-3 text-sm text-zinc-200 outline-none"
+            />
+            <span className="mt-1 block text-[10px] text-zinc-500">SafariPlug records this as the next staff review date. It does not send another email automatically.</span>
+          </label>
+
           <label className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
             <input type="checkbox" checked={approved} onChange={(event) => setApproved(event.target.checked)} className="mt-1" />
             <span>I reviewed the recipient, missing requirements, subject and message. I approve this exact email for sending.</span>
@@ -134,6 +177,46 @@ export function SupplierFollowupPanel({ supplierId, eligible }: { supplierId: st
           </div>
         </div>
       )}
+      <div className="mt-6 border-t border-zinc-800 pt-5">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Follow-up history</p>
+            <h3 className="mt-1 font-semibold">{history.length} recorded email{history.length === 1 ? "" : "s"}</h3>
+          </div>
+          {history[0]?.nextFollowupDueAt && (
+            <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${Date.parse(history[0].nextFollowupDueAt) <= Date.now() ? "bg-red-950 text-red-300" : "bg-amber-950 text-amber-300"}`}>
+              {Date.parse(history[0].nextFollowupDueAt) <= Date.now() ? "Follow-up overdue" : "Waiting on supplier"}
+            </span>
+          )}
+        </div>
+        <div className="mt-3 space-y-3">
+          {history.map((item) => (
+            <details key={item.id} className="rounded-xl border border-zinc-800 bg-black p-4">
+              <summary className="cursor-pointer list-none">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">{item.subject}</p>
+                    <p className="mt-1 text-xs text-zinc-500">Sent {new Date(item.sentAt).toLocaleString()} · {item.recipientEmail}</p>
+                  </div>
+                  <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                    {item.nextFollowupDueAt ? `Next review ${new Date(item.nextFollowupDueAt).toLocaleDateString()}` : "No next date"}
+                  </span>
+                </div>
+              </summary>
+              <div className="mt-4 border-t border-zinc-800 pt-4">
+                {item.missingRequirements.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Missing items snapshot</p>
+                    <ul className="mt-2 space-y-1 text-xs text-zinc-400">{item.missingRequirements.map((value) => <li key={value}>• {value}</li>)}</ul>
+                  </div>
+                )}
+                <p className="mt-4 whitespace-pre-wrap text-xs leading-5 text-zinc-400">{item.message}</p>
+              </div>
+            </details>
+          ))}
+          {!history.length && <p className="rounded-xl border border-dashed border-zinc-800 p-4 text-sm text-zinc-500">No onboarding follow-up email has been recorded yet.</p>}
+        </div>
+      </div>
     </section>
   );
 }
