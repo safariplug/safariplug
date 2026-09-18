@@ -22,7 +22,7 @@ export default async function SpecialistVerificationPage({
 
   const { data: staff } = await supabaseAdmin
     .from("service_staff")
-    .select("id,display_name,personal_photo_url,status,verification_state,identity_liveness_verified_at,service_profiles(id,businesses(name))")
+    .select("id,display_name,personal_photo_url,status,verification_state,identity_liveness_verified_at,service_profile_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -44,13 +44,22 @@ export default async function SpecialistVerificationPage({
       (!verification.expires_at || new Date(verification.expires_at) > new Date())
   );
 
-  const businessName =
-    staff &&
-    staff.service_profiles &&
-    typeof staff.service_profiles === "object" &&
-    "businesses" in staff.service_profiles
-      ? String((staff.service_profiles as { businesses?: { name?: string } | null }).businesses?.name || "SafariPlug service provider")
-      : "SafariPlug service provider";
+  let businessName = "SafariPlug service provider";
+  if (staff?.service_profile_id) {
+    const { data: profile } = await supabaseAdmin
+      .from("service_profiles")
+      .select("business_id")
+      .eq("id", staff.service_profile_id)
+      .maybeSingle();
+    if (profile?.business_id) {
+      const { data: business } = await supabaseAdmin
+        .from("businesses")
+        .select("name")
+        .eq("id", profile.business_id)
+        .maybeSingle();
+      if (business?.name) businessName = business.name;
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f7f4] px-6 py-12 text-[#111]">
