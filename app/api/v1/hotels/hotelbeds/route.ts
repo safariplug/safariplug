@@ -8,6 +8,7 @@ import { resolveHotelbedsRateComments } from "@/lib/integrations/hotels/hotelbed
 import { assertHotelbedsPreflightAccepted, mergeHotelbedsNotices } from "@/lib/integrations/hotels/hotelbeds-checkout-preflight";
 import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
+import { publicHotelCheckoutLedger } from "@/lib/integrations/hotels/hotel-public-ledger";
 
 export const dynamic = "force-dynamic";
 const DEFAULT_MARKUP_PERCENT = 10;
@@ -257,7 +258,7 @@ export async function POST(request: Request) {
         bookingId,
         pricing: { supplierNetAmount: final.supplierNet, customerRetailAmount: converted.amount, supplierCurrency: final.supplierCurrency, customerCurrency, exchangeRate: converted.rate, markupPercent: percent },
         rate: { rateType: final.rateType, roomName: final.roomName, boardName: final.boardName, cancellation: final.cancellation, notices: final.notices || [] },
-        ledger: updated || ledger,
+        ledger: publicHotelCheckoutLedger(updated || ledger),
         payment,
       });
     }
@@ -289,7 +290,7 @@ export async function POST(request: Request) {
         booking_status: "cancelled",
         metadata: { ...metadata, cancellationPreview: preview, cancellationResponse: cancelled, cancelledAt: new Date().toISOString(), refundStatus: "not_automated" },
       }).eq("id", ledger.id).select("*").single();
-      return NextResponse.json({ provider: "hotelbeds", status: "cancelled", preview, providerBooking: cancelled, ledger: updatedLedger, refund: "Any customer refund due is handled separately; supplier cancellation does not automatically issue an M-Pesa refund." });
+      return NextResponse.json({ provider: "hotelbeds", status: "cancelled", preview, providerBooking: cancelled, ledger: publicHotelCheckoutLedger(updatedLedger), refund: "Any customer refund due is handled separately; supplier cancellation does not automatically issue an M-Pesa refund." });
     }
 
     if (action !== "status") return errorResponse(400, "Unsupported Hotelbeds action.");
@@ -307,15 +308,15 @@ export async function POST(request: Request) {
       }
     }
 
-    if (workingLedger.payment_status === "failed") return NextResponse.json({ provider: "hotelbeds", status: "failed", ledger: workingLedger, message: "M-Pesa payment failed; Hotelbeds was not booked." });
-    if (workingLedger.payment_status !== "paid") return NextResponse.json({ provider: "hotelbeds", status: "payment_pending", ledger: workingLedger, supplierStatus: "awaiting_customer_payment" });
+    if (workingLedger.payment_status === "failed") return NextResponse.json({ provider: "hotelbeds", status: "failed", ledger: publicHotelCheckoutLedger(workingLedger), message: "M-Pesa payment failed; Hotelbeds was not booked." });
+    if (workingLedger.payment_status !== "paid") return NextResponse.json({ provider: "hotelbeds", status: "payment_pending", ledger: publicHotelCheckoutLedger(workingLedger), supplierStatus: "awaiting_customer_payment" });
     if (workingLedger.booking_status === "confirmed") {
-      return NextResponse.json({ provider: "hotelbeds", status: "confirmed", ledger: workingLedger, voucher: (workingLedger.metadata as Record<string, unknown> | null)?.voucher || null, providerBooking: (workingLedger.metadata as Record<string, unknown> | null)?.providerBooking || null });
+      return NextResponse.json({ provider: "hotelbeds", status: "confirmed", ledger: publicHotelCheckoutLedger(workingLedger), voucher: (workingLedger.metadata as Record<string, unknown> | null)?.voucher || null, providerBooking: (workingLedger.metadata as Record<string, unknown> | null)?.providerBooking || null });
     }
 
     const currentMetadata = workingLedger.metadata && typeof workingLedger.metadata === "object" && !Array.isArray(workingLedger.metadata) ? workingLedger.metadata as Record<string, unknown> : {};
     if (currentMetadata.confirmAttemptIndeterminateAt) {
-      return NextResponse.json({ provider: "hotelbeds", status: "payment_pending", supplierStatus: "confirmation_indeterminate", reconciliation: "manual_required", ledger: workingLedger, message: "Payment succeeded, but Hotelbeds confirmation returned an indeterminate result. SafariPlug will not retry blindly because that could create a duplicate reservation." });
+      return NextResponse.json({ provider: "hotelbeds", status: "payment_pending", supplierStatus: "confirmation_indeterminate", reconciliation: "manual_required", ledger: publicHotelCheckoutLedger(workingLedger), message: "Payment succeeded, but Hotelbeds confirmation returned an indeterminate result. SafariPlug will not retry blindly because that could create a duplicate reservation." });
     }
 
     const bookingToken = String(currentMetadata.bookingToken || "");
@@ -364,7 +365,7 @@ export async function POST(request: Request) {
         metadata: { ...currentMetadata, confirmAcceptedAt: confirmedAt, providerBooking: provider, voucher, clientReference },
       }).eq("id", workingLedger.id).eq("customer_user_id", user.id).select("*").single();
       if (updateError) throw new Error(updateError.message);
-      return NextResponse.json({ provider: "hotelbeds", status: "confirmed", providerBooking: provider, voucher, ledger: updatedLedger, itineraryItem });
+      return NextResponse.json({ provider: "hotelbeds", status: "confirmed", providerBooking: provider, voucher, ledger: publicHotelCheckoutLedger(updatedLedger), itineraryItem });
     } catch (error) {
       const timestamp = new Date().toISOString();
       const message = error instanceof Error ? error.message : "Hotelbeds confirmation returned an unknown result.";
