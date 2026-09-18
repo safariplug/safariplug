@@ -116,6 +116,23 @@ export async function POST(request: Request) {
     const to = clean(business?.email, 320).toLowerCase();
     if (!validEmail(to)) return NextResponse.json({ error: "Supplier does not have a valid business email." }, { status: 422 });
 
+    const { data: previousFollowup } = await supabaseAdmin
+      .from("supplier_onboarding_followups")
+      .select("id,missing_requirements,sent_at,subject")
+      .eq("supplier_id", supplierId)
+      .eq("status", "sent")
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const missingRequirements = inferMissingRequirements(supplier);
+    const previousRequirements = Array.isArray(previousFollowup?.missing_requirements)
+      ? previousFollowup.missing_requirements.map(String)
+      : [];
+    const resolvedSinceLast = previousRequirements.filter((item) => !missingRequirements.includes(item));
+    const stillMissing = missingRequirements.filter((item) => previousRequirements.includes(item));
+    const newlyMissing = missingRequirements.filter((item) => !previousRequirements.includes(item));
+
     const context = {
       name: clean(supplier.contact_name, 200),
       businessName: clean(business?.name, 300) || "your business",
@@ -123,7 +140,15 @@ export async function POST(request: Request) {
       completion: Number(supplier.completion_percent || 0),
       reviewItems: Array.isArray(supplier.review_items) ? supplier.review_items.map(String).slice(0, 20) : [],
       reviewNote: clean(supplier.review_note, 2000),
-      missingRequirements: inferMissingRequirements(supplier),
+      missingRequirements,
+      previousFollowup: previousFollowup ? {
+        sentAt: previousFollowup.sent_at,
+        subject: previousFollowup.subject,
+        previousRequirements,
+        resolvedSinceLast,
+        stillMissing,
+        newlyMissing,
+      } : null,
     };
 
     if (action === "draft") {
@@ -134,7 +159,7 @@ export async function POST(request: Request) {
             model: process.env.OPENAI_ASSIST_MODEL || "gpt-5-mini",
             max_output_tokens: 550,
             input: [
-              { role: "system", content: "You draft concise SafariPlug supplier onboarding reminder emails for staff review. Use only supplied facts. Never invent deadlines, penalties, approvals, verification outcomes, prices, licenses, or missing requirements. Do not shame or pressure the supplier. Output JSON only with subject and message. The email must say progress is saved and direct the supplier to sign in to the SafariPlug supplier portal. Mention every supplied missing requirement plainly and do not add any missing requirement that was not supplied. Staff will edit and explicitly approve before sending." },
+              { role: "system", content: "You draft concise SafariPlug supplier onboarding reminder emails for staff review. Use only supplied facts. Never invent deadlines, penalties, approvals, verification outcomes, prices, licenses, or missing requirements. Do not shame or pressure the supplier. Output JSON only with subject and message. The email must say progress is saved and direct the supplier to sign in to the SafariPlug supplier portal. Mention every CURRENT missing requirement plainly and do not add any missing requirement that was not supplied. If previousFollowup exists, acknowledge resolvedSinceLast briefly when non-empty, focus the reminder on stillMissing and newlyMissing, and do not ask again for resolved items. Staff will edit and explicitly approve before sending." },
               { role: "user", content: JSON.stringify(context) },
             ],
           });
@@ -147,7 +172,19 @@ export async function POST(request: Request) {
           // Keep deterministic draft when AI is unavailable or returns invalid JSON.
         }
       }
-      return NextResponse.json({ recipient: to, subject: draft.subject, message: draft.message, missingRequirements: context.missingRequirements, source: process.env.OPENAI_API_KEY ? "ai_with_fallback" : "deterministic" });
+      return NextResponse.json({
+        recipient: to,
+        subject: draft.subject,
+        message: draft.message,
+        missingRequirements: context.missingRequirements,
+        followupComparison: context.previousFollowup ? {
+          previousSentAt: context.previousFollowup.sentAt,
+          resolvedSinceLast: context.previousFollowup.resolvedSinceLast,
+          stillMissing: context.previousFollowup.stillMissing,
+          newlyMissing: context.previousFollowup.newlyMissing,
+        } : null,
+        source: process.env.OPENAI_API_KEY ? "ai_with_fallback" : "deterministic"
+      });
     }
 
     if (body?.approved !== true) return NextResponse.json({ error: "Staff review and explicit approval are required before sending." }, { status: 400 });
