@@ -16,7 +16,8 @@ const tools = [
   { type: "function" as const, name: "search_locals", description: "Search active verified SafariPlug Local companions using public-eligibility rules.", parameters: { type: "object", properties: { city: { type: "string" }, interest: { type: "string" } }, required: ["city","interest"], additionalProperties: false }, strict: true },
   { type: "function" as const, name: "search_events", description: "Search approved upcoming SafariPlug events using real catalog data.", parameters: { type: "object", properties: { city: { type: "string" }, query: { type: "string" }, limit: { type: "number" } }, required: ["city","query","limit"], additionalProperties: false }, strict: true }
 ];
-type ToolJourneyContext = { startOn: string | null; endOn: string | null; busy: Array<{ start: string; end: string; title: string }> };\nasync function runTool(name: string, args: Record<string, unknown>, journeyContext: ToolJourneyContext | null = null) {
+type ToolJourneyContext = { startOn: string | null; endOn: string | null; busy: Array<{ start: string; end: string; title: string }> };
+async function runTool(name: string, args: Record<string, unknown>, journeyContext: ToolJourneyContext | null = null) {
   if (name === "search_services") {
     const query = String(args.query || "").trim().toLowerCase(); const city = String(args.city || "").trim(); const maxPrice = typeof args.maxPrice === "number" ? args.maxPrice : null; let cityIds: string[] | null = null; const cityNames = new Map<string, string>();
     if (city) { const { data: cities } = await supabaseAdmin.from("cities").select("id,name").ilike("name", `%${city}%`).limit(10); cityIds = (cities ?? []).map((c: any) => c.id); for (const c of cities ?? []) cityNames.set(c.id, c.name); if (!cityIds.length) return []; }
