@@ -15,6 +15,7 @@ import { openHotelbedsTransferSelectionToken } from "@/lib/integrations/hotelbed
 import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
+import { normalizeTransferCheckoutIntentKey, transferPaymentSafeToRetry } from "@/lib/integrations/hotelbeds/transfer-payment-safety";
 
 export const dynamic = "force-dynamic";
 
@@ -48,26 +49,6 @@ function metadataRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function checkoutIntentKey(value: unknown) {
-  const key = String(value || "").trim();
-  if (!/^[A-Za-z0-9._:-]{16,160}$/.test(key)) {
-    throw new Error("A valid checkout idempotency key is required.");
-  }
-  return key;
-}
-
-function safePaymentRetry(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "");
-  return (
-    message.startsWith("mpesa_oauth_error:") ||
-    message === "mpesa_access_token_missing" ||
-    message === "mpesa_credentials_not_configured" ||
-    message === "mpesa_base_url_not_configured" ||
-    message === "invalid_mpesa_phone" ||
-    message === "invalid_payment_amount"
-  );
 }
 
 export async function POST(request: Request) {
@@ -136,7 +117,7 @@ export async function POST(request: Request) {
       await assertTravelerVerified(user.id);
       const selectionToken = String(body.selectionToken || "");
       if (!selectionToken) return errorResponse(400, "selectionToken is required.");
-      const intentKey = checkoutIntentKey(body.idempotencyKey);
+      const intentKey = normalizeTransferCheckoutIntentKey(body.idempotencyKey);
       if (body.termsAccepted !== true) {
         return errorResponse(400, "Accept the transfer rate and cancellation terms before payment.");
       }
@@ -315,7 +296,7 @@ export async function POST(request: Request) {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "M-Pesa payment initiation failed.";
-        if (safePaymentRetry(error)) {
+        if (transferPaymentSafeToRetry(error)) {
           await supabase
             .from("transfer_booking_pricing_ledger")
             .update({
