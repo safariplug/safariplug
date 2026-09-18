@@ -248,6 +248,12 @@ export async function POST(request: Request) {
       }, { status: 500 });
     }
 
+    await supabaseAdmin
+      .from("supplier_onboarding_followup_drafts")
+      .update({ status: "used", updated_at: new Date().toISOString() })
+      .eq("supplier_id", supplierId)
+      .eq("status", "prepared");
+
     return NextResponse.json({ success: true, recipient: to, followup: history });
   } catch (error) {
     if (error instanceof AdminAuthError) return NextResponse.json({ error: error.message }, { status: error.status });

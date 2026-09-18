@@ -32,8 +32,10 @@ function defaultDueDate() {
   return d.toISOString().slice(0, 10);
 }
 
-export function SupplierFollowupPanel({ supplierId, eligible, initialHistory }: { supplierId: string; eligible: boolean; initialHistory: FollowupHistory[] }) {
-  const [draft, setDraft] = useState<Draft | null>(null);
+type PreparedDraft = Draft & { id: string; preparedAt: string };
+
+export function SupplierFollowupPanel({ supplierId, eligible, initialHistory, initialPreparedDraft }: { supplierId: string; eligible: boolean; initialHistory: FollowupHistory[]; initialPreparedDraft: PreparedDraft | null }) {
+  const [draft, setDraft] = useState<Draft | null>(initialPreparedDraft);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [approved, setApproved] = useState(false);
@@ -134,6 +136,7 @@ export function SupplierFollowupPanel({ supplierId, eligible, initialHistory }: 
       </div>
 
       {!eligible && <p className="mt-4 rounded-xl border border-zinc-800 p-4 text-sm text-zinc-500">Follow-up drafting is available while onboarding is draft, in progress, or changes are requested.</p>}
+      {initialPreparedDraft && draft === initialPreparedDraft && <p className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-3 text-sm text-amber-200">Prepared automatically on {new Date(initialPreparedDraft.preparedAt).toLocaleString()}. Review or regenerate it before sending.</p>}
       {notice && <p className="mt-4 rounded-xl border border-zinc-800 bg-black p-3 text-sm text-zinc-300">{notice}</p>}
 
       {draft && (
@@ -187,7 +190,7 @@ export function SupplierFollowupPanel({ supplierId, eligible, initialHistory }: 
           </label>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-zinc-500">Draft source: {draft.source === "ai_with_fallback" ? "AI-assisted with deterministic fallback" : "deterministic onboarding facts"}.</p>
+            <p className="text-xs text-zinc-500">Draft source: {draft.source === "ai_with_fallback" ? "AI-assisted with deterministic fallback" : draft.source === "scheduled_prepared" ? "scheduled factual preparation" : "deterministic onboarding facts"}.</p>
             <button
               type="button"
               onClick={() => void send()}
