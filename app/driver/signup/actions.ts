@@ -7,6 +7,7 @@ import { aiDocumentIsAutoApproved, verifyDriverDocument, type AIDocumentKind } f
 const capabilities = new Set(["airport_transfer", "hotel_transfer", "long_distance", "city_transfer", "child_seat", "wheelchair_accessible", "large_luggage", "premium_vehicle"]);
 const providerTypes = new Set(["independent_driver", "safariplug_driver", "transport_company", "hotel_driver", "tour_operator", "aurelian_driver", "external_driver_provider"]);
 const documentTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+const profilePhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const TERMS_VERSION = "driver-terms-v1-2026-09-04";
 const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
 
@@ -48,6 +49,7 @@ export async function submitDriverApplication(formData: FormData) {
   const availableOn = String(formData.get("available_on") ?? "").trim();
   const startTime = String(formData.get("start_time") ?? "").trim();
   const endTime = String(formData.get("end_time") ?? "").trim();
+  const personalPhoto = formData.get("personal_photo");
   const license = formData.get("driving_license");
   const insurance = formData.get("insurance_document");
   const registration = formData.get("registration_document");
@@ -58,6 +60,7 @@ export async function submitDriverApplication(formData: FormData) {
   if (!providerTypes.has(providerType)) redirect("/driver/signup?error=Invalid%20driver%20provider%20type.");
   if (!vehicleCategory || !vehicleModel || !registrationNumber || !registrationExpiresOn || !insuranceExpiresOn || !licenseNumber || !licenseExpiresOn || !Number.isInteger(passengers) || passengers < 1) redirect("/driver/signup?error=Please%20complete%20all%20required%20vehicle%2C%20license%2C%20registration%20and%20insurance%20details.");
   if (!termsAccepted) redirect("/driver/signup?error=You%20must%20accept%20the%20SafariPlug%20Driver%20Terms%20and%20Conditions%20to%20apply.");
+  if (!(personalPhoto instanceof File) || personalPhoto.size < 1 || personalPhoto.size > 5 * 1024 * 1024 || !profilePhotoTypes.has(personalPhoto.type)) redirect("/driver/signup?error=Please%20upload%20a%20clear%20JPEG%2C%20PNG%20or%20WebP%20personal%20photo%20(max%205MB).");
   if (!(license instanceof File) || license.size < 1) redirect("/driver/signup?error=Please%20upload%20your%20driving%20license.");
   if (!(insurance instanceof File) || insurance.size < 1) redirect("/driver/signup?error=Please%20upload%20your%20insurance%20document.");
   if (!(registration instanceof File) || registration.size < 1) redirect("/driver/signup?error=Please%20upload%20your%20vehicle%20registration.");
@@ -68,8 +71,15 @@ export async function submitDriverApplication(formData: FormData) {
   const userId = authData.user.id;
   let driverId: string | null = null;
   const uploadedPaths: string[] = [];
+  let profilePhotoPath: string | null = null;
   try {
-    const { data: driver, error: driverError } = await supabaseAdmin.from("driver_profiles").insert({ user_id: userId, display_name: fullName, provider_type: providerType, contact_ref: phone, service_status: "pending", verification_state: "unverified", capabilities: selectedCapabilities, service_country: country || null, service_city: city, service_airport_code: airport || null, source: "safariplug", driving_license_number: licenseNumber, driving_license_expires_on: licenseExpiresOn, terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION }).select("id").single();
+    const photoExt = personalPhoto.type === "image/png" ? "png" : personalPhoto.type === "image/webp" ? "webp" : "jpg";
+    profilePhotoPath = `${userId}/profile-${crypto.randomUUID()}.${photoExt}`;
+    const { error: photoUploadError } = await supabaseAdmin.storage.from("driver-profile-photos").upload(profilePhotoPath, personalPhoto, { contentType: personalPhoto.type, upsert: false });
+    if (photoUploadError) throw new Error(`Unable to store driver personal photo: ${photoUploadError.message}`);
+    const { data: photoPublic } = supabaseAdmin.storage.from("driver-profile-photos").getPublicUrl(profilePhotoPath);
+
+    const { data: driver, error: driverError } = await supabaseAdmin.from("driver_profiles").insert({ user_id: userId, display_name: fullName, personal_photo_url: photoPublic.publicUrl, provider_type: providerType, contact_ref: phone, service_status: "pending", verification_state: "unverified", capabilities: selectedCapabilities, service_country: country || null, service_city: city, service_airport_code: airport || null, source: "safariplug", driving_license_number: licenseNumber, driving_license_expires_on: licenseExpiresOn, terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION }).select("id").single();
     if (driverError || !driver) throw new Error(driverError?.message ?? "Unable to create driver application.");
     driverId = driver.id;
 
@@ -105,6 +115,7 @@ export async function submitDriverApplication(formData: FormData) {
     if (caseUpdateError) throw new Error(caseUpdateError.message);
   } catch (error) {
     if (uploadedPaths.length) await supabaseAdmin.storage.from("driver-verification").remove(uploadedPaths);
+    if (profilePhotoPath) await supabaseAdmin.storage.from("driver-profile-photos").remove([profilePhotoPath]);
     await supabaseAdmin.auth.admin.deleteUser(userId, true);
     const message = error instanceof Error ? error.message : "Unable to submit application.";
     redirect(`/driver/signup?error=${encodeURIComponent(message)}`);
