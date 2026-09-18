@@ -12,8 +12,8 @@ type Business = {
   phone: string | null;
   email: string | null;
   whatsapp: string | null;
-  website: string | null;
-  instagram: string | null;
+  website_url: string | null;
+  instagram_url: string | null;
   status: string | null;
   city_id: string | null;
 };
@@ -56,7 +56,7 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
   const [{ data: business, error: businessError }, { data: profiles, error: profilesError }] = await Promise.all([
     supabaseAdmin
       .from("businesses")
-      .select("id,name,description,phone,email,whatsapp,website,instagram,status,city_id")
+      .select("id,name,description,phone,email,whatsapp,website_url,instagram_url,status,city_id")
       .eq("id", supplier.business_id)
       .maybeSingle(),
     supabaseAdmin
@@ -143,8 +143,8 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             <Field label="Email" value={b.email} />
             <Field label="Phone" value={b.phone} />
             <Field label="WhatsApp" value={b.whatsapp} />
-            <Field label="Website" value={b.website} />
-            <Field label="Instagram" value={b.instagram} />
+            <Field label="Website" value={b.website_url} />
+            <Field label="Instagram" value={b.instagram_url} />
           </Card>
           <Card title="Enrollment & governance">
             <Field label="Invitation" value={supplier.invitation_status} />
