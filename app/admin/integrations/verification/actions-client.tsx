@@ -5,13 +5,16 @@ import { useState } from "react";
 export function CaseActions({
   id,
   status,
+  provider,
 }: {
   id: string;
   status: string;
+  provider: string;
 }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const externalManaged = provider === "sumsub";
 
   async function post(path: string, body?: Record<string, string>) {
     setBusy(true);
@@ -35,8 +38,14 @@ export function CaseActions({
 
   return (
     <div className="mt-3 space-y-2">
+      {externalManaged && status !== "approved" ? (
+        <p className="rounded-lg border border-zinc-800 bg-black px-3 py-2 font-mono text-[10px] leading-5 text-zinc-500">
+          Sumsub controls approval/rejection for this case. SafariPlug staff cannot manually mark identity or liveness as passed.
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
-        {status === "pending" || status === "not_started" ? (
+        {!externalManaged && (status === "pending" || status === "not_started") ? (
           <button
             disabled={busy}
             onClick={() => void post(`/api/admin/verification/${id}/review`)}
@@ -45,7 +54,8 @@ export function CaseActions({
             Start review
           </button>
         ) : null}
-        {status === "in_review" ? (
+
+        {!externalManaged && status === "in_review" ? (
           <button
             disabled={busy}
             onClick={() => void post(`/api/admin/verification/${id}/approve`)}
@@ -54,7 +64,8 @@ export function CaseActions({
             Approve
           </button>
         ) : null}
-        {status === "in_review" || status === "pending" ? (
+
+        {!externalManaged && (status === "in_review" || status === "pending") ? (
           <button
             disabled={busy || !reason.trim()}
             onClick={() =>
@@ -65,6 +76,7 @@ export function CaseActions({
             Reject
           </button>
         ) : null}
+
         {status === "approved" ? (
           <button
             disabled={busy || !reason.trim()}
@@ -77,7 +89,9 @@ export function CaseActions({
           </button>
         ) : null}
       </div>
-      {(status === "in_review" || status === "pending" || status === "approved") && (
+
+      {((!externalManaged && (status === "in_review" || status === "pending")) ||
+        status === "approved") && (
         <input
           value={reason}
           onChange={(event) => setReason(event.target.value)}

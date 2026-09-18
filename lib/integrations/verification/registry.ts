@@ -1,5 +1,6 @@
 import { VERIFICATION_PROVIDER_NAMES, type VerificationAdapter } from "./adapter";
 import { UnavailableVerificationAdapter } from "./not-configured";
+import { SumsubVerificationAdapter } from "./sumsub";
 import type {
   VerificationProviderDescriptor,
   VerificationProviderKey,
@@ -13,7 +14,11 @@ const KEYS: VerificationProviderKey[] = [
   "background_provider",
 ];
 
-const factories = new Map<VerificationProviderKey, () => VerificationAdapter>();
+const factories = new Map<VerificationProviderKey, () => VerificationAdapter>([
+  ["identity_provider", () => new SumsubVerificationAdapter("identity_provider")],
+  ["liveness_provider", () => new SumsubVerificationAdapter("liveness_provider")],
+  ["document_provider", () => new SumsubVerificationAdapter("document_provider")],
+]);
 
 export function registerVerificationAdapter(
   key: VerificationProviderKey,

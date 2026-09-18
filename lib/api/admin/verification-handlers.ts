@@ -141,7 +141,8 @@ async function mutate(
     actor: { role: "admin"; id: string },
     store: MemoryVerificationStore,
     body: Record<string, unknown>
-  ) => ReturnType<typeof approveCase>
+  ) => ReturnType<typeof approveCase>,
+  allowExternalManaged = false
 ) {
   let actor;
   try {
@@ -154,6 +155,11 @@ async function mutate(
   }
   const ready = await withStore();
   if (!ready.ok) return ready.response;
+  const current = ready.store.getCase(id);
+  if (!current) return fail(404, "not_found", "Verification case not found.");
+  if (current.provider === "sumsub" && !allowExternalManaged) {
+    return fail(409, "external_provider_managed", "Sumsub controls identity/liveness review for this case. SafariPlug staff cannot manually review, approve, reject, or inject evidence into an external verification result.");
+  }
   let body: Record<string, unknown> = {};
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -196,8 +202,11 @@ export async function handleRejectVerification(request: Request, id: string) {
 }
 
 export async function handleRevokeVerification(request: Request, id: string) {
-  return mutate(request, id, (actor, store, body) =>
-    revokeCase(id, String(body.reason || ""), actor, store)
+  return mutate(
+    request,
+    id,
+    (actor, store, body) => revokeCase(id, String(body.reason || ""), actor, store),
+    true
   );
 }
 
@@ -213,6 +222,11 @@ export async function handleSubmitEvidence(request: Request, id: string) {
   }
   const ready = await withStore();
   if (!ready.ok) return ready.response;
+  const current = ready.store.getCase(id);
+  if (!current) return fail(404, "not_found", "Verification case not found.");
+  if (current.provider === "sumsub") {
+    return fail(409, "external_provider_managed", "Sumsub evidence is accepted only from the verified provider webhook. Admin evidence injection is disabled for this case.");
+  }
   let body: Record<string, unknown> = {};
   try {
     body = (await request.json()) as Record<string, unknown>;

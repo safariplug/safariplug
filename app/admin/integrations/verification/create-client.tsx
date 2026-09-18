@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 
 export function CreateCaseForm() {
+  const [subjectType, setSubjectType] = useState("driver");
   const [subjectId, setSubjectId] = useState("");
   const [level, setLevel] = useState("basic");
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export function CreateCaseForm() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        subject_type: "driver",
+        subject_type: subjectType,
         subject_id: subjectId,
         verification_level: level,
       }),
@@ -39,14 +40,27 @@ export function CreateCaseForm() {
       className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"
     >
       <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">
-        Open a case
+        Open a human-review case
       </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <p className="mt-2 text-xs leading-5 text-zinc-500">
+        Traveler Sumsub cases are started by the traveler workflow, not manually from this form.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-4">
+        <select
+          value={subjectType}
+          onChange={(event) => setSubjectType(event.target.value)}
+          className="rounded-lg border border-zinc-800 bg-black px-3 py-2 font-mono text-[11px] text-zinc-300"
+        >
+          <option value="driver">driver</option>
+          <option value="provider">provider</option>
+          <option value="vehicle">vehicle</option>
+          <option value="local">local</option>
+        </select>
         <input
           required
           value={subjectId}
           onChange={(event) => setSubjectId(event.target.value)}
-          placeholder="Driver UUID"
+          placeholder="Subject UUID"
           className="rounded-lg border border-zinc-800 bg-black px-3 py-2 font-mono text-[11px] text-zinc-300"
         />
         <select
@@ -62,7 +76,7 @@ export function CreateCaseForm() {
           disabled={busy}
           className="rounded-lg bg-amber-500 px-3 py-2 font-mono text-[11px] font-bold text-black"
         >
-          Create case
+          {busy ? "Creating…" : "Create case"}
         </button>
       </div>
       {error ? <p className="mt-2 font-mono text-[11px] text-red-400">{error}</p> : null}
