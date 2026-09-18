@@ -17,10 +17,21 @@ function label(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function requirementLink(requirement: string) {
+  const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "");
+  const base = `${site}/supplier/onboarding`;
+  if (requirement.includes("description")) return `${base}#business-details`;
+  if (requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
+  if (requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
+  if (requirement.includes("team member") || requirement.includes("personal photo")) return `${base}#team-availability`;
+  if (requirement.includes("verification")) return `${site}/supplier/readiness`;
+  return base;
+}
+
 function draftMessage(input: { name: string; businessName: string; completion: number; missing: string[] }) {
   const portal = `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/supplier/onboarding`;
   const greeting = input.name ? `Hi ${input.name},` : "Hello,";
-  const list = input.missing.length ? `\n\nPlease complete the following:\n${input.missing.map((item) => `- ${item}`).join("\n")}` : "";
+  const list = input.missing.length ? `\n\nPlease complete the following:\n${input.missing.map((item) => `- ${item}: ${requirementLink(item)}`).join("\n")}` : "";
   return {
     subject: `SafariPlug onboarding follow-up for ${input.businessName}`,
     message: `${greeting}\n\nThis is a follow-up on your SafariPlug supplier onboarding. Your profile is currently ${input.completion}% complete.${list}\n\nYour progress is saved. Please sign in to continue:\n${portal}\n\nSafariPlug Supplier Team`,
@@ -28,7 +39,8 @@ function draftMessage(input: { name: string; businessName: string; completion: n
 }
 
 type ServiceStaff = { personal_photo_url?: string | null };
-type ServiceProfile = { service_offerings?: unknown[] | unknown | null; service_staff?: ServiceStaff[] | ServiceStaff | null };
+type ServiceOffering = { price?: number | string | null; duration_minutes?: number | null };
+type ServiceProfile = { service_offerings?: ServiceOffering[] | ServiceOffering | null; service_staff?: ServiceStaff[] | ServiceStaff | null };
 type SupplierBusiness = { name?: string | null; email?: string | null; description?: string | null; logo_url?: string | null; cover_image_url?: string | null; service_profiles?: ServiceProfile[] | ServiceProfile | null };
 type SupplierForDraft = { businesses?: SupplierBusiness[] | SupplierBusiness | null; completion_percent?: number | null; review_items?: unknown[] | null; verification_status?: string | null };
 
@@ -43,6 +55,9 @@ function inferMissing(supplier: SupplierForDraft) {
   if (!business?.logo_url && !business?.cover_image_url) missing.push("Add a business logo or cover image");
   if (!profiles.length) missing.push("Create your service profile");
   if (profiles.length && !offerings.length) missing.push("Add at least one service offering with pricing and duration");
+  if (offerings.length && offerings.some((offering) => Number(offering.price || 0) <= 0 || Number(offering.duration_minutes || 0) <= 0)) {
+    missing.push("Complete pricing and duration for all service offerings");
+  }
   if (profiles.length && !staff.length) missing.push("Add at least one team member or service provider");
   if (staff.some((member: ServiceStaff) => !member.personal_photo_url)) missing.push("Add a personal photo for every listed team member");
   if (!supplier.verification_status) missing.push("Start supplier verification");
@@ -76,7 +91,7 @@ export async function GET(request: Request) {
     for (const [supplierId, previous] of latestDue) {
       const { data: supplier, error } = await supabaseAdmin
         .from("supplier_accounts")
-        .select("id,business_id,contact_name,onboarding_status,completion_percent,review_items,businesses!inner(id,name,email,description,logo_url,cover_image_url,service_profiles(id,service_offerings(id),service_staff(id,personal_photo_url)))")
+        .select("id,business_id,contact_name,onboarding_status,completion_percent,review_items,businesses!inner(id,name,email,description,logo_url,cover_image_url,service_profiles(id,service_offerings(id,price,duration_minutes),service_staff(id,personal_photo_url)))")
         .eq("id", supplierId)
         .maybeSingle();
       if (error || !supplier || !["draft","onboarding","in_progress","changes_requested"].includes(String(supplier.onboarding_status || ""))) { skipped++; continue; }
