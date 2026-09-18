@@ -101,6 +101,16 @@ export default function HotelBookPage() {
     setGuests(current => current.map((guest, i) => i === index ? { ...guest, [field]: value } : guest));
   }
 
+  function checkoutIdempotencyKey() {
+    if (!selected?.quoteId) throw new Error("Select a room package first.");
+    const storageKey = `safariplug:locktrip-hotel-intent:${selected.quoteId.slice(-48)}:${searchKey.slice(-24)}`;
+    const existing = window.sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const created = window.crypto.randomUUID();
+    window.sessionStorage.setItem(storageKey, created);
+    return created;
+  }
+
   async function checkout(event: FormEvent) {
     event.preventDefault();
     if (!selected) return;
@@ -113,6 +123,7 @@ export default function HotelBookPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "prepare",
+          idempotencyKey: checkoutIdempotencyKey(),
           quoteId: selected.quoteId,
           searchKey,
           hotelId,
@@ -134,7 +145,10 @@ export default function HotelBookPage() {
       }
       if (!response.ok) throw new Error(body?.message || "Unable to start hotel payment.");
       const bookingId = body?.booking?.preparedBookingId;
-      if (!bookingId) throw new Error("The hotel provider did not return a booking reference.");
+      if (!bookingId) {
+        if (body?.reconciliation === "manual_required") throw new Error(body?.message || "This checkout needs manual reconciliation before SafariPlug can safely continue.");
+        throw new Error(body?.message || "The hotel checkout is still initializing. Please check your booking status before trying again.");
+      }
       window.location.href = `/hotels/booking-result?bookingId=${encodeURIComponent(String(bookingId))}`;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to start hotel payment.");

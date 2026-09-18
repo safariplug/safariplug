@@ -10,6 +10,7 @@ import { assertHotelbedsPreflightAccepted, mergeHotelbedsNotices } from "@/lib/i
 import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 import { publicHotelCheckoutLedger } from "@/lib/integrations/hotels/hotel-public-ledger";
+import { hotelPaymentSafeToRetry, normalizeHotelCheckoutIntentKey, publicHotelCheckoutIntentStatus } from "@/lib/integrations/hotels/hotel-payment-safety";
 
 export const dynamic = "force-dynamic";
 const DEFAULT_MARKUP_PERCENT = 10;
@@ -179,6 +180,7 @@ export async function POST(request: Request) {
     if (action === "prepare") {
       const rawToken = String(body.bookingToken || "");
       if (!rawToken) return errorResponse(400, "bookingToken is required.");
+      const intentKey = normalizeHotelCheckoutIntentKey(body.idempotencyKey);
       const final = openHotelbedsBookingToken(rawToken);
       const paxes = normalizePaxes(body.paxes);
       const customerCurrency = String(body.currency || "KES").toUpperCase();
@@ -192,6 +194,79 @@ export async function POST(request: Request) {
       const checkRateCompleted = final.checkRateCompleted === true;
       assertHotelbedsBookingRateReady({ rateKey: final.rateKey, rateType: final.rateType }, checkRateCompleted);
 
+      const phone = String(body.customerPhone || "").trim();
+      if (!phone) return errorResponse(400, "A customer M-Pesa phone number is required.");
+      const mpesa = getPaymentAdapter("mpesa");
+      if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
+
+      const { data: existingIntent, error: existingIntentError } = await supabaseAdmin
+        .from("hotel_checkout_intents")
+        .select("*")
+        .eq("customer_user_id", user.id)
+        .eq("provider", "hotelbeds")
+        .eq("intent_key", intentKey)
+        .maybeSingle();
+      if (existingIntentError) throw new Error(existingIntentError.message);
+      if (existingIntent) {
+        const publicState = publicHotelCheckoutIntentStatus(
+          existingIntent.state,
+          existingIntent.prepared_booking_id
+        );
+        const existingLedger = existingIntent.ledger_id
+          ? await supabaseAdmin
+              .from("hotel_booking_pricing_ledger")
+              .select("*")
+              .eq("id", existingIntent.ledger_id)
+              .eq("customer_user_id", user.id)
+              .maybeSingle()
+          : { data: null, error: null };
+        if (existingLedger.error) throw new Error(existingLedger.error.message);
+        return NextResponse.json({
+          provider: "hotelbeds",
+          ...publicState,
+          paymentReused: true,
+          ledger: publicHotelCheckoutLedger(existingLedger.data),
+          message:
+            publicState.reconciliation === "manual_required"
+              ? "SafariPlug will not submit another supplier/payment request automatically because the previous attempt is indeterminate."
+              : undefined,
+        });
+      }
+
+      const { data: intent, error: intentError } = await supabaseAdmin
+        .from("hotel_checkout_intents")
+        .insert({
+          customer_user_id: user.id,
+          provider: "hotelbeds",
+          intent_key: intentKey,
+          state: "initialized",
+        })
+        .select("*")
+        .single();
+
+      if (intentError || !intent) {
+        if (intentError?.code === "23505") {
+          const { data: racedIntent } = await supabaseAdmin
+            .from("hotel_checkout_intents")
+            .select("*")
+            .eq("customer_user_id", user.id)
+            .eq("provider", "hotelbeds")
+            .eq("intent_key", intentKey)
+            .maybeSingle();
+          if (racedIntent) {
+            return NextResponse.json({
+              provider: "hotelbeds",
+              ...publicHotelCheckoutIntentStatus(
+                racedIntent.state,
+                racedIntent.prepared_booking_id
+              ),
+              paymentReused: true,
+            });
+          }
+        }
+        throw new Error(intentError?.message || "Unable to initialize Hotelbeds checkout.");
+      }
+
       const percent = markupPercent();
       const supplierRetail = retailSupplierAmount(final.supplierNet, percent);
       const converted = await convertCurrency(supplierRetail, final.supplierCurrency, customerCurrency);
@@ -199,59 +274,159 @@ export async function POST(request: Request) {
       const tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : null;
       const holder = paxes.find((pax) => pax.type === "AD") || paxes[0];
 
-      const { data: ledger, error: ledgerError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").insert({
-        customer_user_id: user.id,
-        provider: "hotelbeds",
-        quote_id: final.rateKey,
-        prepared_booking_id: bookingId,
-        currency: customerCurrency,
-        supplier_currency: final.supplierCurrency,
-        customer_currency: customerCurrency,
-        exchange_rate: converted.rate,
-        supplier_net_amount: final.supplierNet,
-        retail_amount: supplierRetail,
-        customer_retail_amount: converted.amount,
-        markup_percent: percent,
-        payment_status: "unpaid",
-        booking_status: "payment_pending",
-        supplier_settlement_status: "pending",
-        metadata: {
-          bookingToken: rawToken,
-          checkRateCompleted,
-          preflightedAt: final.preflightedAt || null,
-          termsAcceptedAt: new Date().toISOString(),
-          tripId,
-          paxes,
-          holder: { name: holder.name, surname: holder.surname },
-          hotelName: final.propertyName,
-          checkIn: final.checkIn,
-          checkOut: final.checkOut,
-          cancellation: final.cancellation || null,
-          notices: final.notices || [],
-        },
-      }).select("*").single();
-      if (ledgerError || !ledger) throw new Error(ledgerError?.message || "Unable to create Hotelbeds pricing ledger entry.");
+      const { data: ledger, error: ledgerError } = await supabaseAdmin
+        .from("hotel_booking_pricing_ledger")
+        .insert({
+          customer_user_id: user.id,
+          provider: "hotelbeds",
+          checkout_intent_key: intentKey,
+          quote_id: final.rateKey,
+          prepared_booking_id: bookingId,
+          currency: customerCurrency,
+          supplier_currency: final.supplierCurrency,
+          customer_currency: customerCurrency,
+          exchange_rate: converted.rate,
+          supplier_net_amount: final.supplierNet,
+          retail_amount: supplierRetail,
+          customer_retail_amount: converted.amount,
+          markup_percent: percent,
+          payment_status: "unpaid",
+          booking_status: "payment_pending",
+          supplier_settlement_status: "pending",
+          metadata: {
+            bookingToken: rawToken,
+            checkRateCompleted,
+            preflightedAt: final.preflightedAt || null,
+            termsAcceptedAt: new Date().toISOString(),
+            tripId,
+            paxes,
+            holder: { name: holder.name, surname: holder.surname },
+            hotelName: final.propertyName,
+            checkIn: final.checkIn,
+            checkOut: final.checkOut,
+            cancellation: final.cancellation || null,
+            notices: final.notices || [],
+          },
+        })
+        .select("*")
+        .single();
 
-      const mpesa = getPaymentAdapter("mpesa");
-      if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
-      const phone = String(body.customerPhone || "").trim();
-      if (!phone) return errorResponse(400, "A customer M-Pesa phone number is required.");
-      const payment = await mpesa.createPaymentIntent({
-        appointmentId: ledger.id,
-        amount: converted.amount,
-        currency: customerCurrency,
-        customerEmail: user.email,
-        customerPhone: phone,
-        returnUrl: `${SITE_URL}/hotels/booking-result?provider=hotelbeds&bookingId=${encodeURIComponent(bookingId)}${tripId ? `&tripId=${encodeURIComponent(tripId)}` : ""}`,
-        idempotencyKey: `hotelbeds:${ledger.id}`,
-        callbackUrl: `${SITE_URL}/api/v1/hotels/mpesa/callback`,
-      });
-      const { data: updated } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update({
-        payment_provider: "mpesa",
-        payment_reference: payment.providerReference,
-        payment_status: "pending",
-        metadata: { ...(ledger.metadata || {}), mpesaPaymentId: payment.id },
-      }).eq("id", ledger.id).select("*").single();
+      if (ledgerError || !ledger) {
+        await supabaseAdmin
+          .from("hotel_checkout_intents")
+          .update({ state: "failed", last_error: ledgerError?.message || "ledger_create_failed" })
+          .eq("id", intent.id);
+        throw new Error(ledgerError?.message || "Unable to create Hotelbeds pricing ledger entry.");
+      }
+
+      await supabaseAdmin
+        .from("hotel_checkout_intents")
+        .update({
+          ledger_id: ledger.id,
+          prepared_booking_id: bookingId,
+          state: "supplier_prepared",
+        })
+        .eq("id", intent.id);
+
+      const paymentStartedAt = new Date().toISOString();
+      const { data: claimedIntent, error: claimError } = await supabaseAdmin
+        .from("hotel_checkout_intents")
+        .update({
+          state: "payment_initializing",
+          payment_initiation_started_at: paymentStartedAt,
+        })
+        .eq("id", intent.id)
+        .is("payment_initiation_started_at", null)
+        .select("*")
+        .maybeSingle();
+      if (claimError) throw new Error(claimError.message);
+      if (!claimedIntent) {
+        return NextResponse.json({
+          provider: "hotelbeds",
+          status: "checkout_initializing",
+          bookingId,
+          paymentReused: true,
+          ledger: publicHotelCheckoutLedger(ledger),
+        });
+      }
+
+      await supabaseAdmin
+        .from("hotel_booking_pricing_ledger")
+        .update({ payment_initiation_started_at: paymentStartedAt })
+        .eq("id", ledger.id);
+
+      let payment;
+      try {
+        payment = await mpesa.createPaymentIntent({
+          appointmentId: ledger.id,
+          amount: converted.amount,
+          currency: customerCurrency,
+          customerEmail: user.email,
+          customerPhone: phone,
+          returnUrl: `${SITE_URL}/hotels/booking-result?provider=hotelbeds&bookingId=${encodeURIComponent(bookingId)}${tripId ? `&tripId=${encodeURIComponent(tripId)}` : ""}`,
+          idempotencyKey: `hotelbeds:${intentKey}`,
+          callbackUrl: `${SITE_URL}/api/v1/hotels/mpesa/callback`,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "M-Pesa payment initiation failed.";
+        if (hotelPaymentSafeToRetry(error)) {
+          await Promise.all([
+            supabaseAdmin
+              .from("hotel_checkout_intents")
+              .update({
+                state: "supplier_prepared",
+                payment_initiation_started_at: null,
+                last_error: message,
+              })
+              .eq("id", intent.id),
+            supabaseAdmin
+              .from("hotel_booking_pricing_ledger")
+              .update({
+                payment_status: "unpaid",
+                payment_initiation_started_at: null,
+              })
+              .eq("id", ledger.id),
+          ]);
+          throw error;
+        }
+
+        await supabaseAdmin
+          .from("hotel_checkout_intents")
+          .update({
+            state: "payment_indeterminate",
+            last_error: message,
+          })
+          .eq("id", intent.id);
+        return NextResponse.json({
+          provider: "hotelbeds",
+          status: "payment_initiation_indeterminate",
+          bookingId,
+          reconciliation: "manual_required",
+          ledger: publicHotelCheckoutLedger(ledger),
+          message:
+            "SafariPlug could not prove whether the M-Pesa request was created. It will not submit another payment request automatically because that could cause a duplicate charge.",
+        });
+      }
+
+      const { data: updated } = await supabaseAdmin
+        .from("hotel_booking_pricing_ledger")
+        .update({
+          payment_provider: "mpesa",
+          payment_reference: payment.providerReference,
+          payment_status: "pending",
+          metadata: { ...(ledger.metadata || {}), mpesaPaymentId: payment.id },
+        })
+        .eq("id", ledger.id)
+        .select("*")
+        .single();
+
+      await supabaseAdmin
+        .from("hotel_checkout_intents")
+        .update({
+          state: "payment_pending",
+          last_error: null,
+        })
+        .eq("id", intent.id);
 
       return NextResponse.json({
         provider: "hotelbeds",
