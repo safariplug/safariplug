@@ -374,7 +374,7 @@ export async function POST(request: Request) {
         supplier_settlement_status: "pending",
         metadata: { ...currentMetadata, confirmAttemptIndeterminateAt: timestamp, confirmAttemptError: message },
       }).eq("id", workingLedger.id).eq("customer_user_id", user.id).select("*").single();
-      return NextResponse.json({ provider: "hotelbeds", status: "payment_pending", supplierStatus: "confirmation_indeterminate", reconciliation: "manual_required", ledger: pendingLedger || workingLedger, message: "Payment succeeded, but Hotelbeds confirmation could not be proven. SafariPlug will not retry automatically because a duplicate booking could result." });
+      return NextResponse.json({ provider: "hotelbeds", status: "payment_pending", supplierStatus: "confirmation_indeterminate", reconciliation: "manual_required", ledger: publicHotelCheckoutLedger(pendingLedger || workingLedger), message: "Payment succeeded, but Hotelbeds confirmation could not be proven. SafariPlug will not retry automatically because a duplicate booking could result." });
     }
   } catch (error) {
     return errorResponse(500, error instanceof Error ? error.message : "Hotelbeds checkout failed.");
