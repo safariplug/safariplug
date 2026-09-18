@@ -119,6 +119,19 @@ export async function POST(request: Request) {
       });
       if (driverError) return NextResponse.json({ error: "Unable to update driver verification state." }, { status: 500 });
     }
+
+    if (resolved.subject_type === "local" && resolved.subject_id) {
+      const { error: localError } = await supabaseAdmin
+        .from("local_profiles")
+        .update({
+          identity_liveness_verified_at: approved ? reviewedAt : null,
+          verification_state: approved ? "verified" : "rejected",
+          service_status: approved ? "pending_review" : "paused",
+          updated_at: reviewedAt,
+        })
+        .eq("id", resolved.subject_id);
+      if (localError) return NextResponse.json({ error: "Unable to update Local verification state." }, { status: 500 });
+    }
   } else if (["applicantPending", "applicantOnHold", "applicantAwaitingUser", "applicantAwaitingService"].includes(type)) {
     toStatus = "in_review";
     const { error } = await supabaseAdmin.from("verification_cases").update({ status: "in_review" }).eq("id", resolved.id).in("status", ["pending", "not_started"]);
