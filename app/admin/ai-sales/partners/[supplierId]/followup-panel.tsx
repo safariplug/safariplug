@@ -7,6 +7,12 @@ type Draft = {
   subject: string;
   message: string;
   missingRequirements: string[];
+  followupComparison?: {
+    previousSentAt: string;
+    resolvedSinceLast: string[];
+    stillMissing: string[];
+    newlyMissing: string[];
+  } | null;
   source?: string;
 };
 
@@ -52,6 +58,14 @@ export function SupplierFollowupPanel({ supplierId, eligible, initialHistory }: 
         subject: String(body.subject || ""),
         message: String(body.message || ""),
         missingRequirements: Array.isArray(body.missingRequirements) ? body.missingRequirements.map(String) : [],
+        followupComparison: body.followupComparison && typeof body.followupComparison === "object"
+          ? {
+              previousSentAt: String(body.followupComparison.previousSentAt || ""),
+              resolvedSinceLast: Array.isArray(body.followupComparison.resolvedSinceLast) ? body.followupComparison.resolvedSinceLast.map(String) : [],
+              stillMissing: Array.isArray(body.followupComparison.stillMissing) ? body.followupComparison.stillMissing.map(String) : [],
+              newlyMissing: Array.isArray(body.followupComparison.newlyMissing) ? body.followupComparison.newlyMissing.map(String) : [],
+            }
+          : null,
         source: body.source ? String(body.source) : undefined,
       });
     } catch (error) {
@@ -134,6 +148,14 @@ export function SupplierFollowupPanel({ supplierId, eligible, initialHistory }: 
               <p className="mt-3 text-sm text-zinc-500">No specific missing requirement was detected beyond the recorded incomplete onboarding state.</p>
             )}
           </div>
+
+          {draft.followupComparison && (
+            <div className="grid gap-3 md:grid-cols-3">
+              <ComparisonCard title="Resolved since last email" items={draft.followupComparison.resolvedSinceLast} tone="good" />
+              <ComparisonCard title="Still missing" items={draft.followupComparison.stillMissing} tone="warn" />
+              <ComparisonCard title="Newly missing" items={draft.followupComparison.newlyMissing} tone="neutral" />
+            </div>
+          )}
 
           <Field label="Recipient" value={draft.recipient} readOnly />
           <Field label="Subject" value={draft.subject} onChange={(value) => setDraft((current) => current ? { ...current, subject: value } : current)} />
@@ -232,5 +254,15 @@ function Field({ label, value, readOnly, onChange }: { label: string; value: str
         className="w-full rounded-xl border border-zinc-800 bg-black p-3 text-sm text-zinc-200 outline-none read-only:text-zinc-500"
       />
     </label>
+  );
+}
+
+function ComparisonCard({ title, items, tone }: { title: string; items: string[]; tone: "good" | "warn" | "neutral" }) {
+  const cls = tone === "good" ? "border-emerald-900/60 bg-emerald-950/20" : tone === "warn" ? "border-amber-900/60 bg-amber-950/20" : "border-zinc-800 bg-black";
+  return (
+    <div className={`rounded-xl border p-4 ${cls}`}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{title}</p>
+      {items.length ? <ul className="mt-2 space-y-1 text-xs text-zinc-300">{items.map((item) => <li key={item}>• {item}</li>)}</ul> : <p className="mt-2 text-xs text-zinc-500">None</p>}
+    </div>
   );
 }
