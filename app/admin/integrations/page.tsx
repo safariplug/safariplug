@@ -40,7 +40,7 @@ export default async function IntegrationsPage() {
           </p>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Link href="/admin/integrations/hotelbeds" className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-6 transition hover:border-amber-400/60">
             <p className="font-mono text-[10px] uppercase tracking-widest text-amber-400">Hotel supplier</p>
             <h2 className="mt-2 text-xl font-bold">Hotelbeds Hotels</h2>
@@ -53,7 +53,7 @@ export default async function IntegrationsPage() {
             <p className="mt-2 text-sm leading-6 text-zinc-400">Search, details/check-rate, booking and post-booking integration readiness.</p>
             <p className="mt-4 font-mono text-xs font-bold text-amber-400">Open Activities →</p>
           </Link>
-          <Link href="/admin/integrations/transfers" className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 transition hover:border-amber-400/40">
+          <Link href="/admin/integrations/verification" className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 transition hover:border-amber-400/40"><p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Trust provider</p><h2 className="mt-2 text-xl font-bold">Identity & liveness</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Traveler, driver, Local and provider verification readiness and case operations.</p><p className="mt-4 font-mono text-xs font-bold text-amber-400">Open Trust Operations →</p></Link>\n          <Link href="/admin/integrations/transfers" className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 transition hover:border-amber-400/40">
             <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Transfer supplier</p>
             <h2 className="mt-2 text-xl font-bold">Hotelbeds Transfers</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-400">Availability, confirmation and post-booking transfer operations.</p>
