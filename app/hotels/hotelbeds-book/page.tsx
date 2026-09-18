@@ -70,6 +70,15 @@ export default function HotelbedsBookPage() {
     setGuests(current => current.map((guest, i) => i === index ? { ...guest, ...patch } : guest));
   }
 
+  function checkoutIdempotencyKey() {
+    const storageKey = `safariplug:hotelbeds-hotel-intent:${bookingToken.slice(-48)}`;
+    const existing = window.sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const created = window.crypto.randomUUID();
+    window.sessionStorage.setItem(storageKey, created);
+    return created;
+  }
+
   async function checkout(event: FormEvent) {
     event.preventDefault();
     if (!bookingToken || !preflightRate) { setError("Hotelbeds rate verification must finish before payment."); return; }
@@ -85,6 +94,7 @@ export default function HotelbedsBookPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "prepare",
+          idempotencyKey: checkoutIdempotencyKey(),
           bookingToken,
           currency: "KES",
           customerPhone: phone.trim(),
