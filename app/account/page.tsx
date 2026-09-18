@@ -15,7 +15,7 @@ export default async function AccountPage() {
     countRows(supabase, "food_orders", "customer_user_id", user.id),
     countRows(supabase, "service_appointments", "customer_user_id", user.id),
     countRows(supabase, "bookings", "traveler_id", user.id),
-    countRows(supabase, "hotel_booking_pricing_ledger", "customer_user_id", user.id),
+    countAdminRows("hotel_booking_pricing_ledger", "customer_user_id", user.id),
     countAdminRows("transfer_booking_pricing_ledger", "customer_user_id", user.id),
     countAdminRows("activity_booking_pricing_ledger", "customer_user_id", user.id),
     countRows(supabase, "local_requests", "traveler_id", user.id),
