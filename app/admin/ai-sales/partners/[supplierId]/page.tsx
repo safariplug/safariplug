@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { SupplierFollowupPanel } from "./followup-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -128,6 +129,8 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
           </div>
         </section>
 
+        <SupplierFollowupPanel supplierId={supplier.id} eligible={["draft","onboarding","changes_requested"].includes(String(supplier.onboarding_status || ""))} />
+
         <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Metric label="Onboarding" value={`${supplier.completion_percent || 0}%`} />
           <Metric label="Offerings" value={String(os.length)} />
@@ -191,7 +194,7 @@ function nextActionFor(status: string, completion: number, verification?: string
   if (status === "submitted") return { title: "Review supplier submission", detail: "This partner has submitted onboarding and is waiting for an admin decision.", href: "/admin/suppliers", cta: "Open supplier review" };
   if (status === "changes_requested") return { title: "Waiting for partner changes", detail: "Changes were requested. Do not activate until the partner resubmits and requirements are reviewed.", href: "/admin/suppliers", cta: "Review status" };
   if (status === "approved" || status === "live") return { title: verification === "approved" ? "Partner is operationally approved" : "Check verification before full activation", detail: verification === "approved" ? "Continue relationship management and inventory quality checks." : "Supplier approval exists, but provider verification should be reviewed independently.", href: "/admin/suppliers", cta: "Open governance" };
-  if (completion < 100) return { title: "Onboarding is incomplete", detail: `The recorded onboarding completion is ${completion}%. Follow up on missing profile, inventory, identity or operational requirements.`, href: "/admin/ai-sales/invitations", cta: "Open follow-up center" };
+  if (completion < 100) return { title: "Onboarding is incomplete", detail: `The recorded onboarding completion is ${completion}%. Draft a supplier-specific email from the actual missing onboarding requirements.`, href: "#onboarding-followup", cta: "Draft follow-up email" };
   return { title: "Prepare for supplier review", detail: "Onboarding appears complete but is not yet in an approved/live state.", href: "/admin/suppliers", cta: "Open supplier review" };
 }
 
