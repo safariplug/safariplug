@@ -19,6 +19,7 @@ import { openHotelbedsActivitySelectionToken } from "@/lib/integrations/hotelbed
 import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
+import { normalizeActivityCheckoutIntentKey, activityPreconfirmDefinitelyRejected, activityPaymentSafeToRetry } from "@/lib/integrations/hotelbeds/activity-payment-safety";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -129,8 +130,49 @@ export async function POST(request: Request) {
       await assertTravelerVerified(user.id);
       const selectionToken = String(body.selectionToken || "");
       if (!selectionToken) return errorResponse(400, "selectionToken is required.");
+      const intentKey = normalizeActivityCheckoutIntentKey(body.idempotencyKey);
       if (body.termsAccepted !== true) {
         return errorResponse(400, "Accept the activity rate and cancellation terms before continuing.");
+      }
+
+      const mpesa = getPaymentAdapter("mpesa");
+      if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
+
+      const { data: existingIntent, error: existingIntentError } = await supabase
+        .from("activity_booking_pricing_ledger")
+        .select("*")
+        .eq("customer_user_id", user.id)
+        .eq("provider", "hotelbeds")
+        .eq("checkout_intent_key", intentKey)
+        .maybeSingle();
+
+      if (existingIntentError) throw new Error(existingIntentError.message);
+      if (existingIntent) {
+        const existingMetadata = metadataRecord(existingIntent.metadata);
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "activities",
+          status:
+            existingIntent.booking_status === "confirmed"
+              ? "confirmed"
+              : existingIntent.payment_reference
+                ? "payment_pending"
+                : existingMetadata.preconfirmAttemptIndeterminateAt
+                  ? "preconfirmation_indeterminate"
+                  : existingIntent.booking_status === "preconfirmed"
+                    ? "payment_initializing"
+                    : "preconfirm_initializing",
+          bookingId: existingIntent.prepared_booking_id,
+          bookingCreated: existingIntent.booking_status === "confirmed",
+          supplierHoldCreated: Boolean(existingIntent.provider_booking_reference),
+          paymentReused: true,
+          supplierStatus: existingMetadata.preconfirmAttemptIndeterminateAt
+            ? "preconfirmation_indeterminate"
+            : "existing_checkout_intent",
+          reconciliation: existingMetadata.preconfirmAttemptIndeterminateAt
+            ? "manual_required"
+            : undefined,
+        });
       }
 
       const selection = openHotelbedsActivitySelectionToken(selectionToken);
@@ -169,6 +211,7 @@ export async function POST(request: Request) {
         .insert({
           customer_user_id: user.id,
           provider: "hotelbeds",
+          checkout_intent_key: intentKey,
           prepared_booking_id: preparedBookingId,
           supplier_currency: selection.supplierCurrency,
           customer_currency: customerCurrency,
@@ -206,7 +249,60 @@ export async function POST(request: Request) {
         .single();
 
       if (ledgerError || !ledger) {
+        if (ledgerError?.code === "23505") {
+          const { data: racedIntent, error: racedIntentError } = await supabase
+            .from("activity_booking_pricing_ledger")
+            .select("*")
+            .eq("customer_user_id", user.id)
+            .eq("provider", "hotelbeds")
+            .eq("checkout_intent_key", intentKey)
+            .maybeSingle();
+          if (racedIntentError) throw new Error(racedIntentError.message);
+          if (racedIntent) {
+            return NextResponse.json({
+              provider: "hotelbeds",
+              product: "activities",
+              status: "preconfirm_initializing",
+              bookingId: racedIntent.prepared_booking_id,
+              bookingCreated: false,
+              supplierHoldCreated: Boolean(racedIntent.provider_booking_reference),
+              paymentReused: true,
+              supplierStatus: "existing_checkout_intent",
+            });
+          }
+        }
         throw new Error(ledgerError?.message || "Unable to create activity checkout ledger entry.");
+      }
+
+      const preconfirmStartedAt = new Date().toISOString();
+      const { data: claimedLedger, error: claimError } = await supabase
+        .from("activity_booking_pricing_ledger")
+        .update({
+          preconfirm_initiation_started_at: preconfirmStartedAt,
+          metadata: {
+            ...metadataRecord(ledger.metadata),
+            preconfirmInitiationStartedAt: preconfirmStartedAt,
+          },
+        })
+        .eq("id", ledger.id)
+        .eq("customer_user_id", user.id)
+        .eq("booking_status", "preconfirm_pending")
+        .is("preconfirm_initiation_started_at", null)
+        .select("*")
+        .maybeSingle();
+
+      if (claimError) throw new Error(claimError.message);
+      if (!claimedLedger) {
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "activities",
+          status: "preconfirm_initializing",
+          bookingId: preparedBookingId,
+          bookingCreated: false,
+          supplierHoldCreated: false,
+          paymentReused: true,
+          supplierStatus: "existing_preconfirm_initiation",
+        });
       }
 
       let preconfirmed: Record<string, unknown>;
@@ -214,19 +310,45 @@ export async function POST(request: Request) {
         preconfirmed = await preconfirmHotelbedsActivity(bookingRequest);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Hotelbeds activity preconfirmation failed.";
+        if (activityPreconfirmDefinitelyRejected(error)) {
+          await supabase
+            .from("activity_booking_pricing_ledger")
+            .update({
+              booking_status: "failed",
+              supplier_settlement_status: "failed",
+              metadata: {
+                ...metadataRecord(claimedLedger.metadata),
+                preconfirmFailedAt: new Date().toISOString(),
+                preconfirmError: message,
+              },
+            })
+            .eq("id", ledger.id);
+          throw error;
+        }
+
         await supabase
           .from("activity_booking_pricing_ledger")
           .update({
-            booking_status: "failed",
-            supplier_settlement_status: "failed",
             metadata: {
-              ...metadataRecord(ledger.metadata),
-              preconfirmFailedAt: new Date().toISOString(),
+              ...metadataRecord(claimedLedger.metadata),
+              preconfirmAttemptIndeterminateAt: new Date().toISOString(),
               preconfirmError: message,
             },
           })
           .eq("id", ledger.id);
-        throw error;
+
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "activities",
+          status: "preconfirmation_indeterminate",
+          bookingId: preparedBookingId,
+          bookingCreated: false,
+          supplierHoldCreated: false,
+          supplierStatus: "preconfirmation_indeterminate",
+          reconciliation: "manual_required",
+          message:
+            "SafariPlug could not prove whether Hotelbeds created the PRECONFIRMED hold. It will not submit another PRECONFIRM automatically because that could create duplicate supplier holds.",
+        });
       }
 
       const supplierReference = activityBookingReference(preconfirmed);
@@ -235,27 +357,36 @@ export async function POST(request: Request) {
         await supabase
           .from("activity_booking_pricing_ledger")
           .update({
-            booking_status: "failed",
-            supplier_settlement_status: "failed",
             metadata: {
-              ...metadataRecord(ledger.metadata),
+              ...metadataRecord(claimedLedger.metadata),
               preconfirmResponse: preconfirmed,
-              preconfirmUnexpectedAt: new Date().toISOString(),
+              preconfirmAttemptIndeterminateAt: new Date().toISOString(),
             },
           })
           .eq("id", ledger.id);
-        return errorResponse(502, "Hotelbeds did not return a PRECONFIRMED activity booking.");
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "activities",
+          status: "preconfirmation_indeterminate",
+          bookingId: preparedBookingId,
+          bookingCreated: false,
+          supplierHoldCreated: false,
+          supplierStatus: "preconfirmation_indeterminate",
+          reconciliation: "manual_required",
+          message:
+            "Hotelbeds returned a preconfirmation response SafariPlug could not safely classify. No automatic retry will be made.",
+        });
       }
 
       const preconfirmedAt = new Date().toISOString();
-      const { data: heldLedger } = await supabase
+      const { data: heldLedger, error: holdUpdateError } = await supabase
         .from("activity_booking_pricing_ledger")
         .update({
           provider_booking_reference: supplierReference,
           booking_status: "preconfirmed",
           preconfirmed_at: preconfirmedAt,
           metadata: {
-            ...metadataRecord(ledger.metadata),
+            ...metadataRecord(claimedLedger.metadata),
             preconfirmResponse: preconfirmed,
             preconfirmedAt,
           },
@@ -264,19 +395,99 @@ export async function POST(request: Request) {
         .select("*")
         .single();
 
-      const mpesa = getPaymentAdapter("mpesa");
-      if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
+      if (holdUpdateError || !heldLedger) {
+        throw new Error(holdUpdateError?.message || "Unable to persist Hotelbeds preconfirmation.");
+      }
 
-      const payment = await mpesa.createPaymentIntent({
-        appointmentId: ledger.id,
-        amount: converted.amount,
-        currency: customerCurrency,
-        customerEmail: user.email,
-        customerPhone: phone,
-        returnUrl: `${SITE_URL}/activities/booking-result?provider=hotelbeds&bookingId=${encodeURIComponent(preparedBookingId)}`,
-        idempotencyKey: `hotelbeds-activity:${ledger.id}`,
-        callbackUrl: `${SITE_URL}/api/v1/activities/hotelbeds/mpesa/callback`,
-      });
+      const paymentStartedAt = new Date().toISOString();
+      const { data: paymentClaim, error: paymentClaimError } = await supabase
+        .from("activity_booking_pricing_ledger")
+        .update({
+          payment_status: "pending",
+          payment_initiation_started_at: paymentStartedAt,
+          metadata: {
+            ...metadataRecord(heldLedger.metadata),
+            paymentInitiationStartedAt: paymentStartedAt,
+          },
+        })
+        .eq("id", ledger.id)
+        .eq("customer_user_id", user.id)
+        .eq("booking_status", "preconfirmed")
+        .eq("payment_status", "unpaid")
+        .is("payment_reference", null)
+        .is("payment_initiation_started_at", null)
+        .select("*")
+        .maybeSingle();
+
+      if (paymentClaimError) throw new Error(paymentClaimError.message);
+      if (!paymentClaim) {
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "activities",
+          status: "payment_initializing",
+          bookingId: preparedBookingId,
+          bookingCreated: false,
+          supplierHoldCreated: true,
+          supplierStatus: "PRECONFIRMED",
+          paymentReused: true,
+        });
+      }
+
+      let payment;
+      try {
+        payment = await mpesa.createPaymentIntent({
+          appointmentId: ledger.id,
+          amount: converted.amount,
+          currency: customerCurrency,
+          customerEmail: user.email,
+          customerPhone: phone,
+          returnUrl: `${SITE_URL}/activities/booking-result?provider=hotelbeds&bookingId=${encodeURIComponent(preparedBookingId)}`,
+          idempotencyKey: `hotelbeds-activity:${intentKey}`,
+          callbackUrl: `${SITE_URL}/api/v1/activities/hotelbeds/mpesa/callback`,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "M-Pesa payment initiation failed.";
+        if (activityPaymentSafeToRetry(error)) {
+          await supabase
+            .from("activity_booking_pricing_ledger")
+            .update({
+              payment_status: "unpaid",
+              payment_initiation_started_at: null,
+              metadata: {
+                ...metadataRecord(paymentClaim.metadata),
+                paymentInitiationSafeFailureAt: new Date().toISOString(),
+                paymentInitiationError: message,
+              },
+            })
+            .eq("id", ledger.id);
+          throw error;
+        }
+
+        await supabase
+          .from("activity_booking_pricing_ledger")
+          .update({
+            payment_status: "pending",
+            metadata: {
+              ...metadataRecord(paymentClaim.metadata),
+              paymentInitiationIndeterminateAt: new Date().toISOString(),
+              paymentInitiationError: message,
+            },
+          })
+          .eq("id", ledger.id);
+
+        return NextResponse.json({
+          provider: "hotelbeds",
+          product: "activities",
+          status: "payment_initiation_indeterminate",
+          bookingId: preparedBookingId,
+          bookingCreated: false,
+          supplierHoldCreated: true,
+          supplierStatus: "PRECONFIRMED",
+          reconciliation: "manual_required",
+          message:
+            "SafariPlug could not prove whether the M-Pesa request was created. It will not submit another payment request automatically because that could cause a duplicate charge.",
+        });
+      }
 
       const { data: updated } = await supabase
         .from("activity_booking_pricing_ledger")
@@ -286,7 +497,7 @@ export async function POST(request: Request) {
           payment_status: "pending",
           booking_status: "payment_pending",
           metadata: {
-            ...metadataRecord(heldLedger?.metadata || ledger.metadata),
+            ...metadataRecord(paymentClaim.metadata),
             mpesaPaymentId: payment.id,
           },
         })
@@ -311,7 +522,7 @@ export async function POST(request: Request) {
           markupPercent: percent,
         },
         payment,
-        ledger: updated || heldLedger || ledger,
+        ledger: updated || paymentClaim,
       });
     }
 
