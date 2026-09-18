@@ -255,7 +255,7 @@ function transportCoverage(
       (matches(request.pickup_label, move.fromVenue) || matches(request.pickup_label, move.from)) &&
       (matches(request.destination_label, move.toVenue) || matches(request.destination_label, move.to))
     );
-    const attention =
+    const attention: "covered" | "overlap" | "high" | "medium" | "review" =
       coveredBy ? "covered" :
       move.gapMinutes < 0 ? "overlap" :
       move.straightLineKm >= 5 && move.gapMinutes <= 90 ? "high" :
