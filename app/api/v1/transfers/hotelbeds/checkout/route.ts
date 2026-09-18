@@ -14,6 +14,7 @@ import {
 import { openHotelbedsTransferSelectionToken } from "@/lib/integrations/hotelbeds/transfer-selection-token";
 import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
+import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "prepare") {
+      await assertTravelerVerified(user.id);
       const selectionToken = String(body.selectionToken || "");
       if (!selectionToken) return errorResponse(400, "selectionToken is required.");
       if (body.termsAccepted !== true) {
@@ -493,6 +495,8 @@ export async function POST(request: Request) {
       });
     }
   } catch (error) {
+    const verification = travelerVerificationErrorResponse(error);
+    if (verification) return NextResponse.json(verification.body, { status: verification.status });
     return errorResponse(
       500,
       error instanceof Error ? error.message : "Hotelbeds Transfers checkout failed."
