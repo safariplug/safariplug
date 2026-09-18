@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   preconfirmHotelbedsActivity,
   reconfirmHotelbedsActivity,
@@ -69,7 +70,6 @@ export async function POST(request: Request) {
   }
 
   const action = String(body.action || "").trim().toLowerCase();
-  const supabase = await createSupabaseServerClient();
 
   try {
     if (action === "preflight") {
