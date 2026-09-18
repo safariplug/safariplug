@@ -135,6 +135,46 @@ function itineraryTimingIssues(items: Array<{ id?: string; item_kind?: string | 
   return { scheduledCount: scheduled.length, issues: issues.slice(0, 5) };
 }
 
+function itineraryOptimization(items: Array<{ item_kind?: string | null; title?: string | null; start_at?: string | null; end_at?: string | null }>) {
+  const lodgingKinds = new Set(["hotel","stay","accommodation"]);
+  const scheduled = items
+    .filter((item) => item.start_at && item.end_at && !lodgingKinds.has(String(item.item_kind || "").toLowerCase()))
+    .map((item) => ({ ...item, startMs: Date.parse(String(item.start_at)), endMs: Date.parse(String(item.end_at)) }))
+    .filter((item) => Number.isFinite(item.startMs) && Number.isFinite(item.endMs) && item.endMs > item.startMs)
+    .sort((a,b) => a.startMs - b.startMs);
+
+  const freeWindows: Array<{ startsAt: string; endsAt: string; minutes: number; after: string; before: string }> = [];
+  for (let i = 0; i < scheduled.length - 1; i++) {
+    const current = scheduled[i];
+    const next = scheduled[i + 1];
+    const minutes = Math.floor((next.startMs - current.endMs) / 60000);
+    if (minutes >= 90) {
+      freeWindows.push({
+        startsAt: new Date(current.endMs).toISOString(),
+        endsAt: new Date(next.startMs).toISOString(),
+        minutes,
+        after: current.title || current.item_kind || "Scheduled item",
+        before: next.title || next.item_kind || "Scheduled item",
+      });
+    }
+  }
+
+  const byDay = new Map<string, number>();
+  for (const item of scheduled) {
+    const day = new Date(item.startMs).toISOString().slice(0,10);
+    byDay.set(day, (byDay.get(day) || 0) + 1);
+  }
+  const packedDays = [...byDay.entries()]
+    .filter(([,count]) => count >= 4)
+    .map(([date,count]) => ({ date, scheduledItems: count }))
+    .sort((a,b) => b.scheduledItems - a.scheduledItems || a.date.localeCompare(b.date));
+
+  return {
+    freeWindows: freeWindows.sort((a,b) => b.minutes - a.minutes).slice(0,5),
+    packedDays: packedDays.slice(0,5),
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(); const realIp = request.headers.get("x-real-ip")?.trim(); const ip = (forwarded || realIp || "unknown").slice(0, 120); const { data: allowed, error: rateError } = await supabaseAdmin.rpc("consume_concierge_rate_limit", { p_bucket: `concierge:${ip}`, p_limit: 20, p_window_seconds: 60 }); if (rateError) return NextResponse.json({ error: "Concierge is temporarily unavailable." }, { status: 503 }); if (allowed !== true) return NextResponse.json({ error: "Concierge is busy. Please wait a moment and try again." }, { status: 429 });
@@ -143,7 +183,7 @@ export async function POST(request: Request) {
     const tripId = typeof payload?.tripId === "string" && payload.tripId.trim() ? payload.tripId.trim() : null;
     let tripContext = "";
     let toolJourneyContext: ToolJourneyContext | null = null;
-    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number; gaps: Array<{ kind: string; title: string; detail: string; href: string; priority: "core" | "enhancement" }>; timing: { scheduledCount: number; issues: Array<{ type: "overlap" | "tight"; severity: "high" | "medium"; title: string; detail: string; firstItem: string; secondItem: string; gapMinutes: number | null }> } } | null = null;
+    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number; gaps: Array<{ kind: string; title: string; detail: string; href: string; priority: "core" | "enhancement" }>; timing: { scheduledCount: number; issues: Array<{ type: "overlap" | "tight"; severity: "high" | "medium"; title: string; detail: string; firstItem: string; secondItem: string; gapMinutes: number | null }> }; optimization: { freeWindows: Array<{ startsAt: string; endsAt: string; minutes: number; after: string; before: string }>; packedDays: Array<{ date: string; scheduledItems: number }> } } | null = null;
     if (tripId) {
       const { data: trip, error: tripError } = await supabaseAdmin.from("trips").select("id,title,destination_city_id,start_on,end_on,status,cities(name,country)").eq("id", tripId).eq("traveler_id", user!.id).maybeSingle();
       if (tripError) throw tripError;
@@ -166,6 +206,7 @@ export async function POST(request: Request) {
       const openTransferRequests = transfers.filter((item: any) => !["declined","cancelled","completed"].includes(String(item.status || ""))).length;
       toolJourneyContext = { startOn: trip.start_on || null, endOn: trip.end_on || null, busy: itinerary.filter((item: any) => item.start_at && item.end_at && !["hotel","stay","accommodation"].includes(String(item.item_kind || "").toLowerCase())).map((item: any) => ({ start: item.start_at, end: item.end_at, title: item.title || item.item_kind || "Scheduled item" })) };
       const timing = itineraryTimingIssues(itinerary);
+      const optimization = itineraryOptimization(itinerary);
       const gaps = journeyGaps({
         startOn: trip.start_on || null,
         endOn: trip.end_on || null,
@@ -187,8 +228,9 @@ export async function POST(request: Request) {
         openTransferRequests,
         gaps,
         timing,
+        optimization,
       };
-      tripContext = `\nThe client is planning within their SafariPlug journey “${trip.title}”. Journey dates: ${trip.start_on || "not set"} to ${trip.end_on || "not set"}. Destination: ${city?.name || "not set"}. Existing itinerary items: ${itinerarySummary || "none"}. Existing Local requests: ${localSummary || "none"}. Existing transfer requests: ${transferSummary || "none"}. Detected journey gaps: ${gaps.map((gap) => gap.title).join("; ") || "none"}. Schedule issues: ${timing.issues.map((issue) => issue.detail).join("; ") || "none"}. Use this existing journey state to avoid suggesting duplicate arrangements unless the client asks for alternatives. Prefer filling genuine gaps in the journey, but present them as optional next steps rather than requirements. Flag recorded schedule overlaps and tight turnarounds clearly, but do not reschedule, cancel, or modify any itinerary item automatically. Do not imply that an item is confirmed merely because it exists in the itinerary; respect its recorded status. If a service is booked through this conversation, it is associated with the authenticated client; do not claim it has been added to the journey unless the booking system explicitly returns that relationship.`;
+      tripContext = `\nThe client is planning within their SafariPlug journey “${trip.title}”. Journey dates: ${trip.start_on || "not set"} to ${trip.end_on || "not set"}. Destination: ${city?.name || "not set"}. Existing itinerary items: ${itinerarySummary || "none"}. Existing Local requests: ${localSummary || "none"}. Existing transfer requests: ${transferSummary || "none"}. Detected journey gaps: ${gaps.map((gap) => gap.title).join("; ") || "none"}. Schedule issues: ${timing.issues.map((issue) => issue.detail).join("; ") || "none"}. Useful free windows between recorded items: ${optimization.freeWindows.map((window) => `${window.minutes} minutes after ${window.after} and before ${window.before}`).join("; ") || "none"}. Packed days: ${optimization.packedDays.map((day) => `${day.date} has ${day.scheduledItems} scheduled items`).join("; ") || "none"}. Use this existing journey state to avoid suggesting duplicate arrangements unless the client asks for alternatives. Prefer filling genuine gaps in the journey, but present them as optional next steps rather than requirements. Flag recorded schedule overlaps and tight turnarounds clearly, surface useful free windows and overly packed days, but do not reschedule, cancel, or modify any itinerary item automatically. Do not invent free time outside the recorded itinerary windows. Do not imply that an item is confirmed merely because it exists in the itinerary; respect its recorded status. If a service is booked through this conversation, it is associated with the authenticated client; do not claim it has been added to the journey unless the booking system explicitly returns that relationship.`;
     }
     const sanitized = messages.map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 3000) })); const customerContext = `\nAuthenticated registered customer email: ${user!.email || "unknown"}. Account id: ${user!.id}. Do not reveal account internals.`; let input: any[] = [{ role: "system", content: SYSTEM + customerContext + tripContext }, ...sanitized]; let finalText = ""; const serviceResults = new Map<string, ServiceResult>(); const availabilityResults = new Map<string, Slot[]>(); const discoveryResults: any[] = []; let lastBooking: any = null;
     for (let turn = 0; turn < 4; turn++) {
