@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     const timeZone = profile.timezone || "Africa/Nairobi";
     const { data: offering } = await supabaseAdmin.from("service_offerings").select("id,duration_minutes,status").eq("id",offeringId).eq("service_profile_id",profileId).maybeSingle();
     if (!offering || offering.status !== "active") return NextResponse.json({ error:"Service is not currently available" }, { status:404 });
-    const { data: staffRows } = await supabaseAdmin.from("service_staff").select("id,display_name,personal_photo_url").eq("service_profile_id",profileId).eq("status","active").not("personal_photo_url","is",null);
+    const { data: staffRows } = await supabaseAdmin.from("service_staff").select("id,display_name,personal_photo_url,verification_state,identity_liveness_verified_at,user_id").eq("service_profile_id",profileId).eq("status","active").eq("verification_state","verified").not("identity_liveness_verified_at","is",null).not("user_id","is",null).not("personal_photo_url","is",null);
     const staff = staffRows ?? [];
     const staffIds = staff.map(s => s.id);
     if (!staffIds.length) return NextResponse.json({ timeZone, slots:[] });
