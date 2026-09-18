@@ -69,7 +69,7 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
   if (businessError || !business) notFound();
 
   const profileIds = (profiles || []).map((p) => p.id);
-  const [{ data: offerings }, { data: staff }, { data: verification }, { data: invites }] = await Promise.all([
+  const [{ data: offerings }, { data: staff }, { data: verification }, { data: invites }, { data: followups, error: followupsError }] = await Promise.all([
     profileIds.length
       ? supabaseAdmin.from("service_offerings").select("id,name,price,currency,status,duration_minutes,service_profile_id").in("service_profile_id", profileIds)
       : Promise.resolve({ data: [] as Offering[] }),
@@ -89,6 +89,12 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
       .eq("onboarded_user_id", supplier.user_id)
       .order("created_at", { ascending: false })
       .limit(10),
+    supabaseAdmin
+      .from("supplier_onboarding_followups")
+      .select("id,recipient_email,subject,message,missing_requirements,status,sent_at,next_followup_due_at")
+      .eq("supplier_id", supplier.id)
+      .order("sent_at", { ascending: false })
+      .limit(20),
   ]);
 
   const b = business as Business;
@@ -97,8 +103,17 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
   const ss = (staff || []) as Staff[];
   const personalPhotos = ss.filter((s) => Boolean(s.personal_photo_url)).length;
   const latestVerification = verification?.[0];
-  const nextAction = nextActionFor(supplier.onboarding_status, Number(supplier.completion_percent || 0), latestVerification?.status);
-  const loadWarning = profilesError ? "Service profile details could not be fully loaded." : null;
+  const followupRows = followups || [];
+  const latestFollowup = followupRows[0];
+  const dueMs = latestFollowup?.next_followup_due_at ? Date.parse(latestFollowup.next_followup_due_at) : NaN;
+  const followupState = !latestFollowup
+    ? "not_sent"
+    : Number.isFinite(dueMs) && dueMs <= Date.now()
+      ? "overdue"
+      : "waiting";
+  const nextAction = nextActionFor(supplier.onboarding_status, Number(supplier.completion_percent || 0), latestVerification?.status, followupState, latestFollowup?.next_followup_due_at);
+  const warnings = [profilesError ? "Service profile details could not be fully loaded." : null, followupsError ? "Follow-up history could not be loaded." : null].filter(Boolean);
+  const loadWarning = warnings.length ? warnings.join(" ") : null;
 
   return (
     <main className="min-h-screen bg-[#070707] p-5 text-white md:p-10">
@@ -129,7 +144,20 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
           </div>
         </section>
 
-        <SupplierFollowupPanel supplierId={supplier.id} eligible={["draft","onboarding","changes_requested"].includes(String(supplier.onboarding_status || ""))} />
+        <SupplierFollowupPanel
+          supplierId={supplier.id}
+          eligible={["draft","onboarding","changes_requested"].includes(String(supplier.onboarding_status || ""))}
+          initialHistory={followupRows.map((row) => ({
+            id: row.id,
+            recipientEmail: row.recipient_email,
+            subject: row.subject,
+            message: row.message,
+            missingRequirements: Array.isArray(row.missing_requirements) ? row.missing_requirements.map(String) : [],
+            sentAt: row.sent_at,
+            nextFollowupDueAt: row.next_followup_due_at,
+            status: row.status,
+          }))}
+        />
 
         <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Metric label="Onboarding" value={`${supplier.completion_percent || 0}%`} />
@@ -190,11 +218,15 @@ function categoryName(value: Profile["service_categories"]) {
   return Array.isArray(value) ? value[0]?.name || null : value.name;
 }
 
-function nextActionFor(status: string, completion: number, verification?: string) {
+function nextActionFor(status: string, completion: number, verification?: string, followupState: "not_sent" | "waiting" | "overdue" = "not_sent", nextFollowupDueAt?: string | null) {
   if (status === "submitted") return { title: "Review supplier submission", detail: "This partner has submitted onboarding and is waiting for an admin decision.", href: "/admin/suppliers", cta: "Open supplier review" };
   if (status === "changes_requested") return { title: "Waiting for partner changes", detail: "Changes were requested. Do not activate until the partner resubmits and requirements are reviewed.", href: "/admin/suppliers", cta: "Review status" };
   if (status === "approved" || status === "live") return { title: verification === "approved" ? "Partner is operationally approved" : "Check verification before full activation", detail: verification === "approved" ? "Continue relationship management and inventory quality checks." : "Supplier approval exists, but provider verification should be reviewed independently.", href: "/admin/suppliers", cta: "Open governance" };
-  if (completion < 100) return { title: "Onboarding is incomplete", detail: `The recorded onboarding completion is ${completion}%. Draft a supplier-specific email from the actual missing onboarding requirements.`, href: "#onboarding-followup", cta: "Draft follow-up email" };
+  if (completion < 100) {
+    if (followupState === "overdue") return { title: "Supplier follow-up is overdue", detail: `Onboarding is ${completion}% complete and the recorded follow-up date has passed. Review the previous email and prepare the next reminder.`, href: "#onboarding-followup", cta: "Review overdue follow-up" };
+    if (followupState === "waiting") return { title: "Waiting on supplier", detail: `Onboarding is ${completion}% complete. A follow-up was sent and the next review is scheduled for ${nextFollowupDueAt ? new Date(nextFollowupDueAt).toLocaleString() : "later"}.`, href: "#onboarding-followup", cta: "View follow-up history" };
+    return { title: "Onboarding is incomplete", detail: `The recorded onboarding completion is ${completion}%. Draft a supplier-specific email from the actual missing onboarding requirements.`, href: "#onboarding-followup", cta: "Draft follow-up email" };
+  }
   return { title: "Prepare for supplier review", detail: "Onboarding appears complete but is not yet in an approved/live state.", href: "/admin/suppliers", cta: "Open supplier review" };
 }
 
