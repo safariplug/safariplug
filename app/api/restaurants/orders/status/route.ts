@@ -13,8 +13,8 @@ async function supplierBusinessId(userId:string) { const {data}=await supabaseAd
 async function driverProfileId(userId:string) { const {data}=await supabaseAdmin.from("driver_profiles").select("id").eq("user_id",userId).maybeSingle(); return data?.id??null; }
 
 async function eligibleDriver(driverId:string, order:any) {
-  const {data:driver}=await supabaseAdmin.from("driver_profiles").select("id,service_city_id,service_lat,service_lng,service_radius_km,driving_license_compliance_status,service_status,verification_state").eq("id",driverId).maybeSingle();
-  if(!driver||driver.service_status!=="active"||driver.verification_state!=="verified")return {error:"Selected driver is not available"};
+  const {data:driver}=await supabaseAdmin.from("driver_profiles").select("id,personal_photo_url,service_city_id,service_lat,service_lng,service_radius_km,driving_license_compliance_status,service_status,verification_state").eq("id",driverId).maybeSingle();
+  if(!driver||driver.service_status!=="active"||driver.verification_state!=="verified"||!driver.personal_photo_url)return {error:"Selected driver is not available"};
   if(driver.driving_license_compliance_status!=="compliant")return {error:"Selected driver license compliance is not current"};
   const {data:business}=await supabaseAdmin.from("businesses").select("city_id,latitude,longitude").eq("id",order.business_id).maybeSingle();
   if(!business)return {error:"Restaurant location is not configured"};
@@ -49,7 +49,7 @@ export async function GET(request:Request) {
  const orders=data??[];
  const driverIds=[...new Set(orders.flatMap((order:any)=>(order.food_delivery_assignments??[]).filter((a:any)=>a.status!=="cancelled"&&a.status!=="declined"&&a.driver_id).map((a:any)=>a.driver_id)))] as string[];
  let drivers:Record<string,unknown>={};
- if(driverIds.length){const {data:driverRows}=await supabaseAdmin.from("driver_profiles").select("id,display_name,service_city,service_country,preferred,capabilities").in("id",driverIds);drivers=Object.fromEntries((driverRows??[]).map((driver:any)=>[driver.id,{id:driver.id,display_name:driver.display_name,service_city:driver.service_city,service_country:driver.service_country,preferred:driver.preferred,capabilities:driver.capabilities}]));}
+ if(driverIds.length){const {data:driverRows}=await supabaseAdmin.from("driver_profiles").select("id,display_name,personal_photo_url,service_city,service_country,preferred,capabilities").in("id",driverIds);drivers=Object.fromEntries((driverRows??[]).map((driver:any)=>[driver.id,{id:driver.id,display_name:driver.display_name,personal_photo_url:driver.personal_photo_url,service_city:driver.service_city,service_country:driver.service_country,preferred:driver.preferred,capabilities:driver.capabilities}]));}
  const enriched=orders.map((order:any)=>{const assignment=(order.food_delivery_assignments??[]).find((a:any)=>a.status!=="cancelled"&&a.status!=="declined"&&a.driver_id);return {...order,assigned_driver:assignment?.driver_id?drivers[assignment.driver_id]??null:null};});
  return NextResponse.json({orders:enriched});
 }
