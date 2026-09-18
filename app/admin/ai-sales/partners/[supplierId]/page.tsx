@@ -108,6 +108,13 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
   const os = (offerings || []) as Offering[];
   const ss = (staff || []) as Staff[];
   const personalPhotos = ss.filter((s) => Boolean(s.personal_photo_url)).length;
+  const staffIds = ss.map((s) => s.id);
+  const [{ count: activeAvailabilityCount }, { data: payoutAccount }] = await Promise.all([
+    staffIds.length
+      ? supabaseAdmin.from("service_staff_availability").select("id", { count: "exact", head: true }).in("staff_id", staffIds).eq("is_active", true)
+      : Promise.resolve({ count: 0 }),
+    supabaseAdmin.from("service_provider_payout_accounts").select("status,phone,verified_at,updated_at").eq("provider_user_id", supplier.user_id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
   const latestVerification = verification?.[0];
   const followupRows = followups || [];
   const latestFollowup = followupRows[0];
@@ -180,11 +187,13 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
           }))}
         />
 
-        <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
           <Metric label="Onboarding" value={`${supplier.completion_percent || 0}%`} />
           <Metric label="Offerings" value={String(os.length)} />
           <Metric label="Team" value={String(ss.length)} />
           <Metric label="Personal photos" value={`${personalPhotos}/${ss.length}`} />
+          <Metric label="Availability" value={String(activeAvailabilityCount || 0)} />
+          <Metric label="Payout" value={payoutAccount?.status || "not set up"} />
           <Metric label="Invitations" value={String(invites?.length || 0)} />
         </section>
 
@@ -205,6 +214,9 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             <Field label="Submitted" value={date(supplier.submitted_at)} />
             <Field label="Approved" value={date(supplier.approved_at)} />
             <Field label="Verification" value={latestVerification?.status || "Not started"} />
+            <Field label="Active availability" value={String(activeAvailabilityCount || 0)} />
+            <Field label="Payout status" value={payoutAccount?.status || "Not set up"} />
+            <Field label="Payout phone" value={payoutAccount?.phone || null} />
             <p className="mt-4 text-xs leading-5 text-zinc-500">Verification and activation remain governed. Partner 360 does not automatically verify, approve, publish, or open bookings.</p>
           </Card>
         </div>
