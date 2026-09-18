@@ -75,15 +75,6 @@ export async function POST(request: Request) {
       .eq("id", resolved.id);
     if (caseError) return NextResponse.json({ error: "Unable to update verification case." }, { status: 500 });
 
-    if (resolved.subject_type === "driver" && resolved.subject_id) {
-      const { error: driverError } = await supabaseAdmin.rpc("apply_driver_verification_state", {
-        p_driver_id: resolved.subject_id,
-        p_state: approved ? "verified" : "rejected",
-        p_case_id: resolved.id,
-      });
-      if (driverError) return NextResponse.json({ error: "Unable to update driver verification state." }, { status: 500 });
-    }
-
     if (approved) {
       for (const evidenceType of ["identity", "liveness"] as const) {
         const { data: existing, error: lookupError } = await supabaseAdmin
@@ -100,6 +91,21 @@ export async function POST(request: Request) {
           : await supabaseAdmin.from("verification_evidence").insert({ case_id: resolved.id, evidence_type: evidenceType, ...patch, submitted_at: reviewedAt });
         if (result.error) return NextResponse.json({ error: "Unable to update verification evidence." }, { status: 500 });
       }
+    }
+
+    if (resolved.subject_type === "driver" && resolved.subject_id) {
+      const { error: timestampError } = await supabaseAdmin
+        .from("driver_profiles")
+        .update({ identity_liveness_verified_at: approved ? reviewedAt : null })
+        .eq("id", resolved.subject_id);
+      if (timestampError) return NextResponse.json({ error: "Unable to update driver liveness timestamp." }, { status: 500 });
+
+      const { error: driverError } = await supabaseAdmin.rpc("apply_driver_verification_state", {
+        p_driver_id: resolved.subject_id,
+        p_state: approved ? "verified" : "rejected",
+        p_case_id: resolved.id,
+      });
+      if (driverError) return NextResponse.json({ error: "Unable to update driver verification state." }, { status: 500 });
     }
   } else if (["applicantPending", "applicantOnHold", "applicantAwaitingUser", "applicantAwaitingService"].includes(type)) {
     toStatus = "in_review";
