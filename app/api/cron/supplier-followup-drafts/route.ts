@@ -27,19 +27,24 @@ function draftMessage(input: { name: string; businessName: string; completion: n
   };
 }
 
-function inferMissing(supplier: any) {
+type ServiceStaff = { personal_photo_url?: string | null };
+type ServiceProfile = { service_offerings?: unknown[] | unknown | null; service_staff?: ServiceStaff[] | ServiceStaff | null };
+type SupplierBusiness = { name?: string | null; email?: string | null; description?: string | null; logo_url?: string | null; cover_image_url?: string | null; service_profiles?: ServiceProfile[] | ServiceProfile | null };
+type SupplierForDraft = { businesses?: SupplierBusiness[] | SupplierBusiness | null; completion_percent?: number | null; review_items?: unknown[] | null; verification_status?: string | null };
+
+function inferMissing(supplier: SupplierForDraft) {
   const business = Array.isArray(supplier.businesses) ? supplier.businesses[0] : supplier.businesses;
   const rawProfiles = business?.service_profiles;
   const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
-  const offerings = profiles.flatMap((p: any) => Array.isArray(p.service_offerings) ? p.service_offerings : p.service_offerings ? [p.service_offerings] : []);
-  const staff = profiles.flatMap((p: any) => Array.isArray(p.service_staff) ? p.service_staff : p.service_staff ? [p.service_staff] : []);
+  const offerings = profiles.flatMap((p: ServiceProfile) => Array.isArray(p.service_offerings) ? p.service_offerings : p.service_offerings ? [p.service_offerings] : []);
+  const staff = profiles.flatMap((p: ServiceProfile) => Array.isArray(p.service_staff) ? p.service_staff : p.service_staff ? [p.service_staff] : []);
   const missing: string[] = [];
   if (!clean(business?.description)) missing.push("Add a clear business description");
   if (!business?.logo_url && !business?.cover_image_url) missing.push("Add a business logo or cover image");
   if (!profiles.length) missing.push("Create your service profile");
   if (profiles.length && !offerings.length) missing.push("Add at least one service offering with pricing and duration");
   if (profiles.length && !staff.length) missing.push("Add at least one team member or service provider");
-  if (staff.some((member: any) => !member.personal_photo_url)) missing.push("Add a personal photo for every listed team member");
+  if (staff.some((member: ServiceStaff) => !member.personal_photo_url)) missing.push("Add a personal photo for every listed team member");
   if (!supplier.verification_status) missing.push("Start supplier verification");
   else if (supplier.verification_status !== "approved") missing.push(`Complete supplier verification (currently ${label(String(supplier.verification_status))})`);
   for (const item of Array.isArray(supplier.review_items) ? supplier.review_items : []) {
@@ -62,8 +67,9 @@ export async function GET(request: Request) {
       .limit(200);
     if (dueError) throw dueError;
 
-    const latestDue = new Map<string, any>();
-    for (const row of due || []) if (!latestDue.has(row.supplier_id)) latestDue.set(row.supplier_id, row);
+    type DueRow = { supplier_id: string; sent_at: string; next_followup_due_at: string | null; missing_requirements: unknown };
+    const latestDue = new Map<string, DueRow>();
+    for (const row of (due || []) as DueRow[]) if (!latestDue.has(row.supplier_id)) latestDue.set(row.supplier_id, row);
 
     let prepared = 0;
     let skipped = 0;
