@@ -72,6 +72,49 @@ function journeyGaps(input: {
   return gaps.slice(0, 5);
 }
 
+function itineraryTimingIssues(items: Array<{ id?: string; item_kind?: string | null; title?: string | null; start_at?: string | null; end_at?: string | null }>) {
+  const lodgingKinds = new Set(["hotel","stay","accommodation"]);
+  const scheduled = items
+    .filter((item) => item.start_at && item.end_at && !lodgingKinds.has(String(item.item_kind || "").toLowerCase()))
+    .map((item) => ({ ...item, startMs: Date.parse(String(item.start_at)), endMs: Date.parse(String(item.end_at)) }))
+    .filter((item) => Number.isFinite(item.startMs) && Number.isFinite(item.endMs) && item.endMs > item.startMs)
+    .sort((a, b) => a.startMs - b.startMs);
+
+  const issues: Array<{ type: "overlap" | "tight"; severity: "high" | "medium"; title: string; detail: string; firstItem: string; secondItem: string; gapMinutes: number | null }> = [];
+  for (let i = 0; i < scheduled.length - 1; i++) {
+    const current = scheduled[i];
+    const next = scheduled[i + 1];
+    const firstItem = current.title || current.item_kind || "Scheduled item";
+    const secondItem = next.title || next.item_kind || "Scheduled item";
+    if (next.startMs < current.endMs) {
+      const overlapMinutes = Math.ceil((current.endMs - next.startMs) / 60000);
+      issues.push({
+        type: "overlap",
+        severity: "high",
+        title: "Schedule overlap detected",
+        detail: `${firstItem} overlaps ${secondItem} by about ${overlapMinutes} minute${overlapMinutes === 1 ? "" : "s"}.`,
+        firstItem,
+        secondItem,
+        gapMinutes: -overlapMinutes,
+      });
+      continue;
+    }
+    const gapMinutes = Math.floor((next.startMs - current.endMs) / 60000);
+    if (gapMinutes < 60) {
+      issues.push({
+        type: "tight",
+        severity: "medium",
+        title: "Tight turnaround",
+        detail: `${firstItem} ends only ${gapMinutes} minute${gapMinutes === 1 ? "" : "s"} before ${secondItem} starts. Allow time for travel, delays and check-in.`,
+        firstItem,
+        secondItem,
+        gapMinutes,
+      });
+    }
+  }
+  return { scheduledCount: scheduled.length, issues: issues.slice(0, 5) };
+}
+
 export async function POST(request: Request) {
   try {
     const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(); const realIp = request.headers.get("x-real-ip")?.trim(); const ip = (forwarded || realIp || "unknown").slice(0, 120); const { data: allowed, error: rateError } = await supabaseAdmin.rpc("consume_concierge_rate_limit", { p_bucket: `concierge:${ip}`, p_limit: 20, p_window_seconds: 60 }); if (rateError) return NextResponse.json({ error: "Concierge is temporarily unavailable." }, { status: 503 }); if (allowed !== true) return NextResponse.json({ error: "Concierge is busy. Please wait a moment and try again." }, { status: 429 });
@@ -79,7 +122,7 @@ export async function POST(request: Request) {
     const payload = await request.json(); const messages = Array.isArray(payload?.messages) ? payload.messages.slice(-12) : []; if (!messages.length) return NextResponse.json({ error: "messages are required" }, { status: 400 });
     const tripId = typeof payload?.tripId === "string" && payload.tripId.trim() ? payload.tripId.trim() : null;
     let tripContext = "";
-    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number; gaps: Array<{ kind: string; title: string; detail: string; href: string; priority: "core" | "enhancement" }> } | null = null;
+    let tripSummary: { id: string; title: string | null; destination: string | null; startOn: string | null; endOn: string | null; itemCount: number; arrangedKinds: string[]; openLocalRequests: number; openTransferRequests: number; gaps: Array<{ kind: string; title: string; detail: string; href: string; priority: "core" | "enhancement" }>; timing: { scheduledCount: number; issues: Array<{ type: "overlap" | "tight"; severity: "high" | "medium"; title: string; detail: string; firstItem: string; secondItem: string; gapMinutes: number | null }> } } | null = null;
     if (tripId) {
       const { data: trip, error: tripError } = await supabaseAdmin.from("trips").select("id,title,destination_city_id,start_on,end_on,status,cities(name,country)").eq("id", tripId).eq("traveler_id", user!.id).maybeSingle();
       if (tripError) throw tripError;
@@ -100,6 +143,7 @@ export async function POST(request: Request) {
       const transferSummary = transfers.slice(0, 8).map((item: any) => [`${item.pickup_label || "Pickup"} → ${item.destination_label || "Destination"}`, item.status || "requested", item.requested_at || "date not set"].join(" · ")).join("; ");
       const openLocalRequests = locals.filter((item: any) => !["declined","cancelled","completed"].includes(String(item.status || ""))).length;
       const openTransferRequests = transfers.filter((item: any) => !["declined","cancelled","completed"].includes(String(item.status || ""))).length;
+      const timing = itineraryTimingIssues(itinerary);
       const gaps = journeyGaps({
         startOn: trip.start_on || null,
         endOn: trip.end_on || null,
@@ -120,8 +164,9 @@ export async function POST(request: Request) {
         openLocalRequests,
         openTransferRequests,
         gaps,
+        timing,
       };
-      tripContext = `\nThe client is planning within their SafariPlug journey “${trip.title}”. Journey dates: ${trip.start_on || "not set"} to ${trip.end_on || "not set"}. Destination: ${city?.name || "not set"}. Existing itinerary items: ${itinerarySummary || "none"}. Existing Local requests: ${localSummary || "none"}. Existing transfer requests: ${transferSummary || "none"}. Detected journey gaps: ${gaps.map((gap) => gap.title).join("; ") || "none"}. Use this existing journey state to avoid suggesting duplicate arrangements unless the client asks for alternatives. Prefer filling genuine gaps in the journey, but present them as optional next steps rather than requirements. Do not imply that an item is confirmed merely because it exists in the itinerary; respect its recorded status. If a service is booked through this conversation, it is associated with the authenticated client; do not claim it has been added to the journey unless the booking system explicitly returns that relationship.`;
+      tripContext = `\nThe client is planning within their SafariPlug journey “${trip.title}”. Journey dates: ${trip.start_on || "not set"} to ${trip.end_on || "not set"}. Destination: ${city?.name || "not set"}. Existing itinerary items: ${itinerarySummary || "none"}. Existing Local requests: ${localSummary || "none"}. Existing transfer requests: ${transferSummary || "none"}. Detected journey gaps: ${gaps.map((gap) => gap.title).join("; ") || "none"}. Schedule issues: ${timing.issues.map((issue) => issue.detail).join("; ") || "none"}. Use this existing journey state to avoid suggesting duplicate arrangements unless the client asks for alternatives. Prefer filling genuine gaps in the journey, but present them as optional next steps rather than requirements. Flag recorded schedule overlaps and tight turnarounds clearly, but do not reschedule, cancel, or modify any itinerary item automatically. Do not imply that an item is confirmed merely because it exists in the itinerary; respect its recorded status. If a service is booked through this conversation, it is associated with the authenticated client; do not claim it has been added to the journey unless the booking system explicitly returns that relationship.`;
     }
     const sanitized = messages.map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 3000) })); const customerContext = `\nAuthenticated registered customer email: ${user!.email || "unknown"}. Account id: ${user!.id}. Do not reveal account internals.`; let input: any[] = [{ role: "system", content: SYSTEM + customerContext + tripContext }, ...sanitized]; let finalText = ""; const serviceResults = new Map<string, ServiceResult>(); const availabilityResults = new Map<string, Slot[]>(); let lastBooking: any = null;
     for (let turn = 0; turn < 4; turn++) {
