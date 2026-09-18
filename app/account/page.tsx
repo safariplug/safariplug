@@ -2,13 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import TravelerNav from "@/components/TravelerNav";
+import { getTravelerVerificationState } from "@/lib/services/traveler-verification";
 
 export default async function AccountPage() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.is_anonymous) redirect(`/login?next=${encodeURIComponent("/account")}`);
 
-  const [trips, foodOrders, appointments, eventBookings, hotelBookings, transferBookings, activityBookings, localRequests] = await Promise.all([
+  const [trips, foodOrders, appointments, eventBookings, hotelBookings, transferBookings, activityBookings, localRequests, travelerVerification] = await Promise.all([
     countRows(supabase, "trips", "traveler_id", user.id),
     countRows(supabase, "food_orders", "customer_user_id", user.id),
     countRows(supabase, "service_appointments", "customer_user_id", user.id),
@@ -17,6 +18,7 @@ export default async function AccountPage() {
     countRows(supabase, "transfer_booking_pricing_ledger", "customer_user_id", user.id),
     countRows(supabase, "activity_booking_pricing_ledger", "customer_user_id", user.id),
     countRows(supabase, "local_requests", "traveler_id", user.id),
+    getTravelerVerificationState(user.id),
   ]);
 
   const totalActivity = foodOrders + appointments + eventBookings + hotelBookings + transferBookings + activityBookings + localRequests;
@@ -38,10 +40,11 @@ export default async function AccountPage() {
         <StatusCard href="/events" label="Experience bookings" value={eventBookings} description="Booked experiences" />
       </div>
 
-      <section className="mt-8 rounded-[1.75rem] border border-black/8 bg-white p-6 shadow-sm"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">Travel activity</p><h2 className="mt-2 text-2xl font-semibold">{totalActivity ? `${totalActivity} active record${totalActivity === 1 ? "" : "s"} across SafariPlug` : "Your SafariPlug is ready"}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-black/50">SafariPlug shows activity only when a real request, appointment, order or booking exists. Nothing here is generated as fake inventory or a fake reservation.</p></div><Link href="/account/trips" className="w-fit rounded-full bg-black px-5 py-3 text-sm font-semibold text-white">View journeys →</Link></div></section>
+      <section className={`mt-8 rounded-[1.75rem] border p-6 shadow-sm ${travelerVerification.verified ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">Traveler trust</p><h2 className="mt-2 text-2xl font-semibold">{travelerVerification.verified ? "Identity + live face verification approved" : "Complete identity verification for trust-sensitive bookings"}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-black/50">{travelerVerification.verified ? "Specific-driver, specific-Local, personal-service, transfer and activity checkout gates can use this approval while it remains valid." : "SafariPlug blocks trust-sensitive bookings until identity and live face/liveness verification is approved."}</p></div><Link href="/account/verification" className="w-fit rounded-full bg-black px-5 py-3 text-sm font-semibold text-white">{travelerVerification.verified ? "Review verification" : "Verify identity →"}</Link></div></section>\n\n      <section className="mt-8 rounded-[1.75rem] border border-black/8 bg-white p-6 shadow-sm"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">Travel activity</p><h2 className="mt-2 text-2xl font-semibold">{totalActivity ? `${totalActivity} active record${totalActivity === 1 ? "" : "s"} across SafariPlug` : "Your SafariPlug is ready"}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-black/50">SafariPlug shows activity only when a real request, appointment, order or booking exists. Nothing here is generated as fake inventory or a fake reservation.</p></div><Link href="/account/trips" className="w-fit rounded-full bg-black px-5 py-3 text-sm font-semibold text-white">View journeys →</Link></div></section>
 
       <div className="mt-8"><p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/35">Explore & manage</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">Everything for the trip.</h2></div>
       <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <AccountCard href="/account/verification" title="Identity verification" description="Manage traveler identity and live face/liveness verification for trust-sensitive bookings." />
         <AccountCard href="/account/trips" title="Trips" description="Keep experiences, stays, food, services and Local requests connected to the same journey." />
         <AccountCard href="/locals" title="Locals" description="Find verified, active Local profiles and send a real request for a date, time and activity." />
         <AccountCard href="/hotels" title="Stays" description="Search hotel inventory through configured SafariPlug supplier connections." />

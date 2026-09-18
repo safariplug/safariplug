@@ -143,6 +143,11 @@ export default function HotelbedsTransferBookPage() {
         window.location.href = `/login?next=${encodeURIComponent(next)}`;
         return;
       }
+      if (!response.ok && body?.error === "traveler_verification_required") {
+        const next = window.location.pathname + window.location.search;
+        window.location.href = `/account/verification?next=${encodeURIComponent(next)}`;
+        return;
+      }
       if (!response.ok) throw new Error(body?.message || "Unable to start transfer payment.");
       if (!body?.bookingId) throw new Error("SafariPlug did not return a transfer booking session.");
       window.location.href = `/transfers/booking-result?provider=hotelbeds&bookingId=${encodeURIComponent(body.bookingId)}`;
