@@ -93,6 +93,18 @@ export async function POST(request: Request) {
       }
     }
 
+    if (resolved.subject_type === "service_staff" && resolved.subject_id) {
+      const { error: staffError } = await supabaseAdmin
+        .from("service_staff")
+        .update({
+          identity_liveness_verified_at: approved ? reviewedAt : null,
+          verification_state: approved ? "verified" : "rejected",
+          updated_at: reviewedAt,
+        })
+        .eq("id", resolved.subject_id);
+      if (staffError) return NextResponse.json({ error: "Unable to update specialist verification state." }, { status: 500 });
+    }
+
     if (resolved.subject_type === "driver" && resolved.subject_id) {
       const { error: timestampError } = await supabaseAdmin
         .from("driver_profiles")
