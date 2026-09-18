@@ -304,9 +304,19 @@ function tripCompletion(input: {
     { ...item("transfer", "Transport", transportStatus === "covered", "/transfers"), status: transportStatus },
     { ...item("activity", "Things to do", hasActivity, "/activities"), status: hasActivity ? "covered" : "action" },
   ];
+  const optionalItem = (kind: string, title: string, covered: boolean, href: string): { kind: string; title: string; status: "covered" | "optional"; href: string; detail: string } => {
+    const gap = missing.get(kind);
+    return {
+      kind,
+      title,
+      status: covered ? "covered" : "optional",
+      href,
+      detail: covered ? "Recorded in this journey." : gap?.detail || "Optional enhancement for this journey.",
+    };
+  };
   const extras: Array<{ kind: string; title: string; status: "covered" | "optional"; href: string; detail: string }> = [
-    item("local", "Verified Local", hasLocal, "/locals", true),
-    item("service", "Personal service", hasService, "/services", true),
+    optionalItem("local", "Verified Local", hasLocal, "/locals"),
+    optionalItem("service", "Personal service", hasService, "/services"),
   ];
 
   return {
