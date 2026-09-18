@@ -102,6 +102,21 @@ export async function persistVerificationMutation(
       return { ok: false };
     }
   }
+  if (current.subject_type === "service_staff") {
+    const approved = current.status === "approved";
+    const { error } = await client
+      .from("service_staff")
+      .update({
+        identity_liveness_verified_at: approved ? current.reviewed_at : null,
+        verification_state: approved ? "verified" : current.status === "rejected" ? "rejected" : "pending",
+      })
+      .eq("id", current.subject_id);
+    if (error) {
+      console.error("verification.apply_service_staff", error.message);
+      return { ok: false };
+    }
+  }
+
   if (current.subject_type === "driver") {
     if (current.status !== "approved") {
       const { error: clearError } = await client
