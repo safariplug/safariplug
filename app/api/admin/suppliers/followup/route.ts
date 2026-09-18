@@ -23,7 +23,8 @@ function requirementLink(requirement: string) {
   if (requirement.includes("description")) return `${base}#business-details`;
   if (requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
   if (requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
-  if (requirement.includes("team member") || requirement.includes("personal photo")) return `${base}#team-availability`;
+  if (requirement.includes("team member") || requirement.includes("personal photo") || requirement.includes("availability")) return `${base}#team-availability`;
+  if (requirement.includes("payout")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/payouts`;
   if (requirement.includes("verification")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/supplier/readiness`;
   return base;
 }
@@ -54,20 +55,45 @@ function deterministicDraft(input: {
 async function loadSupplier(supplierId: string) {
   const { data: supplier, error } = await supabaseAdmin
     .from("supplier_accounts")
-    .select("id,business_id,contact_name,onboarding_status,completion_percent,review_items,review_note,businesses!inner(id,name,email,phone,description,logo_url,cover_image_url,service_profiles(id,status,booking_status,service_offerings(id,name,status,price,currency,duration_minutes),service_staff(id,display_name,personal_photo_url,status)))")
+    .select("id,user_id,business_id,contact_name,onboarding_status,completion_percent,review_items,review_note,businesses!inner(id,name,email,phone,description,logo_url,cover_image_url,service_profiles(id,status,booking_status,service_offerings(id,name,status,price,currency,duration_minutes),service_staff(id,display_name,personal_photo_url,status)))")
     .eq("id", supplierId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!supplier) return null;
-  const { data: verification } = await supabaseAdmin
-    .from("verification_cases")
-    .select("status")
-    .eq("subject_type", "provider")
-    .eq("subject_id", supplier.business_id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return { ...supplier, verification_status: verification?.status || null };
+  const business = Array.isArray(supplier.businesses) ? supplier.businesses[0] : supplier.businesses;
+  const profilesRaw = business?.service_profiles;
+  const profiles = Array.isArray(profilesRaw) ? profilesRaw : profilesRaw ? [profilesRaw] : [];
+  const staffIds = profiles.flatMap((profile) => {
+    const raw = profile.service_staff;
+    const staff = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    return staff.map((member) => member.id);
+  });
+  const [{ data: verification }, { count: availabilityCount }, { data: payout }] = await Promise.all([
+    supabaseAdmin
+      .from("verification_cases")
+      .select("status")
+      .eq("subject_type", "provider")
+      .eq("subject_id", supplier.business_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    staffIds.length
+      ? supabaseAdmin.from("service_staff_availability").select("id", { count: "exact", head: true }).in("staff_id", staffIds).eq("is_active", true)
+      : Promise.resolve({ count: 0 }),
+    supabaseAdmin
+      .from("service_provider_payout_accounts")
+      .select("status")
+      .eq("provider_user_id", supplier.user_id)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  return {
+    ...supplier,
+    verification_status: verification?.status || null,
+    availability_count: availabilityCount || 0,
+    payout_status: payout?.status || null,
+  };
 }
 
 function inferMissingRequirements(supplier: NonNullable<Awaited<ReturnType<typeof loadSupplier>>>) {
@@ -87,6 +113,9 @@ function inferMissingRequirements(supplier: NonNullable<Awaited<ReturnType<typeo
   }
   if (profiles.length && !staff.length) missing.push("Add at least one team member or service provider");
   if (staff.some((member) => !member.personal_photo_url)) missing.push("Add a personal photo for every listed team member");
+  if (staff.length && Number(supplier.availability_count || 0) === 0) missing.push("Add active availability for at least one team member");
+  if (!supplier.payout_status) missing.push("Set up your payout account");
+  else if (supplier.payout_status !== "verified") missing.push(`Complete payout account verification (currently ${reviewLabel(String(supplier.payout_status))})`);
   if (!supplier.verification_status) missing.push("Start supplier verification");
   else if (supplier.verification_status !== "approved") missing.push(`Complete supplier verification (currently ${reviewLabel(String(supplier.verification_status))})`);
 
