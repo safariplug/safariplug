@@ -20,7 +20,7 @@ import {
   toPublicTrustSignal,
   toSafeEvidence,
 } from "@/lib/services/verification";
-import { liveVerificationAdapters } from "./registry";
+import { getVerificationAdapter, liveVerificationAdapters } from "./registry";
 import { UnavailableVerificationAdapter } from "./not-configured";
 import type { DriverProfile, TransferFulfillmentRequest, Vehicle } from "../drivers/types";
 
@@ -110,8 +110,12 @@ function openedBasicCase(store: MemoryVerificationStore) {
   return created.data.id;
 }
 
-test("no live KYC adapter; credentials do not become live", async () => {
-  assert.equal(liveVerificationAdapters().length, 0);
+test("registered Sumsub adapter requires its own configuration", async () => {
+  const identity = getVerificationAdapter("identity_provider");
+  const liveness = getVerificationAdapter("liveness_provider");
+  assert.equal(identity.contractImplemented(), true);
+  assert.equal(liveness.contractImplemented(), true);
+  const liveBefore = liveVerificationAdapters().length;
   process.env.SAFARIPLUG_VERIFY_IDENTITY_PROVIDER_BASE_URL = "https://example.invalid";
   process.env.SAFARIPLUG_VERIFY_IDENTITY_PROVIDER_API_KEY = "not-real";
   try {
@@ -121,7 +125,7 @@ test("no live KYC adapter; credentials do not become live", async () => {
     const check = await adapter.requestExternalCheck("x");
     assert.equal(check.ok, false);
     if (!check.ok) assert.equal(check.error.message, "verification_not_configured");
-    assert.equal(liveVerificationAdapters().length, 0);
+    assert.equal(liveVerificationAdapters().length, liveBefore);
   } finally {
     delete process.env.SAFARIPLUG_VERIFY_IDENTITY_PROVIDER_BASE_URL;
     delete process.env.SAFARIPLUG_VERIFY_IDENTITY_PROVIDER_API_KEY;
@@ -341,4 +345,11 @@ test("travelers cannot self-verify or assign", () => {
 test("public trust is never granted from active or preferred alone", () => {
   assert.equal(toPublicTrustSignal("unverified", "basic", "driver"), null);
   assert.equal(getDriverTrustStatus(driver({ service_status: "active" })), "unverified");
+});
+
+
+test("verification subject model includes Local and traveler", async () => {
+  const { VERIFICATION_SUBJECT_TYPES } = await import("./types");
+  assert.equal(VERIFICATION_SUBJECT_TYPES.includes("local"), true);
+  assert.equal(VERIFICATION_SUBJECT_TYPES.includes("traveler"), true);
 });
