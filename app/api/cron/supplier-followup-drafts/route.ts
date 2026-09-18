@@ -75,6 +75,7 @@ function inferMissing(supplier: SupplierForDraft) {
 
 export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  const startedAt = new Date().toISOString();
   try {
     const now = new Date().toISOString();
     const { data: due, error: dueError } = await supabaseAdmin
@@ -153,9 +154,27 @@ export async function GET(request: Request) {
       }
       prepared++;
     }
+    await supabaseAdmin.from("supplier_followup_prep_runs").insert({
+      status: "success",
+      checked_count: latestDue.size,
+      prepared_count: prepared,
+      skipped_count: skipped,
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+    });
     return NextResponse.json({ ok: true, prepared, skipped, checked: latestDue.size });
   } catch (error) {
     console.error("Supplier follow-up draft preparation failed", error);
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Draft preparation failed" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Draft preparation failed";
+    await supabaseAdmin.from("supplier_followup_prep_runs").insert({
+      status: "failed",
+      checked_count: 0,
+      prepared_count: 0,
+      skipped_count: 0,
+      error_message: message.slice(0, 1000),
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+    });
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
