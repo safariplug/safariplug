@@ -27,9 +27,9 @@ export default async function LocalRequestsPage() {
     const requestId=String(formData.get("request_id")||"");
     const decision=String(formData.get("decision")||"");
     if(!requestId || !["accepted","declined"].includes(decision)) throw new Error("Invalid response.");
-    const { data: own }=await client.from("local_profiles").select("id,verification_state,service_status").eq("user_id",current.id).maybeSingle();
+    const { data: own }=await client.from("local_profiles").select("id,verification_state,identity_liveness_verified_at,service_status").eq("user_id",current.id).maybeSingle();
     if(!own) throw new Error("Local profile not found.");
-    if(decision==="accepted" && (own.verification_state!=="verified" || own.service_status!=="active")) throw new Error("Only verified active Locals can accept requests.");
+    if(decision==="accepted" && (own.verification_state!=="verified" || !own.identity_liveness_verified_at || own.service_status!=="active")) throw new Error("Only externally identity/liveness-verified active Locals can accept requests.");
     const { data: request }=await client.from("local_requests").select("id,status").eq("id",requestId).eq("local_id",own.id).maybeSingle();
     if(!request || request.status!=="requested") throw new Error("This request can no longer be changed.");
     const { error:updateError }=await client.from("local_requests").update({status:decision}).eq("id",requestId).eq("local_id",own.id).eq("status","requested");
