@@ -67,7 +67,7 @@ export default async function HotelConnectivityPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Payment safety</p><h2 className="mt-2 text-lg font-bold">Hotel confirmation reconciliation</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-zinc-500">Paid Hotelbeds hotel bookings with an indeterminate confirmation result are never retried automatically.</p></div><Link href="/admin/integrations/hotels/reconciliation" className="rounded-xl border border-amber-400/40 px-4 py-2 text-sm font-bold text-amber-300">Open reconciliation →</Link></div></section>\n\n        <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
           <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Activation rules</p>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <Rule title="1 · Supplier approval" body="Commercial/API access must be approved by the provider before SafariPlug claims a live connection." />
