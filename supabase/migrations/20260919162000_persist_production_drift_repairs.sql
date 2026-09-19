@@ -153,3 +153,14 @@ grant execute on function public.set_hotelbeds_content_updated_at() to service_r
 
 revoke execute on function public.sync_hotel_trip_item_ledger_reference() from public, anon, authenticated;
 grant execute on function public.sync_hotel_trip_item_ledger_reference() to service_role;
+
+
+-- Additional trigger-only restaurant/payment helpers found during the same audit.
+revoke execute on function public.enforce_food_order_payment_lifecycle() from public, anon, authenticated;
+grant execute on function public.enforce_food_order_payment_lifecycle() to service_role;
+
+revoke execute on function public.validate_food_order_item_amounts() from public, anon, authenticated;
+grant execute on function public.validate_food_order_item_amounts() to service_role;
+
+revoke execute on function public.validate_restaurant_menu_item_category() from public, anon, authenticated;
+grant execute on function public.validate_restaurant_menu_item_category() to service_role;
