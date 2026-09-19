@@ -6,7 +6,7 @@ import RefundReviewActions from "./RefundReviewActions";
 export const dynamic = "force-dynamic";
 
 type Candidate = {
-  product: "hotel" | "transfer" | "activity" | "service";
+  product: "hotel" | "transfer" | "activity" | "service" | "food";
   ledgerId: string;
   provider: string;
   customerUserId: string;
@@ -41,7 +41,7 @@ function reasonFromMetadata(metadata: Record<string, unknown>, fallback: string)
 export default async function TravelRefundReviewPage() {
   await requireAdmin();
 
-  const [hotelResult, transferResult, activityResult, serviceLedgerResult, serviceAppointmentResult, serviceAttemptResult, serviceEventResult, reviewResult] = await Promise.all([
+  const [hotelResult, transferResult, activityResult, serviceLedgerResult, serviceAppointmentResult, serviceAttemptResult, serviceEventResult, foodRefundResult, foodOrderResult, reviewResult] = await Promise.all([
     supabaseAdmin
       .from("hotel_booking_pricing_ledger")
       .select("id,customer_user_id,provider,customer_currency,currency,customer_retail_amount,retail_amount,payment_status,booking_status,created_at,metadata")
@@ -75,6 +75,16 @@ export default async function TravelRefundReviewPage() {
     supabaseAdmin
       .from("service_payment_events")
       .select("appointment_id,provider,provider_reference,created_at")
+      .order("created_at",{ascending:false})
+      .limit(1000),
+    supabaseAdmin
+      .from("food_order_refunds")
+      .select("id,order_id,provider,amount,currency,status,provider_reference,refund_reference,error_message,created_at,updated_at,processed_at")
+      .order("created_at",{ascending:false})
+      .limit(500),
+    supabaseAdmin
+      .from("food_orders")
+      .select("id,customer_user_id,status,payment_status,payment_reference,customer_total,currency,refunded_amount,refund_reference,created_at")
       .order("created_at",{ascending:false})
       .limit(1000),
     supabaseAdmin
@@ -188,6 +198,30 @@ export default async function TravelRefundReviewPage() {
     });
   }
 
+  const foodOrderById=new Map((foodOrderResult.data||[]).map(row=>[row.id,row]));
+  for (const row of foodRefundResult.data || []) {
+    if (!["pending","processing","failed"].includes(String(row.status))) continue;
+    const order=foodOrderById.get(row.order_id);
+    if(!order) continue;
+    const failed=row.status==="failed";
+
+    candidates.push({
+      product:"food",
+      ledgerId:row.id,
+      provider:String(row.provider||"food-payment"),
+      customerUserId:String(order.customer_user_id||"unknown"),
+      amount:Number(row.amount||0),
+      currency:String(row.currency||order.currency||"KES"),
+      bookingStatus:String(order.status||"unknown"),
+      paymentStatus:String(order.payment_status||"unknown"),
+      reason:failed
+        ? `Food-order refund attempt failed and requires finance reconciliation${row.error_message?`: ${row.error_message}`:""}`
+        :"Food-order refund request is awaiting governed finance completion",
+      createdAt:row.created_at,
+      refundStatus:`refund_${row.status}`,
+    });
+  }
+
   const reviews=reviewResult.data||[];
   const reviewByKey=new Map(reviews.map(row=>[`${row.product}:${row.ledger_id}`,row]));
   candidates.sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
@@ -206,6 +240,8 @@ export default async function TravelRefundReviewPage() {
     serviceAppointmentResult.error,
     serviceAttemptResult.error,
     serviceEventResult.error,
+    foodRefundResult.error,
+    foodOrderResult.error,
     reviewResult.error,
   ].filter(Boolean);
 
@@ -222,8 +258,8 @@ export default async function TravelRefundReviewPage() {
           </p>
           <h1 className="mt-2 text-4xl font-bold">Refund review center</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-            Paid hotel, transfer, activity and personal-service bookings that may require refund or payment reconciliation are reviewed here.
-            This workflow records finance review state only. It never issues an M-Pesa reversal, Stripe refund, or changes payment truth by itself.
+            Paid hotel, transfer, activity, personal-service and food-order cases that may require refund or payment reconciliation are reviewed here.
+            This workflow records finance review state only. It never issues an M-Pesa reversal, Stripe refund, restaurant refund, or changes payment truth by itself.
           </p>
         </header>
 
@@ -233,12 +269,13 @@ export default async function TravelRefundReviewPage() {
           </div>
         ) : null}
 
-        <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <Metric label="Open reviews" value={pending.length} />
           <Metric label="Hotels" value={pending.filter(x=>x.product==="hotel").length} />
           <Metric label="Transfers" value={pending.filter(x=>x.product==="transfer").length} />
           <Metric label="Activities" value={pending.filter(x=>x.product==="activity").length} />
           <Metric label="Services" value={pending.filter(x=>x.product==="service").length} />
+          <Metric label="Food orders" value={pending.filter(x=>x.product==="food").length} />
         </section>
 
         <section className="mt-8">
