@@ -11,6 +11,7 @@ const REVIEW_ITEMS = [
   "team",
   "personal_photos",
   "availability",
+  "staff_verification",
   "verification",
   "payout_details",
   "other",
