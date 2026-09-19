@@ -62,7 +62,15 @@ async function claimIdempotency(params: {
       .or(`processing_until.is.null,processing_until.lt.${new Date().toISOString()}`)
       .select("appointment_id,provider_reference,payment_intent_id,processing_until,provider_submission_state,attempt_active")
       .maybeSingle();
-    if (error) throw new Error("Unable to claim payment idempotency key");
+    if (error) {
+      if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) {
+        const active = await loadActiveAttempt(params.appointmentId, params.customerUserId, params.provider);
+        if (active?.payment_intent_id) return active;
+        if (active?.provider_submission_state === "uncertain") throw new Error("payment_intent_submission_uncertain");
+        if (active) throw new Error("payment_intent_in_progress");
+      }
+      throw new Error("Unable to claim payment idempotency key");
+    }
     if (!claimed) throw new Error("payment_intent_in_progress");
     return claimed;
   }
