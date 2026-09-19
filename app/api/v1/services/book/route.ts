@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getRequestUser, getSupabaseUserClient } from "@/lib/supabase-user";
+import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: { code: "unauthorized", message: "A confirmed SafariPlug account is required." } }, { status: 401 });
   }
   try {
+    await assertTravelerVerified(user.id);
     const body = await request.json();
     const serviceProfileId = String(body.serviceProfileId || "");
     const offeringId = String(body.offeringId || "");
@@ -55,7 +57,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: { code: "booking_failed", message: "Unable to create the appointment." } }, { status: 409 });
     }
     return NextResponse.json({ success: true, data }, { status: 201 });
-  } catch {
+  } catch (error) {
+    const verification = travelerVerificationErrorResponse(error);
+    if (verification) {
+      return NextResponse.json({ success: false, error: { code: "traveler_verification_required", message: verification.body.message }, verification: verification.body.verification, verificationUrl: verification.body.verificationUrl }, { status: verification.status });
+    }
     return NextResponse.json({ success: false, error: { code: "bad_request", message: "Unable to create the appointment." } }, { status: 400 });
   }
 }
