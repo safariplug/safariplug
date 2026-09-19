@@ -244,6 +244,15 @@ export default async function ReconciliationPage(){
     serviceLedgerResult.error,serviceAppointmentResult.error,foodRefundResult.error,
     foodOrderResult.error,payoutResult.error,checkoutResult.error,paymentIntentResult.error,
   ].filter(Boolean);
+  const cappedSources=[
+    (serviceLedgerResult.data||[]).length>=1000?"service payment ledger":null,
+    (serviceAppointmentResult.data||[]).length>=1000?"service appointments":null,
+    (foodRefundResult.data||[]).length>=1000?"food refunds":null,
+    (foodOrderResult.data||[]).length>=1000?"food orders":null,
+    (payoutResult.data||[]).length>=1000?"provider payouts":null,
+    (checkoutResult.data||[]).length>=1000?"package checkout attempts":null,
+    (paymentIntentResult.data||[]).length>=1000?"package payment intents":null,
+  ].filter((value):value is string=>Boolean(value));
 
   return <main className="min-h-screen bg-[#070707] px-5 py-10 text-white md:px-10">
     <div className="mx-auto max-w-7xl">
@@ -257,7 +266,11 @@ export default async function ReconciliationPage(){
       </header>
 
       {queryErrors.length?<div className="mt-6 rounded-2xl border border-red-900/40 bg-red-950/20 p-5 text-sm text-red-200">
-        One or more reconciliation sources could not be loaded. Results may be incomplete.
+        One or more reconciliation sources could not be loaded. A zero anomaly count must not be treated as a clean reconciliation result.
+      </div>:null}
+
+      {cappedSources.length?<div className="mt-4 rounded-2xl border border-amber-900/40 bg-amber-950/20 p-5 text-sm text-amber-200">
+        Source row limits were reached for {cappedSources.join(", ")}. Reconciliation is partial and older anomalies may be outside the loaded window.
       </div>:null}
 
       <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
