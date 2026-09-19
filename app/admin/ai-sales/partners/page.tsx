@@ -11,8 +11,9 @@ type SchedulerHealth={status:"success"|"failed";checked_count:number;prepared_co
 type CRMData={partners:Partner[];invitations:Invitation[];suppliers:Supplier[];scheduler:SchedulerHealth|null};
 
 export default function PartnerCRMPage(){
- const [data,setData]=useState<CRMData>({partners:[],invitations:[],suppliers:[],scheduler:null});const [loading,setLoading]=useState(true);const [error,setError]=useState("");
+ const [data,setData]=useState<CRMData>({partners:[],invitations:[],suppliers:[],scheduler:null});const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [runningPrep,setRunningPrep]=useState(false);
  async function load(){setLoading(true);setError("");const response=await fetch("/api/admin/partner-crm",{cache:"no-store"});const payload=await response.json().catch(()=>null);if(!response.ok)setError(payload?.error||"Unable to load Partner CRM.");else setData({partners:payload?.partners||[],invitations:payload?.invitations||[],suppliers:payload?.suppliers||[],scheduler:payload?.scheduler||null});setLoading(false)}
+ async function runPrep(){setRunningPrep(true);setError("");const response=await fetch("/api/cron/supplier-followup-drafts",{method:"POST"});const payload=await response.json().catch(()=>null);if(!response.ok)setError(payload?.error||"Unable to run supplier reminder preparation.");await load();setRunningPrep(false)}
  useEffect(()=>{void load()},[]);
  const now=Date.now();
  const overdueSuppliers=data.suppliers.filter(s=>s.latest_followup?.next_followup_due_at&&Date.parse(s.latest_followup.next_followup_due_at)<=now&&!["submitted","approved","live","rejected"].includes(s.onboarding_status));
@@ -25,7 +26,10 @@ export default function PartnerCRMPage(){
   <section className="mt-7 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
     <div><p className="text-[11px] font-semibold uppercase tracking-[.18em] text-zinc-500">Supplier reminder scheduler</p><h2 className="mt-1 font-semibold">{data.scheduler ? (data.scheduler.status==="success" ? "Healthy" : "Last run failed") : "No run recorded yet"}</h2><p className="mt-1 text-xs text-zinc-500">{data.scheduler ? `Last run ${new Date(data.scheduler.completed_at).toLocaleString()}` : "The scheduler will report here after its first authenticated run."}</p></div>
-    {data.scheduler&&<div className="grid grid-cols-3 gap-2 text-center"><MiniStat label="Checked" value={data.scheduler.checked_count}/><MiniStat label="Prepared" value={data.scheduler.prepared_count}/><MiniStat label="Skipped" value={data.scheduler.skipped_count}/></div>}
+    <div className="flex flex-col items-stretch gap-3 sm:items-end">
+     {data.scheduler&&<div className="grid grid-cols-3 gap-2 text-center"><MiniStat label="Checked" value={data.scheduler.checked_count}/><MiniStat label="Prepared" value={data.scheduler.prepared_count}/><MiniStat label="Skipped" value={data.scheduler.skipped_count}/></div>}
+     <button onClick={()=>void runPrep()} disabled={runningPrep} className="rounded-xl border border-amber-500/50 px-4 py-2 text-xs font-semibold text-amber-300 disabled:opacity-50">{runningPrep?"Preparing…":"Run reminder prep now"}</button>
+    </div>
    </div>
    {data.scheduler?.status==="failed"&&data.scheduler.error_message&&<p className="mt-4 rounded-xl border border-red-900 bg-red-950/30 p-3 text-xs text-red-300">{data.scheduler.error_message}</p>}
   </section>
