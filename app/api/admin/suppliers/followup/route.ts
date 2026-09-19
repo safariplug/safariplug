@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { openai } from "@/lib/openai";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
+import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
 
 const ELIGIBLE_STATUSES = new Set(["draft", "onboarding", "changes_requested"]);
 
@@ -23,8 +24,10 @@ function requirementLink(requirement: string) {
   if (requirement.includes("description")) return `${base}#business-details`;
   if (requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
   if (requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
-  if (requirement.includes("team member") || requirement.includes("personal photo") || requirement.includes("availability")) return `${base}#team-availability`;
-  if (requirement.includes("payout")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/payouts`;
+  if (requirement.toLowerCase().includes("specialist") || requirement.toLowerCase().includes("personal photo")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/services/identity`;
+  if (requirement.includes("team member") || requirement.includes("availability")) return `${base}#team-availability`;
+  if (requirement.toLowerCase().includes("payout") || requirement.includes("M-Pesa")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/payouts`;
+  if (requirement.toLowerCase().includes("provider") && requirement.toLowerCase().includes("verification")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/verification`;
   if (requirement.includes("verification")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/supplier/readiness`;
   return base;
 }
@@ -96,38 +99,19 @@ async function loadSupplier(supplierId: string) {
   };
 }
 
-function inferMissingRequirements(supplier: NonNullable<Awaited<ReturnType<typeof loadSupplier>>>) {
-  const business = Array.isArray(supplier.businesses) ? supplier.businesses[0] : supplier.businesses;
-  const profilesRaw = business?.service_profiles;
-  const profiles = Array.isArray(profilesRaw) ? profilesRaw : profilesRaw ? [profilesRaw] : [];
-  const offerings = profiles.flatMap((profile) => Array.isArray(profile.service_offerings) ? profile.service_offerings : profile.service_offerings ? [profile.service_offerings] : []);
-  const staff = profiles.flatMap((profile) => Array.isArray(profile.service_staff) ? profile.service_staff : profile.service_staff ? [profile.service_staff] : []);
-  const missing: string[] = [];
-
-  if (!clean(business?.description, 2000)) missing.push("Add a clear business description");
-  if (!business?.logo_url && !business?.cover_image_url) missing.push("Add a business logo or cover image");
-  if (!profiles.length) missing.push("Create your service profile");
-  if (profiles.length && !offerings.length) missing.push("Add at least one service offering with pricing and duration");
-  if (offerings.length && offerings.some((offering) => Number(offering.price || 0) <= 0 || Number(offering.duration_minutes || 0) <= 0)) {
-    missing.push("Complete pricing and duration for all service offerings");
-  }
-  if (profiles.length && !staff.length) missing.push("Add at least one team member or service provider");
-  if (staff.some((member) => !member.personal_photo_url)) missing.push("Add a personal photo for every listed team member");
-  if (staff.length && Number(supplier.availability_count || 0) === 0) missing.push("Add active availability for at least one team member");
-  if (!supplier.payout_status) missing.push("Set up your payout account");
-  else if (supplier.payout_status !== "verified") missing.push(`Complete payout account verification (currently ${reviewLabel(String(supplier.payout_status))})`);
-  if (!supplier.verification_status) missing.push("Start supplier verification");
-  else if (supplier.verification_status !== "approved") missing.push(`Complete supplier verification (currently ${reviewLabel(String(supplier.verification_status))})`);
-
+function inferMissingRequirements(
+  supplier: NonNullable<Awaited<ReturnType<typeof loadSupplier>>>,
+  canonicalIssues: string[],
+) {
+  const missing = [...canonicalIssues];
   for (const item of Array.isArray(supplier.review_items) ? supplier.review_items : []) {
     const label = `Review requested: ${reviewLabel(String(item))}`;
     if (!missing.includes(label)) missing.push(label);
   }
-
   if (!missing.length && Number(supplier.completion_percent || 0) < 100) {
     missing.push("Complete the remaining onboarding steps shown in your supplier portal");
   }
-  return missing.slice(0, 20);
+  return [...new Set(missing)].slice(0, 20);
 }
 
 export async function POST(request: Request) {
@@ -167,7 +151,11 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
 
-    const missingRequirements = inferMissingRequirements(supplier);
+    const activationReadiness = await getSupplierActivationReadiness(supplierId);
+    const missingRequirements = inferMissingRequirements(
+      supplier,
+      activationReadiness.issues.map((item) => item.label),
+    );
     const previousRequirements = Array.isArray(previousFollowup?.missing_requirements)
       ? previousFollowup.missing_requirements.map(String)
       : [];
