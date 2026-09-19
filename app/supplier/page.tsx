@@ -68,9 +68,9 @@ export default function SupplierHomePage() {
     const hasContact = Boolean(business.phone || business.email || business.whatsapp);
     const businessBasics = Boolean(business.name && business.description && business.address && hasContact);
     const hasImages = Boolean(business.logo_url || business.cover_image_url || (Array.isArray(business.supplier_gallery_urls) && business.supplier_gallery_urls.length));
-    const offeringsReady = !isAppointment || readiness?.checks.servicesPricing ?? Boolean(supplier.offerings?.length);
-    const teamReady = !isAppointment || readiness?.checks.team ?? Boolean(supplier.staff?.length);
-    const availabilityReady = !isAppointment || readiness?.checks.availability ?? Boolean(supplier.availability?.length);
+    const offeringsReady = !isAppointment || (readiness?.checks.servicesPricing ?? Boolean(supplier.offerings?.length));
+    const teamReady = !isAppointment || (readiness?.checks.team ?? Boolean(supplier.staff?.length));
+    const availabilityReady = !isAppointment || (readiness?.checks.availability ?? Boolean(supplier.availability?.length));
 
     const categoryStep = isRestaurant
       ? { title: "Restaurant setup", body: "Finish menu and ordering setup.", href: "/supplier/restaurant", cta: "Continue restaurant setup", complete: true }
