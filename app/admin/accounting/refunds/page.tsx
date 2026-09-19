@@ -41,7 +41,7 @@ function reasonFromMetadata(metadata: Record<string, unknown>, fallback: string)
 export default async function TravelRefundReviewPage() {
   await requireAdmin();
 
-  const [hotelResult, transferResult, activityResult, serviceLedgerResult, serviceAppointmentResult, serviceAttemptResult, reviewResult] = await Promise.all([
+  const [hotelResult, transferResult, activityResult, serviceLedgerResult, serviceAppointmentResult, serviceAttemptResult, serviceEventResult, reviewResult] = await Promise.all([
     supabaseAdmin
       .from("hotel_booking_pricing_ledger")
       .select("id,customer_user_id,provider,customer_currency,currency,customer_retail_amount,retail_amount,payment_status,booking_status,created_at,metadata")
@@ -70,6 +70,11 @@ export default async function TravelRefundReviewPage() {
     supabaseAdmin
       .from("service_payment_idempotency")
       .select("appointment_id,provider,provider_reference,attempt_active,created_at")
+      .order("created_at",{ascending:false})
+      .limit(1000),
+    supabaseAdmin
+      .from("service_payment_events")
+      .select("appointment_id,provider,provider_reference,created_at")
       .order("created_at",{ascending:false})
       .limit(1000),
     supabaseAdmin
@@ -148,6 +153,14 @@ export default async function TravelRefundReviewPage() {
       providerByAppointment.set(attempt.appointment_id,String(attempt.provider||"service-payment"));
     }
   }
+  const providerByPaymentReference=new Map<string,string>();
+  for(const event of serviceEventResult.data||[]) {
+    if(!event.provider_reference) continue;
+    const key=`${event.appointment_id}:${event.provider_reference}`;
+    if(!providerByPaymentReference.has(key)) {
+      providerByPaymentReference.set(key,String(event.provider||"service-payment"));
+    }
+  }
 
   for (const row of serviceLedgerResult.data || []) {
     const appointment=appointmentById.get(row.appointment_id);
@@ -159,7 +172,9 @@ export default async function TravelRefundReviewPage() {
     candidates.push({
       product:"service",
       ledgerId:row.id,
-      provider:providerByAppointment.get(row.appointment_id)||"service-payment",
+      provider:(row.payment_reference
+        ? providerByPaymentReference.get(`${row.appointment_id}:${row.payment_reference}`)
+        : null) || providerByAppointment.get(row.appointment_id) || "service-payment",
       customerUserId:String(appointment.customer_user_id||"unknown"),
       amount:Number(row.customer_total_amount ?? row.gross_amount ?? 0),
       currency:String(row.currency||"KES"),
@@ -190,6 +205,7 @@ export default async function TravelRefundReviewPage() {
     serviceLedgerResult.error,
     serviceAppointmentResult.error,
     serviceAttemptResult.error,
+    serviceEventResult.error,
     reviewResult.error,
   ].filter(Boolean);
 
