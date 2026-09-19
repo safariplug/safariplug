@@ -58,45 +58,11 @@ function deterministicDraft(input: {
 async function loadSupplier(supplierId: string) {
   const { data: supplier, error } = await supabaseAdmin
     .from("supplier_accounts")
-    .select("id,user_id,business_id,contact_name,onboarding_status,completion_percent,review_items,review_note,businesses!inner(id,name,email,phone,description,logo_url,cover_image_url,service_profiles(id,status,booking_status,service_offerings(id,name,status,price,currency,duration_minutes),service_staff(id,display_name,personal_photo_url,status)))")
+    .select("id,user_id,business_id,contact_name,onboarding_status,completion_percent,review_items,review_note,businesses!inner(id,name,email,phone)")
     .eq("id", supplierId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!supplier) return null;
-  const business = Array.isArray(supplier.businesses) ? supplier.businesses[0] : supplier.businesses;
-  const profilesRaw = business?.service_profiles;
-  const profiles = Array.isArray(profilesRaw) ? profilesRaw : profilesRaw ? [profilesRaw] : [];
-  const staffIds = profiles.flatMap((profile) => {
-    const raw = profile.service_staff;
-    const staff = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    return staff.map((member) => member.id);
-  });
-  const [{ data: verification }, { count: availabilityCount }, { data: payout }] = await Promise.all([
-    supabaseAdmin
-      .from("verification_cases")
-      .select("status")
-      .eq("subject_type", "provider")
-      .eq("subject_id", supplier.user_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    staffIds.length
-      ? supabaseAdmin.from("service_staff_availability").select("id", { count: "exact", head: true }).in("staff_id", staffIds).eq("is_active", true)
-      : Promise.resolve({ count: 0 }),
-    supabaseAdmin
-      .from("service_provider_payout_accounts")
-      .select("status")
-      .eq("provider_user_id", supplier.user_id)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-  return {
-    ...supplier,
-    verification_status: verification?.status || null,
-    availability_count: availabilityCount || 0,
-    payout_status: payout?.status || null,
-  };
+  return supplier ?? null;
 }
 
 function inferMissingRequirements(
@@ -168,7 +134,7 @@ export async function POST(request: Request) {
       name: clean(supplier.contact_name, 200),
       businessName: clean(business?.name, 300) || "your business",
       status: String(supplier.onboarding_status || "draft"),
-      completion: Number(supplier.completion_percent || 0),
+      completion: activationReadiness.completionPercent,
       reviewItems: Array.isArray(supplier.review_items) ? supplier.review_items.map(String).slice(0, 20) : [],
       reviewNote: clean(supplier.review_note, 2000),
       missingRequirements,
