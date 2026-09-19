@@ -30,7 +30,8 @@ const REVIEW_LABELS: Record<string, { label: string; href: string }> = {
   team: { label: "Update team information", href: "/supplier/onboarding" },
   personal_photos: { label: "Add required personal photos", href: "/supplier/onboarding" },
   availability: { label: "Update availability", href: "/supplier/onboarding" },
-  verification: { label: "Complete verification requirements", href: "/business/verification" },
+  staff_verification: { label: "Complete specialist identity + liveness verification", href: "/business/services/identity" },
+  verification: { label: "Complete provider verification requirements", href: "/business/verification" },
   payout_details: { label: "Complete payout details", href: "/business/payouts" },
   other: { label: "Review SafariPlug's note", href: "/supplier/onboarding" },
 };
