@@ -28,6 +28,10 @@ export interface PaymentAdapter {
   readonly provider: PaymentProvider;
   createPaymentIntent(input: CreatePaymentIntentInput): Promise<PaymentIntent>;
   getPaymentStatus(providerReference: string): Promise<PaymentIntentStatus>;
+  recoverPaymentIntent?(
+    providerReference: string,
+    context: { appointmentId: string; amount: number; currency: string },
+  ): Promise<PaymentIntent>;
 }
 
 export function normalizeCurrency(currency: string): string {
