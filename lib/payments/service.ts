@@ -122,7 +122,7 @@ export async function createServicePaymentIntent(params: {
 }) {
   const { data: appointment, error } = await supabaseAdmin
     .from("service_appointments")
-    .select("id,customer_email,customer_phone,price,customer_total_amount,currency,payment_status,status,customer_user_id")
+    .select("id,customer_email,customer_phone,price,customer_total_amount,currency,payment_status,payment_reference,status,customer_user_id")
     .eq("id", params.appointmentId)
     .maybeSingle();
   if (error) throw new Error("Unable to load appointment");
