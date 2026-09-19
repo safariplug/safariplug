@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupplierOwnedBusiness } from "@/lib/suppliers/readiness";
 import StaffVerificationLink from "./StaffVerificationLink";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ async function ownerContext() {
   const supabase=await createSupabaseServerClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user||user.is_anonymous||!(user.email_confirmed_at||user.phone_confirmed_at)) redirect("/login?next=/business/services/identity");
-  const {data:business}=await supabaseAdmin.from("businesses").select("id,name,verified").eq("owner_id",user.id).in("status",["active","ACTIVE"]).order("created_at",{ascending:true}).limit(1).maybeSingle();
+  const { business } = await getSupplierOwnedBusiness(user.id);
   if(!business) redirect("/business/services");
   const {data:profile}=await supabaseAdmin.from("service_profiles").select("id").eq("business_id",business.id).maybeSingle();
   if(!profile) redirect("/business/services");
