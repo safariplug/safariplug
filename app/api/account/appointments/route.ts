@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "reschedule") {
+      await assertTravelerVerified(user.id);
       if (!["pending", "confirmed"].includes(appointment.status)) return NextResponse.json({ error: "Only pending or confirmed appointments can be rescheduled." }, { status: 409 });
       const startsAt = new Date(String(body.startsAt || ""));
       if (Number.isNaN(startsAt.getTime())) return NextResponse.json({ error: "Choose a valid appointment time." }, { status: 400 });
@@ -116,6 +118,8 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: "Unknown action." }, { status: 400 });
   } catch (error) {
+    const verification = travelerVerificationErrorResponse(error);
+    if (verification) return NextResponse.json(verification.body, { status: verification.status });
     console.error("customer appointments", error);
     return NextResponse.json({ error: "Unable to complete appointment action." }, { status: 500 });
   }
