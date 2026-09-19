@@ -142,21 +142,61 @@ export async function createServicePaymentIntent(params: {
   if (!CURRENCY_PATTERN.test(currency)) throw new Error("invalid_payment_currency");
 
   const claimed = await claimIdempotency(params);
+  const adapter = getPaymentAdapter(params.provider);
+
   if (claimed.payment_intent_id) {
-    return {
-      id: claimed.payment_intent_id,
-      provider: params.provider,
-      providerReference: claimed.provider_reference,
-      appointmentId: appointment.id,
-      amount,
-      currency,
-      status: "processing" as const,
-      checkoutUrl: null,
-      clientSecret: null,
-    };
+    if (!adapter) throw new Error(`payment_provider_not_configured:${params.provider}`);
+    const providerReference = claimed.provider_reference || claimed.payment_intent_id;
+    const recovered = adapter.recoverPaymentIntent
+      ? await adapter.recoverPaymentIntent(providerReference, {
+          appointmentId: appointment.id,
+          amount,
+          currency,
+        })
+      : {
+          id: claimed.payment_intent_id,
+          provider: params.provider,
+          providerReference,
+          appointmentId: appointment.id,
+          amount,
+          currency,
+          status: "processing" as const,
+          checkoutUrl: null,
+          clientSecret: null,
+        };
+
+    if (recovered.status === "failed" || recovered.status === "cancelled") {
+      await recordAndApplyPaymentWebhook({
+        eventId: `${params.provider}:recovered:${providerReference}:${recovered.status}`,
+        provider: params.provider,
+        eventType: `${params.provider}.recovered_terminal`,
+        providerReference,
+        appointmentId: appointment.id,
+        status: recovered.status,
+        paidAt: null,
+        refundedAmount: 0,
+        rawPayload: { source: "payment_intent_recovery", providerReference, status: recovered.status },
+      });
+      throw new Error("payment_attempt_terminal_retry_required");
+    }
+
+    if (recovered.status === "succeeded") {
+      await recordAndApplyPaymentWebhook({
+        eventId: `${params.provider}:recovered:${providerReference}:succeeded`,
+        provider: params.provider,
+        eventType: `${params.provider}.recovered_succeeded`,
+        providerReference,
+        appointmentId: appointment.id,
+        status: "succeeded",
+        paidAt: new Date().toISOString(),
+        refundedAmount: 0,
+        rawPayload: { source: "payment_intent_recovery", providerReference, status: recovered.status },
+      });
+    }
+
+    return recovered;
   }
 
-  const adapter = getPaymentAdapter(params.provider);
   if (!adapter) {
     await supabaseAdmin.from("service_payment_idempotency").delete()
       .eq("customer_user_id", params.customerUserId).eq("provider", params.provider)
