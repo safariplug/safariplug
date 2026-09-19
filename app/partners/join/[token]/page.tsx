@@ -138,7 +138,30 @@ export default async function Page({ params }: { params: Promise<{ token: string
 
   if (invitation.onboarded_user_id && invitation.onboarded_user_id !== user.id) notFound();
   if (!invitation.onboarded_user_id) {
-    await supabaseAdmin.from("partner_invitations").update({ onboarded_user_id: user.id, signup_started_at: new Date().toISOString(), status: "signup_started", updated_at: new Date().toISOString() }).eq("id", invitation.id).is("onboarded_user_id", null);
+    const { data: claimed, error: claimError } = await supabaseAdmin
+      .from("partner_invitations")
+      .update({
+        onboarded_user_id: user.id,
+        signup_started_at: new Date().toISOString(),
+        status: "signup_started",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", invitation.id)
+      .is("onboarded_user_id", null)
+      .select("onboarded_user_id")
+      .maybeSingle();
+
+    if (claimError) throw new Error(claimError.message);
+
+    if (!claimed || claimed.onboarded_user_id !== user.id) {
+      const { data: latest, error: latestError } = await supabaseAdmin
+        .from("partner_invitations")
+        .select("onboarded_user_id")
+        .eq("id", invitation.id)
+        .maybeSingle();
+      if (latestError) throw new Error(latestError.message);
+      if (!latest || latest.onboarded_user_id !== user.id) notFound();
+    }
   }
 
   const provisioned = await provisionServiceEnrollment(user, invitation);
