@@ -94,6 +94,24 @@ export class StripePaymentAdapter implements PaymentAdapter {
     const session = await stripeRequest(`/checkout/sessions/${encodeURIComponent(providerReference)}`);
     return status(session.payment_status ?? session.status);
   }
+
+  async recoverPaymentIntent(
+    providerReference: string,
+    context: { appointmentId: string; amount: number; currency: string },
+  ): Promise<PaymentIntent> {
+    const session = await stripeRequest(`/checkout/sessions/${encodeURIComponent(providerReference)}`);
+    return {
+      id: String(session.id || providerReference),
+      provider: "stripe",
+      providerReference: String(session.id || providerReference),
+      appointmentId: context.appointmentId,
+      amount: Number(session.amount_total ?? Math.round(context.amount * 100)) / 100,
+      currency: String(session.currency || context.currency).toUpperCase(),
+      status: status(session.payment_status ?? session.status),
+      checkoutUrl: typeof session.url === "string" ? session.url : null,
+      clientSecret: null,
+    };
+  }
 }
 
 function constantTimeEqual(a: string, b: string) {

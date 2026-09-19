@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     const { data: intent } = await supabaseAdmin
       .from("service_payment_idempotency")
-      .select("appointment_id,provider,provider_reference")
+      .select("appointment_id,provider,provider_reference,attempt_active")
       .eq("appointment_id", appointmentId)
       .eq("customer_user_id", user.id)
       .eq("provider", provider)
@@ -68,6 +68,8 @@ export async function POST(request: Request) {
         provider,
         eventType: `${provider}.status_reconciled`,
         providerReference,
+        attemptReference: providerReference,
+        attemptActive: intent.attempt_active,
         appointmentId,
         status,
         paidAt: status === "succeeded" ? new Date().toISOString() : null,

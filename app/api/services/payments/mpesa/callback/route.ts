@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     // provider callback by searching for an arbitrary pending appointment.
     const { data: idem } = await supabaseAdmin
       .from("service_payment_idempotency")
-      .select("appointment_id,provider_reference")
+      .select("appointment_id,provider_reference,attempt_active")
       .eq("provider", "mpesa")
       .eq("provider_reference", checkoutRequestId)
       .maybeSingle();
@@ -129,6 +129,8 @@ export async function POST(request: Request) {
       provider: "mpesa",
       eventType: resultCode === 0 ? "stkpush.success" : "stkpush.failed",
       providerReference: receipt ? String(receipt) : checkoutRequestId,
+      attemptReference: checkoutRequestId,
+      attemptActive: idem.attempt_active,
       appointmentId: appointment.id,
       status: resultCode === 0 ? "succeeded" : "failed",
       paidAt: resultCode === 0 ? new Date().toISOString() : null,
