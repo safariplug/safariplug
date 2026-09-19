@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupplierOwnedBusiness } from "@/lib/suppliers/readiness";
 import { getVerificationAdapter } from "@/lib/integrations/verification/registry";
 
 export const dynamic = "force-dynamic";
@@ -12,14 +13,7 @@ export async function POST() {
     return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
   }
 
-  const { data: business } = await supabaseAdmin
-    .from("businesses")
-    .select("id,name,verified,claimed")
-    .eq("owner_id", user.id)
-    .in("status", ["active", "ACTIVE"])
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { business } = await getSupplierOwnedBusiness(user.id);
   if (!business) return NextResponse.json({ error: "Create your service business before starting verification." }, { status: 404 });
 
   let { data: current } = await supabaseAdmin

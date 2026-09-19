@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupplierOwnedBusiness } from "@/lib/suppliers/readiness";
 import { createSumsubAccessToken, sumsubConfigured, sumsubVerificationLevel } from "@/lib/integrations/verification/sumsub";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export async function POST() {
   if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
   if (!sumsubConfigured()) return NextResponse.json({ error: "Provider verification is not configured yet." }, { status: 503 });
 
-  const { data: business } = await supabaseAdmin.from("businesses").select("id").eq("owner_id", user.id).in("status", ["active", "ACTIVE"]).limit(1).maybeSingle();
+  const { business } = await getSupplierOwnedBusiness(user.id);
   if (!business) return NextResponse.json({ error: "Create your service business first." }, { status: 404 });
 
   const { data: current } = await supabaseAdmin.from("verification_cases").select("id,status,verification_level,provider,external_id").eq("subject_type", "provider").eq("subject_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle();

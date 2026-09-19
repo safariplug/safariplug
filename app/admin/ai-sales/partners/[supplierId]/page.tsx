@@ -86,7 +86,7 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
       .from("verification_cases")
       .select("id,status,subject_type,created_at,updated_at")
       .eq("subject_type", "provider")
-      .eq("subject_id", supplier.business_id)
+      .eq("subject_id", supplier.user_id)
       .order("created_at", { ascending: false })
       .limit(5),
     supabaseAdmin

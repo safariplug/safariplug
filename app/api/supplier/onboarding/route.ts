@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { SERVICE_CATALOG } from "@/lib/service-catalog";
+import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
 
 const FALLBACK_ID = "00000000-0000-0000-0000-000000000000";
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -58,8 +59,11 @@ export async function GET() {
     : { data: [] };
   const category = Array.isArray((profile as any)?.service_categories) ? (profile as any)?.service_categories?.[0] : (profile as any)?.service_categories;
   const suggestedOfferings = category?.slug && SERVICE_CATALOG[category.slug] ? SERVICE_CATALOG[category.slug] : [];
-  const completion = await supabaseAdmin.rpc("supplier_completion", { p_business_id: ctx.account.business_id });
-  return NextResponse.json({ account: { ...ctx.account, completion_percent: completion.data ?? ctx.account.completion_percent }, business, profile: { ...(profile ?? {}), category: category ?? null }, offerings: offerings ?? [], suggestedOfferings, staff: staff ?? [], availability: availability ?? [] });
+  const [completion, activationReadiness] = await Promise.all([
+    supabaseAdmin.rpc("supplier_completion", { p_business_id: ctx.account.business_id }),
+    getSupplierActivationReadiness(ctx.account.id),
+  ]);
+  return NextResponse.json({ account: { ...ctx.account, completion_percent: completion.data ?? ctx.account.completion_percent }, business, profile: { ...(profile ?? {}), category: category ?? null }, offerings: offerings ?? [], suggestedOfferings, staff: staff ?? [], availability: availability ?? [], activationReadiness });
 }
 
 export async function PATCH(request: Request) {

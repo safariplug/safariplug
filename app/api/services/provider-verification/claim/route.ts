@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupplierOwnedBusiness } from "@/lib/suppliers/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -32,15 +33,7 @@ export async function POST(request: Request) {
     const staffId = String(body.staffId || "").trim();
     if (!staffId) return NextResponse.json({ error: "staffId is required." }, { status: 400 });
 
-    const { data: business } = await supabaseAdmin
-      .from("businesses")
-      .select("id")
-      .eq("owner_id", user.id)
-      .in("status", ["active", "ACTIVE"])
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
+    const { business } = await getSupplierOwnedBusiness(user.id);
     if (!business) return NextResponse.json({ error: "Service business not found." }, { status: 404 });
 
     const { data: profile } = await supabaseAdmin

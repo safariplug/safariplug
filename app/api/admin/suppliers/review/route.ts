@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
+import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
 
 const ALLOWED_REVIEW_ITEMS = new Set([
   "business_details",
@@ -9,6 +10,7 @@ const ALLOWED_REVIEW_ITEMS = new Set([
   "team",
   "personal_photos",
   "availability",
+  "staff_verification",
   "verification",
   "payout_details",
   "other",
@@ -57,6 +59,14 @@ export async function POST(request: Request) {
     }
 
     if (action === "approve") {
+      const readiness = await getSupplierActivationReadiness(supplierId);
+      if (!readiness.ready) {
+        return NextResponse.json({
+          error: "Supplier cannot be approved until all activation requirements are complete.",
+          missing: readiness.issues,
+          checks: readiness.checks,
+        }, { status: 422 });
+      }
       const now = new Date().toISOString();
       const { error } = await supabaseAdmin.from("supplier_accounts").update({
         onboarding_status: "approved",

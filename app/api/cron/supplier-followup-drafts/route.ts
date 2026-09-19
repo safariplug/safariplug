@@ -111,7 +111,7 @@ export async function GET(request: Request) {
         return members.map((member: ServiceStaff & { id?: string }) => member.id).filter((id): id is string => Boolean(id));
       });
       const [{ data: verification }, { count: availabilityCount }, { data: payout }] = await Promise.all([
-        supabaseAdmin.from("verification_cases").select("status").eq("subject_type","provider").eq("subject_id",supplier.business_id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+        supabaseAdmin.from("verification_cases").select("status").eq("subject_type","provider").eq("subject_id",supplier.user_id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
         staffIds.length
           ? supabaseAdmin.from("service_staff_availability").select("id",{count:"exact",head:true}).in("staff_id",staffIds).eq("is_active",true)
           : Promise.resolve({count:0}),
