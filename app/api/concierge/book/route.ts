@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) {
       return NextResponse.json({ error: "registered_client_required" }, { status: 401 });
     }
+    await assertTravelerVerified(user.id);
 
     const body = await request.json();
     const required = ["serviceProfileId", "offeringId", "staffId", "startsAt", "customerName"];
@@ -115,6 +117,8 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: error.message.includes("slot_unavailable") ? 409 : 400 });
     return NextResponse.json({ appointment }, { status: 201 });
   } catch (error) {
+    const verification = travelerVerificationErrorResponse(error);
+    if (verification) return NextResponse.json(verification.body, { status: verification.status });
     console.error("concierge-book", error);
     return NextResponse.json({ error: "SafariPlug could not complete the booking." }, { status: 500 });
   }
