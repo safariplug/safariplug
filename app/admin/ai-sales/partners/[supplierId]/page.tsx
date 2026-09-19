@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { SupplierFollowupPanel } from "./followup-panel";
 import { PayoutReviewControls } from "./payout-review-controls";
+import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +123,7 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
       : Promise.resolve({ count: 0 }),
     supabaseAdmin.from("service_provider_payout_accounts").select("status,phone,verified_at,updated_at").eq("provider_user_id", supplier.user_id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
+  const readiness = await getSupplierActivationReadiness(supplier.id);
   const latestVerification = verification?.[0];
   const followupRows = followups || [];
   const latestFollowup = followupRows[0];
@@ -131,7 +133,12 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
     : Number.isFinite(dueMs) && dueMs <= Date.now()
       ? "overdue"
       : "waiting";
-  const nextAction = nextActionFor(supplier.onboarding_status, Number(supplier.completion_percent || 0), latestVerification?.status, followupState, latestFollowup?.next_followup_due_at);
+  const nextAction = nextActionFor(
+    supplier.onboarding_status,
+    readiness,
+    followupState,
+    latestFollowup?.next_followup_due_at,
+  );
   const warnings = [profilesError ? "Service profile details could not be fully loaded." : null, followupsError ? "Follow-up history could not be loaded." : null].filter(Boolean);
   const loadWarning = warnings.length ? warnings.join(" ") : null;
 
@@ -163,6 +170,24 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             <Link href="/admin/ai-sales/invitations" className="rounded-xl border border-zinc-700 px-4 py-2 text-sm">Invitation center</Link>
             {supplier.prospect_id && <Link href={`/admin/ai-sales/edit/${supplier.prospect_id}`} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm">Open prospect 360</Link>}
           </div>
+        </section>
+
+        <section className={`mt-7 rounded-2xl border p-5 ${readiness.ready ? "border-emerald-800 bg-emerald-950/20" : "border-amber-800 bg-amber-950/20"}`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Activation readiness</p>
+              <h2 className="mt-2 text-xl font-semibold">{readiness.ready ? "Ready for human approval" : `${readiness.issues.length} requirement${readiness.issues.length === 1 ? "" : "s"} remaining`}</h2>
+              <p className="mt-1 text-sm text-zinc-400">This is the same canonical gate used by approval, supplier portal, and reminder drafts.</p>
+            </div>
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${readiness.ready ? "border-emerald-700 text-emerald-300" : "border-amber-700 text-amber-300"}`}>
+              {readiness.ready ? "Ready" : `${readiness.completionPercent}% profile`}
+            </span>
+          </div>
+          {readiness.issues.length ? <div className="mt-4 grid gap-2 md:grid-cols-2">
+            {readiness.issues.map((item) => <Link key={item.key} href={item.href} className="rounded-xl border border-zinc-800 bg-black/20 p-3 text-sm text-zinc-200 hover:border-amber-700">
+              <span>{item.label}</span><span className="ml-2 text-amber-300">→</span>
+            </Link>)}
+          </div> : <p className="mt-4 text-sm text-emerald-300">All activation requirements are satisfied. Staff approval is still required before activation.</p>}
         </section>
 
         <SupplierFollowupPanel
@@ -277,16 +302,24 @@ function categoryName(value: Profile["service_categories"]) {
   return Array.isArray(value) ? value[0]?.name || null : value.name;
 }
 
-function nextActionFor(status: string, completion: number, verification?: string, followupState: "not_sent" | "waiting" | "overdue" = "not_sent", nextFollowupDueAt?: string | null) {
-  if (status === "submitted") return { title: "Review supplier submission", detail: "This partner has submitted onboarding and is waiting for an admin decision.", href: "/admin/suppliers", cta: "Open supplier review" };
-  if (status === "changes_requested") return { title: "Waiting for partner changes", detail: "Changes were requested. Do not activate until the partner resubmits and requirements are reviewed.", href: "/admin/suppliers", cta: "Review status" };
-  if (status === "approved" || status === "live") return { title: verification === "approved" ? "Partner is operationally approved" : "Check verification before full activation", detail: verification === "approved" ? "Continue relationship management and inventory quality checks." : "Supplier approval exists, but provider verification should be reviewed independently.", href: "/admin/suppliers", cta: "Open governance" };
-  if (completion < 100) {
-    if (followupState === "overdue") return { title: "Supplier follow-up is overdue", detail: `Onboarding is ${completion}% complete and the recorded follow-up date has passed. Review the previous email and prepare the next reminder.`, href: "#onboarding-followup", cta: "Review overdue follow-up" };
-    if (followupState === "waiting") return { title: "Waiting on supplier", detail: `Onboarding is ${completion}% complete. A follow-up was sent and the next review is scheduled for ${nextFollowupDueAt ? new Date(nextFollowupDueAt).toLocaleString() : "later"}.`, href: "#onboarding-followup", cta: "View follow-up history" };
-    return { title: "Onboarding is incomplete", detail: `The recorded onboarding completion is ${completion}%. Draft a supplier-specific email from the actual missing onboarding requirements.`, href: "#onboarding-followup", cta: "Draft follow-up email" };
+function nextActionFor(
+  status: string,
+  readiness: { ready: boolean; completionPercent: number; issues: { label: string }[] },
+  followupState: "not_sent" | "waiting" | "overdue" = "not_sent",
+  nextFollowupDueAt?: string | null,
+) {
+  if (status === "submitted") {
+    if (!readiness.ready) return { title: "Resolve activation blockers before approval", detail: `${readiness.issues.length} canonical activation requirement${readiness.issues.length === 1 ? "" : "s"} remain. Approval is blocked until they are complete.`, href: "/admin/suppliers", cta: "Open supplier review" };
+    return { title: "Review supplier submission", detail: "This supplier passed the activation-readiness gate and is waiting for a human decision.", href: "/admin/suppliers", cta: "Open supplier review" };
   }
-  return { title: "Prepare for supplier review", detail: "Onboarding appears complete but is not yet in an approved/live state.", href: "/admin/suppliers", cta: "Open supplier review" };
+  if (status === "changes_requested") return { title: "Waiting for partner changes", detail: "Changes were requested. Do not activate until the partner resubmits and requirements are reviewed.", href: "/admin/suppliers", cta: "Review status" };
+  if (status === "approved" || status === "live") return { title: "Partner is operationally approved", detail: "Continue relationship management, payout governance and inventory quality checks.", href: "/admin/suppliers", cta: "Open governance" };
+  if (!readiness.ready) {
+    if (followupState === "overdue") return { title: "Supplier follow-up is overdue", detail: `Profile is ${readiness.completionPercent}% complete and ${readiness.issues.length} activation requirement${readiness.issues.length === 1 ? "" : "s"} remain. Review the previous email and prepare the next reminder.`, href: "#onboarding-followup", cta: "Review overdue follow-up" };
+    if (followupState === "waiting") return { title: "Waiting on supplier", detail: `Profile is ${readiness.completionPercent}% complete. The next follow-up review is scheduled for ${nextFollowupDueAt ? new Date(nextFollowupDueAt).toLocaleString() : "later"}.`, href: "#onboarding-followup", cta: "View follow-up history" };
+    return { title: "Onboarding is incomplete", detail: `${readiness.issues.length} activation requirement${readiness.issues.length === 1 ? "" : "s"} remain. Draft follow-up from the canonical readiness list.`, href: "#onboarding-followup", cta: "Draft follow-up email" };
+  }
+  return { title: "Prepare for supplier review", detail: "Activation requirements are complete, but the supplier has not yet reached an approved/live state.", href: "/admin/suppliers", cta: "Open supplier review" };
 }
 
 function Status({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2"><p className="text-[10px] uppercase text-zinc-500">{label}</p><p className="mt-1 text-xs font-semibold capitalize text-amber-300">{value.replaceAll("_", " ")}</p></div>; }
