@@ -78,4 +78,22 @@ export class MpesaPaymentAdapter implements PaymentAdapter {
     if(!response.ok) throw new Error(`mpesa_query_error:${response.status}`); const code=String(parsed.ResultCode ?? "");
     if(code==="0") return "succeeded"; if(["1032","1037","1","2001"].includes(code)) return "failed"; return "processing";
   }
+
+  async recoverPaymentIntent(
+    providerReference: string,
+    context: { appointmentId: string; amount: number; currency: string },
+  ): Promise<PaymentIntent> {
+    const currentStatus = await this.getPaymentStatus(providerReference);
+    return {
+      id: providerReference,
+      provider: "mpesa",
+      providerReference,
+      appointmentId: context.appointmentId,
+      amount: context.amount,
+      currency: context.currency.toUpperCase(),
+      status: currentStatus,
+      checkoutUrl: null,
+      clientSecret: null,
+    };
+  }
 }
