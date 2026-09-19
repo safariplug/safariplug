@@ -9,7 +9,7 @@ export default function RefundReviewActions({
   reason,
   review,
 }:{
-  product:"hotel"|"transfer"|"activity"|"service";
+  product:"hotel"|"transfer"|"activity"|"service"|"food";
   ledgerId:string;
   provider:string;
   reason:string;
