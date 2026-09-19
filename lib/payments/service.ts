@@ -9,12 +9,27 @@ const PAYMENT_CLAIM_MS = 10 * 60_000;
 async function loadIdempotency(customerUserId: string, provider: PaymentProvider, idempotencyKey: string) {
   const { data, error } = await supabaseAdmin
     .from("service_payment_idempotency")
-    .select("appointment_id,provider_reference,payment_intent_id,processing_until,provider_submission_state")
+    .select("appointment_id,provider_reference,payment_intent_id,processing_until,provider_submission_state,attempt_active")
     .eq("customer_user_id", customerUserId)
     .eq("provider", provider)
     .eq("idempotency_key", idempotencyKey)
     .maybeSingle();
   if (error) throw new Error("Unable to check payment idempotency");
+  return data;
+}
+
+async function loadActiveAttempt(appointmentId: string, customerUserId: string, provider: PaymentProvider) {
+  const { data, error } = await supabaseAdmin
+    .from("service_payment_idempotency")
+    .select("appointment_id,provider_reference,payment_intent_id,processing_until,provider_submission_state,attempt_active")
+    .eq("appointment_id", appointmentId)
+    .eq("customer_user_id", customerUserId)
+    .eq("provider", provider)
+    .eq("attempt_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error("Unable to check active payment attempt");
   return data;
 }
 
@@ -37,7 +52,7 @@ async function claimIdempotency(params: {
     }
     const { data: claimed, error } = await supabaseAdmin
       .from("service_payment_idempotency")
-      .update({ processing_until: processingUntil, provider_submission_state: "submitted" })
+      .update({ processing_until: processingUntil, provider_submission_state: "submitted", attempt_active: true })
       .eq("customer_user_id", params.customerUserId)
       .eq("provider", params.provider)
       .eq("idempotency_key", params.idempotencyKey)
@@ -45,11 +60,18 @@ async function claimIdempotency(params: {
       .is("payment_intent_id", null)
       .eq("provider_submission_state", "ready")
       .or(`processing_until.is.null,processing_until.lt.${new Date().toISOString()}`)
-      .select("appointment_id,provider_reference,payment_intent_id,processing_until,provider_submission_state")
+      .select("appointment_id,provider_reference,payment_intent_id,processing_until,provider_submission_state,attempt_active")
       .maybeSingle();
     if (error) throw new Error("Unable to claim payment idempotency key");
     if (!claimed) throw new Error("payment_intent_in_progress");
     return claimed;
+  }
+
+  const active = await loadActiveAttempt(params.appointmentId, params.customerUserId, params.provider);
+  if (active) {
+    if (active.payment_intent_id) return active;
+    if (active.provider_submission_state === "uncertain") throw new Error("payment_intent_submission_uncertain");
+    throw new Error("payment_intent_in_progress");
   }
 
   const { data: inserted, error } = await supabaseAdmin
@@ -61,16 +83,24 @@ async function claimIdempotency(params: {
       idempotency_key: params.idempotencyKey,
       processing_until: processingUntil,
       provider_submission_state: "submitted",
+      attempt_active: true,
     })
-    .select("appointment_id,provider_reference,payment_intent_id,processing_until,provider_submission_state")
+    .select("appointment_id,provider_reference,payment_intent_id,processing_until,provider_submission_state,attempt_active")
     .single();
   if (!error) return inserted;
   if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) {
     const raced = await loadIdempotency(params.customerUserId, params.provider, params.idempotencyKey);
-    if (raced?.appointment_id !== params.appointmentId) throw new Error("payment_idempotency_key_reused");
-    if (raced?.payment_intent_id) return raced;
-    if (raced?.provider_submission_state !== "ready") throw new Error("payment_intent_submission_uncertain");
-    throw new Error("payment_intent_in_progress");
+    if (raced) {
+      if (raced.appointment_id !== params.appointmentId) throw new Error("payment_idempotency_key_reused");
+      if (raced.payment_intent_id) return raced;
+      if (raced.provider_submission_state === "uncertain") throw new Error("payment_intent_submission_uncertain");
+      throw new Error("payment_intent_in_progress");
+    }
+    const active = await loadActiveAttempt(params.appointmentId, params.customerUserId, params.provider);
+    if (active?.payment_intent_id) return active;
+    if (active?.provider_submission_state === "uncertain") throw new Error("payment_intent_submission_uncertain");
+    if (active) throw new Error("payment_intent_in_progress");
+    throw new Error("Unable to reserve payment idempotency key");
   }
   throw new Error("Unable to reserve payment idempotency key");
 }
@@ -90,7 +120,13 @@ export async function createServicePaymentIntent(params: {
   if (error) throw new Error("Unable to load appointment");
   if (!appointment || appointment.customer_user_id !== params.customerUserId) throw new Error("appointment_not_found");
   if (!["pending", "confirmed"].includes(appointment.status)) throw new Error("appointment_not_payable");
-  if (appointment.payment_status === "paid") throw new Error("appointment_already_paid");
+  if (["paid", "partially_refunded", "refunded", "disputed"].includes(String(appointment.payment_status))) {
+    throw new Error("appointment_payment_settled");
+  }
+  if (appointment.payment_status === "pending" && appointment.payment_reference) {
+    const active = await loadActiveAttempt(appointment.id, params.customerUserId, params.provider);
+    if (!active) throw new Error("payment_reconciliation_required");
+  }
 
   const amount = Number(appointment.customer_total_amount ?? appointment.price);
   const currency = String(appointment.currency ?? "").trim().toUpperCase();
@@ -137,24 +173,28 @@ export async function createServicePaymentIntent(params: {
     await supabaseAdmin.from("service_payment_idempotency").update({
       processing_until: null,
       provider_submission_state: uncertain ? "uncertain" : "ready",
+      attempt_active: uncertain,
     })
       .eq("customer_user_id", params.customerUserId).eq("provider", params.provider)
       .eq("idempotency_key", params.idempotencyKey).eq("appointment_id", appointment.id).is("payment_intent_id", null);
     throw error;
   }
 
-  const { error: intentPersistError } = await supabaseAdmin.from("service_payment_idempotency").update({
+  const { data: persistedIntent, error: intentPersistError } = await supabaseAdmin.from("service_payment_idempotency").update({
     payment_intent_id: intent.id,
     provider_reference: intent.providerReference,
     processing_until: null,
     provider_submission_state: "ready",
+    attempt_active: true,
   }).eq("customer_user_id", params.customerUserId)
     .eq("provider", params.provider)
     .eq("idempotency_key", params.idempotencyKey)
     .eq("appointment_id", appointment.id)
-    .is("payment_intent_id", null);
+    .is("payment_intent_id", null)
+    .select("id")
+    .maybeSingle();
 
-  if (intentPersistError) {
+  if (intentPersistError || !persistedIntent) {
     // The provider accepted the payment intent, but the first database write failed.
     // Preserve enough information to reconcile it without ever issuing a second charge.
     const { error: recoveryError } = await supabaseAdmin.from("service_payment_idempotency").update({
@@ -162,6 +202,7 @@ export async function createServicePaymentIntent(params: {
       provider_reference: intent.providerReference,
       processing_until: null,
       provider_submission_state: "uncertain",
+      attempt_active: true,
     }).eq("customer_user_id", params.customerUserId)
       .eq("provider", params.provider)
       .eq("idempotency_key", params.idempotencyKey)
