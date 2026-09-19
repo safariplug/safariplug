@@ -29,10 +29,6 @@ function issue(key: SupplierReadinessKey, label: string, href: string): Supplier
   return { key, label, href };
 }
 
-function first<T>(value: T | T[] | null | undefined): T | null {
-  return Array.isArray(value) ? value[0] ?? null : value ?? null;
-}
-
 function isFutureOrOpen(expiresAt?: string | null) {
   return !expiresAt || new Date(expiresAt).getTime() > Date.now();
 }
