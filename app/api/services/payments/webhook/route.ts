@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { recordAndApplyPaymentWebhook } from "@/lib/payments/webhook";
 import { verifyStripeWebhookSignature } from "@/lib/payments/stripe";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function metadataAppointmentId(value: unknown): string | null {
+function metadataString(value: unknown, key: string): string | null {
   if (!value || typeof value !== "object") return null;
   const metadata = (value as { metadata?: unknown }).metadata;
   if (!metadata || typeof metadata !== "object") return null;
-  const id = (metadata as { appointment_id?: unknown }).appointment_id;
-  return typeof id === "string" && id ? id : null;
+  const result = (metadata as Record<string, unknown>)[key];
+  return typeof result === "string" && result ? result : null;
 }
 
 function objectId(value: unknown): string | null {
@@ -38,8 +39,9 @@ export async function POST(request: Request) {
   const object = event.data?.object;
   if (!eventId || !eventType || !object) return NextResponse.json({ error: "invalid_event" }, { status: 400 });
 
-  const appointmentId = metadataAppointmentId(object);
-  const providerReference = objectId(object);
+  const appointmentId = metadataString(object, "appointment_id");
+  const idempotencyKey = metadataString(object, "idempotency_key");
+  const objectReference = objectId(object);
 
   let status: "succeeded" | "failed" | "cancelled" | "processing" | null = null;
   if (["checkout.session.completed", "payment_intent.succeeded"].includes(eventType)) status = "succeeded";
@@ -47,7 +49,28 @@ export async function POST(request: Request) {
   else if (eventType === "checkout.session.expired") status = "cancelled";
 
   if (!status) return NextResponse.json({ received: true, ignored: true });
-  if (!appointmentId || !providerReference) return NextResponse.json({ error: "payment_metadata_missing" }, { status: 400 });
+  if (!appointmentId || !idempotencyKey || !objectReference) {
+    return NextResponse.json({ error: "payment_metadata_missing" }, { status: 400 });
+  }
+
+  const { data: attempt, error: attemptError } = await supabaseAdmin
+    .from("service_payment_idempotency")
+    .select("id,provider_reference,attempt_active")
+    .eq("appointment_id", appointmentId)
+    .eq("provider", "stripe")
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+
+  if (attemptError) {
+    console.error("Stripe payment attempt lookup failed", attemptError);
+    return NextResponse.json({ error: "payment_attempt_lookup_failed" }, { status: 500 });
+  }
+  if (!attempt) {
+    return NextResponse.json({ received: true, ignored: true, reason: "unknown_payment_attempt" });
+  }
+
+  const attemptReference = attempt.provider_reference || objectReference;
+  const providerReference = attempt.provider_reference || objectReference;
 
   try {
     const result = await recordAndApplyPaymentWebhook({
@@ -55,6 +78,8 @@ export async function POST(request: Request) {
       provider: "stripe",
       eventType,
       providerReference,
+      attemptReference,
+      attemptActive: attempt.attempt_active,
       appointmentId,
       status,
       paidAt: status === "succeeded" ? new Date().toISOString() : null,
