@@ -101,6 +101,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "This specialist verification link is invalid or expired." }, { status: 410 });
     }
 
+    const { data: claimedStaff, error: claimedStaffError } = await supabaseAdmin
+      .from("service_staff")
+      .select("id,display_name,user_id,verification_state")
+      .eq("id", claim.staff_id)
+      .maybeSingle();
+
+    if (claimedStaffError) return NextResponse.json({ error: claimedStaffError.message }, { status: 500 });
+
+    if (claimedStaff?.user_id === user.id) {
+      const consumedAt = claim.consumed_at || new Date().toISOString();
+      if (!claim.consumed_at) {
+        await supabaseAdmin
+          .from("service_staff_claim_tokens")
+          .update({ consumed_at: consumedAt })
+          .eq("id", claim.id)
+          .is("consumed_at", null);
+      }
+      return NextResponse.json({
+        ok: true,
+        staff: claimedStaff,
+        claimedAt: consumedAt,
+        recovered: true,
+      });
+    }
+
+    if (claimedStaff?.user_id && claimedStaff.user_id !== user.id) {
+      return NextResponse.json({ error: "This specialist profile is already claimed." }, { status: 409 });
+    }
+
     const { data: existing } = await supabaseAdmin
       .from("service_staff")
       .select("id")
