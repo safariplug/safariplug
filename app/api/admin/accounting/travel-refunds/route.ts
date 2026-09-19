@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic="force-dynamic";
 
-const products=new Set(["hotel","transfer","activity"]);
+const products=new Set(["hotel","transfer","activity","service"]);
 const resolutions=new Set(["refund_required","no_refund_due","refunded_externally"]);
 
 export async function POST(request:Request){
