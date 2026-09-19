@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { PaymentProvider, PaymentIntentStatus } from "./types";
 
-export type NormalizedPaymentWebhook = { eventId:string; provider:PaymentProvider; eventType:string; providerReference:string; appointmentId?:string|null; status:PaymentIntentStatus; paidAt?:string|null; refundedAmount?:number; rawPayload:unknown };
+export type NormalizedPaymentWebhook = { eventId:string; provider:PaymentProvider; eventType:string; providerReference:string; attemptReference?:string|null; attemptActive?:boolean|null; appointmentId?:string|null; status:PaymentIntentStatus; paidAt?:string|null; refundedAmount?:number; rawPayload:unknown };
 const statuses = new Set<PaymentIntentStatus>(["requires_payment", "processing", "succeeded", "failed", "cancelled"]);
 
 export async function recordAndApplyPaymentWebhook(event: NormalizedPaymentWebhook) {
@@ -34,8 +34,26 @@ export async function recordAndApplyPaymentWebhook(event: NormalizedPaymentWebho
   }
 
   // Provider cancellation means the payment attempt ended without payment.
-  // The appointment payment enum intentionally has no "cancelled" state.
-  const normalizedStatus = event.status === "succeeded" ? "paid" : (event.status === "failed" || event.status === "cancelled") ? "failed" : "pending";
+  // A late success from an already-closed attempt is a reconciliation/dispute,
+  // while late failures from closed attempts must not downgrade a newer attempt.
+  if (event.attemptActive === false && (event.status === "failed" || event.status === "cancelled")) {
+    const { error: ignoredError } = await supabaseAdmin
+      .from("service_payment_events")
+      .update({ status:"processed", processed_at:new Date().toISOString(), error_message:null })
+      .eq("id", eventId)
+      .in("status", ["received", "failed"]);
+    if (ignoredError) throw ignoredError;
+    return { duplicate:false, ignored:true, staleAttempt:true };
+  }
+
+  const normalizedStatus =
+    event.attemptActive === false && event.status === "succeeded"
+      ? "disputed"
+      : event.status === "succeeded"
+        ? "paid"
+        : (event.status === "failed" || event.status === "cancelled")
+          ? "failed"
+          : "pending";
   const { data: result, error } = await supabaseAdmin.rpc("apply_service_payment_webhook", { p_appointment_id:event.appointmentId, p_payment_reference:event.providerReference, p_status:normalizedStatus, p_paid_at:event.paidAt ?? null, p_refunded_amount:event.refundedAmount ?? 0 });
   if (error) {
     await supabaseAdmin.from("service_payment_events").update({ status:"failed", error_message:error.message }).eq("id", eventId);
@@ -48,7 +66,7 @@ export async function recordAndApplyPaymentWebhook(event: NormalizedPaymentWebho
       .update({ attempt_active: false, processing_until: null })
       .eq("appointment_id", event.appointmentId)
       .eq("provider", event.provider)
-      .eq("provider_reference", event.providerReference)
+      .eq("provider_reference", event.attemptReference || event.providerReference)
       .eq("attempt_active", true);
     if (releaseError) {
       await supabaseAdmin.from("service_payment_events").update({ status:"failed", error_message:releaseError.message }).eq("id", eventId);
