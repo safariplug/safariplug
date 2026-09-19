@@ -8,6 +8,11 @@ type Offering = { id: string; name: string; price: number; currency: string; sta
 type Staff = { id: string; display_name: string | null; personal_photo_url: string | null; status: string };
 type Profile = { status: string; booking_status: string; service_categories?: { name: string } | null; service_offerings?: Offering[]; service_staff?: Staff[] };
 type Business = { id: string; name: string; email: string | null; phone: string | null; status: string; description?: string | null; logo_url?: string | null; cover_image_url?: string | null; service_profiles?: Profile[] };
+type SupplierReadiness = {
+  ready: boolean;
+  issues: { key: string; label: string; href: string }[];
+  checks: Record<string, boolean>;
+};
 type Supplier = {
   id: string;
   contact_name: string;
@@ -21,6 +26,7 @@ type Supplier = {
   review_note?: string | null;
   review_requested_at?: string | null;
   businesses?: Business | Business[] | null;
+  activation_readiness?: SupplierReadiness | null;
 };
 type SupplierForm = { businessName: string; contactName: string; email: string; phone: string; categorySlug: string; cityId: string; notes: string };
 type Filter = "attention" | "supplier" | "staff" | "active" | "all";
@@ -32,7 +38,8 @@ const REVIEW_OPTIONS = [
   ["team", "Team information"],
   ["personal_photos", "Personal photos"],
   ["availability", "Availability"],
-  ["verification", "Verification"],
+  ["staff_verification", "Specialist identity + liveness"],
+  ["verification", "Provider verification"],
   ["payout_details", "Payout details"],
   ["other", "Other"],
 ] as const;
@@ -51,7 +58,11 @@ function guidance(supplier: Supplier) {
   const images = Boolean(business?.logo_url || business?.cover_image_url);
   const staffPhotos = staff.length > 0 && staff.every((member) => Boolean(member.personal_photo_url));
 
-  if (status === "submitted") return { owner: "staff", title: "Review submission", detail: "Supplier is waiting for a human decision.", priority: 0 };
+  if (status === "submitted") {
+    const blockers = supplier.activation_readiness?.issues ?? [];
+    if (blockers.length) return { owner: "staff", title: "Review activation blockers", detail: `${blockers.length} activation requirement${blockers.length === 1 ? "" : "s"} still incomplete.`, priority: 0 };
+    return { owner: "staff", title: "Review submission", detail: "Supplier passed the activation-readiness gate and is waiting for a human decision.", priority: 0 };
+  }
   if (status === "changes_requested") {
     const count = Array.isArray(supplier.review_items) ? supplier.review_items.length : 0;
     return { owner: "supplier", title: "Waiting for changes", detail: count ? `${count} requested fix${count === 1 ? "" : "es"} sent to supplier.` : "Supplier must update and resubmit.", priority: 1 };
@@ -201,8 +212,8 @@ export default function SuppliersAdminPage() {
             <div className="grid gap-4 lg:grid-cols-[1.2fr_.75fr_1.25fr_auto] lg:items-center">
               <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{business?.name || "Unnamed business"}</h3><span className="rounded-full bg-black/[.05] px-2.5 py-1 text-[11px]">{stageLabel(supplier.onboarding_status)}</span></div><p className="mt-1 text-sm text-black/50">{category} · {supplier.contact_name || "No contact name"}</p><p className="mt-1 text-xs text-black/40">{business?.email || business?.phone || "No business contact channel"}</p></div>
               <div><p className="text-xs text-black/40">Progress</p><div className="mt-1 flex items-center gap-3"><strong className="text-xl">{supplier.completion_percent}%</strong><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/10"><div className="h-full bg-black" style={{ width: `${Math.min(100, Math.max(0, supplier.completion_percent || 0))}%` }} /></div></div></div>
-              <div className={`rounded-xl p-4 ${g.owner === "staff" ? "bg-amber-50 ring-1 ring-amber-200" : g.owner === "active" ? "bg-emerald-50 ring-1 ring-emerald-200" : "bg-black/[.025] ring-1 ring-black/5"}`}><p className="text-[11px] font-semibold uppercase tracking-wide text-black/40">Next · {g.owner === "staff" ? "SafariPlug staff" : g.owner === "supplier" ? "Supplier" : stageLabel(g.owner)}</p><h4 className="mt-1 font-semibold">{g.title}</h4><p className="mt-1 text-sm text-black/50">{g.detail}</p>{supplier.onboarding_status === "changes_requested" && supplier.review_note && <p className="mt-2 line-clamp-2 text-xs text-black/45">Note: {supplier.review_note}</p>}</div>
-              <div className="flex flex-col gap-2"><Link href={`/admin/ai-sales/partners/${supplier.id}`} className="rounded-full bg-black px-4 py-2 text-center text-sm text-white">Open Partner 360</Link>{supplier.onboarding_status === "submitted" && <><button disabled={reviewing === supplier.id} onClick={() => void review(supplier.id, "approve")} className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:opacity-50">Approve</button><button disabled={reviewing === supplier.id} onClick={() => openFeedback(supplier)} className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:opacity-50">Request changes</button></>}{supplier.onboarding_status === "changes_requested" && <button onClick={() => openFeedback(supplier)} className="rounded-full border border-black/15 px-4 py-2 text-sm">View requested fixes</button>}</div>
+              <div className={`rounded-xl p-4 ${g.owner === "staff" ? "bg-amber-50 ring-1 ring-amber-200" : g.owner === "active" ? "bg-emerald-50 ring-1 ring-emerald-200" : "bg-black/[.025] ring-1 ring-black/5"}`}><p className="text-[11px] font-semibold uppercase tracking-wide text-black/40">Next · {g.owner === "staff" ? "SafariPlug staff" : g.owner === "supplier" ? "Supplier" : stageLabel(g.owner)}</p><h4 className="mt-1 font-semibold">{g.title}</h4><p className="mt-1 text-sm text-black/50">{g.detail}</p>{supplier.onboarding_status === "submitted" && supplier.activation_readiness?.issues?.length ? <div className="mt-3 space-y-1">{supplier.activation_readiness.issues.slice(0,4).map((item) => <p key={item.key} className="text-xs text-amber-900/75">• {item.label}</p>)}{supplier.activation_readiness.issues.length > 4 && <p className="text-xs text-amber-900/60">+ {supplier.activation_readiness.issues.length - 4} more in Partner 360</p>}</div> : null}{supplier.onboarding_status === "changes_requested" && supplier.review_note && <p className="mt-2 line-clamp-2 text-xs text-black/45">Note: {supplier.review_note}</p>}</div>
+              <div className="flex flex-col gap-2"><Link href={`/admin/ai-sales/partners/${supplier.id}`} className="rounded-full bg-black px-4 py-2 text-center text-sm text-white">Open Partner 360</Link>{supplier.onboarding_status === "submitted" && <><button title={supplier.activation_readiness?.ready ? "Approve supplier" : "Complete activation requirements first"} disabled={reviewing === supplier.id || !supplier.activation_readiness?.ready} onClick={() => void review(supplier.id, "approve")} className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40">Approve</button><button disabled={reviewing === supplier.id} onClick={() => openFeedback(supplier)} className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:opacity-50">Request changes</button></>}{supplier.onboarding_status === "changes_requested" && <button onClick={() => openFeedback(supplier)} className="rounded-full border border-black/15 px-4 py-2 text-sm">View requested fixes</button>}</div>
             </div>
           </article>;
         })}

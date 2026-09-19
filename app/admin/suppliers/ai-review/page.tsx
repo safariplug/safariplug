@@ -34,7 +34,8 @@ const reviewOptions = [
   ["team", "Team information"],
   ["personal_photos", "Personal photos"],
   ["availability", "Availability"],
-  ["verification", "Verification"],
+  ["staff_verification", "Specialist identity + liveness"],
+  ["verification", "Provider verification"],
   ["payout_details", "Payout details"],
   ["other", "Other"],
 ] as const;
