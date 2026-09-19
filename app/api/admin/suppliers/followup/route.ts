@@ -73,7 +73,7 @@ async function loadSupplier(supplierId: string) {
       .from("verification_cases")
       .select("status")
       .eq("subject_type", "provider")
-      .eq("subject_id", supplier.business_id)
+      .eq("subject_id", supplier.user_id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
