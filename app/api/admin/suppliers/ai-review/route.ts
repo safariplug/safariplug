@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "AI assistance is not configured." }, { status: 503 });
 
     const { data: account, error: accountError } = await supabaseAdmin.from("supplier_accounts")
-      .select("id,business_id,contact_name,onboarding_status,completion_percent,review_items,review_note,submitted_at,approved_at")
+      .select("id,user_id,business_id,contact_name,onboarding_status,completion_percent,review_items,review_note,submitted_at,approved_at")
       .eq("id", supplierId).maybeSingle();
     if (accountError) return NextResponse.json({ error: accountError.message }, { status: 500 });
     if (!account) return NextResponse.json({ error: "Supplier not found." }, { status: 404 });
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     const [{ data: offerings }, { data: staff }, { data: verification }] = await Promise.all([
       supabaseAdmin.from("service_offerings").select("name,description,duration_minutes,price,currency,status").eq("service_profile_id", profileId).limit(30),
       supabaseAdmin.from("service_staff").select("display_name,personal_photo_url,status").eq("service_profile_id", profileId).limit(30),
-      supabaseAdmin.from("verification_cases").select("status,subject_type,created_at,updated_at").eq("subject_type", "provider").eq("subject_id", account.business_id).limit(20),
+      supabaseAdmin.from("verification_cases").select("status,subject_type,created_at,updated_at").eq("subject_type", "provider").eq("subject_id", account.user_id).limit(20),
     ]);
 
     const response = await openai.responses.create({
