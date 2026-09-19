@@ -68,6 +68,7 @@ begin
       payment_reference = coalesce(nullif(trim(p_payment_reference),''), payment_reference),
       paid_at = case
         when next_status in ('paid','partially_refunded','refunded') then coalesce(p_paid_at, paid_at, now())
+        when next_status = 'disputed' and p_paid_at is not null then coalesce(paid_at, p_paid_at)
         else paid_at
       end,
       updated_at = now()
