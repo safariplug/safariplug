@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+type ActivationReadiness = {
+  ready: boolean;
+  appointmentProvider: boolean;
+  completionPercent: number;
+  issues: { key: string; label: string; href: string }[];
+  checks: Record<string, boolean>;
+};
+
 type Supplier = {
   business?: Record<string, any>;
   account?: Record<string, any>;
@@ -10,6 +18,7 @@ type Supplier = {
   offerings?: Record<string, any>[];
   staff?: Record<string, any>[];
   availability?: Record<string, any>[];
+  activationReadiness?: ActivationReadiness;
 };
 
 type Step = { title: string; body: string; href: string; cta: string; complete: boolean };
@@ -51,15 +60,16 @@ export default function SupplierHomePage() {
   const approved = ["approved", "live"].includes(status);
   const reviewItems = Array.isArray(supplier.account?.review_items) ? supplier.account.review_items.filter((item: unknown) => typeof item === "string") : [];
   const reviewNote = String(supplier.account?.review_note || "").trim();
+  const readiness = supplier.activationReadiness;
 
   const steps = useMemo<Step[]>(() => {
     const business = supplier.business || {};
     const hasContact = Boolean(business.phone || business.email || business.whatsapp);
     const businessBasics = Boolean(business.name && business.description && business.address && hasContact);
     const hasImages = Boolean(business.logo_url || business.cover_image_url || (Array.isArray(business.supplier_gallery_urls) && business.supplier_gallery_urls.length));
-    const offeringsReady = !isAppointment || Boolean(supplier.offerings?.length);
-    const teamReady = !isAppointment || Boolean(supplier.staff?.length);
-    const availabilityReady = !isAppointment || Boolean(supplier.availability?.length);
+    const offeringsReady = !isAppointment || readiness?.checks.servicesPricing ?? Boolean(supplier.offerings?.length);
+    const teamReady = !isAppointment || readiness?.checks.team ?? Boolean(supplier.staff?.length);
+    const availabilityReady = !isAppointment || readiness?.checks.availability ?? Boolean(supplier.availability?.length);
 
     const categoryStep = isRestaurant
       ? { title: "Restaurant setup", body: "Finish menu and ordering setup.", href: "/supplier/restaurant", cta: "Continue restaurant setup", complete: true }
@@ -77,8 +87,11 @@ export default function SupplierHomePage() {
 
     if (isAppointment) {
       list.push(
-        { title: "Team", body: "Add the people who deliver your services.", href: "/supplier/onboarding", cta: "Add your team", complete: teamReady },
-        { title: "Availability", body: "Add at least one working-time slot.", href: "/supplier/onboarding", cta: "Set availability", complete: availabilityReady },
+        { title: "Team", body: "Add the people who deliver your services.", href: "/supplier/onboarding#team-availability", cta: "Add your team", complete: teamReady },
+        { title: "Availability", body: "Add working-time slots for every active specialist.", href: "/supplier/onboarding#team-availability", cta: "Set availability", complete: availabilityReady },
+        { title: "Specialist identity", body: "Every active specialist needs a personal photo, linked account, identity check and live face/liveness result.", href: "/business/services/identity", cta: "Verify specialists", complete: Boolean(readiness?.checks.staffVerification) },
+        { title: "Provider verification", body: "Complete the business owner's identity + live face/liveness verification.", href: "/business/verification", cta: "Complete provider verification", complete: Boolean(readiness?.checks.providerVerification) },
+        { title: "Payout destination", body: "Configure and verify the M-Pesa destination SafariPlug will use for provider payouts.", href: "/business/payouts", cta: "Set up payouts", complete: Boolean(readiness?.checks.payout) },
       );
     }
 
@@ -90,7 +103,7 @@ export default function SupplierHomePage() {
       complete: submitted,
     });
     return list;
-  }, [supplier, isAppointment, isRestaurant, isHotel, isEvents, submitted, approved, changesRequested]);
+  }, [supplier, readiness, isAppointment, isRestaurant, isHotel, isEvents, submitted, approved, changesRequested]);
 
   const nextStep = steps.find((step) => !step.complete) || steps[steps.length - 1];
   const completeCount = steps.filter((step) => step.complete).length;
@@ -155,7 +168,8 @@ export default function SupplierHomePage() {
       </details>
 
       {!submitted && !changesRequested && <section className="mt-6 rounded-2xl bg-amber-50 p-5 ring-1 ring-amber-200"><h2 className="font-semibold">Your progress is saved</h2><p className="mt-1 text-sm leading-6 text-black/55">You can stop anytime. When you return, SafariPlug will bring you back to the first unfinished step.</p></section>}
-      {submitted && !approved && <section className="mt-6 rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-200"><h2 className="font-semibold">Nothing else is required right now</h2><p className="mt-1 text-sm leading-6 text-black/55">Your profile is with SafariPlug for human review. We will tell you if anything needs to be changed.</p></section>}
+      {submitted && !approved && readiness?.ready && <section className="mt-6 rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-200"><h2 className="font-semibold">Everything required for activation is ready</h2><p className="mt-1 text-sm leading-6 text-black/55">Your profile is with SafariPlug for human review. Activation still requires an explicit staff approval.</p></section>}
+      {submitted && !approved && readiness && !readiness.ready && <section className="mt-6 rounded-2xl bg-amber-50 p-5 ring-1 ring-amber-200"><h2 className="font-semibold">Review submitted · trust setup still needs attention</h2><p className="mt-1 text-sm leading-6 text-black/55">SafariPlug can review your profile now, but it cannot activate bookings until the remaining trust and payout requirements below are complete.</p><div className="mt-4 space-y-2">{readiness.issues.map((item) => <Link key={item.key} href={item.href} className="flex items-center justify-between rounded-xl bg-white px-4 py-3 text-sm font-medium ring-1 ring-black/5"><span>{item.label}</span><span aria-hidden>→</span></Link>)}</div></section>}
     </>}
   </main>;
 }
