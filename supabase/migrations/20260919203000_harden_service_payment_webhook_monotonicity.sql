@@ -57,7 +57,7 @@ begin
   -- Settled and disputed states are monotonic. Late pending/failed/unpaid
   -- callbacks must never erase evidence that money was paid, refunded, or disputed.
   if a.payment_status in ('paid','partially_refunded','refunded','disputed')
-     and p_status in ('unpaid','pending','failed','disputed') then
+     and p_status in ('unpaid','pending','failed') then
     return a;
   end if;
 
