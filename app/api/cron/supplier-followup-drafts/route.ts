@@ -22,9 +22,9 @@ function label(value: string) {
 function requirementLink(requirement: string) {
   const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "");
   const base = `${site}/supplier/onboarding`;
-  if (requirement.includes("description")) return `${base}#business-details`;
-  if (requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
-  if (requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
+  if (requirement.toLowerCase().includes("business detail") || requirement.includes("description")) return `${base}#business-details`;
+  if (requirement.toLowerCase().includes("business image") || requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
+  if (requirement.toLowerCase().includes("service pricing") || requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
   if (requirement.toLowerCase().includes("specialist") || requirement.toLowerCase().includes("personal photo")) return `${site}/business/services/identity`;
   if (requirement.includes("team member") || requirement.includes("availability")) return `${base}#team-availability`;
   if (requirement.toLowerCase().includes("payout") || requirement.includes("M-Pesa")) return `${site}/business/payouts`;
@@ -42,9 +42,6 @@ function draftMessage(input: { name: string; businessName: string; completion: n
     message: `${greeting}\n\nThis is a follow-up on your SafariPlug supplier onboarding. Your profile is currently ${input.completion}% complete.${list}\n\nYour progress is saved. Please sign in to continue:\n${portal}\n\nSafariPlug Supplier Team`,
   };
 }
-
-type ServiceProfile = { service_staff?: { id?: string }[] | { id?: string } | null };
-type SupplierBusiness = { name?: string | null; email?: string | null; service_profiles?: ServiceProfile[] | ServiceProfile | null };
 
 export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -81,9 +78,13 @@ export async function GET(request: Request) {
       const readiness = await getSupplierActivationReadiness(supplierId);
       const reviewRequested = (Array.isArray(supplier.review_items) ? supplier.review_items : [])
         .map((item) => `Review requested: ${label(String(item))}`);
+      const workflowItems = readiness.ready && ["draft", "onboarding"].includes(String(supplier.onboarding_status || ""))
+        ? ["Submit your onboarding for SafariPlug staff review"]
+        : [];
       const missing = [...new Set([
         ...readiness.issues.map((item) => item.label),
         ...reviewRequested,
+        ...workflowItems,
       ])].slice(0, 20);
       const previousRequirements = Array.isArray(previous.missing_requirements) ? previous.missing_requirements.map(String) : [];
       const comparison = {
@@ -95,7 +96,7 @@ export async function GET(request: Request) {
       const draft = draftMessage({
         name: clean(supplier.contact_name, 200),
         businessName: clean(business?.name, 300) || "your business",
-        completion: Number(supplier.completion_percent || 0),
+        completion: readiness.completionPercent,
         missing,
       });
 
