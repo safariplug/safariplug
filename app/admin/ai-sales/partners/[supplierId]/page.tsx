@@ -48,13 +48,13 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
 
   const { data: supplier, error: supplierError } = await supabaseAdmin
     .from("supplier_accounts")
-    .select("id,user_id,business_id,contact_name,invitation_status,onboarding_status,completion_percent,submitted_at,approved_at,created_at")
+    .select("id,user_id,business_id,prospect_id,partner_id,contact_name,invitation_status,onboarding_status,completion_percent,submitted_at,approved_at,created_at")
     .eq("id", supplierId)
     .maybeSingle();
 
   if (supplierError || !supplier) notFound();
 
-  const [{ data: business, error: businessError }, { data: profiles, error: profilesError }] = await Promise.all([
+  const [{ data: business, error: businessError }, { data: profiles, error: profilesError }, { data: relationship }, { data: prospect }] = await Promise.all([
     supabaseAdmin
       .from("businesses")
       .select("id,name,description,phone,email,whatsapp,website_url,instagram_url,status,city_id")
@@ -64,6 +64,12 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
       .from("service_profiles")
       .select("id,status,booking_status,service_categories(name,slug)")
       .eq("business_id", supplier.business_id),
+    supplier.partner_id
+      ? supabaseAdmin.from("safari_partners").select("id,venue_or_promoter_name,contact_person,email_or_phone,outreach_stage,notes,created_at").eq("id", supplier.partner_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supplier.prospect_id
+      ? supabaseAdmin.from("ai_sales_prospects").select("id,business_name,category,city,status,opportunity_score,created_at").eq("id", supplier.prospect_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   if (businessError || !business) notFound();
@@ -154,6 +160,7 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
           <div className="mt-4 flex flex-wrap gap-2">
             {nextAction.href && <Link href={nextAction.href} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-black">{nextAction.cta}</Link>}
             <Link href="/admin/ai-sales/invitations" className="rounded-xl border border-zinc-700 px-4 py-2 text-sm">Invitation center</Link>
+            {supplier.prospect_id && <Link href={`/admin/ai-sales/edit/${supplier.prospect_id}`} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm">Open prospect 360</Link>}
           </div>
         </section>
 
@@ -220,6 +227,23 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             <p className="mt-4 text-xs leading-5 text-zinc-500">Verification and activation remain governed. Partner 360 does not automatically verify, approve, publish, or open bookings.</p>
           </Card>
         </div>
+
+        <section className="mt-7 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div><h2 className="font-semibold">CRM relationship context</h2><p className="mt-1 text-xs text-zinc-500">Stable identifiers only. SafariPlug does not guess links from matching business names.</p></div>
+            <span className={`rounded-full border px-3 py-1 text-[10px] uppercase ${supplier.prospect_id || supplier.partner_id ? "border-emerald-700 text-emerald-400" : "border-zinc-700 text-zinc-500"}`}>{supplier.prospect_id || supplier.partner_id ? "linked" : "unlinked"}</span>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-zinc-900 p-4">
+              <p className="text-xs uppercase text-zinc-500">Discovery prospect</p>
+              {prospect ? <><p className="mt-2 font-semibold">{prospect.business_name}</p><p className="mt-1 text-sm text-zinc-400">{prospect.category || "Uncategorized"} · {prospect.city || "City not recorded"}</p><p className="mt-2 text-xs text-zinc-500">Status {prospect.status || "unknown"} · Opportunity {prospect.opportunity_score ?? "—"}</p><Link href={`/admin/ai-sales/edit/${prospect.id}`} className="mt-3 inline-block text-sm font-semibold text-amber-400">Open prospect 360 →</Link></> : <p className="mt-2 text-sm text-zinc-500">No stable prospect link recorded.</p>}
+            </div>
+            <div className="rounded-xl border border-zinc-900 p-4">
+              <p className="text-xs uppercase text-zinc-500">Partner relationship</p>
+              {relationship ? <><p className="mt-2 font-semibold">{relationship.venue_or_promoter_name}</p><p className="mt-1 text-sm text-zinc-400">{relationship.contact_person || relationship.email_or_phone || "No relationship contact recorded"}</p><p className="mt-2 text-xs text-zinc-500">Stage {(relationship.outreach_stage || "unknown").replaceAll("_", " ")}</p></> : <p className="mt-2 text-sm text-zinc-500">No stable partner relationship link recorded.</p>}
+            </div>
+          </div>
+        </section>
 
         <section className="mt-7 rounded-2xl border border-zinc-800 bg-zinc-950">
           <div className="border-b border-zinc-800 p-5"><h2 className="font-semibold">Inventory & team readiness</h2></div>

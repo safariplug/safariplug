@@ -26,17 +26,26 @@ function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 72);
 }
 
-async function provisionServiceEnrollment(user: { id: string; email?: string | null }, invitation: { id: string; business_name: string; partner_type: string }) {
+async function provisionServiceEnrollment(user: { id: string; email?: string | null }, invitation: { id: string; business_name: string; partner_type: string; prospect_id?: string | null; partner_id?: string | null }) {
   const config = SERVICE_INVITATION_TYPES[invitation.partner_type.toLowerCase()];
   if (!config) return false;
 
   const { data: existingSupplier, error: supplierLookupError } = await supabaseAdmin
     .from("supplier_accounts")
-    .select("id,business_id")
+    .select("id,business_id,prospect_id,partner_id")
     .eq("user_id", user.id)
     .maybeSingle();
   if (supplierLookupError) throw new Error(supplierLookupError.message);
-  if (existingSupplier) return true;
+  if (existingSupplier) {
+    const updates: Record<string, string> = {};
+    if (!existingSupplier.prospect_id && invitation.prospect_id) updates.prospect_id = invitation.prospect_id;
+    if (!existingSupplier.partner_id && invitation.partner_id) updates.partner_id = invitation.partner_id;
+    if (Object.keys(updates).length) {
+      const { error: linkError } = await supabaseAdmin.from("supplier_accounts").update(updates).eq("id", existingSupplier.id);
+      if (linkError) throw new Error(linkError.message);
+    }
+    return true;
+  }
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
@@ -102,6 +111,8 @@ async function provisionServiceEnrollment(user: { id: string; email?: string | n
     onboarding_status: "draft",
     completion_percent: 0,
     accepted_at: new Date().toISOString(),
+    prospect_id: invitation.prospect_id || null,
+    partner_id: invitation.partner_id || null,
   });
   if (supplierError) throw new Error(supplierError.message);
   return true;
@@ -111,7 +122,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
   const { token } = await params;
   const { data: invitation } = await supabaseAdmin
     .from("partner_invitations")
-    .select("id,business_name,partner_type,status,opened_at,onboarded_user_id")
+    .select("id,business_name,partner_type,status,opened_at,onboarded_user_id,prospect_id,partner_id")
     .eq("invitation_token", token)
     .maybeSingle();
   if (!invitation) notFound();
