@@ -25,7 +25,15 @@ export async function GET() {
       .in("onboarding_status", ["draft", "onboarding", "submitted", "changes_requested", "approved", "rejected", "live"])
       .order("created_at", { ascending: false });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ suppliers: data ?? [] });
+    const suppliers = await Promise.all((data ?? []).map(async (supplier) => {
+      try {
+        const activation_readiness = await getSupplierActivationReadiness(supplier.id);
+        return { ...supplier, activation_readiness };
+      } catch {
+        return { ...supplier, activation_readiness: null };
+      }
+    }));
+    return NextResponse.json({ suppliers });
   } catch (error) {
     if (error instanceof AdminAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: "Unable to load supplier reviews." }, { status: 500 });
@@ -67,37 +75,11 @@ export async function POST(request: Request) {
           checks: readiness.checks,
         }, { status: 422 });
       }
-      const now = new Date().toISOString();
-      const { error } = await supabaseAdmin.from("supplier_accounts").update({
-        onboarding_status: "approved",
-        approved_at: now,
-        review_items: [],
-        review_note: null,
-        review_requested_at: null,
-        updated_at: now,
-      }).eq("id", supplierId);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-      const { error: businessError } = await supabaseAdmin.from("businesses").update({ status: "active" }).eq("id", account.business_id);
-      if (businessError) return NextResponse.json({ error: businessError.message }, { status: 500 });
-
-      const { data: profile, error: profileError } = await supabaseAdmin.from("service_profiles")
-        .update({ status: "active", booking_status: "open" })
-        .eq("business_id", account.business_id)
-        .select("id")
-        .maybeSingle();
-      if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
-
-      if (profile) {
-        const { error: offeringError } = await supabaseAdmin.from("service_offerings").update({ status: "active" }).eq("service_profile_id", profile.id).eq("status", "draft");
-        if (offeringError) return NextResponse.json({ error: offeringError.message }, { status: 500 });
-        const { data: offerings } = await supabaseAdmin.from("service_offerings").select("id").eq("service_profile_id", profile.id).eq("status", "active");
-        const { data: staff } = await supabaseAdmin.from("service_staff").select("id").eq("service_profile_id", profile.id).eq("status", "active");
-        if (offerings?.length && staff?.length) {
-          const assignments = staff.flatMap((member) => offerings.map((offering) => ({ staff_id: member.id, offering_id: offering.id })));
-          const { error: assignmentError } = await supabaseAdmin.from("service_staff_offerings").upsert(assignments, { onConflict: "staff_id,offering_id" });
-          if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 500 });
-        }
+      const { error: activationError } = await supabaseAdmin.rpc("activate_supplier_after_review", {
+        p_supplier_id: supplierId,
+      });
+      if (activationError) {
+        return NextResponse.json({ error: activationError.message || "Unable to activate supplier." }, { status: 500 });
       }
       return NextResponse.json({ success: true, onboarding_status: "approved" });
     }
