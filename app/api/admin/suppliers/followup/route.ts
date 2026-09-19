@@ -21,9 +21,9 @@ function reviewLabel(value: string) {
 
 function requirementLink(requirement: string) {
   const base = `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/supplier/onboarding`;
-  if (requirement.includes("description")) return `${base}#business-details`;
-  if (requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
-  if (requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
+  if (requirement.toLowerCase().includes("business detail") || requirement.includes("description")) return `${base}#business-details`;
+  if (requirement.toLowerCase().includes("business image") || requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
+  if (requirement.toLowerCase().includes("service pricing") || requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
   if (requirement.toLowerCase().includes("specialist") || requirement.toLowerCase().includes("personal photo")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/services/identity`;
   if (requirement.includes("team member") || requirement.includes("availability")) return `${base}#team-availability`;
   if (requirement.toLowerCase().includes("payout") || requirement.includes("M-Pesa")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/payouts`;
@@ -152,10 +152,11 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     const activationReadiness = await getSupplierActivationReadiness(supplierId);
-    const missingRequirements = inferMissingRequirements(
-      supplier,
-      activationReadiness.issues.map((item) => item.label),
-    );
+    const canonicalIssues = activationReadiness.issues.map((item) => item.label);
+    if (activationReadiness.ready && ["draft", "onboarding"].includes(String(supplier.onboarding_status || ""))) {
+      canonicalIssues.push("Submit your onboarding for SafariPlug staff review");
+    }
+    const missingRequirements = inferMissingRequirements(supplier, canonicalIssues);
     const previousRequirements = Array.isArray(previousFollowup?.missing_requirements)
       ? previousFollowup.missing_requirements.map(String)
       : [];
