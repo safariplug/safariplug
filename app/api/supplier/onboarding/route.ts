@@ -115,25 +115,17 @@ export async function POST(request: Request) {
   if (["approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
 
   if (body?.action === "submit") {
-    const completion = await supabaseAdmin.rpc("supplier_completion", { p_business_id: ctx.account.business_id });
-    if (completion.error) return NextResponse.json({ error: completion.error.message }, { status: 500 });
-    if ((completion.data ?? 0) < 80) return NextResponse.json({ error: "Please complete at least 80% of your supplier profile before submitting." }, { status: 422 });
-    const now = new Date().toISOString();
-    const { error } = await supabaseAdmin.from("supplier_accounts").update({
-      onboarding_status: "submitted",
-      invitation_status: "accepted",
-      accepted_at: ctx.account.accepted_at ?? now,
-      submitted_at: now,
-      completion_percent: completion.data ?? 0,
-      review_items: [],
-      review_note: null,
-      review_requested_at: null,
-      updated_at: now,
-    }).eq("id", ctx.account.id).eq("user_id", ctx.user.id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    const { error: businessError } = await supabaseAdmin.from("businesses").update({ status: "pending" }).eq("id", ctx.account.business_id).eq("owner_id", ctx.user.id);
-    if (businessError) return NextResponse.json({ error: businessError.message }, { status: 500 });
-    return NextResponse.json({ success: true, onboarding_status: "submitted" });
+    const { data: completion, error } = await supabaseAdmin.rpc("submit_supplier_for_review", {
+      p_supplier_id: ctx.account.id,
+      p_user_id: ctx.user.id,
+    });
+    if (error) {
+      const message = error.message || "Unable to submit supplier onboarding.";
+      if (message.includes("80%")) return NextResponse.json({ error: "Please complete at least 80% of your supplier profile before submitting." }, { status: 422 });
+      if (message.includes("Approved suppliers")) return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, onboarding_status: "submitted", completion_percent: completion ?? 0 });
   }
 
   if (body?.action === "offering") {
