@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { getAdminRole, isFinanceAdminRole, requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { SupplierFollowupPanel } from "./followup-panel";
 import { PayoutReviewControls } from "./payout-review-controls";
@@ -45,7 +45,9 @@ type Staff = {
 };
 
 export default async function Partner360Page({ params }: { params: Promise<{ supplierId: string }> }) {
-  await requireAdmin();
+  const adminUser=await requireAdmin();
+  const adminRole=await getAdminRole(adminUser.id);
+  const canManageFinance=isFinanceAdminRole(adminRole);
   const { supplierId } = await params;
 
   const { data: supplier, error: supplierError } = await supabaseAdmin
@@ -250,7 +252,7 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             <Field label="Active availability" value={String(activeAvailabilityCount || 0)} />
             <Field label="Payout status" value={payoutAccount?.status || "Not set up"} />
             <Field label="Payout phone" value={payoutAccount?.phone || null} />
-            {payoutAccount ? <PayoutReviewControls providerUserId={supplier.user_id} status={payoutAccount.status || null} /> : <p className="mt-4 text-xs text-amber-300">Supplier has not configured an M-Pesa payout destination yet.</p>}
+            {payoutAccount ? <PayoutReviewControls providerUserId={supplier.user_id} status={payoutAccount.status || null} canManageFinance={canManageFinance} /> : <p className="mt-4 text-xs text-amber-300">Supplier has not configured an M-Pesa payout destination yet.</p>}
             <p className="mt-4 text-xs leading-5 text-zinc-500">Verification and activation remain governed. Partner 360 does not automatically verify, approve, publish, or open bookings.</p>
           </Card>
         </div>
