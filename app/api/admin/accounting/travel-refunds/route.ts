@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
+import { AdminAuthError, requireFinanceAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic="force-dynamic";
@@ -9,7 +9,7 @@ const resolutions=new Set(["refund_required","no_refund_due","refunded_externall
 
 export async function POST(request:Request){
   try{
-    const admin=await requireAdmin();
+    const admin=await requireFinanceAdmin();
     const body=await request.json() as Record<string,unknown>;
     const action=String(body.action||"");
     const product=String(body.product||"");
