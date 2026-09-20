@@ -2,12 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import AdminLogoutButton from "./logout-button";
 
 export const dynamic = "force-dynamic";
 const payoutAction = new Set(["eligible", "approved", "processing", "held"]);
 
 export default async function AdminHome() {
-  try { await requireAdmin(); } catch { redirect("/admin/login"); }
+  let adminUser;
+  try { adminUser = await requireAdmin(); } catch { redirect("/admin/login"); }
 
   const [prospects, invites, suppliers, payouts, events, travelerVerification] = await Promise.all([
     supabaseAdmin.from("ai_sales_prospects").select("id,business_name,status,city,created_at").order("created_at", { ascending: false }).limit(6),
@@ -31,7 +33,7 @@ export default async function AdminHome() {
   const queryErrors = [prospects.error, invites.error, suppliers.error, payouts.error, events.error, travelerVerification.error].filter(Boolean);
 
   return <main className="min-h-screen bg-[#070707] px-5 py-10 text-white md:px-10"><div className="mx-auto max-w-7xl">
-    <header className="border-b border-zinc-800 pb-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-[11px] font-bold uppercase tracking-[.22em] text-amber-400">SafariPlug // Business OS</p><h1 className="mt-2 text-4xl font-bold">Command Center</h1><p className="mt-3 max-w-3xl text-sm text-zinc-400">Live operating view for growth, partner operations, marketplace finance, curation and marketing.</p></div><div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-5 py-3 text-right"><p className="text-xs text-zinc-500">Needs attention</p><p className="text-2xl font-bold text-amber-300">{attention}</p></div></div></header>
+    <header className="border-b border-zinc-800 pb-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-[11px] font-bold uppercase tracking-[.22em] text-amber-400">SafariPlug // Business OS</p><h1 className="mt-2 text-4xl font-bold">Command Center</h1><p className="mt-3 max-w-3xl text-sm text-zinc-400">Live operating view for growth, partner operations, marketplace finance, curation and marketing.</p><div className="mt-4 flex flex-wrap items-center gap-2"><span className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-400">Signed in as {adminUser.email || "SafariPlug admin"}</span><AdminLogoutButton /></div></div><div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-5 py-3 text-right"><p className="text-xs text-zinc-500">Needs attention</p><p className="text-2xl font-bold text-amber-300">{attention}</p></div></div></header>
 
     {queryErrors.length > 0 && <section className="mt-5 rounded-2xl border border-red-900/60 bg-red-950/20 p-4"><p className="font-semibold text-red-300">Operational data is partially unavailable</p><p className="mt-1 text-sm text-red-300/70">One or more dashboard queries failed. Open the source workspace before acting on the affected metric.</p></section>}
 
