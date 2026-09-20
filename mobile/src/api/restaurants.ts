@@ -47,7 +47,12 @@ export async function createRestaurantOrder(input: CreateRestaurantOrderInput) {
 
 export async function startRestaurantMpesaPayment(orderId: string, phone: string) {
   const idempotencyKey = `mobile-food-${orderId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  return request<{ intent: { id: string; providerReference?: string | null; status?: string } }>("/api/restaurants/orders/pay", {
+  return request<{
+    intent?: { id: string; providerReference?: string | null; status?: string };
+    warning?: string;
+    error?: string;
+    retryAllowed?: boolean;
+  }>("/api/restaurants/orders/pay", {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify({ orderId, phone, provider: "mpesa", idempotencyKey }),

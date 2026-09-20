@@ -99,7 +99,12 @@ export default function RestaurantScreen() {
       const created = await createRestaurantOrder({ businessId: businessId!, tripId: tripId || undefined, fulfillmentMethod: method, customerName: customer.name.trim(), customerPhone: customer.phone.trim(), customerEmail: customer.email.trim() || undefined, deliveryAddress: method === "restaurant_delivery" ? customer.address.trim() : undefined, customerNotes: customer.notes.trim() || undefined, items: cart.map((line) => ({ menuItemId: line.item.id, quantity: line.quantity, options: line.options })) });
       const payment = await startRestaurantMpesaPayment(created.order.id, customer.phone.trim());
       setCart([]);
-      setMessage(`Order ${created.order.public_id || created.order.id} created${tripId ? " and added to your trip" : ""}. M-Pesa payment request started${payment.intent.providerReference ? ` (${payment.intent.providerReference})` : ""}. Check your phone to complete payment.`);
+      const orderLabel = created.order.public_id || created.order.id;
+      if (payment.intent) {
+        setMessage(`Order ${orderLabel} created${tripId ? " and added to your trip" : ""}. M-Pesa payment request started${payment.intent.providerReference ? ` (${payment.intent.providerReference})` : ""}. Check your phone to complete payment.`);
+      } else {
+        setMessage(`Order ${orderLabel} created${tripId ? " and added to your trip" : ""}. ${payment.warning || payment.error || "M-Pesa payment status is uncertain."} Do not start another payment until this attempt is reconciled.`);
+      }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to place your order.");
     } finally { setBusy(false); }
