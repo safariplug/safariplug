@@ -55,6 +55,7 @@ export async function POST(request:Request){
     }
 
     if(action==="resolve"){
+      if(existing?.status==="resolved")return NextResponse.json({error:"This refund review is already resolved. Create a governed correction workflow instead of overwriting the recorded decision."},{status:409});
       const resolution=String(body.resolution||"");
       if(!resolutions.has(resolution))return NextResponse.json({error:"A valid resolution is required."},{status:400});
       if(!notes)return NextResponse.json({error:"Finance notes are required before resolving a refund review."},{status:400});
