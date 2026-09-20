@@ -52,6 +52,12 @@ export default function manifest(): MetadataRoute.Manifest {
         description: "Open your SafariPlug trips.",
         url: "/account/trips",
       },
+      {
+        name: "Staff Portal",
+        short_name: "Staff",
+        description: "Open the secure SafariPlug admin and staff portal.",
+        url: "/staff/login",
+      },
     ],
   };
 }
