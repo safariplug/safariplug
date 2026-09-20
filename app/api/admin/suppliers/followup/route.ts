@@ -24,8 +24,8 @@ function requirementLink(requirement: string) {
   if (requirement.toLowerCase().includes("business detail") || requirement.includes("description")) return `${base}#business-details`;
   if (requirement.toLowerCase().includes("business image") || requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
   if (requirement.toLowerCase().includes("service pricing") || requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
-  if (requirement.toLowerCase().includes("specialist") || requirement.toLowerCase().includes("personal photo")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/services/identity`;
-  if (requirement.includes("team member") || requirement.includes("availability")) return `${base}#team-availability`;
+  if (requirement.toLowerCase().includes("availability") || requirement.toLowerCase().includes("add at least one active service specialist") || requirement.includes("team member")) return `${base}#team-availability`;
+  if (requirement.toLowerCase().includes("personal photo") || requirement.toLowerCase().includes("identity + live face verification") || requirement.toLowerCase().includes("specialist identity")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/services/identity`;
   if (requirement.toLowerCase().includes("payout") || requirement.includes("M-Pesa")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/payouts`;
   if (requirement.toLowerCase().includes("provider") && requirement.toLowerCase().includes("verification")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/business/verification`;
   if (requirement.includes("verification")) return `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/supplier/readiness`;
@@ -51,7 +51,7 @@ function deterministicDraft(input: {
   const note = input.reviewNote ? `\n\nStaff note: ${input.reviewNote}` : "";
   const progress = Number.isFinite(input.completion) ? ` Your profile is currently ${input.completion}% complete.` : "";
   const portal = `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/supplier/onboarding`;
-  const message = `${greeting}\n\nWe noticed your SafariPlug supplier setup still needs attention.${progress}${requested}${note}\n\nPlease sign in to your SafariPlug supplier portal to continue. Your progress is saved, so you can pick up where you left off:\n${portal}\n\nIf you need help with any requested item, use the AI Help option inside the supplier portal.\n\nSafariPlug Supplier Team`;
+  const message = `${greeting}\n\nWe noticed your SafariPlug supplier setup still needs attention.${progress}${requested}${note}\n\nPlease sign in to your SafariPlug supplier portal to continue. Your progress is saved, so you can pick up where you left off:\n${portal}\n\nSafariPlug Supplier Team`;
   return { subject, message };
 }
 
