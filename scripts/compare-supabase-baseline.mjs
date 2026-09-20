@@ -50,6 +50,20 @@ function normalizeColumnOrdinals(value) {
   };
 }
 
+function normalizeSchemaMetaForLocal(value) {
+  return {
+    ...value,
+    // Role topology is created by the Supabase platform/local stack, not by
+    // SafariPlug migrations, and differs between hosted and local runtimes.
+    role_memberships: [],
+    // Keep the application-relevant default ACLs for objects created by
+    // postgres in public. Other schemas/default owners are platform-managed.
+    default_privileges: value.default_privileges.filter(
+      (row) => row.owner === "postgres" && row.schema === "public",
+    ),
+  };
+}
+
 function collectDiffs(expected, actual, path = "$", out = [], limit = 25) {
   if (out.length >= limit) return out;
 
@@ -110,6 +124,11 @@ for (const file of files) {
   if (file === "columns.json") {
     expected = normalizeColumnOrdinals(expected);
     actual = normalizeColumnOrdinals(actual);
+  }
+
+  if (schemaOnly && file === "schema-meta.json") {
+    expected = normalizeSchemaMetaForLocal(expected);
+    actual = normalizeSchemaMetaForLocal(actual);
   }
 
   const left = JSON.stringify(expected);
