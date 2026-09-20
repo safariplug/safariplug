@@ -11,12 +11,14 @@ export type OutreachContext = {
   contactEmail: string;
   whatsappPhone: string;
   contactSource: "crm_contact" | "discovered_business_email" | "none";
+  prospectStatus: string;
+  reviewStatus: string;
 };
 
 export async function resolveOutreachContext(prospectId: string): Promise<OutreachContext | null> {
   const { data: prospect, error } = await supabaseAdmin
     .from("ai_sales_prospects")
-    .select("id,business_name,category,contact_email")
+    .select("id,business_name,category,contact_email,status,review_status")
     .eq("id", prospectId)
     .single();
 
@@ -50,5 +52,7 @@ export async function resolveOutreachContext(prospectId: string): Promise<Outrea
     contactEmail: choice.contactEmail,
     whatsappPhone: choice.whatsappPhone,
     contactSource: choice.contactSource,
+    prospectStatus: prospect.status,
+    reviewStatus: prospect.review_status,
   };
 }
