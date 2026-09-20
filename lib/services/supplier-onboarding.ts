@@ -35,7 +35,7 @@ export function supplierNextAction({
 }: {
   onboardingStatus: string;
   readinessReady: boolean;
-  readinessIssues: { key: string; label: string; href: string }[];
+  readinessIssues: { key: string; label: string; href: string; owner?: "supplier" | "platform" }[];
   reviewItems?: string[] | null;
 }) {
   if (onboardingStatus === "submitted") {
@@ -47,9 +47,20 @@ export function supplierNextAction({
     };
   }
 
+  const supplierIssues = readinessIssues.filter((item) => item.owner !== "platform");
+  const platformIssues = readinessIssues.filter((item) => item.owner === "platform");
+
   if (onboardingStatus === "changes_requested" && reviewItems?.length) {
     const key = reviewItems[0];
     const issue = readinessIssues.find((item) => item.key === key);
+    if (issue?.owner === "platform") {
+      return {
+        title: "SafariPlug verification setup is pending",
+        detail: "This requested item is blocked by SafariPlug's verification configuration. You do not need to fix the platform setup yourself.",
+        href: null as string | null,
+        cta: null as string | null,
+      };
+    }
     return {
       title: issue?.label || "Complete the first requested change",
       detail: `${reviewItems.length} requested change${reviewItems.length === 1 ? "" : "s"} remain before you can resubmit.`,
@@ -58,13 +69,22 @@ export function supplierNextAction({
     };
   }
 
-  if (!readinessReady && readinessIssues.length) {
-    const issue = readinessIssues[0];
+  if (!readinessReady && supplierIssues.length) {
+    const issue = supplierIssues[0];
     return {
       title: issue.label,
-      detail: `${readinessIssues.length} activation step${readinessIssues.length === 1 ? "" : "s"} remaining. Complete this one next.`,
+      detail: `${supplierIssues.length} supplier action${supplierIssues.length === 1 ? "" : "s"} remaining. Complete this one next.`,
       href: issue.href,
       cta: "Fix this next",
+    };
+  }
+
+  if (!readinessReady && platformIssues.length) {
+    return {
+      title: "Waiting on SafariPlug verification setup",
+      detail: "Your supplier-owned steps are complete. SafariPlug must finish the external identity + liveness configuration before activation can proceed.",
+      href: null as string | null,
+      cta: null as string | null,
     };
   }
 

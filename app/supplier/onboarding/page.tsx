@@ -7,7 +7,7 @@ import { canSubmitSupplierOnboarding, supplierNextAction } from "@/lib/services/
 type SuggestedOffering = { name: string; description: string; durationMinutes: number; priceHint?: string };
 type Staff = { id: string; display_name: string; bio?: string | null; status: string };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string; is_active: boolean };
-type ReadinessIssue = { key: string; label: string; href: string };
+type ReadinessIssue = { key: string; label: string; href: string; owner?: "supplier" | "platform" };
 type ActivationReadiness = { ready: boolean; completionPercent: number; issues: ReadinessIssue[] };
 type State = { account?: { contact_name: string; onboarding_status: string; completion_percent: number; review_items?: string[] | null; review_note?: string | null; review_requested_at?: string | null }; business?: Record<string, any>; profile?: Record<string, any>; offerings?: Record<string, any>[]; suggestedOfferings?: SuggestedOffering[]; staff?: Staff[]; availability?: Availability[]; activationReadiness?: ActivationReadiness };
 
