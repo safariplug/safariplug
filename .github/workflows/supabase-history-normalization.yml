@@ -40,10 +40,10 @@ jobs:
       NO_COLOR: "1"
 
     steps:
-      - name: Check out current main
+      - name: Check out workflow ref
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.ref_name }}
 
       - name: Install pinned Supabase CLI
         uses: supabase/setup-cli@v3
@@ -95,10 +95,6 @@ jobs:
           console.log(`Verified normalization manifest: ${expected.length} superseded versions -> ${plan.canonical_version}`);
           NODE
 
-          # Supabase's formatted migration list is useful evidence, but the exact
-          # live version set is validated with a read-only catalog query.
-          eval "$(supabase status -o env 2>/dev/null || true)" || true
-
       - name: Verify exact live history set
         shell: bash
         run: |
@@ -114,7 +110,7 @@ jobs:
           awk -F'│' '
             /^[[:space:]]*[0-9]*[[:space:]]*│[[:space:]]*[0-9]+/ {
               gsub(/[[:space:]]/, "", $2);
-              if ($2 ~ /^[0-9]{14}$/) print $2;
+              if ($2 ~ /^[0-9]+$/ && length($2) == 14) print $2;
             }
           ' pre-migration-list.txt | sort -u > actual-remote-versions.txt
 
@@ -162,7 +158,7 @@ jobs:
             awk -F'│' '
               /^[[:space:]]*[0-9]*[[:space:]]*│[[:space:]]*[0-9]+/ {
                 gsub(/[[:space:]]/, "", $2);
-                if ($2 ~ /^[0-9]{14}$/) print $2;
+                if ($2 ~ /^[0-9]+$/ && length($2) == 14) print $2;
               }
             ' ../post-migration-list.txt | sort -u
           )"
