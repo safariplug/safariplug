@@ -115,6 +115,16 @@ export async function POST(request: Request) {
   if (["approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
 
   if (body?.action === "submit") {
+    const readiness = await getSupplierActivationReadiness(ctx.account.id);
+    if (!readiness.ready) {
+      return NextResponse.json({
+        error: "Complete all activation requirements before submitting for SafariPlug review.",
+        missing: readiness.issues,
+        checks: readiness.checks,
+        completion_percent: readiness.completionPercent,
+      }, { status: 422 });
+    }
+
     const { data: completion, error } = await supabaseAdmin.rpc("submit_supplier_for_review", {
       p_supplier_id: ctx.account.id,
       p_user_id: ctx.user.id,
