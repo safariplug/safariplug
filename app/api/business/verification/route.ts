@@ -32,6 +32,24 @@ export async function POST() {
 
   const automated = sumsubConfigured();
 
+  if (!automated && current && ["pending", "in_review", "not_started"].includes(current.status) && current.provider !== "human_review") {
+    const { data: converted, error: convertError } = await supabaseAdmin
+      .from("verification_cases")
+      .update({
+        provider: "human_review",
+        verification_level: "basic",
+        external_id: null,
+        notes: "Converted to SafariPlug staff review because automated verification is not enabled.",
+      })
+      .eq("id", current.id)
+      .select("id,status,verification_level,provider,external_id,reviewed_at,expires_at,rejection_reason,notes,created_at,updated_at")
+      .single();
+    if (convertError || !converted) return NextResponse.json({ error: "Unable to convert verification case to staff review." }, { status: 500 });
+    current = converted;
+    const { data: evidence } = await supabaseAdmin.from("verification_evidence").select("id").eq("case_id", current.id).eq("evidence_type", "provider_attestation").maybeSingle();
+    if (!evidence) await supabaseAdmin.from("verification_evidence").insert({ case_id: current.id, evidence_type: "provider_attestation", status: "submitted", provider: "human_review", submitted_at: new Date().toISOString() });
+  }
+
   if (!current || ["rejected", "revoked", "expired"].includes(current.status)) {
     const { data, error } = await supabaseAdmin
       .from("verification_cases")
