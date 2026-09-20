@@ -19,6 +19,19 @@ type Candidate = {
   refundStatus: string;
 };
 
+type ReviewEvent = {
+  id: number | string;
+  review_id: string;
+  event_type: string;
+  from_status: string | null;
+  to_status: string;
+  from_resolution: string | null;
+  to_resolution: string | null;
+  actor_user_id: string | null;
+  notes_snapshot: string | null;
+  created_at: string;
+};
+
 function metadataRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -41,7 +54,7 @@ function reasonFromMetadata(metadata: Record<string, unknown>, fallback: string)
 export default async function TravelRefundReviewPage() {
   await requireAdmin();
 
-  const [hotelResult, transferResult, activityResult, serviceLedgerResult, serviceAppointmentResult, serviceAttemptResult, serviceEventResult, foodRefundResult, foodOrderResult, reviewResult] = await Promise.all([
+  const [hotelResult, transferResult, activityResult, serviceLedgerResult, serviceAppointmentResult, serviceAttemptResult, serviceEventResult, foodRefundResult, foodOrderResult, reviewResult, reviewEventResult] = await Promise.all([
     supabaseAdmin
       .from("hotel_booking_pricing_ledger")
       .select("id,customer_user_id,provider,customer_currency,currency,customer_retail_amount,retail_amount,payment_status,booking_status,created_at,metadata")
@@ -92,6 +105,11 @@ export default async function TravelRefundReviewPage() {
       .select("id,product,ledger_id,provider,reason,status,resolution,notes,assigned_to,resolved_by,resolved_at,created_at,updated_at")
       .order("created_at",{ascending:false})
       .limit(1000),
+    supabaseAdmin
+      .from("travel_refund_review_events")
+      .select("id,review_id,event_type,from_status,to_status,from_resolution,to_resolution,actor_user_id,notes_snapshot,created_at")
+      .order("id",{ascending:false})
+      .limit(3000),
   ]);
 
   const candidates: Candidate[] = [];
@@ -224,6 +242,12 @@ export default async function TravelRefundReviewPage() {
 
   const reviews=reviewResult.data||[];
   const reviewByKey=new Map(reviews.map(row=>[`${row.product}:${row.ledger_id}`,row]));
+  const eventsByReview=new Map<string,ReviewEvent[]>();
+  for(const event of (reviewEventResult.data||[]) as ReviewEvent[]) {
+    const current=eventsByReview.get(event.review_id)||[];
+    current.push(event);
+    eventsByReview.set(event.review_id,current);
+  }
   candidates.sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
 
   const pending=candidates.filter(item=>{
@@ -243,6 +267,7 @@ export default async function TravelRefundReviewPage() {
     foodRefundResult.error,
     foodOrderResult.error,
     reviewResult.error,
+    reviewEventResult.error,
   ].filter(Boolean);
 
   const cappedSources=[
@@ -256,6 +281,7 @@ export default async function TravelRefundReviewPage() {
     (foodRefundResult.data||[]).length>=500?"food refunds":null,
     (foodOrderResult.data||[]).length>=1000?"food orders":null,
     (reviewResult.data||[]).length>=1000?"refund reviews":null,
+    (reviewEventResult.data||[]).length>=3000?"refund review events":null,
   ].filter((value):value is string=>Boolean(value));
 
   return (
@@ -346,6 +372,7 @@ export default async function TravelRefundReviewPage() {
                       notes:review.notes,
                     } : null}
                   />
+                  {review?<ReviewAuditTrail events={eventsByReview.get(review.id)||[]}/>:null}
                 </article>;
               })}
             </div>
@@ -359,16 +386,19 @@ export default async function TravelRefundReviewPage() {
             <div className="mt-5 space-y-3">
               {resolved.slice(0,50).map(item=>{
                 const review=reviewByKey.get(`${item.product}:${item.ledgerId}`)!;
-                return <div key={review.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                  <div>
-                    <p className="font-semibold capitalize">{item.product} · {item.provider}</p>
-                    <p className="mt-1 font-mono text-[10px] text-zinc-600">{item.ledgerId}</p>
+                return <article key={review.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="font-semibold capitalize">{item.product} · {item.provider}</p>
+                      <p className="mt-1 font-mono text-[10px] text-zinc-600">{item.ledgerId}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{item.currency} {item.amount.toLocaleString()}</p>
+                      <p className="mt-1 text-xs text-emerald-400">{String(review.resolution||"resolved").replaceAll("_"," ")}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{item.currency} {item.amount.toLocaleString()}</p>
-                    <p className="mt-1 text-xs text-emerald-400">{String(review.resolution||"resolved").replaceAll("_"," ")}</p>
-                  </div>
-                </div>;
+                  <ReviewAuditTrail events={eventsByReview.get(review.id)||[]}/>
+                </article>;
               })}
             </div>
           </section>
@@ -397,5 +427,26 @@ function Meta({label,value}:{label:string;value:string}) {
   return <div className="rounded-xl bg-black p-3">
     <p className="text-[10px] uppercase tracking-widest text-zinc-600">{label}</p>
     <p className="mt-1 break-all text-xs text-zinc-400">{value}</p>
+  </div>;
+}
+
+function ReviewAuditTrail({events}:{events:ReviewEvent[]}) {
+  if(!events.length) return null;
+  return <div className="mt-4 border-t border-zinc-800 pt-4">
+    <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Append-only review history</p>
+    <div className="mt-3 space-y-2">
+      {events.slice(0,8).map(event=><div key={String(event.id)} className="rounded-xl bg-black p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold capitalize text-zinc-300">{event.event_type.replaceAll("_"," ")}</p>
+          <p className="text-[10px] text-zinc-600">{new Date(event.created_at).toLocaleString()}</p>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">
+          {event.from_status?`${event.from_status} → ${event.to_status}`:event.to_status}
+          {event.to_resolution?` · ${event.to_resolution.replaceAll("_"," ")}`:""}
+        </p>
+        {event.notes_snapshot?<p className="mt-2 text-xs leading-5 text-zinc-400">{event.notes_snapshot}</p>:null}
+        <p className="mt-2 break-all font-mono text-[9px] text-zinc-700">Actor: {event.actor_user_id||"system"}</p>
+      </div>)}
+    </div>
   </div>;
 }
