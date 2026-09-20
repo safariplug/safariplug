@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { AdminAuthError, requireFinanceAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createMpesaB2CPayout } from "@/lib/payments/mpesa-payout";
 
@@ -8,12 +8,15 @@ export const dynamic = "force-dynamic";
 type ClaimedPayout = { id: string; payout_destination_phone: string; provider_net_amount: number | string };
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || user.is_anonymous || !user.email) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const { data: admin } = await supabaseAdmin.from("admin_users").select("id").eq("user_id", user.id).maybeSingle();
-  if (!admin) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  try {
+    await requireFinanceAdmin();
+  } catch (error) {
+    const status = error instanceof AdminAuthError ? error.status : 500;
+    return NextResponse.json(
+      { error: status === 401 ? "unauthorized" : status === 403 ? "forbidden" : "admin_verification_failed" },
+      { status },
+    );
+  }
 
   const body = await request.json().catch(() => null) as { payoutId?: string } | null;
   if (!body?.payoutId) return NextResponse.json({ error: "payout_id_required" }, { status: 400 });
