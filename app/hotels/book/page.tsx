@@ -59,6 +59,26 @@ function HotelBookPageContent() {
       setLoading(false);
       return;
     }
+    const cacheKey = "safariplug:hotel-room-preflight:" + hotelId + ":" + checkIn + ":" + checkOut + ":" + guestCount;
+    try {
+      const cachedRaw = window.sessionStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as { createdAt?: number; searchKey?: string; packages?: RoomPackage[] };
+        const fresh = typeof cached.createdAt === "number" && Date.now() - cached.createdAt < 120000;
+        const rows = Array.isArray(cached.packages) ? cached.packages : [];
+        if (fresh && rows.length) {
+          setSearchKey(String(cached.searchKey || initialSearchKey));
+          setPackages(rows);
+          setSelected(rows[0] || null);
+          setLoading(false);
+          return;
+        }
+        window.sessionStorage.removeItem(cacheKey);
+      }
+    } catch {
+      window.sessionStorage.removeItem(cacheKey);
+    }
+
     let cancelled = false;
     const load = async () => {
       try {
