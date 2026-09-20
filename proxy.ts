@@ -25,9 +25,10 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
   const isStaffRoute = pathname === "/staff" || pathname.startsWith("/staff/");
+  const isAccountRoute = pathname === "/account" || pathname.startsWith("/account/");
   const isLoginRoute = pathname === "/admin/login" || pathname === "/staff/login";
 
-  if ((!isAdminRoute && !isStaffRoute) || isLoginRoute) {
+  if ((!isAdminRoute && !isStaffRoute && !isAccountRoute) || isLoginRoute) {
     return response;
   }
 
@@ -36,11 +37,21 @@ export async function proxy(request: NextRequest) {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) {
+  if (userError || !user || user.is_anonymous) {
     const url = request.nextUrl.clone();
-    url.pathname = isStaffRoute ? "/staff/login" : "/admin/login";
-    url.search = "";
+    if (isAccountRoute) {
+      url.pathname = "/login";
+      url.search = `next=${encodeURIComponent(pathname)}`;
+    } else {
+      url.pathname = isStaffRoute ? "/staff/login" : "/admin/login";
+      url.search = "";
+    }
     return NextResponse.redirect(url);
+  }
+
+  if (isAccountRoute) {
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   }
 
   const rpcName = isStaffRoute ? "is_staff_portal_user" : "is_admin";
@@ -58,5 +69,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/staff/:path*"],
+  matcher: ["/admin/:path*", "/staff/:path*", "/account/:path*"],
 };
