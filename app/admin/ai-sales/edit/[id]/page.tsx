@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { OutreachPanel } from "./outreach-panel";
 import { loadProspectOutreachHistory } from "../../invitations/history";
+import { resolveStablePartnerIdForProspect } from "@/lib/services/crm-partner-link";
 import {
   approveSalesProspect,
   rejectSalesProspect,
@@ -35,7 +36,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     loadProspectOutreachHistory(id),
   ]);
 
-  const stablePartnerId = supplier?.partner_id || (contacts || []).find((contact) => contact.partner_id)?.partner_id || null;
+  const stablePartnerId = await resolveStablePartnerIdForProspect(id);
   const { data: partner } = stablePartnerId
     ? await supabaseAdmin.from("safari_partners").select("id,outreach_stage").eq("id", stablePartnerId).maybeSingle()
     : { data: null };
