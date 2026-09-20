@@ -1,0 +1,3806 @@
+{
+  "captured_at_utc": "2026-09-20",
+  "project_ref": "safcizxahjqassrwhrup",
+  "rows": [
+    {
+      "grantee": "anon",
+      "table_name": "cities",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "cities",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "cities",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "cities",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "inventory_kinds",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "journal_articles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "journal_articles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "journal_articles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "journal_articles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "local_availability",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "anon",
+      "table_name": "local_profiles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "admin_users",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "ai_discovered_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "ai_scout_runs",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "booking_status_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "bookings",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "bookings",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "businesses",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "businesses",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "businesses",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "businesses",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "businesses",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "businesses",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "businesses",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "cities",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "cities",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "cities",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "cities",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "inventory_kinds",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "journal_articles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "journal_articles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "journal_articles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "journal_articles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_availability",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_availability",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_availability",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_availability",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_profiles",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_profiles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_profiles",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_requests",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_requests",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "local_requests",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "offerings",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "profiles",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "profiles",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "profiles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "profiles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "profiles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "profiles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "profiles",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "providers",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "saved_events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "saved_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "saved_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "saved_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "saved_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "saved_events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "saved_events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "trip_items",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "trip_items",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "trips",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "authenticated",
+      "table_name": "trips",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "activity_booking_pricing_ledger",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "activity_booking_pricing_ledger",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "activity_booking_pricing_ledger",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "activity_booking_pricing_ledger",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "activity_booking_pricing_ledger",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "activity_booking_pricing_ledger",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "activity_booking_pricing_ledger",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_telemetry_logs",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_telemetry_logs",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_telemetry_logs",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_telemetry_logs",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_telemetry_logs",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_telemetry_logs",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_telemetry_logs",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_users",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_users",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_users",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_users",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_users",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_users",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "admin_users",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_discovered_events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_discovered_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_discovered_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_discovered_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_discovered_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_discovered_events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_discovered_events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_event_itineraries",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_event_itineraries",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_event_itineraries",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_event_itineraries",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_event_itineraries",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_event_itineraries",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_event_itineraries",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_outreach",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_outreach",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_outreach",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_outreach",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_outreach",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_outreach",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_outreach",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_prospects",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_prospects",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_prospects",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_prospects",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_prospects",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_prospects",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_sales_prospects",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scans",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scans",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scans",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scans",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scans",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scans",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scans",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_locks",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_locks",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_locks",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_locks",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_locks",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_locks",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_locks",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_runs",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_runs",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_runs",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_runs",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_runs",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_runs",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "ai_scout_runs",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "aurelian_feed_runs",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "aurelian_feed_runs",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "aurelian_feed_runs",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "aurelian_feed_runs",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "aurelian_feed_runs",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "aurelian_feed_runs",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "aurelian_feed_runs",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "booking_status_events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "booking_status_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "booking_status_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "booking_status_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "booking_status_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "booking_status_events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "booking_status_events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "bookings",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "bookings",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "bookings",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "bookings",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "bookings",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "bookings",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "bookings",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "businesses",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "businesses",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "businesses",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "businesses",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "businesses",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "businesses",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "businesses",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "categories",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "categories",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "categories",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "categories",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "categories",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "categories",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "categories",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "cities",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "cities",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "cities",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "cities",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "cities",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "cities",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "cities",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "concierge_rate_limits",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "concierge_rate_limits",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "concierge_rate_limits",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "concierge_rate_limits",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "concierge_rate_limits",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "concierge_rate_limits",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "concierge_rate_limits",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_activities",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_activities",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_activities",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_activities",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_activities",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_activities",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_activities",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_contacts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_contacts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_contacts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_contacts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_contacts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_contacts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_contacts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_conversions",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_conversions",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_conversions",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_conversions",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_conversions",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_conversions",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_conversions",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_followups",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_followups",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_followups",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_followups",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_followups",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_followups",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "crm_followups",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "discoveries",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "discoveries",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "discoveries",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "discoveries",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "discoveries",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "discoveries",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "discoveries",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_assignments",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_assignments",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_assignments",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_assignments",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_assignments",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_assignments",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_assignments",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_availability",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_availability",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_availability",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_availability",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_availability",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_availability",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_availability",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_alerts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_alerts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_alerts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_alerts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_alerts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_alerts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_alerts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_overview",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_overview",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_overview",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_overview",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_overview",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_overview",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_compliance_overview",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_profiles",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_profiles",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_profiles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_profiles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_profiles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_profiles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_profiles",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_rates",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_rates",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_rates",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_rates",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_rates",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_rates",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_rates",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_requests",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_requests",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_requests",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_requests",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_requests",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_requests",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "driver_transfer_requests",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_delivery_assignments",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_delivery_assignments",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_delivery_assignments",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_delivery_assignments",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_delivery_assignments",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_delivery_assignments",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_delivery_assignments",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_item_options",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_item_options",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_item_options",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_item_options",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_item_options",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_item_options",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_item_options",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_items",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_items",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_items",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_items",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_items",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_items",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_items",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_payment_idempotency",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_payment_idempotency",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_payment_idempotency",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_payment_idempotency",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_payment_idempotency",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_payment_idempotency",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_payment_idempotency",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_refunds",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_refunds",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_refunds",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_refunds",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_refunds",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_refunds",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_order_refunds",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_orders",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_orders",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_orders",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_orders",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_orders",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_orders",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "food_orders",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_booking_pricing_ledger",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_booking_pricing_ledger",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_booking_pricing_ledger",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_booking_pricing_ledger",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_booking_pricing_ledger",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_booking_pricing_ledger",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_booking_pricing_ledger",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_checkout_intents",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_checkout_intents",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_checkout_intents",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_checkout_intents",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_checkout_intents",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_checkout_intents",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotel_checkout_intents",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_content_sync_state",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_content_sync_state",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_content_sync_state",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_content_sync_state",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_content_sync_state",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_content_sync_state",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_content_sync_state",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_hotel_content",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_hotel_content",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_hotel_content",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_hotel_content",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_hotel_content",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_hotel_content",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "hotelbeds_hotel_content",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "integration_syncs",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "integration_syncs",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "integration_syncs",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "integration_syncs",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "integration_syncs",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "integration_syncs",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "integration_syncs",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "inventory_kinds",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "inventory_kinds",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "inventory_kinds",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "inventory_kinds",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "inventory_kinds",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "inventory_kinds",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "inventory_kinds",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "journal_articles",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "journal_articles",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "journal_articles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "journal_articles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "journal_articles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "journal_articles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "journal_articles",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "listings",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "listings",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "listings",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "listings",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "listings",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "listings",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "listings",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_availability",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_availability",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_availability",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_availability",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_availability",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_availability",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_availability",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_profiles",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_profiles",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_profiles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_profiles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_profiles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_profiles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_profiles",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_requests",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_requests",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_requests",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_requests",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_requests",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_requests",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "local_requests",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "marketing_drafts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "marketing_drafts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "marketing_drafts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "marketing_drafts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "marketing_drafts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "marketing_drafts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "marketing_drafts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "offerings",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "offerings",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "offerings",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "offerings",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "offerings",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "offerings",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "offerings",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "partner_invitations",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "partner_invitations",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "partner_invitations",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "partner_invitations",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "partner_invitations",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "partner_invitations",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "partner_invitations",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "price_quotes",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "price_quotes",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "price_quotes",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "price_quotes",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "price_quotes",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "price_quotes",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "price_quotes",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "profiles",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "profiles",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "profiles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "profiles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "profiles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "profiles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "profiles",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "promotions",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "promotions",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "promotions",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "promotions",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "promotions",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "promotions",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "promotions",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "providers",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "providers",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "providers",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "providers",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "providers",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "providers",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "providers",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "push_notification_tokens",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "push_notification_tokens",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "push_notification_tokens",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "push_notification_tokens",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "push_notification_tokens",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "push_notification_tokens",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "push_notification_tokens",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_categories",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_categories",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_categories",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_categories",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_categories",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_categories",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_categories",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_option_values",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_option_values",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_option_values",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_option_values",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_option_values",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_option_values",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_option_values",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_options",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_options",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_options",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_options",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_options",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_options",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_item_options",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_items",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_items",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_items",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_items",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_items",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_items",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_menu_items",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_settings",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_settings",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_settings",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_settings",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_settings",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_settings",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "restaurant_settings",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "safari_partners",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "safari_partners",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "safari_partners",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "safari_partners",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "safari_partners",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "safari_partners",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "safari_partners",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "saved_events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "saved_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "saved_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "saved_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "saved_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "saved_events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "saved_events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "scout_runs",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "scout_runs",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "scout_runs",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "scout_runs",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "scout_runs",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "scout_runs",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "scout_runs",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_notifications",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_notifications",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_notifications",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_notifications",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_notifications",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_notifications",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_notifications",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_status_events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_status_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_status_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_status_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_status_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_status_events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointment_status_events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointments",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointments",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointments",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointments",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointments",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointments",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_appointments",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_categories",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_categories",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_categories",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_categories",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_categories",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_categories",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_categories",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_offerings",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_offerings",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_offerings",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_offerings",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_offerings",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_offerings",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_offerings",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_idempotency",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_idempotency",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_idempotency",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_idempotency",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_idempotency",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_idempotency",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_idempotency",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_ledger",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_ledger",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_ledger",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_ledger",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_ledger",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_ledger",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_ledger",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_webhook_events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_webhook_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_webhook_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_webhook_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_webhook_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_webhook_events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_payment_webhook_events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_profiles",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_profiles",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_profiles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_profiles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_profiles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_profiles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_profiles",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payout_accounts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payout_accounts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payout_accounts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payout_accounts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payout_accounts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payout_accounts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payout_accounts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payouts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payouts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payouts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payouts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payouts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payouts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_provider_payouts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_availability",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_availability",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_availability",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_availability",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_availability",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_availability",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_availability",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_blockouts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_blockouts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_blockouts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_blockouts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_blockouts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_blockouts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_blockouts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_claim_tokens",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_claim_tokens",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_claim_tokens",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_claim_tokens",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_claim_tokens",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_claim_tokens",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_claim_tokens",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_offerings",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_offerings",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_offerings",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_offerings",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_offerings",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_offerings",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "service_staff_offerings",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "sources",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "sources",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "sources",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "sources",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "sources",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "sources",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "sources",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_accounts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_accounts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_accounts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_accounts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_accounts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_accounts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_accounts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_followup_prep_runs",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_followup_prep_runs",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_followup_prep_runs",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_followup_prep_runs",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_followup_prep_runs",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_followup_prep_runs",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_followup_prep_runs",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followup_drafts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followup_drafts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followup_drafts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followup_drafts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followup_drafts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followup_drafts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followup_drafts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followups",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followups",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followups",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followups",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followups",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followups",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_onboarding_followups",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_scout_jobs",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_scout_jobs",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_scout_jobs",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_scout_jobs",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_scout_jobs",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_scout_jobs",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "supplier_scout_jobs",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "transfer_booking_pricing_ledger",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "transfer_booking_pricing_ledger",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "transfer_booking_pricing_ledger",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "transfer_booking_pricing_ledger",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "transfer_booking_pricing_ledger",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "transfer_booking_pricing_ledger",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "transfer_booking_pricing_ledger",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_review_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_review_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_review_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_review_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_reviews",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_reviews",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_reviews",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_reviews",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_reviews",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_reviews",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "travel_refund_reviews",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_items",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_items",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_items",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_items",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_items",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_items",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_items",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_checkout_attempts",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_checkout_attempts",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_checkout_attempts",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_checkout_attempts",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_checkout_attempts",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_checkout_attempts",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_checkout_attempts",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_payment_intents",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_payment_intents",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_payment_intents",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_payment_intents",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_payment_intents",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_payment_intents",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_payment_intents",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_quotes",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_quotes",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_quotes",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_quotes",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_quotes",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_quotes",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trip_package_quotes",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trips",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trips",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trips",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trips",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trips",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trips",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "trips",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "vehicles",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "vehicles",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "vehicles",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "vehicles",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "vehicles",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "vehicles",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "vehicles",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_cases",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_cases",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_cases",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_cases",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_cases",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_cases",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_cases",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_events",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_events",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_events",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_events",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_events",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_events",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_events",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_evidence",
+      "privilege_type": "DELETE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_evidence",
+      "privilege_type": "INSERT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_evidence",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_evidence",
+      "privilege_type": "SELECT"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_evidence",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_evidence",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "grantee": "service_role",
+      "table_name": "verification_evidence",
+      "privilege_type": "UPDATE"
+    }
+  ]
+}
