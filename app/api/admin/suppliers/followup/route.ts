@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     const activationReadiness = await getSupplierActivationReadiness(supplierId);
-    const canonicalIssues = activationReadiness.issues.map((item) => item.label);
+    const canonicalIssues = activationReadiness.issues.filter((item) => item.owner === "supplier").map((item) => item.label);
     if (activationReadiness.ready && ["draft", "onboarding"].includes(String(supplier.onboarding_status || ""))) {
       canonicalIssues.push("Submit your onboarding for SafariPlug staff review");
     }
