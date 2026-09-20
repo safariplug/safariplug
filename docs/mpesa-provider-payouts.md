@@ -20,9 +20,9 @@ For production, use the approved Safaricom production Daraja base URL and produc
 
 ## Safety gates
 
-A payout must be eligible, approved, KES, positive, and have a verified payout destination before it can be atomically claimed as `processing`. The executor then submits one B2C request. If the request fails before Safaricom accepts it, the payout is held instead of automatically retrying and risking a duplicate disbursement.
+A payout must be eligible, approved, KES, positive, and have a verified payout destination before it can be atomically claimed as `processing`. The executor then submits one B2C request. A confirmed pre-submission failure or explicit provider rejection can be held for review. If submission outcome is uncertain (for example a network failure after the B2C request may have reached Safaricom), the payout remains `processing`, is marked for reconciliation, and must not be retried.
 
-Safaricom's B2C flow is asynchronous. The ResultURL records the final outcome. The conversation ID is retained separately from the M-Pesa transaction receipt so reconciliation remains possible.
+Safaricom's B2C flow is asynchronous. The ResultURL records the final outcome. The conversation ID is retained separately from the M-Pesa transaction receipt so reconciliation remains possible. If Safaricom accepted a request but SafariPlug cannot persist the conversation reference, the payout remains locked in `processing`; operators must reconcile it before any further money movement.
 
 ## Admin flow
 
