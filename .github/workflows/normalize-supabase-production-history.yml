@@ -1,0 +1,159 @@
+name: Normalize Supabase Production Migration History
+
+on:
+  push:
+    branches:
+      - ops/normalize-supabase-history-20260920
+    paths:
+      - .github/workflows/normalize-supabase-production-history.yml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PROJECT_REF: "safcizxahjqassrwhrup"
+      CANONICAL_VERSION: "20260920030845"
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DISABLE_TELEMETRY: "1"
+      NO_COLOR: "1"
+
+    steps:
+      - name: Check out normalization branch
+        uses: actions/checkout@v4
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Validate credentials and canonical local state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN}"
+          test -n "${SUPABASE_DB_PASSWORD}"
+
+          mapfile -t local_sql < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
+          if [ "${#local_sql[@]}" -ne 1 ]; then
+            echo "Expected exactly one active canonical migration, found ${#local_sql[@]}."
+            printf '%s\n' "${local_sql[@]}"
+            exit 1
+          fi
+          if [ "${local_sql[0]}" != "${CANONICAL_VERSION}_production_baseline.sql" ]; then
+            echo "Unexpected canonical migration: ${local_sql[0]}"
+            exit 1
+          fi
+
+          mapfile -t legacy < ops/supabase/history-normalization-legacy-versions-20260920.txt
+          if [ "${#legacy[@]}" -ne 206 ]; then
+            echo "Expected 206 legacy versions, found ${#legacy[@]}."
+            exit 1
+          fi
+
+      - name: Link SafariPlug production
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "${PROJECT_REF}"
+
+      - name: Preflight exact known production history
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --linked | tee history-before.txt
+
+          mapfile -t legacy < ops/supabase/history-normalization-legacy-versions-20260920.txt
+          missing=0
+          for version in "${legacy[@]}"; do
+            if ! grep -q "${version}" history-before.txt; then
+              echo "Expected legacy version is missing before repair: ${version}"
+              missing=1
+            fi
+          done
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+
+          if grep -q "${CANONICAL_VERSION}" history-before.txt; then
+            echo "Canonical version is already present remotely; refusing automatic normalization."
+            exit 1
+          fi
+
+          echo "Preflight passed: 206 expected legacy history rows are present and canonical version is absent."
+
+      - name: Mark canonical baseline applied first
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration repair "${CANONICAL_VERSION}" --status applied
+          supabase migration list --linked | tee history-after-canonical.txt
+          grep -q "${CANONICAL_VERSION}" history-after-canonical.txt
+          echo "Canonical baseline history row is present before any legacy row removal."
+
+      - name: Revert legacy history rows in guarded batches
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t legacy < ops/supabase/history-normalization-legacy-versions-20260920.txt
+          batch_size=20
+          total="${#legacy[@]}"
+
+          for ((i=0; i<total; i+=batch_size)); do
+            batch=( "${legacy[@]:i:batch_size}" )
+            echo "Reverting history-only batch starting at index ${i}, size ${#batch[@]}..."
+            supabase migration repair "${batch[@]}" --status reverted
+          done
+
+      - name: Verify normalized migration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --linked | tee history-after.txt
+
+          grep -q "${CANONICAL_VERSION}" history-after.txt
+
+          mapfile -t legacy < ops/supabase/history-normalization-legacy-versions-20260920.txt
+          remaining=0
+          for version in "${legacy[@]}"; do
+            if grep -q "${version}" history-after.txt; then
+              echo "Legacy version still present after repair: ${version}"
+              remaining=1
+            fi
+          done
+          if [ "${remaining}" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo "Migration history normalized to canonical baseline."
+
+      - name: Verify no schema migration would be pushed
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --dry-run | tee db-push-dry-run.txt
+          if grep -qiE 'would apply|pending migration|Applying migration' db-push-dry-run.txt; then
+            echo "Dry-run indicates pending schema migration work; refusing to report success."
+            exit 1
+          fi
+
+      - name: Report success to issue 172
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST             repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Production migration history normalization succeeded. Canonical baseline \`${CANONICAL_VERSION}\` was marked applied first, then the 206 known legacy history rows were marked reverted using supported Supabase CLI migration repair commands. Final migration list contains the canonical baseline and db push --dry-run reported no pending schema migration work. No schema SQL was replayed and no remote reset was run. Run ID: ${GITHUB_RUN_ID}."
+
+      - name: Report safe stop to issue 172
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST             repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Production migration-history normalization stopped on a guard or repair failure. Run ID: ${GITHUB_RUN_ID}. The workflow uses only migration-history repair operations; it does not run schema SQL, db push, db pull, or remote reset. Inspect the exact step before resuming."
