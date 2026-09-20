@@ -42,6 +42,23 @@ export async function POST() {
 
   if (caseError) return NextResponse.json({ error: caseError.message }, { status: 500 });
 
+  if (!automated && current && ["pending", "in_review", "not_started"].includes(current.status) && current.provider !== "human_review") {
+    const { data: converted, error: convertError } = await supabaseAdmin
+      .from("verification_cases")
+      .update({
+        provider: "human_review",
+        verification_level: "basic",
+        external_id: null,
+      })
+      .eq("id", current.id)
+      .select("id,status,verification_level,provider,external_id,expires_at")
+      .single();
+    if (convertError || !converted) return NextResponse.json({ error: "Unable to convert specialist verification to staff review." }, { status: 500 });
+    current = converted;
+    const { data: evidence } = await supabaseAdmin.from("verification_evidence").select("id").eq("case_id", current.id).eq("evidence_type", "provider_attestation").maybeSingle();
+    if (!evidence) await supabaseAdmin.from("verification_evidence").insert({ case_id: current.id, evidence_type: "provider_attestation", status: "submitted", provider: "human_review", submitted_at: new Date().toISOString() });
+  }
+
   if (
     current?.status === "approved" &&
     (!current.expires_at || new Date(current.expires_at) > new Date()) &&
