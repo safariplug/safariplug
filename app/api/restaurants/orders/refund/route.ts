@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   catch (error) { console.error("Restaurant refund supplier lookup failed", error); return NextResponse.json({ error: "Refund preflight failed", retryAllowed: false }, { status: 500 }); }
   if (!businessId) return NextResponse.json({ error: "Supplier access denied" }, { status: 403 });
   const { data: order, error: orderError } = await supabaseAdmin.from("food_orders").select("id,business_id,payment_status,payment_reference,refund_reference,customer_total,currency,refunded_amount").eq("id", orderId).maybeSingle();
-  if (orderError) return NextResponse.json({ error: orderError.message }, { status: 500 });
+  if (orderError) { console.error("Restaurant refund order lookup failed", orderError); return NextResponse.json({ error: "Refund preflight failed", retryAllowed: false }, { status: 500 }); }
   if (!order || order.business_id !== businessId) return NextResponse.json({ error: "Order access denied" }, { status: 403 });
   if (order.payment_status === "refunded") return NextResponse.json({ refund: { status: "succeeded", amount: order.refunded_amount, reference: order.refund_reference ?? order.payment_reference } });
   if (order.payment_status !== "paid") return NextResponse.json({ error: "Only paid restaurant orders can be refunded" }, { status: 409 });
@@ -24,7 +24,10 @@ export async function POST(request: Request) {
   if (!order.payment_reference) return NextResponse.json({ error: "No M-Pesa transaction reference is available for this order" }, { status: 409 });
   const { data: existingByKey, error: existingByKeyError } = await supabaseAdmin.from("food_order_refunds").select("*").eq("idempotency_key", idempotencyKey).maybeSingle();
   if (existingByKeyError) { console.error("Restaurant refund idempotency preflight failed", existingByKeyError); return NextResponse.json({ error: "Refund preflight failed", retryAllowed: false }, { status: 500 }); }
-  if (existingByKey) return NextResponse.json({ refund: existingByKey }, { status: existingByKey.status === "failed" ? 409 : 200 });
+  if (existingByKey) {
+    if (existingByKey.order_id !== orderId) return NextResponse.json({ error: "Idempotency key is already bound to another order", retryAllowed: false }, { status: 409 });
+    return NextResponse.json({ refund: existingByKey }, { status: existingByKey.status === "failed" ? 409 : 200 });
+  }
   const { data: active, error: activeError } = await supabaseAdmin.from("food_order_refunds").select("*").eq("order_id", orderId).in("status", ["pending", "processing"]).maybeSingle();
   if (activeError) { console.error("Restaurant refund active-request preflight failed", activeError); return NextResponse.json({ error: "Refund preflight failed", retryAllowed: false }, { status: 500 }); }
   if (active) return NextResponse.json({ refund: active }, { status: 409 });
