@@ -138,6 +138,7 @@ export default async function TravelerVerificationPage() {
           <TravelerVerificationStart
             hasCase={Boolean(current)}
             status={verified ? "approved" : current?.status || null}
+            automatedReady={automatedReady}
           />
         </section>
 
