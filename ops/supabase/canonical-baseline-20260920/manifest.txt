@@ -1,0 +1,5 @@
+captured_at_utc=2026-09-20T02:58:53Z
+project_ref=safcizxahjqassrwhrup
+supabase_cli=2.117.0
+git_sha=3d2289547f84e8033d619b615e271014f0d0f198
+mode=read-only
