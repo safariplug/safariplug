@@ -1,0 +1,212 @@
+name: Supabase History Normalization
+
+on:
+  push:
+    branches:
+      - ops/supabase-history-normalization-20260920
+    paths:
+      - .github/workflows/supabase-history-normalization.yml
+      - ops/supabase/history-normalization-plan-20260920.json
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan is read-only; apply changes migration history only"
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+        required: true
+      confirmation:
+        description: "Required only for apply"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROJECT_REF: "safcizxahjqassrwhrup"
+      CANONICAL_VERSION: "20260920030845"
+      PLAN_FILE: "${{ github.workspace }}/ops/supabase/history-normalization-plan-20260920.json"
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DISABLE_TELEMETRY: "1"
+      NO_COLOR: "1"
+
+    steps:
+      - name: Check out workflow ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Validate safety inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN}"
+          test -n "${SUPABASE_DB_PASSWORD}"
+          test "$(cat ops/supabase/canonical-baseline-version.txt)" = "${CANONICAL_VERSION}"
+          test "$(cat ops/supabase/canonical-baseline-file.txt)" = "${CANONICAL_VERSION}_production_baseline.sql"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.mode }}" = "apply" ]; then
+            test "${{ inputs.confirmation }}" = "normalize-safariplug-history-20260920-20260920030845"
+          fi
+
+      - name: Initialize isolated linked workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .history-normalization
+          mkdir -p .history-normalization
+          cd .history-normalization
+          supabase init
+          for attempt in 1 2 3 4 5; do
+            if supabase link --project-ref "${PROJECT_REF}"; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 5 ]; then sleep 20; fi
+          done
+          exit 1
+
+      - name: Capture and verify pre-normalization history
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .history-normalization
+          supabase migration list --linked | tee ../pre-migration-list.txt
+
+          node - <<'NODE'
+          const fs = require("fs");
+          const plan = JSON.parse(fs.readFileSync(process.env.PLAN_FILE, "utf8"));
+          const expected = [...plan.expected_remote_versions].sort();
+          if (expected.length !== 206) throw new Error(`Expected 206 planned remote versions, got ${expected.length}`);
+          if (expected.includes(plan.canonical_version)) throw new Error("Canonical version must not be in superseded history set.");
+          console.log(`Verified normalization manifest: ${expected.length} superseded versions -> ${plan.canonical_version}`);
+          NODE
+
+      - name: Verify exact live history set
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require("fs");
+          const plan = JSON.parse(fs.readFileSync(process.env.PLAN_FILE, "utf8"));
+          const expected = [...plan.expected_remote_versions].sort();
+          const output = fs.readFileSync("pre-migration-list.txt", "utf8");
+          const actual = [...new Set(
+            [...output.matchAll(/`(\d{14})`/g)].map((match) => match[1]),
+          )].sort();
+
+          fs.writeFileSync("expected-versions.txt", expected.join("\n") + "\n");
+          fs.writeFileSync("actual-remote-versions.txt", actual.join("\n") + "\n");
+
+          if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+            console.error(`Remote migration history mismatch: expected ${expected.length} versions, got ${actual.length}`);
+            process.exit(1);
+          }
+          if (actual.includes(plan.canonical_version)) {
+            console.error("Canonical version is unexpectedly already recorded remotely.");
+            process.exit(1);
+          }
+          console.log(`Exact live history verified: ${actual.length} superseded remote versions.`);
+          NODE
+
+      - name: Emit read-only normalization plan
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'plan' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          count="$(wc -l < expected-versions.txt | tr -d ' ')"
+          {
+            echo "Superseded remote versions: ${count}"
+            echo "Canonical version to mark applied: ${CANONICAL_VERSION}"
+            echo "No schema command will run."
+            echo "Apply operation, when explicitly dispatched, uses only:"
+            echo "  supabase migration repair <206 versions> --status reverted"
+            echo "  supabase migration repair ${CANONICAL_VERSION} --status applied"
+          } | tee normalization-plan.txt
+
+      - name: Apply history-only normalization
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'apply' && inputs.confirmation == 'normalize-safariplug-history-20260920-20260920030845' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t versions < expected-versions.txt
+          cd .history-normalization
+
+          supabase migration repair "${versions[@]}" --status reverted
+          supabase migration repair "${CANONICAL_VERSION}" --status applied
+
+      - name: Verify post-normalization history
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'apply' && inputs.confirmation == 'normalize-safariplug-history-20260920-20260920030845' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .history-normalization
+          supabase migration list --linked | tee ../post-migration-list.txt
+
+          node - <<'NODE'
+          const fs = require("fs");
+          const output = fs.readFileSync("../post-migration-list.txt", "utf8");
+          const actual = [...new Set(
+            [...output.matchAll(/`(\d{14})`/g)].map((match) => match[1]),
+          )].sort();
+          const expected = [process.env.CANONICAL_VERSION];
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+            throw new Error(`Post-normalization remote history mismatch: ${JSON.stringify(actual)}`);
+          }
+          console.log(`Post-normalization history verified: ${actual[0]}`);
+          NODE
+
+          supabase gen types --lang typescript --linked > ../post-production.types.ts
+          diff -u ../ops/supabase/canonical-baseline-20260920/production.types.ts ../post-production.types.ts
+
+      - name: Upload normalization evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-history-normalization-${{ github.run_id }}
+          path: |
+            pre-migration-list.txt
+            expected-versions.txt
+            actual-remote-versions.txt
+            normalization-plan.txt
+            post-migration-list.txt
+            post-production.types.ts
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Report plan success to issue 172
+        if: ${{ success() && (github.event_name != 'workflow_dispatch' || inputs.mode == 'plan') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Supabase migration-history normalization preflight passed read-only. Run ID: ${GITHUB_RUN_ID}. Live production history exactly matches the recorded 206-version superseded set, and canonical version `${CANONICAL_VERSION}` is not yet recorded. No production history or schema was changed."
+
+      - name: Report apply success to issue 172
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.mode == 'apply' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Supabase migration-history normalization completed. Run ID: ${GITHUB_RUN_ID}. The 206 superseded migration-history records were marked reverted and canonical baseline `${CANONICAL_VERSION}` was marked applied using supported Supabase CLI history repair. Post-repair migration list and production types were verified. No schema push/reset was run."
+
+      - name: Report failure to issue 172
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Supabase migration-history normalization workflow failed safely. Run ID: ${GITHUB_RUN_ID}. Review the failed preflight/apply step before retrying. The workflow contains no db push, db pull, or remote db reset."
