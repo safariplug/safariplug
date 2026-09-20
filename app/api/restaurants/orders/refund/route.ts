@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { reverseMpesaTransaction } from "@/lib/payments/mpesa-reversal";
+import { isMpesaReversalSubmissionUncertain, reverseMpesaTransaction } from "@/lib/payments/mpesa-reversal";
 
 export const dynamic = "force-dynamic";
 async function user() { const supabase = await createSupabaseServerClient(); const { data: { user } } = await supabase.auth.getUser(); return user && !user.is_anonymous ? user : null; }
@@ -24,18 +24,57 @@ export async function POST(request: Request) {
   const { data: active } = await supabaseAdmin.from("food_order_refunds").select("*").eq("order_id", orderId).in("status", ["pending", "processing"]).maybeSingle();
   if (active) return NextResponse.json({ refund: active }, { status: 409 });
   const amount = Number(order.customer_total);
+  if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Invalid refund amount" }, { status: 409 });
   const { data: refund, error: insertError } = await supabaseAdmin.from("food_order_refunds").insert({ order_id: orderId, provider: "mpesa", amount, currency: "KES", idempotency_key: idempotencyKey, status: "processing", requested_by: currentUser.id }).select().single();
   if (insertError) { if (insertError.code === "23505") return NextResponse.json({ error: "A refund request already exists for this order" }, { status: 409 }); return NextResponse.json({ error: insertError.message }, { status: 400 }); }
   try {
     const reversal = await reverseMpesaTransaction({ transactionId: String(order.payment_reference), amount, remarks: `SafariPlug refund ${orderId.slice(0, 12)}`, occasion: "Restaurant order refund" });
-    if (!reversal.accepted) { await supabaseAdmin.from("food_order_refunds").update({ status: "failed", error_message: reversal.responseDescription || "M-Pesa rejected the reversal", updated_at: new Date().toISOString(), processed_at: new Date().toISOString() }).eq("id", refund.id); return NextResponse.json({ error: reversal.responseDescription || "M-Pesa rejected the refund" }, { status: 502 }); }
     const now = new Date().toISOString();
     const { data: updatedRefund, error: updateError } = await supabaseAdmin.from("food_order_refunds").update({ provider_reference: reversal.originatorConversationId, refund_reference: reversal.conversationId, updated_at: now }).eq("id", refund.id).select().single();
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
     return NextResponse.json({ refund: updatedRefund }, { status: 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Refund provider error";
-    await supabaseAdmin.from("food_order_refunds").update({ status: "failed", error_message: message.slice(0, 1000), updated_at: new Date().toISOString(), processed_at: new Date().toISOString() }).eq("id", refund.id);
-    return NextResponse.json({ error: message }, { status: 502 });
+    const now = new Date().toISOString();
+
+    if (isMpesaReversalSubmissionUncertain(error)) {
+      const { data: uncertainRefund, error: uncertainUpdateError } = await supabaseAdmin
+        .from("food_order_refunds")
+        .update({
+          error_message: `${message}: reconciliation required; do not retry automatically`.slice(0, 1000),
+          updated_at: now,
+        })
+        .eq("id", refund.id)
+        .eq("status", "processing")
+        .select()
+        .maybeSingle();
+
+      if (uncertainUpdateError) {
+        console.error("Failed to persist uncertain M-Pesa reversal state", uncertainUpdateError);
+        return NextResponse.json({
+          error: "Refund submission outcome is uncertain and state persistence failed",
+          retryAllowed: false,
+        }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        refund: uncertainRefund || { id: refund.id, status: "processing" },
+        warning: "M-Pesa reversal submission outcome is uncertain. Finance reconciliation is required before any retry.",
+        retryAllowed: false,
+      }, { status: 202 });
+    }
+
+    await supabaseAdmin
+      .from("food_order_refunds")
+      .update({
+        status: "failed",
+        error_message: message.slice(0, 1000),
+        updated_at: now,
+        processed_at: now,
+      })
+      .eq("id", refund.id)
+      .eq("status", "processing");
+
+    return NextResponse.json({ error: message, retryAllowed: true }, { status: 502 });
   }
 }
