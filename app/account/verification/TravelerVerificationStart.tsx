@@ -32,9 +32,11 @@ async function loadSdk() {
 export default function TravelerVerificationStart({
   hasCase,
   status,
+  automatedReady,
 }: {
   hasCase: boolean;
   status: string | null;
+  automatedReady: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -44,10 +46,13 @@ export default function TravelerVerificationStart({
     setBusy(true);
     setMessage("");
     try {
-      if (!hasCase) {
-        const started = await fetch("/api/account/verification", { method: "POST" });
-        const body = await started.json().catch(() => ({}));
-        if (!started.ok) throw new Error(body.error || "Unable to start verification.");
+      const started = await fetch("/api/account/verification", { method: "POST" });
+      const startedBody = await started.json().catch(() => ({}));
+      if (!started.ok) throw new Error(startedBody.error || "Unable to start verification.");
+      if (startedBody.manualReview) {
+        setMessage(startedBody.message || "SafariPlug staff review requested.");
+        window.setTimeout(() => window.location.reload(), 700);
+        return;
       }
 
       const response = await fetch("/api/account/verification/session", {
@@ -55,6 +60,10 @@ export default function TravelerVerificationStart({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Unable to prepare verification.");
+      if (body.manualReview) {
+        setMessage(body.message || "SafariPlug staff review is pending.");
+        return;
+      }
 
       const sdk = await loadSdk();
       if (!sdk) throw new Error("Verification provider SDK is unavailable.");
@@ -109,7 +118,7 @@ export default function TravelerVerificationStart({
   if (status === "approved") {
     return (
       <div className="mt-6 rounded-2xl bg-emerald-50 p-5 text-sm text-emerald-900">
-        Your traveler identity and live face verification is approved. Trust-sensitive bookings can use this verification while it remains valid.
+        Your SafariPlug traveler verification is approved. Trust-sensitive bookings can use this review while it remains valid.
       </div>
     );
   }
@@ -126,7 +135,9 @@ export default function TravelerVerificationStart({
             ? "Preparing…"
             : status === "in_review"
               ? "Verification in progress"
-              : "Start secure verification"}
+              : automatedReady
+                ? "Start secure verification"
+                : "Request SafariPlug staff review"}
         </button>
         {message && !open ? (
           <p className="max-w-xl text-xs leading-5 text-black/50">{message}</p>
