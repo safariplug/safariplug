@@ -1,0 +1,830 @@
+{
+  "captured_at_utc": "2026-09-20",
+  "project_ref": "safcizxahjqassrwhrup",
+  "migrations": [
+    {
+      "version": "20260831032915",
+      "name": "remote_schema"
+    },
+    {
+      "version": "20260831043942",
+      "name": "grant_authenticated_is_admin_execute"
+    },
+    {
+      "version": "20260901183101",
+      "name": "add_watamu_city"
+    },
+    {
+      "version": "20260902011125",
+      "name": "add_event_discovery_performance_indexes"
+    },
+    {
+      "version": "20260902012552",
+      "name": "add_metricool_publish_fields"
+    },
+    {
+      "version": "20260902015226",
+      "name": "add_marketing_creative_brief"
+    },
+    {
+      "version": "20260902022019",
+      "name": "create_journal_articles"
+    },
+    {
+      "version": "20260902022037",
+      "name": "add_journal_source_event_id"
+    },
+    {
+      "version": "20260902023643",
+      "name": "add_marketing_video_generation"
+    },
+    {
+      "version": "20260902024638",
+      "name": "add_event_expiration_and_cleanup"
+    },
+    {
+      "version": "20260902024758",
+      "name": "prune_expired_ai_discoveries"
+    },
+    {
+      "version": "20260902030941",
+      "name": "prevent_duplicate_marketing_campaigns"
+    },
+    {
+      "version": "20260904032929",
+      "name": "create_integration_syncs"
+    },
+    {
+      "version": "20260904032951",
+      "name": "travel_os_foundation"
+    },
+    {
+      "version": "20260904044100",
+      "name": "driver_marketplace"
+    },
+    {
+      "version": "20260904050838",
+      "name": "verification_trust"
+    },
+    {
+      "version": "20260905014652",
+      "name": "travel_os_security_hardening"
+    },
+    {
+      "version": "20260905023803",
+      "name": "security_advisor_hardening"
+    },
+    {
+      "version": "20260905032602",
+      "name": "add_ai_scout_lock_helpers"
+    },
+    {
+      "version": "20260905032609",
+      "name": "add_ai_scout_lease_lock"
+    },
+    {
+      "version": "20260905032613",
+      "name": "remove_ai_scout_advisory_helpers"
+    },
+    {
+      "version": "20260905035042",
+      "name": "optimize_user_rls_auth_evaluation"
+    },
+    {
+      "version": "20260905041852",
+      "name": "add_aurelian_feed_telemetry"
+    },
+    {
+      "version": "20260905042518",
+      "name": "create_aurelian_feed_runs"
+    },
+    {
+      "version": "20260905045427",
+      "name": "add_driver_license_document"
+    },
+    {
+      "version": "20260905045618",
+      "name": "driver_document_expiry_tracking"
+    },
+    {
+      "version": "20260905045630",
+      "name": "driver_verification_documents_bucket"
+    },
+    {
+      "version": "20260905050054",
+      "name": "driver_compliance_monitoring"
+    },
+    {
+      "version": "20260905050614",
+      "name": "driver_ai_document_verification"
+    },
+    {
+      "version": "20260905051910",
+      "name": "service_appointments_foundation"
+    },
+    {
+      "version": "20260905052950",
+      "name": "service_booking_rpc_hardening_v2"
+    },
+    {
+      "version": "20260905053726",
+      "name": "concierge_security_hardening"
+    },
+    {
+      "version": "20260905231936",
+      "name": "seed_service_marketplace_categories"
+    },
+    {
+      "version": "20260905232420",
+      "name": "seed_service_marketplace_categories"
+    },
+    {
+      "version": "20260905233151",
+      "name": "service_appointment_state_machine"
+    },
+    {
+      "version": "20260905234922",
+      "name": "expand_coastal_service_categories"
+    },
+    {
+      "version": "20260905235724",
+      "name": "expand_service_categories"
+    },
+    {
+      "version": "20260906000127",
+      "name": "service_provider_terms_v1"
+    },
+    {
+      "version": "20260906000218",
+      "name": "enforce_service_provider_terms_before_booking"
+    },
+    {
+      "version": "20260906000329",
+      "name": "service_appointment_fee_ledger"
+    },
+    {
+      "version": "20260906000712",
+      "name": "harden_service_fee_and_terms_trigger_permissions"
+    },
+    {
+      "version": "20260906000735",
+      "name": "service_payment_ledger_v1"
+    },
+    {
+      "version": "20260906000908",
+      "name": "service_payment_ledger_v1"
+    },
+    {
+      "version": "20260906001047",
+      "name": "service_payment_idempotency"
+    },
+    {
+      "version": "20260906001055",
+      "name": "fix_service_payment_idempotency_reference"
+    },
+    {
+      "version": "20260906001509",
+      "name": "service_payment_webhook_events"
+    },
+    {
+      "version": "20260906001725",
+      "name": "service_payment_events_v1"
+    },
+    {
+      "version": "20260906010512",
+      "name": "service_provider_payout_ledger_v1"
+    },
+    {
+      "version": "20260906010528",
+      "name": "service_provider_payout_eligibility"
+    },
+    {
+      "version": "20260906010808",
+      "name": "provider_payout_eligibility_v1"
+    },
+    {
+      "version": "20260906011301",
+      "name": "provider_payout_approval_controls"
+    },
+    {
+      "version": "20260906011403",
+      "name": "provider_payout_approval_controls"
+    },
+    {
+      "version": "20260906011905",
+      "name": "service_provider_payout_execution_guardrails"
+    },
+    {
+      "version": "20260906012208",
+      "name": "service_provider_payout_execution_v1"
+    },
+    {
+      "version": "20260906012253",
+      "name": "service_provider_payout_mpesa_transaction_id"
+    },
+    {
+      "version": "20260906013236",
+      "name": "payout_destination_and_reconciliation"
+    },
+    {
+      "version": "20260906013247",
+      "name": "payout_reconciliation_functions"
+    },
+    {
+      "version": "20260906013255",
+      "name": "payout_approval_audit_fields"
+    },
+    {
+      "version": "20260906013303",
+      "name": "payout_reconciliation_cron"
+    },
+    {
+      "version": "20260906013312",
+      "name": "payout_reconcile_function"
+    },
+    {
+      "version": "20260906013627",
+      "name": "service_provider_payout_accounts"
+    },
+    {
+      "version": "20260906014723",
+      "name": "service_provider_verification_payout_gate"
+    },
+    {
+      "version": "20260906020818",
+      "name": "sumsub_verification_idempotency"
+    },
+    {
+      "version": "20260906023822",
+      "name": "service_marketplace_economics_v2"
+    },
+    {
+      "version": "20260906024044",
+      "name": "service_provider_terms_v2_enforcement"
+    },
+    {
+      "version": "20260906024315",
+      "name": "enforce_provider_payout_minimum"
+    },
+    {
+      "version": "20260906051436",
+      "name": "add_traveler_trip_constraints"
+    },
+    {
+      "version": "20260906052336",
+      "name": "add_traveler_saved_events"
+    },
+    {
+      "version": "20260906124039",
+      "name": "link_service_appointments_to_trips"
+    },
+    {
+      "version": "20260906124214",
+      "name": "link_trip_items_to_service_appointments"
+    },
+    {
+      "version": "20260906124359",
+      "name": "add_trip_item_appointment_reference"
+    },
+    {
+      "version": "20260906131559",
+      "name": "add_trip_sharing"
+    },
+    {
+      "version": "20260906145258",
+      "name": "enable_ai_scout_locks_rls"
+    },
+    {
+      "version": "20260906150325",
+      "name": "restrict_ai_scout_run_policies"
+    },
+    {
+      "version": "20260906150900",
+      "name": "lock_driver_compliance_view"
+    },
+    {
+      "version": "20260906151414",
+      "name": "tighten_public_api_grants"
+    },
+    {
+      "version": "20260906151512",
+      "name": "secure_is_admin_invoker"
+    },
+    {
+      "version": "20260906151745",
+      "name": "move_btree_gist_extension"
+    },
+    {
+      "version": "20260906153722",
+      "name": "revoke_postgres_public_default_api_grants"
+    },
+    {
+      "version": "20260906153841",
+      "name": "tighten_exposed_table_grants"
+    },
+    {
+      "version": "20260906154048",
+      "name": "restore_admin_ai_api_read_grants"
+    },
+    {
+      "version": "20260906160445",
+      "name": "drop_duplicate_trip_items_index"
+    },
+    {
+      "version": "20260906163200",
+      "name": "harden_attach_service_appointment_to_trip"
+    },
+    {
+      "version": "20260906163329",
+      "name": "harden_attach_service_appointment_to_trip"
+    },
+    {
+      "version": "20260906164005",
+      "name": "align_attach_service_appointment_with_trip_item_reference"
+    },
+    {
+      "version": "20260906171413",
+      "name": "harden_ai_scout_lease_search_path"
+    },
+    {
+      "version": "20260906195909",
+      "name": "fix_attach_service_appointment_canonical_column"
+    },
+    {
+      "version": "20260906195917",
+      "name": "remove_legacy_trip_item_appointment_column"
+    },
+    {
+      "version": "20260906200811",
+      "name": "quarantine_malformed_ai_published_events"
+    },
+    {
+      "version": "20260906225558",
+      "name": "add_tattoo_body_art_service_category"
+    },
+    {
+      "version": "20260906233406",
+      "name": "correct_mombasa_tourism_week_start_time"
+    },
+    {
+      "version": "20260907205953",
+      "name": "add_granular_admin_roles"
+    },
+    {
+      "version": "20260907214620",
+      "name": "supplier_onboarding"
+    },
+    {
+      "version": "20260907221029",
+      "name": "supplier_booking_notification_preferences"
+    },
+    {
+      "version": "20260907221959",
+      "name": "push_notification_tokens"
+    },
+    {
+      "version": "20260907223010",
+      "name": "restaurant_food_ordering"
+    },
+    {
+      "version": "20260907223702",
+      "name": "food_ordering_hardening_and_tracking"
+    },
+    {
+      "version": "20260907223719",
+      "name": "food_order_payment_idempotency"
+    },
+    {
+      "version": "20260907223731",
+      "name": "restaurant_delivery_pricing"
+    },
+    {
+      "version": "20260907231212",
+      "name": "add_food_orders_trip_link"
+    },
+    {
+      "version": "20260907233726",
+      "name": "add_food_order_trip_itinerary_kind"
+    },
+    {
+      "version": "20260908020928",
+      "name": "hotel_booking_pricing_ledger"
+    },
+    {
+      "version": "20260908030015",
+      "name": "add_hotel_ledger_trip_item_reference"
+    },
+    {
+      "version": "20260908030039",
+      "name": "sync_hotel_trip_item_ledger_reference"
+    },
+    {
+      "version": "20260908031119",
+      "name": "hotel_local_currency_pricing"
+    },
+    {
+      "version": "20260908182842",
+      "name": "expand_africa_destination_cities"
+    },
+    {
+      "version": "20260908183358",
+      "name": "expand_africa_cities"
+    },
+    {
+      "version": "20260908184118",
+      "name": "fix_marketplace_rls_and_performance"
+    },
+    {
+      "version": "20260909012139",
+      "name": "align_service_payment_webhook_statuses"
+    },
+    {
+      "version": "20260909012153",
+      "name": "harden_service_payment_webhook_transitions"
+    },
+    {
+      "version": "20260909012521",
+      "name": "harden_service_booking_availability"
+    },
+    {
+      "version": "20260909013932",
+      "name": "harden_driver_active_status"
+    },
+    {
+      "version": "20260909013943",
+      "name": "protect_active_driver_vehicle_compliance"
+    },
+    {
+      "version": "20260909013951",
+      "name": "fix_driver_vehicle_compliance_trigger"
+    },
+    {
+      "version": "20260909014959",
+      "name": "harden_food_delivery_assignment_concurrency"
+    },
+    {
+      "version": "20260909015247",
+      "name": "harden_restaurant_payment_state"
+    },
+    {
+      "version": "20260909015315",
+      "name": "sync_restaurant_order_delivery_lifecycle"
+    },
+    {
+      "version": "20260909015642",
+      "name": "harden_restaurant_menu_and_order_integrity"
+    },
+    {
+      "version": "20260909020338",
+      "name": "add_restaurant_order_customer_rating"
+    },
+    {
+      "version": "20260909021022",
+      "name": "harden_restaurant_paid_order_lifecycle"
+    },
+    {
+      "version": "20260909030851",
+      "name": "harden_service_payment_intent_claims"
+    },
+    {
+      "version": "20260909031237",
+      "name": "harden_service_payment_cancelled_appointment"
+    },
+    {
+      "version": "20260909031532",
+      "name": "protect_settled_service_appointment_cancellation"
+    },
+    {
+      "version": "20260909032241",
+      "name": "harden_restaurant_payment_idempotency_claim"
+    },
+    {
+      "version": "20260909032504",
+      "name": "harden_restaurant_paid_order_cancellation"
+    },
+    {
+      "version": "20260909033047",
+      "name": "harden_cancelled_restaurant_payment_callbacks"
+    },
+    {
+      "version": "20260909033058",
+      "name": "fix_cancelled_restaurant_payment_callback_guard"
+    },
+    {
+      "version": "20260909033303",
+      "name": "harden_restaurant_refund_accounting"
+    },
+    {
+      "version": "20260909034001",
+      "name": "add_restaurant_refund_requests"
+    },
+    {
+      "version": "20260909034510",
+      "name": "harden_restaurant_refund_lifecycle"
+    },
+    {
+      "version": "20260909035913",
+      "name": "harden_restaurant_function_search_paths"
+    },
+    {
+      "version": "20260909040728",
+      "name": "harden_restaurant_refund_callback_atomicity"
+    },
+    {
+      "version": "20260909040840",
+      "name": "harden_restaurant_refund_callback_atomicity"
+    },
+    {
+      "version": "20260909041830",
+      "name": "harden_service_payment_provider_submission_state"
+    },
+    {
+      "version": "20260909042638",
+      "name": "harden_service_appointment_reschedule_constraints"
+    },
+    {
+      "version": "20260909043016",
+      "name": "harden_service_appointment_reschedule_transaction"
+    },
+    {
+      "version": "20260909043405",
+      "name": "harden_attach_service_appointment_service_role_auth"
+    },
+    {
+      "version": "20260909043624",
+      "name": "harden_detach_service_appointment_from_trip"
+    },
+    {
+      "version": "20260909043643",
+      "name": "fix_detach_service_appointment_from_trip_item_id"
+    },
+    {
+      "version": "20260909044143",
+      "name": "harden_trip_planner_service_appointment_attachment"
+    },
+    {
+      "version": "20260909044338",
+      "name": "harden_trip_planner_service_appointment_attachment"
+    },
+    {
+      "version": "20260909044734",
+      "name": "protect_trip_item_service_appointment_mutation"
+    },
+    {
+      "version": "20260909044959",
+      "name": "harden_trip_item_reorder_transaction"
+    },
+    {
+      "version": "20260909045209",
+      "name": "20260909_harden_trip_reorder_concurrency"
+    },
+    {
+      "version": "20260909055452",
+      "name": "service_appointment_notifications"
+    },
+    {
+      "version": "20260909055943",
+      "name": "service_appointment_state_machine"
+    },
+    {
+      "version": "20260909055951",
+      "name": "protect_settled_service_appointment_cancellation"
+    },
+    {
+      "version": "20260909060154",
+      "name": "lock_appointment_notification_trigger_execute"
+    },
+    {
+      "version": "20260913155500",
+      "name": "restore_authenticated_admin_check"
+    },
+    {
+      "version": "20260913173147",
+      "name": "add_ai_scout_job_queue"
+    },
+    {
+      "version": "20260913173326",
+      "name": "tighten_ai_scout_queue_claims"
+    },
+    {
+      "version": "20260913181336",
+      "name": "stage_ai_scout_worker_with_supabase_cron"
+    },
+    {
+      "version": "20260913182604",
+      "name": "clear_requeued_scout_errors"
+    },
+    {
+      "version": "20260913190638",
+      "name": "allow_three_concurrent_ai_scout_jobs"
+    },
+    {
+      "version": "20260913190803",
+      "name": "protect_active_provider_scout_jobs"
+    },
+    {
+      "version": "20260913191434",
+      "name": "harden_ai_scout_worker_pool"
+    },
+    {
+      "version": "20260913191927",
+      "name": "cap_ai_scout_concurrency_two"
+    },
+    {
+      "version": "20260913192231",
+      "name": "recover_transient_ai_scout_failures"
+    },
+    {
+      "version": "20260913192927",
+      "name": "harden_ai_scout_worker_pool"
+    },
+    {
+      "version": "20260913194119",
+      "name": "separate_scout_provider_failures_from_attempts"
+    },
+    {
+      "version": "20260913194240",
+      "name": "enforce_scout_provider_retry_accounting"
+    },
+    {
+      "version": "20260913194500",
+      "name": "sanitize_scout_recovered_images"
+    },
+    {
+      "version": "20260913215504",
+      "name": "backoff_ai_scout_provider_retries"
+    },
+    {
+      "version": "20260913215724",
+      "name": "stop_scout_retries_on_openai_billing_errors"
+    },
+    {
+      "version": "20260915005202",
+      "name": "locals_marketplace_foundation"
+    },
+    {
+      "version": "20260915005238",
+      "name": "locals_marketplace_advisor_fixes"
+    },
+    {
+      "version": "20260915010638",
+      "name": "local_profile_photo_storage"
+    },
+    {
+      "version": "20260915011106",
+      "name": "locals_verification_subject"
+    },
+    {
+      "version": "20260915012826",
+      "name": "locals_request_response_and_trip_kind"
+    },
+    {
+      "version": "20260915022607",
+      "name": "service_staff_personal_photo"
+    },
+    {
+      "version": "20260915023820",
+      "name": "driver_transfer_marketplace_foundation"
+    },
+    {
+      "version": "20260915024434",
+      "name": "driver_transfer_response_rpc"
+    },
+    {
+      "version": "20260915025245",
+      "name": "trip_transfer_link"
+    },
+    {
+      "version": "20260915025703",
+      "name": "trip_package_quote_foundation"
+    },
+    {
+      "version": "20260915032219",
+      "name": "trip_package_checkout_readiness"
+    },
+    {
+      "version": "20260915033528",
+      "name": "trip_package_payment_foundation"
+    },
+    {
+      "version": "20260915040551",
+      "name": "partner_invitation_foundation"
+    },
+    {
+      "version": "20260915202527",
+      "name": "crm_2_contacts_activities_followups"
+    },
+    {
+      "version": "20260915202533",
+      "name": "crm_2_conversion_tracking"
+    },
+    {
+      "version": "20260915205633",
+      "name": "crm_2_contact_governance"
+    },
+    {
+      "version": "20260915215807",
+      "name": "crm_2_outreach_context"
+    },
+    {
+      "version": "20260915220145",
+      "name": "restrict_ai_scout_retry_trigger_execute"
+    },
+    {
+      "version": "20260916021303",
+      "name": "supplier_scout_job_queue"
+    },
+    {
+      "version": "20260916172943",
+      "name": "supplier_review_feedback"
+    },
+    {
+      "version": "20260917013821",
+      "name": "hotelbeds_content_cache"
+    },
+    {
+      "version": "20260917014014",
+      "name": "harden_hotelbeds_content_trigger_search_path"
+    },
+    {
+      "version": "20260917014530",
+      "name": "enable_food_order_refunds_rls"
+    },
+    {
+      "version": "20260918205323",
+      "name": "supplier_onboarding_followups_production"
+    },
+    {
+      "version": "20260918210953",
+      "name": "harden_driver_transfer_rpc_execution"
+    },
+    {
+      "version": "20260918215453",
+      "name": "supplier_followup_prepared_drafts_production"
+    },
+    {
+      "version": "20260919155804",
+      "name": "runtime_schema_drift_repair"
+    },
+    {
+      "version": "20260919214312",
+      "name": "add_service_refund_review_product"
+    },
+    {
+      "version": "20260919220019",
+      "name": "add_food_refund_review_product"
+    },
+    {
+      "version": "20260920000219",
+      "name": "add_refund_review_audit_history"
+    },
+    {
+      "version": "20260920000245",
+      "name": "index_refund_review_audit_actor"
+    },
+    {
+      "version": "20260920000609",
+      "name": "add_refund_review_reopen_history"
+    },
+    {
+      "version": "20260920001316",
+      "name": "approve_payout_with_admin_attribution"
+    },
+    {
+      "version": "20260920010924",
+      "name": "ensure_unique_restaurant_refund_correlation"
+    },
+    {
+      "version": "20260920011659",
+      "name": "harden_restaurant_payment_attempt_state"
+    },
+    {
+      "version": "20260920011716",
+      "name": "unique_restaurant_payment_provider_reference"
+    },
+    {
+      "version": "20260920013608",
+      "name": "index_finance_review_admin_fks"
+    },
+    {
+      "version": "20260920013722",
+      "name": "index_active_travel_booking_fks"
+    },
+    {
+      "version": "20260920013743",
+      "name": "index_onboarding_admin_fks"
+    },
+    {
+      "version": "20260920014003",
+      "name": "optimize_active_marketplace_rls_auth_evaluation"
+    },
+    {
+      "version": "20260920014239",
+      "name": "consolidate_participant_read_update_policies"
+    },
+    {
+      "version": "20260920014336",
+      "name": "consolidate_marketplace_permissive_policies"
+    }
+  ]
+}

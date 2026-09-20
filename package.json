@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test lib/api/v1/*.test.ts lib/integrations/**/*.test.ts lib/services/**/*.test.ts",
-    "validate:migrations": "node scripts/validate-supabase-migrations.mjs"
+    "validate:migrations": "node scripts/validate-supabase-migrations.mjs",
+    "compare:supabase-baseline": "node scripts/compare-supabase-baseline.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
