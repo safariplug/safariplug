@@ -1,4 +1,5 @@
 name: Bootstrap Canonical Supabase Baseline
+# retrigger-with-failure-callback
 
 on:
   push:
@@ -270,3 +271,12 @@ jobs:
         run: |
           baseline_file="$(cat ops/supabase/canonical-baseline-file.txt)"
           gh api --method POST repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Canonical Supabase baseline candidate created and validated on a fresh local database. Active baseline: \`${baseline_file}\`. Legacy active migrations were retired from the branch but remain preserved in Git history and the retired manifest. Production was not modified. Next gate: PR CI/Quality and final schema-equivalence review before any migration-history repair."
+
+
+      - name: Report bootstrap failure to issue 172
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Canonical baseline bootstrap failed safely. Run ID: ${GITHUB_RUN_ID}. Production was not modified. Review the failed workflow step before retrying."
