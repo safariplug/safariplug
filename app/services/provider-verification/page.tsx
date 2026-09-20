@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import SpecialistVerificationStart from "./SpecialistVerificationStart";
+import { sumsubConfigured } from "@/lib/integrations/verification/sumsub";
 
 export const dynamic = "force-dynamic";
 
@@ -37,10 +38,11 @@ export default async function SpecialistVerificationPage({
         .maybeSingle()
     : { data: null };
 
+  const automatedReady = sumsubConfigured();
   const approved = Boolean(
     staff?.verification_state === "verified" &&
-      staff?.identity_liveness_verified_at &&
       verification?.status === "approved" &&
+      (verification?.provider === "human_review" || staff?.identity_liveness_verified_at) &&
       (!verification.expires_at || new Date(verification.expires_at) > new Date())
   );
 
@@ -68,7 +70,7 @@ export default async function SpecialistVerificationPage({
         <p className="mt-10 text-[11px] font-bold uppercase tracking-[.22em] text-black/40">Service specialist trust</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight">Verify the person customers are booking.</h1>
         <p className="mt-4 max-w-2xl leading-7 text-black/55">
-          SafariPlug requires each specific bookable specialist to have their own linked account, personal photo, identity check and live face/liveness result. A business-owner verification does not automatically verify every barber, masseur, nail technician, tattoo artist, instructor or other team member.
+          SafariPlug requires each specific bookable specialist to have their own linked account, personal photo and an approved trust review. At launch this can be completed by SafariPlug staff; automated identity + liveness can be added later. A business-owner verification does not automatically verify every barber, masseur, nail technician, tattoo artist, instructor or other team member.
         </p>
 
         {staff ? (
@@ -95,6 +97,7 @@ export default async function SpecialistVerificationPage({
             <SpecialistVerificationStart
               claimToken={claim || null}
               initialStatus={approved ? "verified" : staff.verification_state}
+              automatedReady={automatedReady}
             />
           </section>
         ) : (
@@ -105,14 +108,14 @@ export default async function SpecialistVerificationPage({
                 ? "This secure claim link connects the team profile created by the business to your authenticated SafariPlug account. After linking, you can complete your own identity + live face verification."
                 : "Ask the SafariPlug business owner to create a secure specialist verification link for your team profile."}
             </p>
-            <SpecialistVerificationStart claimToken={claim || null} initialStatus={null} />
+            <SpecialistVerificationStart claimToken={claim || null} initialStatus={null} automatedReady={automatedReady} />
           </section>
         )}
 
         <div className="mt-6 rounded-[1.5rem] bg-[#111] p-6 text-white">
           <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-white/40">Verification boundary</p>
           <p className="mt-2 text-sm leading-6 text-white/60">
-            SafariPlug stores the verification result and opaque provider references. A profile image, owner approval or AI review cannot substitute for the specialist's own external identity + live face/liveness result.
+            SafariPlug records who reviewed the specialist and the final result. Manual staff review is the launch method; automated identity + liveness remains an optional future upgrade.
           </p>
         </div>
       </div>
