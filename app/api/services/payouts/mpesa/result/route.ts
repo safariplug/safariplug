@@ -13,24 +13,34 @@ function callbackError(status: number, description: string) {
   return NextResponse.json({ ResultCode: 1, ResultDesc: description }, { status });
 }
 
-async function findPayout(conversationId: string) {
-  const byConversation = await supabaseAdmin
-    .from("service_provider_payouts")
-    .select("id,status,metadata")
-    .eq("mpesa_conversation_id", conversationId)
-    .maybeSingle();
+async function findPayout(references: string[]) {
+  const uniqueReferences=[...new Set(references.map(value=>value.trim()).filter(Boolean))];
+  const exactFields=["mpesa_conversation_id","conversation_id","originator_conversation_id"] as const;
 
-  if (byConversation.error) throw byConversation.error;
-  if (byConversation.data) return byConversation.data;
+  for(const reference of uniqueReferences){
+    for(const field of exactFields){
+      const result=await supabaseAdmin
+        .from("service_provider_payouts")
+        .select("id,status,metadata")
+        .eq(field,reference)
+        .maybeSingle();
+      if(result.error) throw result.error;
+      if(result.data) return result.data;
+    }
 
-  const byReference = await supabaseAdmin
-    .from("service_provider_payouts")
-    .select("id,status,metadata")
-    .eq("payout_reference", conversationId)
-    .maybeSingle();
+    const byReference=await supabaseAdmin
+      .from("service_provider_payouts")
+      .select("id,status,metadata")
+      .eq("payout_reference",reference)
+      .limit(2);
+    if(byReference.error) throw byReference.error;
+    if((byReference.data||[]).length>1){
+      throw new Error("ambiguous_payout_reference");
+    }
+    if(byReference.data?.[0]) return byReference.data[0];
+  }
 
-  if (byReference.error) throw byReference.error;
-  return byReference.data;
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -39,16 +49,23 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const result = body?.Result;
-    const conversationId = String(result?.ConversationID || result?.OriginatorConversationID || "").trim();
+    const conversationId = String(result?.ConversationID || "").trim();
+    const originatorConversationId = String(result?.OriginatorConversationID || "").trim();
     const resultCode = Number(result?.ResultCode);
 
-    if (!conversationId) return callbackError(400, "Missing ConversationID");
+    if (!conversationId && !originatorConversationId) {
+      return callbackError(400, "Missing ConversationID");
+    }
     if (!Number.isFinite(resultCode)) return callbackError(400, "Missing or invalid ResultCode");
 
-    const payout = await findPayout(conversationId);
+    const payout = await findPayout([conversationId,originatorConversationId]);
 
     if (!payout) {
-      console.error("Unmatched M-Pesa B2C result callback", { conversationId, resultCode });
+      console.error("Unmatched M-Pesa B2C result callback", {
+        conversationId,
+        originatorConversationId,
+        resultCode,
+      });
       return callbackError(409, "Payout callback could not be matched");
     }
 
@@ -74,7 +91,9 @@ export async function POST(request: Request) {
         status,
         paid_at: status === "paid" ? now : null,
         failure_reason: failureReason,
-        mpesa_conversation_id: conversationId,
+        mpesa_conversation_id: conversationId || originatorConversationId,
+        conversation_id: conversationId || null,
+        originator_conversation_id: originatorConversationId || null,
         mpesa_transaction_id: transactionId ? String(transactionId) : null,
         mpesa_result_code: resultCode,
         mpesa_result_description: String(result?.ResultDesc || ""),
@@ -83,11 +102,12 @@ export async function POST(request: Request) {
             ? payout.metadata
             : {}),
           b2c_result: body,
-          conversationId,
+          conversationId: conversationId || null,
+          originatorConversationId: originatorConversationId || null,
           resultCode,
           transactionReceipt: receipt ?? null,
         },
-        payout_reference: receipt ? String(receipt) : conversationId,
+        payout_reference: receipt ? String(receipt) : (conversationId || originatorConversationId),
         updated_at: now,
       })
       .eq("id", payout.id)
@@ -111,7 +131,8 @@ export async function POST(request: Request) {
 
     console.error("M-Pesa B2C callback did not update payout state", {
       payoutId: payout.id,
-      conversationId,
+      conversationId: conversationId || null,
+      originatorConversationId: originatorConversationId || null,
       currentStatus: current?.status ?? null,
     });
     return callbackError(409, "Payout state was not updated");
