@@ -19,6 +19,7 @@ export default function RefundReviewActions({
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
   const [error,setError]=useState("");
+  const resolved=review?.status==="resolved";
 
   async function act(action:"start_review"|"resolve",resolution?:string) {
     setBusy(true);setMessage("");setError("");
@@ -45,15 +46,18 @@ export default function RefundReviewActions({
     <textarea
       value={notes}
       onChange={e=>setNotes(e.target.value)}
+      disabled={resolved}
       placeholder="Finance review notes"
-      className="mt-3 min-h-20 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+      className="mt-3 min-h-20 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
     />
-    <div className="mt-3 flex flex-wrap gap-2">
-      {(!review||review.status==="pending")?<button disabled={busy} onClick={()=>void act("start_review")} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold">Start review</button>:null}
-      <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","refund_required")} className="rounded-xl border border-amber-500/40 px-3 py-2 text-xs font-bold text-amber-300">Refund required</button>
-      <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","no_refund_due")} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold text-zinc-300">No refund due</button>
-      <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","refunded_externally")} className="rounded-xl border border-emerald-700/50 px-3 py-2 text-xs font-bold text-emerald-300">Refund handled externally</button>
-    </div>
+    {resolved
+      ?<p className="mt-3 rounded-xl border border-emerald-900/40 bg-emerald-950/10 p-3 text-xs leading-5 text-emerald-200">Resolved finance decisions are locked against silent overwrite. Any correction must use a governed correction workflow.</p>
+      :<div className="mt-3 flex flex-wrap gap-2">
+        {(!review||review.status==="pending")?<button disabled={busy} onClick={()=>void act("start_review")} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold">Start review</button>:null}
+        <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","refund_required")} className="rounded-xl border border-amber-500/40 px-3 py-2 text-xs font-bold text-amber-300">Refund required</button>
+        <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","no_refund_due")} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold text-zinc-300">No refund due</button>
+        <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","refunded_externally")} className="rounded-xl border border-emerald-700/50 px-3 py-2 text-xs font-bold text-emerald-300">Refund handled externally</button>
+      </div>}
     {message?<p className="mt-3 text-xs text-emerald-300">{message}</p>:null}
     {error?<p className="mt-3 text-xs text-red-300">{error}</p>:null}
   </div>;
