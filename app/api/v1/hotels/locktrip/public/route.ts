@@ -39,6 +39,8 @@ export async function POST(request: Request) {
         currency: typeof body.currency === "string" ? body.currency : "KES",
       };
       let data;
+      let activeSearchKey = searchKey;
+      let refreshed = false;
       try {
         data = await adapter.getRooms(roomInput);
       } catch {
@@ -50,6 +52,8 @@ export async function POST(request: Request) {
           rooms: roomInput.rooms,
           currency: roomInput.currency,
         });
+        activeSearchKey = data.searchKey;
+        refreshed = true;
       }
       if (!data.packages?.length) {
         data = await adapter.refreshRooms({
@@ -60,13 +64,15 @@ export async function POST(request: Request) {
           rooms: roomInput.rooms,
           currency: roomInput.currency,
         });
+        activeSearchKey = data.searchKey;
+        refreshed = true;
       }
       return NextResponse.json({
         provider: "hotel_supplier",
         action,
         data,
-        searchKey: data.searchKey || searchKey,
-        refreshed: Boolean(data.searchKey && data.searchKey !== searchKey),
+        searchKey: activeSearchKey,
+        refreshed,
       });
     }
 
