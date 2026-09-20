@@ -1,5 +1,5 @@
 name: Normalize Supabase Production Migration History
-# one-time-normalization-trigger
+# one-time-normalization-trigger-remote-column
 
 on:
   push:
@@ -69,24 +69,31 @@ jobs:
           set -euo pipefail
           supabase migration list --linked | tee history-before.txt
 
+          awk -F'|' '
+            NR > 2 {
+              remote=$2
+              gsub(/[`[:space:]]/, "", remote)
+              if (remote ~ /^[0-9]{14}$/) print remote
+            }
+          ' history-before.txt | sort -u > remote-before.txt
+
           mapfile -t legacy < ops/supabase/history-normalization-legacy-versions-20260920.txt
-          missing=0
-          for version in "${legacy[@]}"; do
-            if ! grep -q "${version}" history-before.txt; then
-              echo "Expected legacy version is missing before repair: ${version}"
-              missing=1
-            fi
-          done
-          if [ "${missing}" -ne 0 ]; then
+          mapfile -t remote < remote-before.txt
+
+          if [ "${#remote[@]}" -ne 206 ]; then
+            echo "Expected exactly 206 remote legacy rows before repair; found ${#remote[@]}."
+            cat remote-before.txt
             exit 1
           fi
 
-          if grep -q "${CANONICAL_VERSION}" history-before.txt; then
-            echo "Canonical version is already present remotely; refusing automatic normalization."
+          diff -u <(printf '%s\n' "${legacy[@]}" | sort -u) remote-before.txt
+
+          if grep -qx "${CANONICAL_VERSION}" remote-before.txt; then
+            echo "Canonical version is already present in the Remote column; refusing automatic normalization."
             exit 1
           fi
 
-          echo "Preflight passed: 206 expected legacy history rows are present and canonical version is absent."
+          echo "Preflight passed: Remote column contains exactly the 206 expected legacy rows and canonical version is absent."
 
       - name: Mark canonical baseline applied first
         shell: bash
@@ -94,8 +101,15 @@ jobs:
           set -euo pipefail
           supabase migration repair "${CANONICAL_VERSION}" --status applied
           supabase migration list --linked | tee history-after-canonical.txt
-          grep -q "${CANONICAL_VERSION}" history-after-canonical.txt
-          echo "Canonical baseline history row is present before any legacy row removal."
+          awk -F'|' '
+            NR > 2 {
+              remote=$2
+              gsub(/[`[:space:]]/, "", remote)
+              if (remote ~ /^[0-9]{14}$/) print remote
+            }
+          ' history-after-canonical.txt | sort -u > remote-after-canonical.txt
+          grep -qx "${CANONICAL_VERSION}" remote-after-canonical.txt
+          echo "Canonical baseline history row is present in the Remote column before any legacy row removal."
 
       - name: Revert legacy history rows in guarded batches
         shell: bash
@@ -117,21 +131,27 @@ jobs:
           set -euo pipefail
           supabase migration list --linked | tee history-after.txt
 
-          grep -q "${CANONICAL_VERSION}" history-after.txt
+          awk -F'|' '
+            NR > 2 {
+              remote=$2
+              gsub(/[`[:space:]]/, "", remote)
+              if (remote ~ /^[0-9]{14}$/) print remote
+            }
+          ' history-after.txt | sort -u > remote-after.txt
 
-          mapfile -t legacy < ops/supabase/history-normalization-legacy-versions-20260920.txt
-          remaining=0
-          for version in "${legacy[@]}"; do
-            if grep -q "${version}" history-after.txt; then
-              echo "Legacy version still present after repair: ${version}"
-              remaining=1
-            fi
-          done
-          if [ "${remaining}" -ne 0 ]; then
+          mapfile -t remote < remote-after.txt
+          if [ "${#remote[@]}" -ne 1 ]; then
+            echo "Expected exactly one remote history row after repair; found ${#remote[@]}."
+            cat remote-after.txt
             exit 1
           fi
 
-          echo "Migration history normalized to canonical baseline."
+          if [ "${remote[0]}" != "${CANONICAL_VERSION}" ]; then
+            echo "Unexpected remote history row after repair: ${remote[0]}"
+            exit 1
+          fi
+
+          echo "Migration history normalized to the single canonical baseline row."
 
       - name: Verify no schema migration would be pushed
         shell: bash
