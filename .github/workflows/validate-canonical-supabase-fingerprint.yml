@@ -46,20 +46,20 @@ jobs:
           set -euo pipefail
           eval "$(supabase status -o env)"
           export DB_URL
-          rm -rf .canonical-fingerprint
-          node scripts/capture-supabase-fingerprint.mjs .canonical-fingerprint
+          rm -rf canonical-fingerprint
+          node scripts/capture-supabase-fingerprint.mjs canonical-fingerprint
 
       - name: Compare rebuilt schema with production fingerprint
         shell: bash
         run: |
-          node scripts/compare-supabase-baseline.mjs             --schema-only             ops/supabase/baseline-fingerprint-20260920             .canonical-fingerprint
+          node scripts/compare-supabase-baseline.mjs             --schema-only             ops/supabase/baseline-fingerprint-20260920             canonical-fingerprint
 
       - name: Upload rebuilt fingerprint
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: canonical-schema-fingerprint-${{ github.run_id }}
-          path: .canonical-fingerprint
+          path: canonical-fingerprint
           if-no-files-found: warn
           retention-days: 30
 
