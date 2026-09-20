@@ -54,8 +54,32 @@ export async function POST(request:Request){
       return NextResponse.json({ok:true,moneyMoved:false,message:"Refund review assigned. No payment action was taken."});
     }
 
+    if(action==="reopen"){
+      if(!existing)return NextResponse.json({error:"Only an existing resolved review can be reopened."},{status:404});
+      if(existing.status!=="resolved")return NextResponse.json({error:"Only a resolved finance review can be reopened for correction."},{status:409});
+      if(!notes)return NextResponse.json({error:"A correction reason is required before reopening a resolved review."},{status:400});
+      const reopenedAt=new Date().toISOString();
+      const {error}=await supabaseAdmin.from("travel_refund_reviews").update({
+        status:"in_review",
+        resolution:null,
+        notes,
+        assigned_to:admin.id,
+        resolved_by:null,
+        resolved_at:null,
+        updated_at:reopenedAt,
+      }).eq("id",existing.id);
+      if(error)throw new Error(error.message);
+
+      return NextResponse.json({
+        ok:true,
+        moneyMoved:false,
+        paymentStatusChanged:false,
+        message:"Finance review reopened for correction. The prior decision remains preserved in append-only history.",
+      });
+    }
+
     if(action==="resolve"){
-      if(existing?.status==="resolved")return NextResponse.json({error:"This refund review is already resolved. Create a governed correction workflow instead of overwriting the recorded decision."},{status:409});
+      if(existing?.status==="resolved")return NextResponse.json({error:"This refund review is already resolved. Reopen it through the governed correction workflow before recording a new decision."},{status:409});
       const resolution=String(body.resolution||"");
       if(!resolutions.has(resolution))return NextResponse.json({error:"A valid resolution is required."},{status:400});
       if(!notes)return NextResponse.json({error:"Finance notes are required before resolving a refund review."},{status:400});
