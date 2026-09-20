@@ -178,7 +178,22 @@ export default async function Page({ params }: { params: Promise<{ token: string
 
   const provisioned = await provisionSupplierEnrollment(user, invitation);
   if (provisioned) {
-    await supabaseAdmin.from("partner_invitations").update({ status: "onboarding", updated_at: new Date().toISOString() }).eq("id", invitation.id).eq("onboarded_user_id", user.id);
+    const onboardingAt = new Date().toISOString();
+    await supabaseAdmin.from("partner_invitations").update({ status: "onboarding", updated_at: onboardingAt }).eq("id", invitation.id).eq("onboarded_user_id", user.id);
+
+    if (invitation.prospect_id) {
+      const { error: followupError } = await supabaseAdmin
+        .from("crm_followups")
+        .update({ status: "completed", completed_at: onboardingAt, updated_at: onboardingAt })
+        .eq("prospect_id", invitation.prospect_id)
+        .eq("status", "open")
+        .ilike("title", "%invitation%")
+        .ilike("notes", `%Invitation ${invitation.id}%`);
+      if (followupError) {
+        console.error("Partner entered onboarding but invitation follow-up could not be completed", followupError);
+      }
+    }
+
     if (invitation.status !== "onboarding" && (invitation.prospect_id || invitation.partner_id)) {
       await supabaseAdmin.from("crm_activities").insert({
         prospect_id: invitation.prospect_id || null,
