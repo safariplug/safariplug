@@ -186,9 +186,12 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             </span>
           </div>
           {readiness.issues.length ? <div className="mt-4 grid gap-2 md:grid-cols-2">
-            {readiness.issues.map((item) => <Link key={item.key} href={item.href} className="rounded-xl border border-zinc-800 bg-black/20 p-3 text-sm text-zinc-200 hover:border-amber-700">
-              <span>{item.label}</span><span className="ml-2 text-amber-300">→</span>
-            </Link>)}
+            {readiness.issues.map((item) => <div key={item.key} className="rounded-xl border border-zinc-800 bg-black/20 p-3 text-sm text-zinc-200">
+              <div className="flex items-start justify-between gap-3">
+                <span>{item.label}</span>
+                <span className="shrink-0 rounded-full border border-amber-700/60 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-300">Supplier action</span>
+              </div>
+            </div>)}
           </div> : <p className="mt-4 text-sm text-emerald-300">All activation requirements are satisfied. Staff approval is still required before activation.</p>}
         </section>
 
