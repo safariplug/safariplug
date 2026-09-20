@@ -1,4 +1,5 @@
 name: Deploy Redundant Index Cleanup
+# capture-dry-run-stderr
 
 on:
   push:
@@ -52,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase db push --dry-run | tee dry-run.txt
+          supabase db push --dry-run 2>&1 | tee dry-run.txt
           grep -q "${TARGET_VERSION}" dry-run.txt
 
       - name: Deploy migration
