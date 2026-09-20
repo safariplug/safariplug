@@ -119,6 +119,7 @@ export default async function ReconciliationPage(){
 
   const foodOrdersById=new Map((foodOrderResult.data||[]).map(row=>[row.id,row]));
   const succeededRefundByOrder=new Map<string,number>();
+  const dayMs=24*60*60*1000;
   for(const refund of foodRefundResult.data||[]){
     const order=foodOrdersById.get(refund.order_id);
     if(!order){
@@ -141,6 +142,33 @@ export default async function ReconciliationPage(){
         });
       }
     }
+    const refundState=String(refund.status);
+    const refundError=String(refund.error_message||"");
+    const refundAgeMs=Date.now()-new Date(refund.updated_at).getTime();
+    const reconciliationRequired=/reconciliation required/i.test(refundError);
+
+    if(["pending","processing"].includes(refundState)&&reconciliationRequired){
+      anomalies.push({
+        key:`food-refund-uncertain-${refund.id}`,
+        severity:"critical",
+        source:"Food refund",
+        reference:order.public_id||order.id,
+        title:"Restaurant M-Pesa reversal requires reconciliation",
+        detail:refundError||"Refund provider outcome is uncertain. Do not retry automatically.",
+        updatedAt:refund.updated_at,
+      });
+    } else if(["pending","processing"].includes(refundState)&&refundAgeMs>dayMs){
+      anomalies.push({
+        key:`food-refund-stale-${refund.id}`,
+        severity:"warning",
+        source:"Food refund",
+        reference:order.public_id||order.id,
+        title:"Restaurant refund has been processing for more than 24 hours",
+        detail:"Confirm M-Pesa reversal state before any retry or manual refund action.",
+        updatedAt:refund.updated_at,
+      });
+    }
+
     if(refund.status==="failed"){
       anomalies.push({
         key:`food-failed-${refund.id}`,severity:"warning",source:"Food refund",
@@ -226,7 +254,6 @@ export default async function ReconciliationPage(){
     }
   }
 
-  const dayMs=24*60*60*1000;
   for(const payout of payoutResult.data||[]){
     const evidence=payout.transaction_receipt||payout.mpesa_transaction_id||payout.payout_reference;
     if(payout.status==="paid"&&(!payout.paid_at||!evidence)){
