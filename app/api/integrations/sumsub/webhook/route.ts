@@ -4,6 +4,26 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
+export async function GET() {
+  const configured = Boolean(
+    process.env.SUMSUB_APP_TOKEN &&
+    process.env.SUMSUB_SECRET_KEY &&
+    process.env.SUMSUB_VERIFICATION_LEVEL &&
+    process.env.SUMSUB_WEBHOOK_SECRET
+  );
+
+  return NextResponse.json({
+    ok: true,
+    endpoint: "sumsub_webhook",
+    accepts: "POST",
+    signature_required: true,
+    configured,
+    message: configured
+      ? "SafariPlug Sumsub webhook endpoint is available and configured."
+      : "SafariPlug Sumsub webhook endpoint is available, but Sumsub production configuration is incomplete.",
+  });
+}
+
 function verifyDigest(raw: string, digest: string | null, algorithm: string | null) {
   const secret = process.env.SUMSUB_WEBHOOK_SECRET;
   if (!secret || !digest) return false;
