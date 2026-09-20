@@ -1,4 +1,5 @@
 name: Normalize Supabase Production Migration History
+# one-time-normalization-trigger
 
 on:
   push:
