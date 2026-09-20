@@ -3,23 +3,24 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-const SERVICE_INVITATION_TYPES: Record<string, { businessType: string; category: string }> = {
+const SUPPLIER_INVITATION_TYPES: Record<string, { businessType: string; category?: string }> = {
   "massage / wellness": { businessType: "Spa & Massage", category: "Spas & Massage" },
   "barber / grooming": { businessType: "Barber", category: "Barbers" },
   "nails / beauty": { businessType: "Nails", category: "Nails" },
   tattoo: { businessType: "Tattoo & Body Art", category: "Tattoo Artists & Body Art" },
   "diving / watersports": { businessType: "Diving & Marine", category: "Diving & Marine" },
   "kitesurfing / instructor": { businessType: "Water Sports & Kite", category: "Water Sports & Kite" },
+  "restaurant / food": { businessType: "Restaurant" },
+  "hotel / stay": { businessType: "Hotel" },
+  "tour / experience": { businessType: "Tour Operator", category: "Tours & Local Guides" },
 };
 
 function destination(type: string) {
   const t = type.toLowerCase();
-  if (SERVICE_INVITATION_TYPES[t]) return "/supplier/onboarding";
+  if (SUPPLIER_INVITATION_TYPES[t]) return "/supplier/onboarding";
   if (t.includes("driver") || t.includes("transfer")) return "/driver/signup";
   if (t.includes("local")) return "/locals/onboarding";
-  if (t.includes("restaurant") || t.includes("food")) return "/business/restaurants";
-  if (t.includes("hotel") || t.includes("stay")) return "/contact";
-  if (t.includes("tour") || t.includes("experience")) return "/submit";
+  if (t.includes("restaurant") || t.includes("food") || t.includes("hotel") || t.includes("stay") || t.includes("tour") || t.includes("experience")) return "/supplier/onboarding";
   return "/business/services";
 }
 
@@ -27,8 +28,8 @@ function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 72);
 }
 
-async function provisionServiceEnrollment(user: { id: string; email?: string | null }, invitation: { id: string; business_name: string; partner_type: string; prospect_id?: string | null; partner_id?: string | null }) {
-  const config = SERVICE_INVITATION_TYPES[invitation.partner_type.toLowerCase()];
+async function provisionSupplierEnrollment(user: { id: string; email?: string | null }, invitation: { id: string; business_name: string; partner_type: string; prospect_id?: string | null; partner_id?: string | null }) {
+  const config = SUPPLIER_INVITATION_TYPES[invitation.partner_type.toLowerCase()];
   if (!config) return false;
 
   const { data: existingSupplier, error: supplierLookupError } = await supabaseAdmin
@@ -83,25 +84,27 @@ async function provisionServiceEnrollment(user: { id: string; email?: string | n
     business = createdBusiness;
   }
 
-  const { data: serviceProfile, error: serviceProfileLookupError } = await supabaseAdmin
-    .from("service_profiles")
-    .select("id")
-    .eq("business_id", business.id)
-    .maybeSingle();
-  if (serviceProfileLookupError) throw new Error(serviceProfileLookupError.message);
-  if (!serviceProfile) {
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from("service_categories")
-      .select("id")
-      .eq("name", config.category)
-      .eq("status", "active")
-      .maybeSingle();
-    if (categoryError) throw new Error(categoryError.message);
-    if (!category) throw new Error(`Service category ${config.category} is not available.`);
-    const { error: createProfileError } = await supabaseAdmin
+  if (config.category) {
+    const { data: serviceProfile, error: serviceProfileLookupError } = await supabaseAdmin
       .from("service_profiles")
-      .insert({ business_id: business.id, category_id: category.id, status: "pending", booking_status: "closed" });
-    if (createProfileError) throw new Error(createProfileError.message);
+      .select("id")
+      .eq("business_id", business.id)
+      .maybeSingle();
+    if (serviceProfileLookupError) throw new Error(serviceProfileLookupError.message);
+    if (!serviceProfile) {
+      const { data: category, error: categoryError } = await supabaseAdmin
+        .from("service_categories")
+        .select("id")
+        .eq("name", config.category)
+        .eq("status", "active")
+        .maybeSingle();
+      if (categoryError) throw new Error(categoryError.message);
+      if (!category) throw new Error(`Service category ${config.category} is not available.`);
+      const { error: createProfileError } = await supabaseAdmin
+        .from("service_profiles")
+        .insert({ business_id: business.id, category_id: category.id, status: "pending", booking_status: "closed" });
+      if (createProfileError) throw new Error(createProfileError.message);
+    }
   }
 
   const { error: supplierError } = await supabaseAdmin.from("supplier_accounts").insert({
@@ -173,7 +176,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
     }
   }
 
-  const provisioned = await provisionServiceEnrollment(user, invitation);
+  const provisioned = await provisionSupplierEnrollment(user, invitation);
   if (provisioned) {
     await supabaseAdmin.from("partner_invitations").update({ status: "onboarding", updated_at: new Date().toISOString() }).eq("id", invitation.id).eq("onboarded_user_id", user.id);
     if (invitation.status !== "onboarding" && (invitation.prospect_id || invitation.partner_id)) {
