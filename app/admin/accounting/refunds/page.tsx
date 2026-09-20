@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { getAdminRole, isFinanceAdminRole, requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import RefundReviewActions from "./RefundReviewActions";
 
@@ -52,7 +52,9 @@ function reasonFromMetadata(metadata: Record<string, unknown>, fallback: string)
 }
 
 export default async function TravelRefundReviewPage() {
-  await requireAdmin();
+  const adminUser=await requireAdmin();
+  const adminRole=await getAdminRole(adminUser.id);
+  const canManageFinance=isFinanceAdminRole(adminRole);
 
   const [hotelResult, transferResult, activityResult, serviceLedgerResult, serviceAppointmentResult, serviceAttemptResult, serviceEventResult, foodRefundResult, foodOrderResult, reviewResult, reviewEventResult] = await Promise.all([
     supabaseAdmin
@@ -365,6 +367,7 @@ export default async function TravelRefundReviewPage() {
                     ledgerId={item.ledgerId}
                     provider={item.provider}
                     reason={item.reason}
+                    canManageFinance={canManageFinance}
                     review={review ? {
                       id:review.id,
                       status:review.status,
