@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     const { data: payment, error: paymentError } = await supabaseAdmin
       .from("food_order_payment_idempotency")
-      .select("order_id")
+      .select("order_id,attempt_active")
       .eq("provider", "mpesa")
       .eq("provider_reference", checkoutRequestId)
       .maybeSingle();
@@ -60,6 +60,12 @@ export async function POST(request: Request) {
     }
     if (String(order.currency || "").toUpperCase() !== "KES") {
       console.error("Restaurant M-Pesa callback currency mismatch", { orderId: order.id, currency: order.currency });
+      return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    }
+
+    // A failure from an older, already inactive attempt must never downgrade
+    // a newer payment attempt. A success is still real money and is applied.
+    if (resultCode !== 0 && payment.attempt_active === false) {
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
