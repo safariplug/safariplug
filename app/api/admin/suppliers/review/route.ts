@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
     const { data: account, error: accountError } = await supabaseAdmin
       .from("supplier_accounts")
-      .select("id,business_id,onboarding_status")
+      .select("id,user_id,business_id,prospect_id,partner_id,onboarding_status")
       .eq("id", supplierId)
       .maybeSingle();
     if (accountError) return NextResponse.json({ error: accountError.message }, { status: 500 });
@@ -81,6 +81,34 @@ export async function POST(request: Request) {
       if (activationError) {
         return NextResponse.json({ error: activationError.message || "Unable to activate supplier." }, { status: 500 });
       }
+
+      const now = new Date().toISOString();
+      const { error: invitationError } = await supabaseAdmin
+        .from("partner_invitations")
+        .update({ status: "active", updated_at: now })
+        .eq("onboarded_user_id", account.user_id)
+        .eq("status", "onboarding");
+      if (invitationError) {
+        return NextResponse.json({
+          error: "Supplier was activated, but the recruitment invitation could not be advanced to active. Review CRM state before continuing.",
+        }, { status: 500 });
+      }
+
+      if (account.prospect_id || account.partner_id) {
+        const { error: activityError } = await supabaseAdmin.from("crm_activities").insert({
+          prospect_id: account.prospect_id || null,
+          partner_id: account.partner_id || null,
+          activity_type: "status_change",
+          summary: "Supplier approved and activated",
+          details: `Supplier account ${account.id} passed activation review and its linked recruitment invitation was advanced to active.`,
+        });
+        if (activityError) {
+          return NextResponse.json({
+            error: "Supplier was activated, but CRM activity logging failed. Review CRM state before continuing.",
+          }, { status: 500 });
+        }
+      }
+
       return NextResponse.json({ success: true, onboarding_status: "approved" });
     }
 
@@ -104,12 +132,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, onboarding_status: "changes_requested", review_items: reviewItems });
     }
 
+    const rejectedAt = new Date().toISOString();
     const { error } = await supabaseAdmin.from("supplier_accounts").update({
       onboarding_status: "rejected",
-      updated_at: new Date().toISOString(),
+      updated_at: rejectedAt,
     }).eq("id", supplierId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    await supabaseAdmin.from("businesses").update({ status: "inactive" }).eq("id", account.business_id);
+
+    const { error: businessError } = await supabaseAdmin.from("businesses").update({ status: "inactive" }).eq("id", account.business_id);
+    if (businessError) return NextResponse.json({ error: businessError.message }, { status: 500 });
+
+    const { error: invitationError } = await supabaseAdmin
+      .from("partner_invitations")
+      .update({ status: "declined", updated_at: rejectedAt })
+      .eq("onboarded_user_id", account.user_id)
+      .in("status", ["signup_started", "onboarding"]);
+    if (invitationError) {
+      return NextResponse.json({
+        error: "Supplier was rejected, but the recruitment invitation could not be marked declined.",
+      }, { status: 500 });
+    }
+
+    if (account.prospect_id || account.partner_id) {
+      const { error: activityError } = await supabaseAdmin.from("crm_activities").insert({
+        prospect_id: account.prospect_id || null,
+        partner_id: account.partner_id || null,
+        activity_type: "status_change",
+        summary: "Supplier onboarding rejected",
+        details: `Supplier account ${account.id} was rejected during SafariPlug review.`,
+      });
+      if (activityError) {
+        return NextResponse.json({
+          error: "Supplier was rejected, but CRM activity logging failed.",
+        }, { status: 500 });
+      }
+    }
+
     return NextResponse.json({ success: true, onboarding_status: "rejected" });
   } catch (error) {
     if (error instanceof AdminAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
