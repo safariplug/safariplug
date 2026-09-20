@@ -17,12 +17,7 @@ export async function POST() {
     return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
   }
 
-  if (!sumsubConfigured()) {
-    return NextResponse.json(
-      { error: "Service specialist identity/liveness verification is not configured yet. SafariPlug will not simulate approval." },
-      { status: 503 }
-    );
-  }
+  const automated = sumsubConfigured();
 
   const { data: staff, error: staffError } = await supabaseAdmin
     .from("service_staff")
@@ -49,8 +44,8 @@ export async function POST() {
 
   if (
     current?.status === "approved" &&
-    staff.identity_liveness_verified_at &&
-    (!current.expires_at || new Date(current.expires_at) > new Date())
+    (!current.expires_at || new Date(current.expires_at) > new Date()) &&
+    (current.provider === "human_review" || staff.identity_liveness_verified_at)
   ) {
     return NextResponse.json({ error: "Service specialist verification is already approved." }, { status: 409 });
   }
@@ -62,9 +57,11 @@ export async function POST() {
         subject_type: "service_staff",
         subject_id: staff.id,
         status: "pending",
-        verification_level: "enhanced",
-        provider: "sumsub",
-        notes: "Service specialist identity + live face/liveness verification started from linked SafariPlug account.",
+        verification_level: automated ? "enhanced" : "basic",
+        provider: automated ? "sumsub" : "human_review",
+        notes: automated
+          ? "Service specialist identity + live face/liveness verification started from linked SafariPlug account."
+          : "SafariPlug staff review requested by the authenticated specialist account.",
       })
       .select("id,status,verification_level,provider,external_id,expires_at")
       .single();
@@ -76,6 +73,19 @@ export async function POST() {
       );
     }
     current = created.data;
+
+    if (!automated) {
+      const { error: evidenceError } = await supabaseAdmin.from("verification_evidence").insert({
+        case_id: current.id,
+        evidence_type: "provider_attestation",
+        status: "submitted",
+        provider: "human_review",
+        submitted_at: new Date().toISOString(),
+      });
+      if (evidenceError) {
+        return NextResponse.json({ error: "Unable to record specialist attestation." }, { status: 500 });
+      }
+    }
   }
 
   if (!["pending", "in_review", "not_started"].includes(current.status)) {
@@ -83,6 +93,20 @@ export async function POST() {
       { error: "This specialist verification case cannot be restarted. Contact SafariPlug support." },
       { status: 409 }
     );
+  }
+
+  if (!automated) {
+    await supabaseAdmin
+      .from("service_staff")
+      .update({ verification_state: "pending", identity_liveness_verified_at: null })
+      .eq("id", staff.id)
+      .neq("verification_state", "verified");
+
+    return NextResponse.json({
+      manualReview: true,
+      caseId: current.id,
+      message: "SafariPlug staff review requested. No paid external verification provider is required.",
+    });
   }
 
   const externalUserId = `safariplug:${current.id}`;
