@@ -16,7 +16,7 @@ function callbackError(status: number, description: string) {
 async function findPayout(conversationId: string) {
   const byConversation = await supabaseAdmin
     .from("service_provider_payouts")
-    .select("id,status")
+    .select("id,status,metadata")
     .eq("mpesa_conversation_id", conversationId)
     .maybeSingle();
 
@@ -25,7 +25,7 @@ async function findPayout(conversationId: string) {
 
   const byReference = await supabaseAdmin
     .from("service_provider_payouts")
-    .select("id,status")
+    .select("id,status,metadata")
     .eq("payout_reference", conversationId)
     .maybeSingle();
 
@@ -79,9 +79,12 @@ export async function POST(request: Request) {
         mpesa_result_code: resultCode,
         mpesa_result_description: String(result?.ResultDesc || ""),
         metadata: {
+          ...(payout.metadata && typeof payout.metadata === "object" && !Array.isArray(payout.metadata)
+            ? payout.metadata
+            : {}),
+          b2c_result: body,
           conversationId,
           resultCode,
-          result: body,
           transactionReceipt: receipt ?? null,
         },
         payout_reference: receipt ? String(receipt) : conversationId,
