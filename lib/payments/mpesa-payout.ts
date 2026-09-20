@@ -1,5 +1,20 @@
 export type MpesaPayoutStatus = "processing" | "succeeded" | "failed";
 
+export class MpesaPayoutSubmissionError extends Error {
+  constructor(
+    message: string,
+    public readonly submissionOutcome: "not_sent" | "uncertain",
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.name = "MpesaPayoutSubmissionError";
+  }
+}
+
+export function isMpesaPayoutSubmissionUncertain(error: unknown) {
+  return error instanceof MpesaPayoutSubmissionError && error.submissionOutcome === "uncertain";
+}
+
 function config() {
   const consumerKey = process.env.MPESA_CONSUMER_KEY?.trim();
   const consumerSecret = process.env.MPESA_CONSUMER_SECRET?.trim();
@@ -54,30 +69,71 @@ export async function createMpesaB2CPayout(input: MpesaPayoutInput) {
   const cfg = config();
   const amount = Math.round(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_mpesa_payout_amount");
+  const phone = normalizePhone(input.phone);
   const token = await accessToken();
-  const response = await fetch(`${baseUrl()}/mpesa/b2c/v1/paymentrequest`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      InitiatorName: cfg.initiatorName,
-      SecurityCredential: cfg.securityCredential,
-      CommandID: "BusinessPayment",
-      Amount: amount,
-      PartyA: cfg.shortcode,
-      PartyB: normalizePhone(input.phone),
-      Remarks: input.remarks || `SafariPlug provider payout ${input.payoutId}`,
-      QueueTimeOutURL: cfg.queueTimeoutUrl,
-      ResultURL: cfg.resultUrl,
-      Occasion: input.occasion || "SafariPlug provider payout",
-    }),
-  });
-  const body = await response.text();
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}/mpesa/b2c/v1/paymentrequest`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        InitiatorName: cfg.initiatorName,
+        SecurityCredential: cfg.securityCredential,
+        CommandID: "BusinessPayment",
+        Amount: amount,
+        PartyA: cfg.shortcode,
+        PartyB: phone,
+        Remarks: input.remarks || `SafariPlug provider payout ${input.payoutId}`,
+        QueueTimeOutURL: cfg.queueTimeoutUrl,
+        ResultURL: cfg.resultUrl,
+        Occasion: input.occasion || "SafariPlug provider payout",
+      }),
+    });
+  } catch (error) {
+    throw new MpesaPayoutSubmissionError(
+      "mpesa_b2c_submission_outcome_uncertain",
+      "uncertain",
+      { cause: error },
+    );
+  }
+
+  let body: string;
+  try {
+    body = await response.text();
+  } catch (error) {
+    throw new MpesaPayoutSubmissionError(
+      "mpesa_b2c_response_unreadable_after_submission",
+      "uncertain",
+      { cause: error },
+    );
+  }
+
   let parsed: Record<string, unknown> = {};
   try { parsed = JSON.parse(body) as Record<string, unknown>; } catch {}
-  if (!response.ok || String(parsed.ResponseCode ?? "0") !== "0") {
-    throw new Error(`mpesa_b2c_error:${response.status}:${String(parsed.ResponseDescription || body).slice(0, 300)}`);
+
+  const responseCode = parsed.ResponseCode == null ? null : String(parsed.ResponseCode);
+  if (responseCode && responseCode !== "0") {
+    throw new MpesaPayoutSubmissionError(
+      `mpesa_b2c_rejected:${response.status}:${String(parsed.ResponseDescription || body).slice(0, 300)}`,
+      "not_sent",
+    );
   }
+
+  if (!response.ok) {
+    throw new MpesaPayoutSubmissionError(
+      `mpesa_b2c_http_error:${response.status}:${String(parsed.ResponseDescription || body).slice(0, 300)}`,
+      response.status >= 500 ? "uncertain" : "not_sent",
+    );
+  }
+
   const conversationId = String(parsed.ConversationID || parsed.OriginatorConversationID || "");
-  if (!conversationId) throw new Error("mpesa_b2c_conversation_missing");
+  if (!conversationId) {
+    throw new MpesaPayoutSubmissionError(
+      "mpesa_b2c_accepted_without_conversation_reference",
+      "uncertain",
+    );
+  }
+
   return { payoutId: input.payoutId, providerReference: conversationId, status: "processing" as const, raw: parsed };
 }
