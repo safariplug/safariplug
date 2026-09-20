@@ -21,10 +21,27 @@ function config() {
   const securityCredential = process.env.MPESA_REVERSAL_SECURITY_CREDENTIAL?.trim();
   const resultUrl = process.env.MPESA_REVERSAL_RESULT_URL?.trim();
   const timeoutUrl = process.env.MPESA_REVERSAL_TIMEOUT_URL?.trim();
-  if (!consumerKey || !consumerSecret || !shortCode || !initiator || !securityCredential || !resultUrl || !timeoutUrl) {
+  const callbackSecret =
+    process.env.MPESA_REVERSAL_CALLBACK_SECRET?.trim() ||
+    process.env.MPESA_B2C_CALLBACK_SECRET?.trim();
+  if (!consumerKey || !consumerSecret || !shortCode || !initiator || !securityCredential || !resultUrl || !timeoutUrl || !callbackSecret) {
     throw new Error("mpesa_reversal_credentials_not_configured");
   }
-  return { consumerKey, consumerSecret, shortCode, initiator, securityCredential, resultUrl, timeoutUrl };
+  return {
+    consumerKey,
+    consumerSecret,
+    shortCode,
+    initiator,
+    securityCredential,
+    resultUrl: withCallbackSecret(resultUrl, callbackSecret),
+    timeoutUrl: withCallbackSecret(timeoutUrl, callbackSecret),
+  };
+}
+
+function withCallbackSecret(value: string, secret: string) {
+  const url = new URL(value);
+  url.searchParams.set("token", secret);
+  return url.toString();
 }
 
 function baseUrl() {
