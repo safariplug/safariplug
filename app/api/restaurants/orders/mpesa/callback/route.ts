@@ -80,6 +80,17 @@ export async function POST(request: Request) {
       .neq("payment_status", "paid");
     if (updateError) throw updateError;
 
+    const { error: attemptUpdateError } = await supabaseAdmin
+      .from("food_order_payment_idempotency")
+      .update({
+        attempt_active: false,
+        processing_until: null,
+        provider_submission_state: "ready",
+      })
+      .eq("provider", "mpesa")
+      .eq("provider_reference", checkoutRequestId);
+    if (attemptUpdateError) throw attemptUpdateError;
+
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
   } catch (error) {
     console.error("Restaurant M-Pesa callback error", error);
