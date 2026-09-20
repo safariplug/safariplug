@@ -357,11 +357,16 @@ export async function startBackgroundScout(job: QueuedScoutJob) {
 
 export async function pollBackgroundScout(responseId: string) {
   const response = await openAI().responses.retrieve(responseId);
+  const incompleteReason =
+    response.status === "incomplete"
+      ? String(response.incomplete_details?.reason || "").trim() || null
+      : null;
   return {
     id: response.id,
     status: response.status,
     outputText: response.output_text?.trim() || "",
     error: response.error?.message || null,
+    incompleteReason,
   };
 }
 
