@@ -82,7 +82,7 @@ export async function GET(request: Request) {
         ? ["Submit your onboarding for SafariPlug staff review"]
         : [];
       const missing = [...new Set([
-        ...readiness.issues.map((item) => item.label),
+        ...readiness.issues.filter((item) => item.owner === "supplier").map((item) => item.label),
         ...reviewRequested,
         ...workflowItems,
       ])].slice(0, 20);
