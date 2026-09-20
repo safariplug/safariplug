@@ -49,3 +49,17 @@ The production checkpoint captured on 2026-09-20 contains:
 - 47 non-internal triggers
 - 470 constraints
 - 1 public view
+
+
+## Final history normalization
+
+The canonical schema is merged and verified. Production migration-history bookkeeping is the only remaining normalization step.
+
+The guarded workflow is `.github/workflows/supabase-history-normalization.yml`. It has two modes:
+
+- `plan`: read-only. It links to production, captures `migration list --linked`, and requires the live remote version set to match the recorded 206-version manifest exactly.
+- `apply`: history-only. It requires the exact confirmation `normalize-safariplug-history-20260920-20260920030845`, marks the recorded superseded versions reverted using `supabase migration repair`, marks canonical version `20260920030845` applied, then verifies the remote migration list and regenerated production types.
+
+The workflow contains no `db push`, `db pull`, or remote `db reset`. Direct SQL edits to `supabase_migrations.schema_migrations` remain prohibited.
+
+Read-only preflight run `35486748455` verified that production still contains exactly the planned 206 superseded migration versions and does not yet contain the canonical version.
