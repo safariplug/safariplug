@@ -33,3 +33,10 @@ Safaricom's B2C flow is asynchronous. The ResultURL records the final outcome. T
 5. Safaricom ResultURL changes it to `paid` or `failed`.
 
 No payout is sent merely because credentials exist. An administrator must explicitly release an approved payout.
+
+
+## Result callback persistence
+
+The B2C result callback is acknowledged as successfully processed only after SafariPlug can match the payout and persist the final state, or when the payout is already in an idempotent terminal state. Unmatched callbacks and database persistence failures are not silently acknowledged as successful.
+
+Callback processing preserves the original B2C request evidence in payout metadata and adds the provider result alongside it for reconciliation.
