@@ -88,6 +88,7 @@ test("platform blocker becomes waiting state when supplier work is complete", ()
       { key: "verification", label: "SafariPlug verification is not configured", href: "/business/verification", owner: "platform" },
     ],
   });
-  assert.equal(next.title, "Waiting on SafariPlug verification setup");
+  assert.equal(next.title, "Waiting on SafariPlug");
+  assert.match(next.detail, /remaining platform setup/i);
   assert.equal(next.href, null);
 });
