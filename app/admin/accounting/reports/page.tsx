@@ -234,6 +234,16 @@ export default async function FinanceReportsPage({
     reviewResult.error,
   ].filter(Boolean);
 
+  const cappedSources = [
+    (hotelResult.data || []).length >= 5000 ? "hotel ledger" : null,
+    (transferResult.data || []).length >= 5000 ? "transfer ledger" : null,
+    (activityResult.data || []).length >= 5000 ? "activity ledger" : null,
+    (payoutResult.data || []).length >= 5000 ? "service payouts" : null,
+    (foodOrderResult.data || []).length >= 5000 ? "food orders" : null,
+    (foodRefundResult.data || []).length >= 5000 ? "food refunds" : null,
+    (reviewResult.data || []).length >= 5000 ? "refund reviews" : null,
+  ].filter((value): value is string => Boolean(value));
+
   return (
     <main className="min-h-screen bg-[#070707] px-5 py-10 text-white md:px-10">
       <div className="mx-auto max-w-7xl">
@@ -274,7 +284,13 @@ export default async function FinanceReportsPage({
 
         {queryErrors.length ? (
           <div className="mt-6 rounded-2xl border border-red-900/40 bg-red-950/20 p-5 text-sm text-red-200">
-            One or more financial sources could not be loaded. This report may be incomplete.
+            One or more financial sources could not be loaded. This report is incomplete and should not be used as a financial control total.
+          </div>
+        ) : null}
+
+        {cappedSources.length ? (
+          <div className="mt-4 rounded-2xl border border-amber-900/40 bg-amber-950/20 p-5 text-sm text-amber-200">
+            Source row limits were reached for {cappedSources.join(", ")}. Figures shown are partial for the selected window.
           </div>
         ) : null}
 

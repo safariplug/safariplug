@@ -245,6 +245,19 @@ export default async function TravelRefundReviewPage() {
     reviewResult.error,
   ].filter(Boolean);
 
+  const cappedSources=[
+    (hotelResult.data||[]).length>=500?"hotel ledger":null,
+    (transferResult.data||[]).length>=500?"transfer ledger":null,
+    (activityResult.data||[]).length>=500?"activity ledger":null,
+    (serviceLedgerResult.data||[]).length>=500?"service payment ledger":null,
+    (serviceAppointmentResult.data||[]).length>=1000?"service appointments":null,
+    (serviceAttemptResult.data||[]).length>=1000?"service payment attempts":null,
+    (serviceEventResult.data||[]).length>=1000?"service payment events":null,
+    (foodRefundResult.data||[]).length>=500?"food refunds":null,
+    (foodOrderResult.data||[]).length>=1000?"food orders":null,
+    (reviewResult.data||[]).length>=1000?"refund reviews":null,
+  ].filter((value):value is string=>Boolean(value));
+
   return (
     <main className="min-h-screen bg-[#070707] px-5 py-10 text-white md:px-10">
       <div className="mx-auto max-w-7xl">
@@ -265,7 +278,13 @@ export default async function TravelRefundReviewPage() {
 
         {queryErrors.length ? (
           <div className="mt-6 rounded-2xl border border-red-900/40 bg-red-950/20 p-5 text-sm text-red-200">
-            One or more financial sources could not be loaded. Counts may be incomplete.
+            One or more financial sources could not be loaded. Counts are incomplete and should not be used as finance-control totals.
+          </div>
+        ) : null}
+
+        {cappedSources.length ? (
+          <div className="mt-4 rounded-2xl border border-amber-900/40 bg-amber-950/20 p-5 text-sm text-amber-200">
+            Source row limits were reached for {cappedSources.join(", ")}. Some refund candidates may be outside the loaded window.
           </div>
         ) : null}
 
