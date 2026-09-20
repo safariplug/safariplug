@@ -28,6 +28,30 @@ function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 72);
 }
 
+type StableEnrollmentLink = {
+  prospect_id?: string | null;
+  partner_id?: string | null;
+};
+
+function assertCompatibleEnrollmentLink(existing: StableEnrollmentLink, invitation: StableEnrollmentLink) {
+  if (existing.prospect_id && invitation.prospect_id && existing.prospect_id !== invitation.prospect_id) {
+    throw new Error("This account is already linked to a different SafariPlug prospect. Staff must resolve the CRM link before this invitation can continue.");
+  }
+  if (existing.partner_id && invitation.partner_id && existing.partner_id !== invitation.partner_id) {
+    throw new Error("This account is already linked to a different SafariPlug partner relationship. Staff must resolve the CRM link before this invitation can continue.");
+  }
+}
+
+async function preflightSupplierEnrollment(userId: string, invitation: StableEnrollmentLink) {
+  const { data: existingSupplier, error } = await supabaseAdmin
+    .from("supplier_accounts")
+    .select("prospect_id,partner_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (existingSupplier) assertCompatibleEnrollmentLink(existingSupplier, invitation);
+}
+
 async function provisionSupplierEnrollment(user: { id: string; email?: string | null }, invitation: { id: string; business_name: string; partner_type: string; prospect_id?: string | null; partner_id?: string | null }) {
   const config = SUPPLIER_INVITATION_TYPES[invitation.partner_type.toLowerCase()];
   if (!config) return false;
@@ -39,6 +63,7 @@ async function provisionSupplierEnrollment(user: { id: string; email?: string | 
     .maybeSingle();
   if (supplierLookupError) throw new Error(supplierLookupError.message);
   if (existingSupplier) {
+    assertCompatibleEnrollmentLink(existingSupplier, invitation);
     const updates: Record<string, string> = {};
     if (!existingSupplier.prospect_id && invitation.prospect_id) updates.prospect_id = invitation.prospect_id;
     if (!existingSupplier.partner_id && invitation.partner_id) updates.partner_id = invitation.partner_id;
@@ -141,6 +166,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
   if (!user) return <main className="mx-auto max-w-2xl p-6 py-16"><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug Partner Invitation</p><h1 className="mt-4 text-4xl font-semibold">You’re invited, {invitation.business_name}.</h1><p className="mt-5 text-black/60">Join SafariPlug as a {invitation.partner_type}. Create or sign in to your SafariPlug account first. Your invitation will remain attached to your enrollment.</p><Link href={`/login?mode=signup&as=partner&next=${encodeURIComponent(next)}`} className="mt-8 inline-flex rounded-full bg-black px-6 py-3 font-semibold text-white">Create partner account</Link><p className="mt-5 text-sm text-black/45">Signing up does not automatically verify or activate a listing. Marketplace-specific identity, business, licensing, photo and compliance checks still apply.</p></main>;
 
   if (invitation.onboarded_user_id && invitation.onboarded_user_id !== user.id) notFound();
+  await preflightSupplierEnrollment(user.id, invitation);
   if (!invitation.onboarded_user_id) {
     const { data: claimed, error: claimError } = await supabaseAdmin
       .from("partner_invitations")
