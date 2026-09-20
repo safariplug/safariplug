@@ -1,0 +1,1125 @@
+{
+  "captured_at_utc": "2026-09-20",
+  "project_ref": "safcizxahjqassrwhrup",
+  "enums": [],
+  "views": [
+    {
+      "name": "driver_compliance_overview",
+      "owner": "postgres",
+      "definition": " SELECT d.id AS driver_id,\n    d.display_name,\n    d.service_status,\n    d.verification_state,\n    d.driving_license_number,\n    d.driving_license_expires_on,\n        CASE\n            WHEN (d.driving_license_expires_on IS NULL) THEN 'missing'::text\n            WHEN (d.driving_license_expires_on < CURRENT_DATE) THEN 'expired'::text\n            WHEN (d.driving_license_expires_on <= (CURRENT_DATE + 60)) THEN 'expiring_soon'::text\n            ELSE 'valid'::text\n        END AS driving_license_status,\n    v.id AS vehicle_id,\n    v.make_model,\n    v.registration_number,\n    v.registration_expires_on,\n        CASE\n            WHEN (v.registration_expires_on IS NULL) THEN 'missing'::text\n            WHEN (v.registration_expires_on < CURRENT_DATE) THEN 'expired'::text\n            WHEN (v.registration_expires_on <= (CURRENT_DATE + 60)) THEN 'expiring_soon'::text\n            ELSE 'valid'::text\n        END AS registration_status,\n    v.insurance_policy_number,\n    v.insurance_expires_on,\n        CASE\n            WHEN (v.insurance_expires_on IS NULL) THEN 'missing'::text\n            WHEN (v.insurance_expires_on < CURRENT_DATE) THEN 'expired'::text\n            WHEN (v.insurance_expires_on <= (CURRENT_DATE + 60)) THEN 'expiring_soon'::text\n            ELSE 'valid'::text\n        END AS insurance_status\n   FROM (driver_profiles d\n     LEFT JOIN LATERAL ( SELECT v0.id,\n            v0.provider_id,\n            v0.driver_id,\n            v0.category,\n            v0.make_model,\n            v0.passenger_capacity,\n            v0.luggage_capacity,\n            v0.accessibility,\n            v0.status,\n            v0.created_at,\n            v0.updated_at,\n            v0.registration_number,\n            v0.registration_expires_on,\n            v0.registration_document_path,\n            v0.registration_document_uploaded_at,\n            v0.insurance_policy_number,\n            v0.insurance_expires_on,\n            v0.insurance_document_path,\n            v0.insurance_document_uploaded_at,\n            v0.registration_compliance_status,\n            v0.insurance_compliance_status\n           FROM vehicles v0\n          WHERE (v0.driver_id = d.id)\n          ORDER BY v0.created_at DESC\n         LIMIT 1) v ON (true));"
+    }
+  ],
+  "relations": [
+    {
+      "kind": "r",
+      "name": "activity_booking_pricing_ledger",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "admin_telemetry_logs",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "admin_users",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "ai_discovered_events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "ai_event_itineraries",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "ai_sales_outreach",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "ai_sales_prospects",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "ai_scans",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "ai_scout_locks",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "ai_scout_runs",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "aurelian_feed_runs",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "booking_status_events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "bookings",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "businesses",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "categories",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "cities",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "concierge_rate_limits",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "crm_activities",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "crm_contacts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "crm_conversions",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "crm_followups",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "discoveries",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "driver_assignments",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "driver_availability",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "driver_compliance_alerts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "v",
+      "name": "driver_compliance_overview",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": false
+    },
+    {
+      "kind": "r",
+      "name": "driver_profiles",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "driver_transfer_rates",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "driver_transfer_requests",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "food_delivery_assignments",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "food_order_item_options",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "food_order_items",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "food_order_payment_idempotency",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "food_order_refunds",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "food_orders",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "hotel_booking_pricing_ledger",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "hotel_checkout_intents",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "hotelbeds_content_sync_state",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "hotelbeds_hotel_content",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "integration_syncs",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "inventory_kinds",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "journal_articles",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "listings",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "local_availability",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "local_profiles",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "local_requests",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "marketing_drafts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "S",
+      "name": "marketing_drafts_id_seq",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": false
+    },
+    {
+      "kind": "r",
+      "name": "offerings",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "partner_invitations",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "price_quotes",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "profiles",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "promotions",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "providers",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "push_notification_tokens",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "restaurant_menu_categories",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "restaurant_menu_item_option_values",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "restaurant_menu_item_options",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "restaurant_menu_items",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "restaurant_settings",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "safari_partners",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "saved_events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "scout_runs",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_appointment_notifications",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_appointment_status_events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_appointments",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_categories",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_offerings",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_payment_events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_payment_idempotency",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_payment_ledger",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_payment_webhook_events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_profiles",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_provider_payout_accounts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_provider_payouts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_staff",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_staff_availability",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_staff_blockouts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_staff_claim_tokens",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "service_staff_offerings",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "sources",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "supplier_accounts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "supplier_followup_prep_runs",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "supplier_onboarding_followup_drafts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "supplier_onboarding_followups",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "supplier_scout_jobs",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "transfer_booking_pricing_ledger",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "travel_refund_review_events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "S",
+      "name": "travel_refund_review_events_id_seq",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": false
+    },
+    {
+      "kind": "r",
+      "name": "travel_refund_reviews",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "trip_items",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "trip_package_checkout_attempts",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "trip_package_payment_intents",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "trip_package_quotes",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "trips",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "vehicles",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "verification_cases",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "verification_events",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    },
+    {
+      "kind": "r",
+      "name": "verification_evidence",
+      "owner": "postgres",
+      "rls_forced": false,
+      "rls_enabled": true
+    }
+  ],
+  "sequences": [
+    {
+      "name": "marketing_drafts_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    },
+    {
+      "name": "travel_refund_review_events_id_seq",
+      "cycle": false,
+      "owner": "postgres",
+      "data_type": "bigint",
+      "max_value": 9223372036854776000,
+      "min_value": 1,
+      "cache_size": 1,
+      "start_value": 1,
+      "increment_by": 1
+    }
+  ],
+  "extensions": [
+    {
+      "name": "btree_gist",
+      "schema": "extensions",
+      "version": "1.7"
+    },
+    {
+      "name": "pg_cron",
+      "schema": "pg_catalog",
+      "version": "1.6.4"
+    },
+    {
+      "name": "pg_net",
+      "schema": "extensions",
+      "version": "0.20.4"
+    },
+    {
+      "name": "pg_stat_statements",
+      "schema": "extensions",
+      "version": "1.11"
+    },
+    {
+      "name": "pgcrypto",
+      "schema": "extensions",
+      "version": "1.3"
+    },
+    {
+      "name": "plpgsql",
+      "schema": "pg_catalog",
+      "version": "1.0"
+    },
+    {
+      "name": "supabase_vault",
+      "schema": "vault",
+      "version": "0.3.1"
+    },
+    {
+      "name": "uuid-ossp",
+      "schema": "extensions",
+      "version": "1.1"
+    }
+  ],
+  "role_memberships": [
+    {
+      "role": "anon",
+      "member": "authenticator",
+      "admin_option": false
+    },
+    {
+      "role": "anon",
+      "member": "postgres",
+      "admin_option": true
+    },
+    {
+      "role": "anon",
+      "member": "supabase_realtime_admin",
+      "admin_option": false
+    },
+    {
+      "role": "authenticated",
+      "member": "authenticator",
+      "admin_option": false
+    },
+    {
+      "role": "authenticated",
+      "member": "postgres",
+      "admin_option": true
+    },
+    {
+      "role": "authenticated",
+      "member": "supabase_realtime_admin",
+      "admin_option": false
+    },
+    {
+      "role": "authenticator",
+      "member": "postgres",
+      "admin_option": true
+    },
+    {
+      "role": "pg_create_subscription",
+      "member": "postgres",
+      "admin_option": true
+    },
+    {
+      "role": "pg_monitor",
+      "member": "postgres",
+      "admin_option": true
+    },
+    {
+      "role": "pg_read_all_data",
+      "member": "postgres",
+      "admin_option": true
+    },
+    {
+      "role": "pg_signal_backend",
+      "member": "postgres",
+      "admin_option": true
+    },
+    {
+      "role": "postgres",
+      "member": "cli_login_postgres",
+      "admin_option": false
+    },
+    {
+      "role": "service_role",
+      "member": "authenticator",
+      "admin_option": false
+    },
+    {
+      "role": "service_role",
+      "member": "postgres",
+      "admin_option": true
+    },
+    {
+      "role": "service_role",
+      "member": "supabase_realtime_admin",
+      "admin_option": false
+    },
+    {
+      "role": "supabase_privileged_role",
+      "member": "postgres",
+      "admin_option": false
+    }
+  ],
+  "default_privileges": [
+    {
+      "acl": [
+        "postgres=rwU/postgres",
+        "service_role=rwU/postgres"
+      ],
+      "owner": "postgres",
+      "schema": "public",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "owner": "postgres",
+      "schema": "public",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "owner": "postgres",
+      "schema": "public",
+      "object_type": "r"
+    },
+    {
+      "acl": [
+        "postgres=rwU/postgres",
+        "anon=rwU/postgres",
+        "authenticated=rwU/postgres",
+        "service_role=rwU/postgres"
+      ],
+      "owner": "postgres",
+      "schema": "storage",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "owner": "postgres",
+      "schema": "storage",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "anon=arwdDxtm/postgres",
+        "authenticated=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "owner": "postgres",
+      "schema": "storage",
+      "object_type": "r"
+    },
+    {
+      "acl": [
+        "postgres=r*w*U*/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "cron",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X*/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "cron",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=a*r*w*d*D*x*t*m*/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "cron",
+      "object_type": "r"
+    },
+    {
+      "acl": [
+        "postgres=r*w*U*/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "extensions",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X*/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "extensions",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=a*r*w*d*D*x*t*m*/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "extensions",
+      "object_type": "r"
+    },
+    {
+      "acl": [
+        "postgres=rwU/supabase_admin",
+        "anon=rwU/supabase_admin",
+        "authenticated=rwU/supabase_admin",
+        "service_role=rwU/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "graphql",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X/supabase_admin",
+        "anon=X/supabase_admin",
+        "authenticated=X/supabase_admin",
+        "service_role=X/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "graphql",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/supabase_admin",
+        "anon=arwdDxtm/supabase_admin",
+        "authenticated=arwdDxtm/supabase_admin",
+        "service_role=arwdDxtm/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "graphql",
+      "object_type": "r"
+    },
+    {
+      "acl": [
+        "postgres=rwU/supabase_admin",
+        "anon=rwU/supabase_admin",
+        "authenticated=rwU/supabase_admin",
+        "service_role=rwU/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "graphql_public",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X/supabase_admin",
+        "anon=X/supabase_admin",
+        "authenticated=X/supabase_admin",
+        "service_role=X/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "graphql_public",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/supabase_admin",
+        "anon=arwdDxtm/supabase_admin",
+        "authenticated=arwdDxtm/supabase_admin",
+        "service_role=arwdDxtm/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "graphql_public",
+      "object_type": "r"
+    },
+    {
+      "acl": [
+        "postgres=rwU/supabase_admin",
+        "anon=rwU/supabase_admin",
+        "authenticated=rwU/supabase_admin",
+        "service_role=rwU/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "public",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X/supabase_admin",
+        "anon=X/supabase_admin",
+        "authenticated=X/supabase_admin",
+        "service_role=X/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "public",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/supabase_admin",
+        "anon=arwdDxtm/supabase_admin",
+        "authenticated=arwdDxtm/supabase_admin",
+        "service_role=arwdDxtm/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "public",
+      "object_type": "r"
+    },
+    {
+      "acl": [
+        "postgres=rwU/supabase_admin",
+        "dashboard_user=rwU/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "realtime",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X/supabase_admin",
+        "dashboard_user=X/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "realtime",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/supabase_admin",
+        "dashboard_user=arwdDxtm/supabase_admin"
+      ],
+      "owner": "supabase_admin",
+      "schema": "realtime",
+      "object_type": "r"
+    },
+    {
+      "acl": [
+        "postgres=rwU/supabase_auth_admin",
+        "dashboard_user=rwU/supabase_auth_admin"
+      ],
+      "owner": "supabase_auth_admin",
+      "schema": "auth",
+      "object_type": "S"
+    },
+    {
+      "acl": [
+        "postgres=X/supabase_auth_admin",
+        "dashboard_user=X/supabase_auth_admin"
+      ],
+      "owner": "supabase_auth_admin",
+      "schema": "auth",
+      "object_type": "f"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/supabase_auth_admin",
+        "dashboard_user=arwdDxtm/supabase_auth_admin"
+      ],
+      "owner": "supabase_auth_admin",
+      "schema": "auth",
+      "object_type": "r"
+    }
+  ]
+}
