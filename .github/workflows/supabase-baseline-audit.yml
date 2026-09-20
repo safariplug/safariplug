@@ -1,0 +1,105 @@
+name: Supabase Production Baseline Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type capture-production-baseline-20260920 to run the read-only audit"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-baseline-audit
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    if: >-
+      github.actor == github.repository_owner &&
+      inputs.confirmation == 'capture-production-baseline-20260920'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROJECT_REF: safcizxahjqassrwhrup
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      NO_COLOR: "1"
+      SUPABASE_DISABLE_TELEMETRY: "1"
+
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Validate read-only audit inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN}" || { echo "Missing SUPABASE_ACCESS_TOKEN repository secret."; exit 1; }
+          test -n "${SUPABASE_DB_PASSWORD}" || { echo "Missing SUPABASE_DB_PASSWORD repository secret."; exit 1; }
+
+      - name: Initialize isolated audit workdir
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .baseline-audit baseline-artifacts
+          mkdir -p .baseline-audit baseline-artifacts
+          cd .baseline-audit
+          supabase init
+          supabase link --project-ref "${PROJECT_REF}"
+
+      - name: Capture remote migration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .baseline-audit
+          supabase migration list --linked | tee ../baseline-artifacts/migration-list.txt
+
+      - name: Capture production schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .baseline-audit
+          supabase db dump --linked > ../baseline-artifacts/production-schema.sql
+          supabase db dump --linked --role-only > ../baseline-artifacts/production-roles.sql
+
+      - name: Capture generated database types
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .baseline-audit
+          supabase gen types typescript --linked > ../baseline-artifacts/production.types.ts
+
+      - name: Record audit manifest and hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "captured_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "project_ref=${PROJECT_REF}"
+            echo "supabase_cli=$(supabase --version)"
+            echo "git_sha=${GITHUB_SHA}"
+            echo "mode=read-only"
+          } > baseline-artifacts/manifest.txt
+
+          (
+            cd baseline-artifacts
+            sha256sum migration-list.txt production-schema.sql production-roles.sql production.types.ts manifest.txt > SHA256SUMS
+          )
+
+      - name: Preserve baseline evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-production-baseline-${{ github.run_id }}
+          path: baseline-artifacts/
+          if-no-files-found: error
+          retention-days: 30
