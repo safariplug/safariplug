@@ -32,9 +32,11 @@ async function loadSdk() {
 export default function SpecialistVerificationStart({
   claimToken,
   initialStatus,
+  automatedReady,
 }: {
   claimToken?: string | null;
   initialStatus: string | null;
+  automatedReady: boolean;
 }) {
   const [status, setStatus] = useState(initialStatus);
   const [claimBusy, setClaimBusy] = useState(Boolean(claimToken));
@@ -89,6 +91,11 @@ export default function SpecialistVerificationStart({
         return;
       }
       if (!response.ok) throw new Error(body?.error || "Unable to prepare specialist verification.");
+      if (body.manualReview) {
+        setStatus("pending");
+        setMessage(body.message || "SafariPlug staff review requested.");
+        return;
+      }
 
       const sdk = await loadSdk();
       if (!sdk) throw new Error("Verification provider SDK is unavailable.");
@@ -130,7 +137,7 @@ export default function SpecialistVerificationStart({
   if (status === "verified") {
     return (
       <div className="mt-6 rounded-2xl bg-emerald-50 p-5 text-sm text-emerald-900">
-        Your identity + live face/liveness verification is approved. Your business can make you bookable once the remaining service and availability requirements are satisfied.
+        Your SafariPlug verification is approved. Your business can make you bookable once the remaining service and availability requirements are satisfied.
       </div>
     );
   }
@@ -148,7 +155,7 @@ export default function SpecialistVerificationStart({
           onClick={() => void start()}
           className="mt-6 rounded-full bg-black px-6 py-3 text-sm font-bold text-white disabled:opacity-40"
         >
-          {busy ? "Preparing secure check…" : "Start identity + live face verification"}
+          {busy ? "Preparing…" : automatedReady ? "Start identity + live face verification" : "Request SafariPlug staff review"}
         </button>
       ) : null}
 

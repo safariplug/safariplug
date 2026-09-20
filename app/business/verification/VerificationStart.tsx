@@ -29,12 +29,19 @@ async function loadSdk() {
   return window.snsWebSdk;
 }
 
-export default function VerificationStart({ hasCase, status }: { hasCase: boolean; status: string | null }) {
+export default function VerificationStart({ hasCase, status, automatedReady }: { hasCase: boolean; status: string | null; automatedReady: boolean }) {
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const [open, setOpen] = useState(false);
   async function start() {
     setBusy(true); setMessage("");
     try {
-      if (!hasCase) { const startResponse = await fetch("/api/business/verification", { method: "POST" }); const startBody = await startResponse.json().catch(() => ({})); if (!startResponse.ok) throw new Error(startBody.error || "Unable to start verification."); }
+      const startResponse = await fetch("/api/business/verification", { method: "POST" });
+      const startBody = await startResponse.json().catch(() => ({}));
+      if (!startResponse.ok) throw new Error(startBody.error || "Unable to start verification.");
+      if (startBody.manualReview) {
+        setMessage(startBody.message || "SafariPlug staff review requested.");
+        window.setTimeout(() => window.location.reload(), 700);
+        return;
+      }
       const response = await fetch("/api/business/verification/session", { method: "POST" }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || "Unable to prepare verification.");
       const sdk = await loadSdk(); if (!sdk) throw new Error("Verification provider SDK is unavailable."); setOpen(true);
       window.setTimeout(() => {
@@ -47,6 +54,6 @@ export default function VerificationStart({ hasCase, status }: { hasCase: boolea
       }, 50);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to start verification."); } finally { setBusy(false); }
   }
-  if (status === "approved") return <div className="mt-6 rounded-2xl bg-emerald-50 p-5 text-sm text-emerald-900">Your provider verification is approved. Payout execution remains subject to the current payout destination and compliance checks.</div>;
-  return <><div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center"><button disabled={busy || status === "in_review"} onClick={() => void start()} className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:opacity-35">{busy ? "Preparing…" : status === "in_review" ? "Verification in progress" : "Start secure verification"}</button>{message && !open ? <p className="max-w-xl text-xs leading-5 text-black/50">{message}</p> : null}</div>{open ? <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-black/10 bg-white"><div className="flex items-center justify-between border-b border-black/8 px-5 py-4"><div><p className="text-sm font-semibold">Secure identity verification</p><p className="mt-1 text-xs text-black/45">Complete every step, including the live face check.</p></div><button onClick={() => { setOpen(false); window.location.reload(); }} className="rounded-lg border border-black/10 px-3 py-2 text-xs font-semibold">Close</button></div><div id="sumsub-websdk-container" className="min-h-[620px] w-full" />{message ? <p className="border-t border-black/8 px-5 py-3 text-xs text-black/50">{message}</p> : null}</div> : null}</>;
+  if (status === "approved") return <div className="mt-6 rounded-2xl bg-emerald-50 p-5 text-sm text-emerald-900">Your SafariPlug verification is approved. Payout execution remains subject to the current payout destination and compliance checks.</div>;
+  return <><div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center"><button disabled={busy || status === "in_review"} onClick={() => void start()} className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white disabled:opacity-35">{busy ? "Preparing…" : status === "in_review" ? "Verification in progress" : automatedReady ? "Start secure verification" : "Request SafariPlug staff review"}</button>{message && !open ? <p className="max-w-xl text-xs leading-5 text-black/50">{message}</p> : null}</div>{open ? <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-black/10 bg-white"><div className="flex items-center justify-between border-b border-black/8 px-5 py-4"><div><p className="text-sm font-semibold">Secure identity verification</p><p className="mt-1 text-xs text-black/45">Complete every step, including the live face check.</p></div><button onClick={() => { setOpen(false); window.location.reload(); }} className="rounded-lg border border-black/10 px-3 py-2 text-xs font-semibold">Close</button></div><div id="sumsub-websdk-container" className="min-h-[620px] w-full" />{message ? <p className="border-t border-black/8 px-5 py-3 text-xs text-black/50">{message}</p> : null}</div> : null}</>;
 }

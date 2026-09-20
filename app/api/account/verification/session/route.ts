@@ -20,15 +20,7 @@ export async function POST() {
     );
   }
 
-  if (!sumsubConfigured()) {
-    return NextResponse.json(
-      {
-        error:
-          "Traveler identity/liveness verification is not configured yet. SafariPlug will not simulate approval.",
-      },
-      { status: 503 }
-    );
-  }
+  const automated = sumsubConfigured();
 
   const { data: current } = await supabaseAdmin
     .from("verification_cases")
@@ -64,6 +56,14 @@ export async function POST() {
       },
       { status: 409 }
     );
+  }
+
+  if (!automated || current.provider === "human_review") {
+    return NextResponse.json({
+      manualReview: true,
+      caseId: current.id,
+      message: "SafariPlug staff review is pending. No paid external verification provider is required.",
+    });
   }
 
   const externalUserId = `safariplug:${current.id}`;

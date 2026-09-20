@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { describeVerificationProviders } from "@/lib/integrations/verification";
 import TravelerVerificationStart from "./TravelerVerificationStart";
+import { sumsubConfigured } from "@/lib/integrations/verification/sumsub";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ export default async function TravelerVerificationPage() {
 
   const identity = providers.find((p) => p.key === "identity_provider");
   const liveness = providers.find((p) => p.key === "liveness_provider");
+  const automatedReady = sumsubConfigured();
   const verified = Boolean(
     current?.status === "approved" &&
       (!current.expires_at || new Date(current.expires_at) > new Date())
@@ -66,7 +68,7 @@ export default async function TravelerVerificationPage() {
             Verify once for trust-sensitive bookings.
           </h1>
           <p className="mt-4 text-base leading-7 text-black/50">
-            SafariPlug uses verified identity and live face/liveness evidence for bookings where a traveler is meeting or requesting a specific person. A normal selfie upload is not treated as verification.
+            SafariPlug uses a trust review for bookings where a traveler is meeting or requesting a specific person. At launch, this can be reviewed by SafariPlug staff; automated identity + liveness can be added later.
           </p>
         </div>
 
@@ -79,7 +81,7 @@ export default async function TravelerVerificationPage() {
           <div className="rounded-[1.75rem] bg-white p-6 shadow-sm">
             <p className="text-[10px] uppercase tracking-[.22em] text-black/40">Verification</p>
             <p className="mt-3 text-xl font-semibold">{current?.status || "Not started"}</p>
-            <p className="mt-1 text-xs text-black/45">Identity + live liveness</p>
+            <p className="mt-1 text-xs text-black/45">{automatedReady ? "Identity + live liveness" : "SafariPlug staff review"}</p>
           </div>
           <div className="rounded-[1.75rem] bg-white p-6 shadow-sm">
             <p className="text-[10px] uppercase tracking-[.22em] text-black/40">Booking trust</p>
@@ -136,6 +138,7 @@ export default async function TravelerVerificationPage() {
           <TravelerVerificationStart
             hasCase={Boolean(current)}
             status={verified ? "approved" : current?.status || null}
+            automatedReady={automatedReady}
           />
         </section>
 

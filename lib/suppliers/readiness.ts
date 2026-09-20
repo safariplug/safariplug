@@ -120,7 +120,7 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
     supplier.user_id
       ? supabaseAdmin
           .from("verification_cases")
-          .select("status,expires_at")
+          .select("status,expires_at,provider")
           .eq("subject_type", "provider")
           .eq("subject_id", supplier.user_id)
           .order("created_at", { ascending: false })
@@ -138,7 +138,7 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
     staffIds.length
       ? supabaseAdmin
           .from("verification_cases")
-          .select("subject_id,status,expires_at")
+          .select("subject_id,status,expires_at,provider")
           .eq("subject_type", "service_staff")
           .in("subject_id", staffIds)
           .eq("status", "approved")
@@ -165,14 +165,15 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
   const approvedStaffCases = new Map(
     (staffCases ?? [])
       .filter((row: any) => isFutureOrOpen(row.expires_at))
-      .map((row: any) => [String(row.subject_id), true])
+      .map((row: any) => [String(row.subject_id), String(row.provider || "")])
   );
-  const staffVerificationReady = teamReady && staff.every((member: any) =>
-    Boolean(member.user_id) &&
-    member.verification_state === "verified" &&
-    Boolean(member.identity_liveness_verified_at) &&
-    approvedStaffCases.has(String(member.id))
-  );
+  const staffVerificationReady = teamReady && staff.every((member: any) => {
+    const provider = approvedStaffCases.get(String(member.id));
+    if (!provider) return false;
+    if (!member.user_id || member.verification_state !== "verified") return false;
+    if (provider === "human_review") return true;
+    return Boolean(member.identity_liveness_verified_at);
+  });
 
   const providerVerificationReady = Boolean(
     providerVerification?.status === "approved" && isFutureOrOpen(providerVerification.expires_at)
@@ -200,18 +201,18 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
     if (teamReady && !staffVerificationReady) issues.push(issue(
       "staff_verification",
       verificationSystemReady
-        ? "Complete identity + live face verification for every active specialist"
-        : "SafariPlug identity + liveness verification must be configured before specialist verification can complete",
+        ? "Complete specialist identity + live face verification"
+        : "Complete SafariPlug staff review for every active specialist",
       "/business/services/identity",
-      verificationSystemReady ? "supplier" : "platform",
+      "supplier",
     ));
     if (!providerVerificationReady) issues.push(issue(
       "verification",
       verificationSystemReady
         ? "Complete provider identity + liveness verification"
-        : "SafariPlug identity + liveness verification is not configured yet",
+        : "Complete SafariPlug staff review for the provider account",
       "/business/verification",
-      verificationSystemReady ? "supplier" : "platform",
+      "supplier",
     ));
     if (!payoutReady) issues.push(issue("payout_details", "Configure and verify the M-Pesa payout destination", "/business/payouts"));
   }
@@ -229,7 +230,7 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
       personalPhotos: !appointmentProvider || personalPhotosReady,
       availability: !appointmentProvider || availabilityReady,
       staffVerification: !appointmentProvider || staffVerificationReady,
-      verificationSystem: !appointmentProvider || verificationSystemReady,
+      verificationSystem: !appointmentProvider || verificationSystemReady || providerVerification?.provider === "human_review",
       providerVerification: !appointmentProvider || providerVerificationReady,
       payout: !appointmentProvider || payoutReady,
     },
