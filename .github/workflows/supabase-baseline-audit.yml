@@ -1,5 +1,5 @@
 name: Supabase Production Baseline Audit
-# retry-after-secrets-configured
+# retry-after-db-password-updated
 
 on:
   push:
