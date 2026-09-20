@@ -1,5 +1,5 @@
 name: Bootstrap Canonical Supabase Baseline
-# retrigger-with-failure-callback
+# retrigger-normalized-type-comparison
 
 on:
   push:
@@ -223,7 +223,28 @@ jobs:
         run: |
           set -euo pipefail
           supabase gen types --lang typescript --local > .canonical-source/rebuilt.types.ts
-          diff -u .canonical-source/production.types.ts .canonical-source/rebuilt.types.ts
+          node - <<'NODE'
+          const fs = require("fs");
+
+          function normalizeTypes(path) {
+            let text = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n").trimEnd();
+            text = text.replace(
+              /\n\s*\/\/ Allows to automatically instantiate createClient with right options\n\s*\/\/ instead of createClient<Database, \{ PostgrestVersion: 'XX' \}>\(URL, KEY\)\n\s*__InternalSupabase: \{\n\s*PostgrestVersion: "[^"]+"\n\s*\}\n/,
+              "\n",
+            );
+            return text;
+          }
+
+          const expected = normalizeTypes(".canonical-source/production.types.ts");
+          const actual = normalizeTypes(".canonical-source/rebuilt.types.ts");
+          if (expected !== actual) {
+            fs.writeFileSync(".canonical-source/production.types.normalized.ts", expected + "\n");
+            fs.writeFileSync(".canonical-source/rebuilt.types.normalized.ts", actual + "\n");
+            console.error("Generated database types differ after normalizing remote-only PostgREST metadata.");
+            process.exit(1);
+          }
+          console.log("Generated database types match production after normalizing remote-only PostgREST version metadata.");
+          NODE
 
       - name: Verify production object counts
         shell: bash
