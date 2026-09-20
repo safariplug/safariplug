@@ -14,7 +14,7 @@ export async function createContextualPartnerInvitation(formData: FormData) {
   const context = await resolveOutreachContext(prospectId);
   if (!context) throw new Error("Prospect could not be resolved.");
   if (!context.contactEmail && !context.whatsappPhone) {
-    throw new Error("Add an email or phone number to the CRM contact before creating outreach.");
+    throw new Error("Add a named CRM contact with email/phone, or review a discovered business email before creating outreach.");
   }
 
   const channel = context.contactEmail && context.whatsappPhone
@@ -42,13 +42,18 @@ export async function createContextualPartnerInvitation(formData: FormData) {
 
   if (error || !invitation) throw new Error(error?.message || "Invitation could not be created.");
 
+  const sourceLabel = context.contactSource === "discovered_business_email"
+    ? "discovered public business email"
+    : context.contactSource === "crm_contact"
+      ? "CRM contact"
+      : "governed contact context";
   const { error: activityError } = await supabaseAdmin.from("crm_activities").insert({
     prospect_id: context.prospectId,
     partner_id: context.partnerId,
     contact_id: context.contactId,
-    activity_type: "email",
+    activity_type: channel === "whatsapp" ? "whatsapp" : "email",
     summary: "Governed outreach candidate created",
-    details: `Invitation ${invitation.id} was added to the draft queue. Nothing was sent.`,
+    details: `Invitation ${invitation.id} was added to the draft queue using ${sourceLabel}. Nothing was sent.`,
   });
   if (activityError) throw new Error(activityError.message);
 
