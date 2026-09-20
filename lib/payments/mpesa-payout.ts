@@ -127,13 +127,22 @@ export async function createMpesaB2CPayout(input: MpesaPayoutInput) {
     );
   }
 
-  const conversationId = String(parsed.ConversationID || parsed.OriginatorConversationID || "");
-  if (!conversationId) {
+  const conversationId = String(parsed.ConversationID || "").trim();
+  const originatorConversationId = String(parsed.OriginatorConversationID || "").trim();
+  const providerReference = conversationId || originatorConversationId;
+  if (!providerReference) {
     throw new MpesaPayoutSubmissionError(
       "mpesa_b2c_accepted_without_conversation_reference",
       "uncertain",
     );
   }
 
-  return { payoutId: input.payoutId, providerReference: conversationId, status: "processing" as const, raw: parsed };
+  return {
+    payoutId: input.payoutId,
+    providerReference,
+    conversationId: conversationId || null,
+    originatorConversationId: originatorConversationId || null,
+    status: "processing" as const,
+    raw: parsed,
+  };
 }
