@@ -42,21 +42,30 @@ export async function requireAdmin() {
 
 const FINANCE_ADMIN_ROLES = new Set(["super_admin", "finance_manager"]);
 
-export async function requireFinanceAdmin() {
-  const user = await requireAdmin();
+export function isFinanceAdminRole(role: unknown) {
+  return typeof role === "string" && FINANCE_ADMIN_ROLES.has(role);
+}
 
+export async function getAdminRole(userId: string) {
   const { data, error } = await supabaseAdmin
     .from("admin_users")
     .select("role")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {
-    console.error("FINANCE ADMIN ROLE LOOKUP ERROR:", error);
-    throw new AdminAuthError("Unable to verify finance admin access.", 500);
+    console.error("ADMIN ROLE LOOKUP ERROR:", error);
+    throw new AdminAuthError("Unable to verify admin role.", 500);
   }
 
-  if (!data || !FINANCE_ADMIN_ROLES.has(String(data.role))) {
+  return data?.role ? String(data.role) : null;
+}
+
+export async function requireFinanceAdmin() {
+  const user = await requireAdmin();
+  const role = await getAdminRole(user.id);
+
+  if (!isFinanceAdminRole(role)) {
     throw new AdminAuthError("Finance admin access required.", 403);
   }
 
