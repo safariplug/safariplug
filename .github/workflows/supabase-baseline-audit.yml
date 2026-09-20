@@ -1,5 +1,5 @@
 name: Supabase Production Baseline Audit
-# retry-after-db-password-reset
+# retry-after-pooler-cache
 
 on:
   push:
@@ -70,7 +70,17 @@ jobs:
         run: |
           set -euo pipefail
           cd .baseline-audit
-          supabase migration list --linked | tee ../baseline-artifacts/migration-list.txt
+          for attempt in 1 2 3 4 5; do
+            if supabase migration list --linked | tee ../baseline-artifacts/migration-list.txt; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              echo "Shared pooler authentication retry $attempt failed; retrying after credential-cache refresh window..."
+              sleep 20
+            fi
+          done
+          echo "Remote migration history capture failed after 5 attempts."
+          exit 1
 
       - name: Capture production schema
         shell: bash
