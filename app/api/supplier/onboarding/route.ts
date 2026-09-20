@@ -72,8 +72,24 @@ export async function PATCH(request: Request) {
   if (["approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const businessUpdate: Record<string, unknown> = {};
-  for (const key of ["name","description","address","latitude","longitude","phone","whatsapp","website_url","instagram_url","facebook_url","tiktok_url","logo_url","cover_image_url","supplier_gallery_urls"]) if (body && key in body) businessUpdate[key] = body[key];
+  for (const key of ["name","description","address","latitude","longitude","phone","whatsapp","website_url","instagram_url","facebook_url","tiktok_url","logo_url","cover_image_url","supplier_contact_name","supplier_gallery_urls"]) if (body && key in body) businessUpdate[key] = body[key];
   if (businessUpdate.name !== undefined && (typeof businessUpdate.name !== "string" || !businessUpdate.name.trim())) return NextResponse.json({ error: "Business name is required." }, { status: 400 });
+
+  let previousBusinessContactName: string | null | undefined;
+  if (businessUpdate.supplier_contact_name !== undefined) {
+    if (typeof businessUpdate.supplier_contact_name !== "string" || !businessUpdate.supplier_contact_name.trim()) {
+      return NextResponse.json({ error: "Contact person is required." }, { status: 400 });
+    }
+    businessUpdate.supplier_contact_name = businessUpdate.supplier_contact_name.trim().slice(0, 120);
+    const { data: currentBusiness, error: currentBusinessError } = await supabaseAdmin
+      .from("businesses")
+      .select("supplier_contact_name")
+      .eq("id", ctx.account.business_id)
+      .eq("owner_id", ctx.user.id)
+      .single();
+    if (currentBusinessError) return NextResponse.json({ error: currentBusinessError.message }, { status: 500 });
+    previousBusinessContactName = currentBusiness.supplier_contact_name;
+  }
   for (const key of ["latitude", "longitude"] as const) {
     if (businessUpdate[key] !== undefined) {
       const value = finiteNumber(businessUpdate[key]);
@@ -103,8 +119,32 @@ export async function PATCH(request: Request) {
   }
   const completion = await supabaseAdmin.rpc("supplier_completion", { p_business_id: ctx.account.business_id });
   if (completion.error) return NextResponse.json({ error: completion.error.message }, { status: 500 });
-  const { error: accountError } = await supabaseAdmin.from("supplier_accounts").update({ completion_percent: completion.data ?? 0, invitation_status: "accepted", accepted_at: ctx.account.accepted_at ?? new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", ctx.account.id).eq("user_id", ctx.user.id);
-  if (accountError) return NextResponse.json({ error: accountError.message }, { status: 500 });
+  const accountUpdate: Record<string, unknown> = {
+    completion_percent: completion.data ?? 0,
+    invitation_status: "accepted",
+    accepted_at: ctx.account.accepted_at ?? new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  if (typeof businessUpdate.supplier_contact_name === "string") {
+    accountUpdate.contact_name = businessUpdate.supplier_contact_name;
+  }
+
+  const { error: accountError } = await supabaseAdmin
+    .from("supplier_accounts")
+    .update(accountUpdate)
+    .eq("id", ctx.account.id)
+    .eq("user_id", ctx.user.id);
+
+  if (accountError) {
+    if (businessUpdate.supplier_contact_name !== undefined) {
+      await supabaseAdmin
+        .from("businesses")
+        .update({ supplier_contact_name: previousBusinessContactName ?? null })
+        .eq("id", ctx.account.business_id)
+        .eq("owner_id", ctx.user.id);
+    }
+    return NextResponse.json({ error: accountError.message }, { status: 500 });
+  }
   return NextResponse.json({ success: true, completion_percent: completion.data ?? 0 });
 }
 
