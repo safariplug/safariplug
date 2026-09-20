@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { canSubmitSupplierOnboarding } from "@/lib/services/supplier-onboarding";
+import { canSubmitSupplierOnboarding, supplierNextAction } from "@/lib/services/supplier-onboarding";
 
 type SuggestedOffering = { name: string; description: string; durationMinutes: number; priceHint?: string };
 type Staff = { id: string; display_name: string; bio?: string | null; status: string };
@@ -85,6 +85,12 @@ export default function SupplierOnboardingPage() {
   const onboardingStatus = state.account?.onboarding_status || "";
   const submitted = onboardingStatus === "submitted";
   const canSubmit = canSubmitSupplierOnboarding({ locked, submitted, ready: Boolean(readiness?.ready) });
+  const nextAction = supplierNextAction({
+    onboardingStatus,
+    readinessReady: Boolean(readiness?.ready),
+    readinessIssues,
+    reviewItems: state.account?.review_items,
+  });
   const suggested = state.suggestedOfferings || [];
   const existingNames = new Set((state.offerings || []).map((offering) => String(offering.name).toLowerCase()));
   const availableSuggestions = suggested.filter((offering) => !existingNames.has(offering.name.toLowerCase()));
@@ -101,7 +107,20 @@ export default function SupplierOnboardingPage() {
   return <main className="mx-auto max-w-4xl px-6 py-10">
     <div className="flex items-end justify-between gap-6"><div><p className="text-sm uppercase tracking-[.2em] text-black/40">Supplier Portal</p><h1 className="mt-2 text-4xl font-semibold">Finish your SafariPlug profile</h1><p className="mt-2 text-black/60">Welcome, {state.account?.contact_name}. Complete your business details and the setup required for {businessType.toLowerCase()} partners.</p></div><div className="text-right"><div className="text-3xl font-semibold">{state.account?.completion_percent ?? 0}%</div><div className="text-xs text-black/50">profile complete</div></div></div>
     <div className="mt-5 h-2 overflow-hidden rounded-full bg-black/10"><div className="h-full bg-black transition-all" style={{ width: `${state.account?.completion_percent ?? 0}%` }} /></div>
-    <section className="mt-8 rounded-2xl border border-black/10 bg-black/[.02] p-5"><p className="text-xs uppercase tracking-[.18em] text-black/40">Next step</p><h2 className="mt-1 text-xl font-semibold">{setupTitle}</h2><p className="mt-2 text-sm leading-6 text-black/60">{setupBody}</p></section>
+    <section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+      <p className="text-xs font-semibold uppercase tracking-[.18em] text-amber-800/60">Your next action</p>
+      <div className="mt-2 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <h2 className="text-xl font-semibold">{nextAction.title}</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-black/60">{nextAction.detail}</p>
+        </div>
+        {nextAction.href && nextAction.cta ? <a href={nextAction.href} className="shrink-0 rounded-full bg-black px-5 py-2.5 text-center text-sm font-semibold text-white">{nextAction.cta} →</a> : null}
+      </div>
+      <div className="mt-4 border-t border-amber-200/70 pt-4">
+        <p className="text-xs font-semibold text-black/45">{setupTitle}</p>
+        <p className="mt-1 text-xs leading-5 text-black/45">{setupBody}</p>
+      </div>
+    </section>
     <section className="mt-8 rounded-2xl border border-black/10 p-5"><h2 className="text-xl font-semibold">Create your password</h2><p className="mt-1 text-sm text-black/50">SafariPlug never sees or stores your password. It is managed securely by your account.</p><div className="mt-4 grid gap-3 md:grid-cols-2"><input type="password" placeholder="New password (8+ characters)" value={password} onChange={(event) => setPassword(event.target.value)} className="rounded-xl border border-black/15 px-3 py-2.5"/><input type="password" placeholder="Confirm password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="rounded-xl border border-black/15 px-3 py-2.5"/></div><button onClick={createPassword} className="mt-3 rounded-full bg-black px-5 py-2.5 text-sm text-white">Save password</button></section>
     <section className="mt-8 rounded-2xl border border-black/10 p-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs uppercase tracking-[.18em] text-black/40">Business type</p><h2 className="mt-1 text-xl font-semibold">{categoryName}</h2></div><span className="rounded-full bg-black/[.04] px-3 py-1 text-xs text-black/50">Admin assigned</span></div><p className="mt-2 text-sm text-black/50">SafariPlug uses your assigned business type to show the onboarding requirements that apply to you.</p></section>
     <section className={`mt-6 rounded-2xl border p-5 ${readiness?.ready ? "border-emerald-200 bg-emerald-50/50" : "border-amber-200 bg-amber-50/50"}`}>
@@ -140,6 +159,6 @@ export default function SupplierOnboardingPage() {
     </>}
     {(isRestaurant || isHotel || isEventOrganizer) && <section className="mt-6 rounded-2xl border border-black/10 p-5"><h2 className="text-xl font-semibold">What happens next</h2><div className="mt-4 grid gap-3 sm:grid-cols-3">{isRestaurant && <><div className="rounded-xl bg-black/[.04] p-4"><div className="font-medium">1. Menu</div><p className="mt-1 text-xs leading-5 text-black/50">Add categories, dishes, options and prices to your restaurant menu.</p></div><div className="rounded-xl bg-black/[.04] p-4"><div className="font-medium">2. Ordering</div><p className="mt-1 text-xs leading-5 text-black/50">Configure pickup, delivery and ordering availability.</p></div></>}{isHotel && <><div className="rounded-xl bg-black/[.04] p-4"><div className="font-medium">1. Property</div><p className="mt-1 text-xs leading-5 text-black/50">Complete your property details and guest-facing information.</p></div><div className="rounded-xl bg-black/[.04] p-4"><div className="font-medium">2. Inventory</div><p className="mt-1 text-xs leading-5 text-black/50">Connect or configure rooms, rates and availability.</p></div></>}{isEventOrganizer && <><div className="rounded-xl bg-black/[.04] p-4"><div className="font-medium">1. Listings</div><p className="mt-1 text-xs leading-5 text-black/50">Prepare event or experience listings with dates, capacity and pricing.</p></div><div className="rounded-xl bg-black/[.04] p-4"><div className="font-medium">2. Review</div><p className="mt-1 text-xs leading-5 text-black/50">SafariPlug reviews the listing before it becomes bookable.</p></div></>}<div className="rounded-xl bg-black/[.04] p-4"><div className="font-medium">Final step</div><p className="mt-1 text-xs leading-5 text-black/50">Save your profile, upload images and submit it for SafariPlug review.</p></div></div></section>}
     <section id="business-images" className="mt-6 rounded-2xl border border-black/10 p-5 scroll-mt-24"><h2 className="text-xl font-semibold">Business images</h2><p className="mt-1 text-sm text-black/50">Upload a logo, cover image and gallery photos.</p><div className="mt-4 grid gap-3 md:grid-cols-3">{[["logo","Logo"],["cover","Cover image"],["gallery","Gallery photo"]].map(([kind,label]) => <label key={kind} className="cursor-pointer rounded-xl border border-dashed border-black/20 p-4 text-sm"><span className="block font-medium">{label}</span><span className="mt-1 block text-black/45">Choose image</span><input disabled={locked} type="file" accept="image/*" className="mt-3 block w-full text-xs" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(kind, file); }}/></label>)}</div></section>
-    <div className="mt-6 flex flex-wrap items-center gap-3"><button onClick={save} disabled={saving || locked} className="rounded-full border border-black/15 px-5 py-2.5 text-sm disabled:opacity-40">{saving ? "Saving…" : "Save profile"}</button><button onClick={submit} disabled={!canSubmit} title={submitted ? "Already submitted for SafariPlug review" : !readiness?.ready ? "Complete all activation requirements before submitting" : "Submit for SafariPlug review"} className="rounded-full bg-black px-5 py-2.5 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40">{submitted ? "Submitted for review" : onboardingStatus === "changes_requested" ? "Resubmit for review" : "Submit for review"}</button>{state.account?.onboarding_status && <span className="text-sm text-black/50">Status: {state.account.onboarding_status.replaceAll("_", " ")}</span>}</div>{!locked && !submitted && !canSubmit && <p className="mt-3 text-xs text-black/50">Complete every activation step above before submitting for SafariPlug review.</p>}{message && <p className="mt-4 text-sm">{message}</p>}
+    <div id="submit-for-review" className="mt-6 flex scroll-mt-24 flex-wrap items-center gap-3"><button onClick={save} disabled={saving || locked} className="rounded-full border border-black/15 px-5 py-2.5 text-sm disabled:opacity-40">{saving ? "Saving…" : "Save profile"}</button><button onClick={submit} disabled={!canSubmit} title={submitted ? "Already submitted for SafariPlug review" : !readiness?.ready ? "Complete all activation requirements before submitting" : "Submit for SafariPlug review"} className="rounded-full bg-black px-5 py-2.5 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40">{submitted ? "Submitted for review" : onboardingStatus === "changes_requested" ? "Resubmit for review" : "Submit for review"}</button>{state.account?.onboarding_status && <span className="text-sm text-black/50">Status: {state.account.onboarding_status.replaceAll("_", " ")}</span>}</div>{!locked && !submitted && !canSubmit && <p className="mt-3 text-xs text-black/50">Complete every activation step above before submitting for SafariPlug review.</p>}{message && <p className="mt-4 text-sm">{message}</p>}
   </main>;
 }
