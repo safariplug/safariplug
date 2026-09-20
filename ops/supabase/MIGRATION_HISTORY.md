@@ -1,58 +1,51 @@
 # Supabase migration history policy
 
-Production is the migration-history authority for SafariPlug until the legacy history is normalized.
+SafariPlug now has a canonical production-schema baseline candidate derived from the verified read-only production capture in GitHub Actions run 35485349948.
 
-## Current legacy state
+## Canonical baseline candidate
 
-A full comparison on 2026-09-20 found:
+- Active baseline migration: `20260920030845_production_baseline.sql`
+- Baseline version: `20260920030845`
+- Source artifact: `supabase-production-baseline-35485349948`
+- Source artifact SHA-256 digest: `61f48ee100968e858704971b3f29b33c72f0a2d62d66c1873df59d69ffe1dbc6`
+- Fresh-database validation run: `35485457513`
+- Production was not modified while creating or validating this baseline.
 
-- 153 SQL files in `supabase/migrations`
-- 206 rows in production `supabase_migrations.schema_migrations`
-- 135 local versions absent from production history
-- 188 production versions absent from the local migration directory
-- several legacy local files share the same version prefix
-- production's oldest `remote_schema` history row has no stored SQL statements
-
-The previously identified 23 September 17-19 local gaps are real, and their live schema effects were verified. They are only a subset of the historical drift. Repairing those 23 versions alone would not make `supabase migration list` consistent, so the automated 23-version repair workflow was removed before it changed production.
+The former 153 SQL migration files have been retired from the active `supabase/migrations` chain. Their filenames remain recorded in `ops/supabase/legacy-migration-files-retired-20260920.txt`, and their complete contents remain preserved in Git history.
 
 ## Safety rule
 
-Do not run `supabase db push` or bulk `supabase migration repair` against production from the current legacy migration directory.
+Do not run `supabase db push`, `supabase migration repair`, or `supabase db reset --linked` against production while this normalization PR is under validation.
 
-Do not delete or rename a legacy migration simply to make history appear aligned.
-
-A proper normalization must first create a canonical production baseline/history using an authenticated Supabase CLI workflow, then verify that a fresh database built from the normalized migration set matches production before the legacy set is retired.
+Production migration history still contains the pre-normalization history. Schema reproducibility must be fully verified from the canonical baseline before any supported history-only repair is considered.
 
 ## Forward rule
 
-The existing files listed in `legacy-migration-files.txt` are grandfathered history. Every migration added after this checkpoint must:
-
+Every active migration must:
 1. use a unique 14-digit UTC timestamp,
 2. use a snake_case migration name,
-3. have a version later than `20260920014336`, and
-4. never reuse a legacy or current migration version.
+3. have a version later than the canonical baseline version unless it is the baseline itself, and
+4. never reactivate a retired legacy filename.
 
-Use `supabase migration new <name>` when working through the Supabase CLI. CI runs `npm run validate:migrations` to stop new history drift.
+Create future migration files with `supabase migration new <name>`.
 
-## Read-only baseline audit
+## Verification gates
 
-A manual owner-only workflow now exists at `.github/workflows/supabase-baseline-audit.yml`.
+Before production migration history is normalized:
+1. `npm run validate:migrations` must pass.
+2. A fresh local `supabase db reset` must succeed from the canonical migration set.
+3. Public-schema object counts must match the verified production checkpoint.
+4. Locally generated TypeScript database types must match the production capture.
+5. CI/Quality must pass.
+6. Production history changes, if still needed, must use supported Supabase CLI history operations only; never direct SQL edits to `supabase_migrations.schema_migrations`.
 
-It intentionally runs from an isolated temporary Supabase directory and uses only read-oriented operations against production:
+## Verified production checkpoint
 
-- `supabase migration list --linked`
-- `supabase db dump --linked`
-- `supabase db dump --linked --role-only`
-- `supabase gen types --lang typescript --linked`
-
-It does **not** run `db pull`, `db push`, `migration repair`, or remote `db reset`.
-
-The workflow requires `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` GitHub Actions secrets. Those secrets were not present during the earlier repair attempt, so this workflow is prepared but should only be dispatched after the credentials are intentionally configured.
-
-When run, it keeps the production schema dump, role dump, migration-list output, generated types, manifest, and SHA-256 checksums as a 30-day private GitHub Actions artifact. The artifact is evidence for normalization review; it is not automatically committed to the repository.
-
-A live read-only catalog inventory captured on 2026-09-20 is stored in `production-schema-inventory-20260920.json`. At that checkpoint production had 97 public tables, 84 public functions, 88 policies, 411 indexes, 47 non-internal triggers, 470 constraints, and one public view.
-
-## Production status
-
-The production schema remains healthy and was not changed by the aborted repair workflow. The legacy-history problem is bookkeeping/deployment-history drift, not evidence that the verified production schema repairs are missing.
+The production checkpoint captured on 2026-09-20 contains:
+- 97 public tables
+- 84 public functions
+- 88 policies
+- 411 indexes
+- 47 non-internal triggers
+- 470 constraints
+- 1 public view

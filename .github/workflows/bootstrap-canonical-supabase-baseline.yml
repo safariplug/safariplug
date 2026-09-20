@@ -1,0 +1,303 @@
+name: Bootstrap Canonical Supabase Baseline
+# retrigger-normalized-type-comparison
+
+on:
+  push:
+    branches:
+      - ops/canonical-supabase-baseline-20260920
+    paths:
+      - .github/workflows/bootstrap-canonical-supabase-baseline.yml
+
+permissions:
+  contents: write
+  actions: read
+  issues: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SOURCE_RUN_ID: "35485349948"
+      SOURCE_ARTIFACT: "supabase-production-baseline-35485349948"
+      SUPABASE_DISABLE_TELEMETRY: "1"
+      NO_COLOR: "1"
+
+    steps:
+      - name: Check out canonical branch
+        uses: actions/checkout@v4
+        with:
+          ref: ops/canonical-supabase-baseline-20260920
+          fetch-depth: 0
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Download verified production baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .canonical-source
+          mkdir -p .canonical-source
+          gh run download "${SOURCE_RUN_ID}" --repo "${GITHUB_REPOSITORY}" --name "${SOURCE_ARTIFACT}" --dir .canonical-source
+          cd .canonical-source
+          sha256sum -c SHA256SUMS
+
+      - name: Retire legacy active migrations and create canonical baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p ops/supabase/canonical-baseline-20260920
+          cp .canonical-source/migration-list.txt ops/supabase/canonical-baseline-20260920/
+          cp .canonical-source/production-roles.sql ops/supabase/canonical-baseline-20260920/
+          cp .canonical-source/production.types.ts ops/supabase/canonical-baseline-20260920/
+          cp .canonical-source/manifest.txt ops/supabase/canonical-baseline-20260920/
+          cp .canonical-source/SHA256SUMS ops/supabase/canonical-baseline-20260920/
+
+          cp ops/supabase/legacy-migration-files.txt ops/supabase/legacy-migration-files-retired-20260920.txt
+
+          rm -f supabase/migrations/*.sql
+          supabase migration new production_baseline
+          baseline_file="$(find supabase/migrations -maxdepth 1 -type f -name '*_production_baseline.sql' -printf '%f\n' | head -n1)"
+          test -n "${baseline_file}"
+          baseline_version="${baseline_file%%_*}"
+          cp .canonical-source/production-schema.sql "supabase/migrations/${baseline_file}"
+          printf '%s\n' "${baseline_version}" > ops/supabase/canonical-baseline-version.txt
+          printf '%s\n' "${baseline_file}" > ops/supabase/canonical-baseline-file.txt
+
+      - name: Install canonical migration guard
+        shell: bash
+        run: |
+          cat > scripts/validate-supabase-migrations.mjs <<'JS'
+          import fs from "node:fs";
+          import path from "node:path";
+
+          const root = process.cwd();
+          const migrationsDir = path.join(root, "supabase", "migrations");
+          const versionPath = path.join(root, "ops", "supabase", "canonical-baseline-version.txt");
+          const filePath = path.join(root, "ops", "supabase", "canonical-baseline-file.txt");
+          const retiredManifest = path.join(root, "ops", "supabase", "legacy-migration-files-retired-20260920.txt");
+
+          const baselineVersion = fs.readFileSync(versionPath, "utf8").trim();
+          const baselineFile = fs.readFileSync(filePath, "utf8").trim();
+          const retiredLegacy = new Set(
+            fs.readFileSync(retiredManifest, "utf8")
+              .split(/\r?\n/)
+              .map((value) => value.trim())
+              .filter(Boolean),
+          );
+
+          const currentFiles = fs.readdirSync(migrationsDir)
+            .filter((name) => name.endsWith(".sql"))
+            .sort();
+
+          const errors = [];
+          if (!/^\d{14}$/.test(baselineVersion)) {
+            errors.push(`Canonical baseline version is invalid: ${baselineVersion}`);
+          }
+          if (baselineFile !== `${baselineVersion}_production_baseline.sql`) {
+            errors.push(`Canonical baseline file mismatch: ${baselineFile}`);
+          }
+          if (!currentFiles.includes(baselineFile)) {
+            errors.push(`Canonical baseline migration is missing: ${baselineFile}`);
+          }
+
+          for (const file of currentFiles) {
+            if (retiredLegacy.has(file)) {
+              errors.push(`Retired legacy migration is active again: ${file}`);
+            }
+
+            const match = /^(\d{14})_([a-z0-9][a-z0-9_]*)\.sql$/.exec(file);
+            if (!match) {
+              errors.push(`Migration must use a unique 14-digit UTC timestamp and snake_case name: ${file}`);
+              continue;
+            }
+
+            const version = match[1];
+            if (file !== baselineFile && BigInt(version) <= BigInt(baselineVersion)) {
+              errors.push(`Post-baseline migration must be later than ${baselineVersion}: ${file}`);
+            }
+          }
+
+          const versions = new Map();
+          for (const file of currentFiles) {
+            const match = /^(\d{14})_/.exec(file);
+            if (!match) continue;
+            const group = versions.get(match[1]) || [];
+            group.push(file);
+            versions.set(match[1], group);
+          }
+          for (const [version, files] of versions) {
+            if (files.length > 1) errors.push(`Migration timestamp ${version} is not unique: ${files.join(", ")}`);
+          }
+
+          if (errors.length) {
+            console.error("Supabase migration guard failed:\n");
+            for (const error of errors) console.error(`- ${error}`);
+            process.exit(1);
+          }
+
+          console.log(
+            `Supabase migration guard passed: canonical baseline ${baselineFile}, ${currentFiles.length - 1} post-baseline migrations.`,
+          );
+          JS
+
+      - name: Update migration history policy
+        shell: bash
+        run: |
+          baseline_file="$(cat ops/supabase/canonical-baseline-file.txt)"
+          baseline_version="$(cat ops/supabase/canonical-baseline-version.txt)"
+          cat > ops/supabase/MIGRATION_HISTORY.md <<EOF
+          # Supabase migration history policy
+
+          SafariPlug now has a canonical production-schema baseline candidate derived from the verified read-only production capture in GitHub Actions run 35485349948.
+
+          ## Canonical baseline candidate
+
+          - Active baseline migration: \`${baseline_file}\`
+          - Baseline version: \`${baseline_version}\`
+          - Source artifact: \`supabase-production-baseline-35485349948\`
+          - Source artifact SHA-256 digest: \`61f48ee100968e858704971b3f29b33c72f0a2d62d66c1873df59d69ffe1dbc6\`
+          - Fresh-database validation run: \`35485457513\`
+          - Production was not modified while creating or validating this baseline.
+
+          The former 153 SQL migration files have been retired from the active \`supabase/migrations\` chain. Their filenames remain recorded in \`ops/supabase/legacy-migration-files-retired-20260920.txt\`, and their complete contents remain preserved in Git history.
+
+          ## Safety rule
+
+          Do not run \`supabase db push\`, \`supabase migration repair\`, or \`supabase db reset --linked\` against production while this normalization PR is under validation.
+
+          Production migration history still contains the pre-normalization history. Schema reproducibility must be fully verified from the canonical baseline before any supported history-only repair is considered.
+
+          ## Forward rule
+
+          Every active migration must:
+          1. use a unique 14-digit UTC timestamp,
+          2. use a snake_case migration name,
+          3. have a version later than the canonical baseline version unless it is the baseline itself, and
+          4. never reactivate a retired legacy filename.
+
+          Create future migration files with \`supabase migration new <name>\`.
+
+          ## Verification gates
+
+          Before production migration history is normalized:
+          1. \`npm run validate:migrations\` must pass.
+          2. A fresh local \`supabase db reset\` must succeed from the canonical migration set.
+          3. Public-schema object counts must match the verified production checkpoint.
+          4. Locally generated TypeScript database types must match the production capture.
+          5. CI/Quality must pass.
+          6. Production history changes, if still needed, must use supported Supabase CLI history operations only; never direct SQL edits to \`supabase_migrations.schema_migrations\`.
+
+          ## Verified production checkpoint
+
+          The production checkpoint captured on 2026-09-20 contains:
+          - 97 public tables
+          - 84 public functions
+          - 88 policies
+          - 411 indexes
+          - 47 non-internal triggers
+          - 470 constraints
+          - 1 public view
+          EOF
+
+      - name: Validate canonical migration guard
+        shell: bash
+        run: npm run validate:migrations
+
+      - name: Start fresh local Supabase
+        shell: bash
+        run: supabase db start
+
+      - name: Rebuild from canonical migration chain
+        shell: bash
+        run: supabase db reset
+
+      - name: Compare generated API types with production
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase gen types --lang typescript --local > .canonical-source/rebuilt.types.ts
+          node - <<'NODE'
+          const fs = require("fs");
+
+          function normalizeTypes(path) {
+            let text = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n").trimEnd();
+            text = text.replace(
+              /\n\s*\/\/ Allows to automatically instantiate createClient with right options\n\s*\/\/ instead of createClient<Database, \{ PostgrestVersion: 'XX' \}>\(URL, KEY\)\n\s*__InternalSupabase: \{\n\s*PostgrestVersion: "[^"]+"\n\s*\}\n/,
+              "\n",
+            );
+            return text;
+          }
+
+          const expected = normalizeTypes(".canonical-source/production.types.ts");
+          const actual = normalizeTypes(".canonical-source/rebuilt.types.ts");
+          if (expected !== actual) {
+            fs.writeFileSync(".canonical-source/production.types.normalized.ts", expected + "\n");
+            fs.writeFileSync(".canonical-source/rebuilt.types.normalized.ts", actual + "\n");
+            console.error("Generated database types differ after normalizing remote-only PostgREST metadata.");
+            process.exit(1);
+          }
+          console.log("Generated database types match production after normalizing remote-only PostgREST version metadata.");
+          NODE
+
+      - name: Verify production object counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          psql "${DB_URL}" -v ON_ERROR_STOP=1 -Atc "
+            select json_build_object(
+              'tables', (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p')),
+              'functions', (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'),
+              'policies', (select count(*) from pg_policies where schemaname='public'),
+              'indexes', (select count(*) from pg_indexes where schemaname='public'),
+              'triggers', (select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and not t.tgisinternal),
+              'constraints', (select count(*) from pg_constraint con join pg_class c on c.oid=con.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public'),
+              'views', (select count(*) from pg_views where schemaname='public')
+            );
+          " > .canonical-source/rebuilt-counts.json
+
+          node - <<'NODE'
+          const fs = require("fs");
+          const actual = JSON.parse(fs.readFileSync(".canonical-source/rebuilt-counts.json", "utf8"));
+          const expected = { tables:97, functions:84, policies:88, indexes:411, triggers:47, constraints:470, views:1 };
+          const bad = Object.entries(expected).filter(([k,v]) => actual[k] !== v);
+          if (bad.length) {
+            for (const [k,v] of bad) console.error(`${k}: expected ${v}, got ${actual[k]}`);
+            process.exit(1);
+          }
+          console.log("Canonical baseline object counts match production checkpoint.");
+          NODE
+
+      - name: Commit canonical baseline candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/migrations scripts/validate-supabase-migrations.mjs ops/supabase
+          git commit -m "Normalize Supabase migrations to verified production baseline"
+          git push origin HEAD:ops/canonical-supabase-baseline-20260920
+
+      - name: Report canonical candidate to issue 172
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          baseline_file="$(cat ops/supabase/canonical-baseline-file.txt)"
+          gh api --method POST repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Canonical Supabase baseline candidate created and validated on a fresh local database. Active baseline: \`${baseline_file}\`. Legacy active migrations were retired from the branch but remain preserved in Git history and the retired manifest. Production was not modified. Next gate: PR CI/Quality and final schema-equivalence review before any migration-history repair."
+
+
+      - name: Report bootstrap failure to issue 172
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Canonical baseline bootstrap failed safely. Run ID: ${GITHUB_RUN_ID}. Production was not modified. Review the failed workflow step before retrying."

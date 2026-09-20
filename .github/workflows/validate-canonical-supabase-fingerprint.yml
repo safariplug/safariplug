@@ -1,0 +1,80 @@
+name: Validate Canonical Supabase Fingerprint
+
+on:
+  push:
+    branches:
+      - ops/canonical-supabase-baseline-20260920
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_DISABLE_TELEMETRY: "1"
+      NO_COLOR: "1"
+      BASELINE_PROJECT_REF: "safcizxahjqassrwhrup"
+
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@v4
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Validate canonical migration history
+        shell: bash
+        run: npm run validate:migrations
+
+      - name: Start local Supabase
+        shell: bash
+        run: supabase db start
+
+      - name: Rebuild from canonical migrations
+        shell: bash
+        run: supabase db reset
+
+      - name: Capture rebuilt schema fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          export DB_URL
+          rm -rf canonical-fingerprint
+          node scripts/capture-supabase-fingerprint.mjs canonical-fingerprint
+
+      - name: Compare rebuilt schema with production fingerprint
+        shell: bash
+        run: |
+          node scripts/compare-supabase-baseline.mjs             --schema-only             ops/supabase/baseline-fingerprint-20260920             canonical-fingerprint
+
+      - name: Upload rebuilt fingerprint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-schema-fingerprint-${{ github.run_id }}
+          path: canonical-fingerprint
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Report fingerprint success to issue 172
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST             repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Canonical baseline schema fingerprint comparison passed. Run ID: ${GITHUB_RUN_ID}. The fresh local rebuild matches all six committed production schema fingerprints exactly; migration history remains intentionally excluded until the final supported history-normalization step. Production was not modified."
+
+      - name: Report fingerprint failure to issue 172
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST             repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Canonical baseline schema fingerprint comparison failed safely. Run ID: ${GITHUB_RUN_ID}. Production was not modified. Review the fingerprint diff before merging PR #221."

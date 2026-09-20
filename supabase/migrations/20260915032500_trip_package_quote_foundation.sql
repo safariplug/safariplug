@@ -1,6 +1,0 @@
-create table if not exists public.trip_package_quotes (
- id uuid primary key default gen_random_uuid(),trip_id uuid not null references public.trips(id) on delete cascade,traveler_id uuid not null references auth.users(id) on delete cascade,status text not null default 'draft' check(status in('draft','ready','expired','accepted','cancelled')),currency text not null,subtotal numeric(14,2) not null check(subtotal>=0),component_count integer not null default 0 check(component_count>=0),components jsonb not null default '[]'::jsonb,pricing_basis text not null default 'recorded_components',expires_at timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
-create index if not exists trip_package_quotes_trip_idx on public.trip_package_quotes(trip_id,created_at desc);
-alter table public.trip_package_quotes enable row level security;
-create policy "travelers read own package quotes" on public.trip_package_quotes for select to authenticated using(traveler_id=auth.uid() and exists(select 1 from public.trips t where t.id=trip_id and t.traveler_id=auth.uid()));
-comment on table public.trip_package_quotes is 'Snapshots of real SafariPlug trip price components. A quote does not imply supplier availability, payment, hold, or booking confirmation.';
