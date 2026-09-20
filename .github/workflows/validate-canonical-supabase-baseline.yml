@@ -1,0 +1,154 @@
+name: Validate Canonical Supabase Baseline
+
+on:
+  push:
+    branches:
+      - ops/validate-canonical-supabase-baseline-20260920
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOURCE_RUN_ID: "35485349948"
+      SOURCE_ARTIFACT: "supabase-production-baseline-35485349948"
+      SUPABASE_DISABLE_TELEMETRY: "1"
+      NO_COLOR: "1"
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Download verified production baseline artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .canonical-baseline
+          mkdir -p .canonical-baseline/artifact
+          gh run download "${SOURCE_RUN_ID}"             --repo "${GITHUB_REPOSITORY}"             --name "${SOURCE_ARTIFACT}"             --dir .canonical-baseline/artifact
+
+      - name: Verify captured baseline checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .canonical-baseline/artifact
+          sha256sum -c SHA256SUMS
+
+      - name: Prepare isolated canonical migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .canonical-baseline/work
+          cd .canonical-baseline/work
+          supabase init
+          rm -rf supabase/migrations
+          mkdir -p supabase/migrations
+          cp ../artifact/production-schema.sql             supabase/migrations/20260920025853_production_baseline.sql
+
+      - name: Start fresh local Supabase database
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .canonical-baseline/work
+          supabase db start
+
+      - name: Rebuild fresh database from canonical baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .canonical-baseline/work
+          supabase db reset
+
+      - name: Dump rebuilt local schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .canonical-baseline/work
+          supabase db dump --local > ../rebuilt-schema.sql
+          test -s ../rebuilt-schema.sql
+
+      - name: Capture rebuilt object counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .canonical-baseline/work
+          eval "$(supabase status -o env)"
+          psql "${DB_URL}" -v ON_ERROR_STOP=1 -Atc "
+            select json_build_object(
+              'tables', (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p')),
+              'functions', (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'),
+              'policies', (select count(*) from pg_policies where schemaname='public'),
+              'indexes', (select count(*) from pg_indexes where schemaname='public'),
+              'triggers', (select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and not t.tgisinternal),
+              'constraints', (select count(*) from pg_constraint con join pg_class c on c.oid=con.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public'),
+              'views', (select count(*) from pg_views where schemaname='public')
+            );
+          " | tee ../rebuilt-counts.json
+
+      - name: Verify rebuilt production object counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require("fs");
+          const actual = JSON.parse(fs.readFileSync(".canonical-baseline/rebuilt-counts.json", "utf8"));
+          const expected = {
+            tables: 97,
+            functions: 84,
+            policies: 88,
+            indexes: 411,
+            triggers: 47,
+            constraints: 470,
+            views: 1,
+          };
+          const failures = Object.entries(expected)
+            .filter(([key, value]) => actual[key] !== value)
+            .map(([key, value]) => `${key}: expected ${value}, got ${actual[key]}`);
+          if (failures.length) {
+            console.error(failures.join("\n"));
+            process.exit(1);
+          }
+          console.log("Canonical baseline rebuilt with expected production object counts.");
+          NODE
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-baseline-validation-${{ github.run_id }}
+          path: |
+            .canonical-baseline/rebuilt-counts.json
+            .canonical-baseline/rebuilt-schema.sql
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Report success to issue 172
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST             repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Canonical baseline fresh-database rebuild succeeded. Run ID: ${GITHUB_RUN_ID}. The verified production schema artifact applied cleanly as a single isolated migration and rebuilt the expected production object counts. Production was not modified."
+
+      - name: Report failure to issue 172
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --method POST             repos/${GITHUB_REPOSITORY}/issues/172/comments             -f body="Canonical baseline fresh-database rebuild failed safely. Run ID: ${GITHUB_RUN_ID}. This validation used only a fresh local Supabase database; production was not modified."
