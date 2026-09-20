@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type RoomPackage = {
   quoteId: string;
@@ -26,7 +27,11 @@ type Policy = {
 type Guest = { firstName: string; lastName: string };
 
 export default function HotelBookPage() {
-  const params = useMemo(() => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search), []);
+  return <Suspense fallback={<main className="min-h-screen bg-[#f7f7f4] px-6 py-10 text-[#111]"><div className="mx-auto max-w-5xl"><div className="rounded-3xl bg-white p-8">Loading hotel checkout…</div></div></main>}><HotelBookPageContent /></Suspense>;
+}
+
+function HotelBookPageContent() {
+  const params = useSearchParams();
   const hotelId = params.get("hotelId") || "";
   const hotelName = params.get("hotelName") || "Hotel stay";
   const initialSearchKey = params.get("searchKey") || "";
