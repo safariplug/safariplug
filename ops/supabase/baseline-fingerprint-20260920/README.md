@@ -12,6 +12,7 @@ It exists to support issue #172 migration-history normalization without replayin
 - `functions.json` — public function signatures, security-definer flags, return types, and definitions
 - `api-grants.json` — table grants for `anon`, `authenticated`, and `service_role`
 - `migrations.json` — production migration history returned by Supabase
+- `schema-meta.json` — relation/RLS metadata, views, sequences, enums, extensions, role memberships, and default privileges
 
 The snapshot supplements the owner-only CLI workflow in
 `.github/workflows/supabase-baseline-audit.yml`. The CLI workflow remains the authority for a full `supabase db dump --linked` and role dump.
@@ -36,4 +37,4 @@ Run:
 node scripts/compare-supabase-baseline.mjs <expected-dir> <actual-dir>
 ```
 
-Both directories must contain the six JSON files listed above. Comparison ignores only `captured_at_utc`; every captured schema/migration value is otherwise compared exactly.
+Both directories must contain the seven JSON files listed above. Comparison ignores only `captured_at_utc`; every captured schema/migration value is otherwise compared exactly.
