@@ -14,6 +14,7 @@ const files = [
   "functions.json",
   "api-grants.json",
   "migrations.json",
+  "schema-meta.json",
 ];
 
 function normalize(value) {
