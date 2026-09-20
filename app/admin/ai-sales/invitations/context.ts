@@ -21,21 +21,16 @@ export async function resolveOutreachContext(prospectId: string): Promise<Outrea
 
   if (error || !prospect) return null;
 
-  const [{ data: partner }, { data: primary }, { data: fallback }] = await Promise.all([
-    supabaseAdmin
-      .from("safari_partners")
-      .select("id")
-      .eq("venue_or_promoter_name", prospect.business_name)
-      .maybeSingle(),
+  const [{ data: primary }, { data: fallback }] = await Promise.all([
     supabaseAdmin
       .from("crm_contacts")
-      .select("id,email,phone")
+      .select("id,email,phone,partner_id")
       .eq("prospect_id", prospectId)
       .eq("is_primary", true)
       .maybeSingle(),
     supabaseAdmin
       .from("crm_contacts")
-      .select("id,email,phone")
+      .select("id,email,phone,partner_id")
       .eq("prospect_id", prospectId)
       .order("created_at", { ascending: true })
       .limit(1)
@@ -43,9 +38,13 @@ export async function resolveOutreachContext(prospectId: string): Promise<Outrea
   ]);
 
   const choice = chooseOutreachContact(primary, fallback, prospect.contact_email);
+  const selectedContact = choice.contactId
+    ? [primary, fallback].find((contact) => contact?.id === choice.contactId)
+    : null;
+
   return {
     prospectId,
-    partnerId: partner?.id || null,
+    partnerId: selectedContact?.partner_id || null,
     contactId: choice.contactId,
     businessName: prospect.business_name,
     partnerType: prospect.category || "Other travel partner",
