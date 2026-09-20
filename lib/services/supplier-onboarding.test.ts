@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canSubmitSupplierOnboarding, isAppointmentProviderBusinessType } from "./supplier-onboarding";
+import { canSubmitSupplierOnboarding, isAppointmentProviderBusinessType, supplierNextAction } from "./supplier-onboarding";
 
 test("service supplier stays appointment-based before profile creation", () => {
   assert.equal(isAppointmentProviderBusinessType("Barber", false), true);
@@ -24,4 +24,44 @@ test("submission requires canonical readiness", () => {
   assert.equal(canSubmitSupplierOnboarding({ locked: false, submitted: false, ready: true }), true);
   assert.equal(canSubmitSupplierOnboarding({ locked: true, submitted: false, ready: true }), false);
   assert.equal(canSubmitSupplierOnboarding({ locked: false, submitted: true, ready: true }), false);
+});
+
+
+test("supplier next action follows canonical readiness order", () => {
+  const issues = [
+    { key: "business_details", label: "Complete business details", href: "#business-details" },
+    { key: "business_images", label: "Add business images", href: "#business-images" },
+  ];
+  const next = supplierNextAction({
+    onboardingStatus: "draft",
+    readinessReady: false,
+    readinessIssues: issues,
+  });
+  assert.equal(next.title, "Complete business details");
+  assert.equal(next.href, "#business-details");
+});
+
+test("requested changes take priority in supplier next action", () => {
+  const issues = [
+    { key: "business_images", label: "Add business images", href: "#business-images" },
+    { key: "payout_details", label: "Verify payout details", href: "/business/payouts" },
+  ];
+  const next = supplierNextAction({
+    onboardingStatus: "changes_requested",
+    readinessReady: false,
+    readinessIssues: issues,
+    reviewItems: ["payout_details"],
+  });
+  assert.equal(next.title, "Verify payout details");
+  assert.equal(next.href, "/business/payouts");
+});
+
+test("ready suppliers are directed to submission", () => {
+  const next = supplierNextAction({
+    onboardingStatus: "draft",
+    readinessReady: true,
+    readinessIssues: [],
+  });
+  assert.equal(next.title, "Submit for SafariPlug review");
+  assert.equal(next.href, "#submit-for-review");
 });
