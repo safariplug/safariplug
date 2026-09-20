@@ -28,7 +28,7 @@ export default function StaffVerificationLink({
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error || "Unable to create verification link.");
       setClaimUrl(body.claimUrl || "");
-      setMessage("Secure link created. SafariPlug has not sent it externally; share it with this specialist yourself.");
+      setMessage("Secure specialist link created. SafariPlug has not sent it externally; share it with this specialist yourself.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to create verification link.");
     } finally {
@@ -37,13 +37,13 @@ export default function StaffVerificationLink({
   }
 
   if (verified) {
-    return <p className="mt-3 text-xs font-semibold text-emerald-700">Identity + live face/liveness verified.</p>;
+    return <p className="mt-3 text-xs font-semibold text-emerald-700">SafariPlug trust review approved.</p>;
   }
 
   if (linked) {
     return (
       <p className="mt-3 text-xs leading-5 text-amber-700">
-        SafariPlug account linked. The specialist must sign in and complete verification at{" "}
+        SafariPlug account linked. The specialist must sign in and request their SafariPlug trust review at{" "}
         <a href="/services/provider-verification" className="font-semibold underline">their verification page</a>.
       </p>
     );
@@ -57,7 +57,7 @@ export default function StaffVerificationLink({
         onClick={() => void createLink()}
         className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold disabled:opacity-40"
       >
-        {busy ? "Creating…" : "Create secure verification link"}
+        {busy ? "Creating…" : "Create secure specialist link"}
       </button>
       {claimUrl ? (
         <div className="mt-3 rounded-xl bg-black/[.035] p-3">
@@ -66,7 +66,7 @@ export default function StaffVerificationLink({
             type="button"
             onClick={() => {
               void navigator.clipboard.writeText(claimUrl);
-              setMessage("Verification link copied. SafariPlug has not sent it externally.");
+              setMessage("Specialist link copied. SafariPlug has not sent it externally.");
             }}
             className="mt-2 text-xs font-semibold underline"
           >
