@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { describeVerificationProviders } from "@/lib/integrations/verification";
+import { sumsubConfigurationStatus } from "@/lib/integrations/verification/sumsub";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { hydrateVerificationStore } from "@/lib/services/verification-db";
 import { toSafeEvidence } from "@/lib/services/verification";
@@ -33,6 +34,7 @@ export default async function VerificationTrustPage() {
     ["not_started", "pending", "in_review"].includes(row.status)
   ).length;
 
+  const sumsubConfig = sumsubConfigurationStatus();
   const identity = providers.find((row) => row.key === "identity_provider");
   const liveness = providers.find((row) => row.key === "liveness_provider");
   const sumsubReady = Boolean(
@@ -97,6 +99,32 @@ export default async function VerificationTrustPage() {
             </div>
           </div>
         </section>
+
+        {!sumsubReady ? (
+          <section className="rounded-2xl border border-red-900/60 bg-red-950/10 p-6">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-red-300/70">Production setup required</p>
+            <h2 className="mt-2 text-xl font-bold">Sumsub is not fully configured in this runtime</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
+              SafariPlug will keep identity/liveness gates blocked until the external provider is configured. Values are never shown here; only missing variable names are listed.
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Missing configuration</p>
+                <div className="mt-3 space-y-1 font-mono text-xs text-red-300">
+                  {sumsubConfig.missing.length ? sumsubConfig.missing.map((name) => <p key={name}>{name}</p>) : <p className="text-emerald-300">All required variables are present.</p>}
+                </div>
+              </div>
+              <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Production webhook URL</p>
+                <p className="mt-3 break-all font-mono text-xs text-zinc-300">{sumsubConfig.webhookUrl}</p>
+                <p className="mt-3 text-xs leading-5 text-zinc-500">Configure this in Sumsub with HMAC SHA-256 and use the same secret as SUMSUB_WEBHOOK_SECRET.</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link href="/admin/integrations/verification" className="text-xs font-semibold text-amber-400">Refresh readiness after configuration →</Link>
+            </div>
+          </section>
+        ) : null}
 
         <section className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950">
           <div className="border-b border-zinc-800 px-5 py-4">
