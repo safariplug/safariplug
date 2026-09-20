@@ -25,8 +25,8 @@ function requirementLink(requirement: string) {
   if (requirement.toLowerCase().includes("business detail") || requirement.includes("description")) return `${base}#business-details`;
   if (requirement.toLowerCase().includes("business image") || requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
   if (requirement.toLowerCase().includes("service pricing") || requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
-  if (requirement.toLowerCase().includes("specialist") || requirement.toLowerCase().includes("personal photo")) return `${site}/business/services/identity`;
-  if (requirement.includes("team member") || requirement.includes("availability")) return `${base}#team-availability`;
+  if (requirement.toLowerCase().includes("availability") || requirement.toLowerCase().includes("add at least one active service specialist") || requirement.includes("team member")) return `${base}#team-availability`;
+  if (requirement.toLowerCase().includes("personal photo") || requirement.toLowerCase().includes("identity + live face verification") || requirement.toLowerCase().includes("specialist identity")) return `${site}/business/services/identity`;
   if (requirement.toLowerCase().includes("payout") || requirement.includes("M-Pesa")) return `${site}/business/payouts`;
   if (requirement.toLowerCase().includes("provider") && requirement.toLowerCase().includes("verification")) return `${site}/business/verification`;
   if (requirement.includes("verification")) return `${site}/supplier/readiness`;
