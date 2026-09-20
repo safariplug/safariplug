@@ -77,7 +77,7 @@ jobs:
         run: |
           set -euo pipefail
           cd .baseline-audit
-          supabase gen types typescript --linked > ../baseline-artifacts/production.types.ts
+          supabase gen types --lang typescript --linked > ../baseline-artifacts/production.types.ts
 
       - name: Record audit manifest and hashes
         shell: bash
