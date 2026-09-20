@@ -58,9 +58,13 @@ function normalizeSchemaMetaForLocal(value) {
     role_memberships: [],
     // Keep the application-relevant default ACLs for objects created by
     // postgres in public. Other schemas/default owners are platform-managed.
-    default_privileges: value.default_privileges.filter(
-      (row) => row.owner === "postgres" && row.schema === "public",
-    ),
+    default_privileges: value.default_privileges
+      .filter((row) => row.owner === "postgres" && row.schema === "public")
+      .sort((a, b) => {
+        const left = `${a.owner}\0${a.schema}\0${a.object_type}`;
+        const right = `${b.owner}\0${b.schema}\0${b.object_type}`;
+        return left.localeCompare(right);
+      }),
   };
 }
 
