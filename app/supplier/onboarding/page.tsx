@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { canSubmitSupplierOnboarding } from "@/lib/services/supplier-onboarding";
 
 type SuggestedOffering = { name: string; description: string; durationMinutes: number; priceHint?: string };
 type Staff = { id: string; display_name: string; bio?: string | null; status: string };
@@ -83,7 +84,7 @@ export default function SupplierOnboardingPage() {
   const readinessIssues = readiness?.issues || [];
   const onboardingStatus = state.account?.onboarding_status || "";
   const submitted = onboardingStatus === "submitted";
-  const canSubmit = !locked && !submitted && Boolean(readiness?.ready);
+  const canSubmit = canSubmitSupplierOnboarding({ locked, submitted, ready: Boolean(readiness?.ready) });
   const suggested = state.suggestedOfferings || [];
   const existingNames = new Set((state.offerings || []).map((offering) => String(offering.name).toLowerCase()));
   const availableSuggestions = suggested.filter((offering) => !existingNames.has(offering.name.toLowerCase()));
