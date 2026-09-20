@@ -25,6 +25,7 @@ export default async function ReconciliationPage(){
     serviceAppointmentResult,
     foodRefundResult,
     foodOrderResult,
+    foodPaymentAttemptResult,
     payoutResult,
     checkoutResult,
     paymentIntentResult,
@@ -41,6 +42,9 @@ export default async function ReconciliationPage(){
     supabaseAdmin.from("food_orders")
       .select("id,public_id,status,payment_status,currency,customer_total,refunded_amount,refund_reference,updated_at")
       .order("updated_at",{ascending:false}).limit(1000),
+    supabaseAdmin.from("food_order_payment_idempotency")
+      .select("id,order_id,provider,idempotency_key,payment_intent_id,provider_reference,processing_until,provider_submission_state,attempt_active,created_at")
+      .order("created_at",{ascending:false}).limit(1000),
     supabaseAdmin.from("service_provider_payouts")
       .select("id,appointment_id,currency,provider_net_amount,status,payout_reference,transaction_receipt,mpesa_transaction_id,paid_at,failure_reason,updated_at")
       .order("updated_at",{ascending:false}).limit(1000),
@@ -166,6 +170,62 @@ export default async function ReconciliationPage(){
     }
   }
 
+  for(const attempt of foodPaymentAttemptResult.data||[]){
+    const order=foodOrdersById.get(attempt.order_id);
+    const reference=order?.public_id||attempt.order_id;
+    const state=String(attempt.provider_submission_state||"ready");
+    const active=attempt.attempt_active===true;
+
+    if(state==="uncertain"){
+      anomalies.push({
+        key:`food-payment-uncertain-${attempt.id}`,
+        severity:"critical",
+        source:"Food payment",
+        reference,
+        title:"Restaurant M-Pesa submission is uncertain",
+        detail:"The provider may have accepted this payment request. Do not start another charge until provider evidence is reconciled.",
+        updatedAt:attempt.created_at,
+      });
+      continue;
+    }
+
+    if(state==="submitted"&&active&&attempt.processing_until&&new Date(attempt.processing_until).getTime()<=Date.now()){
+      anomalies.push({
+        key:`food-payment-stale-submission-${attempt.id}`,
+        severity:"critical",
+        source:"Food payment",
+        reference,
+        title:"Restaurant M-Pesa submission claim expired",
+        detail:"The submission is still marked active after its processing claim expired. Reconcile provider state before any retry.",
+        updatedAt:attempt.created_at,
+      });
+    }
+
+    if(active&&order&&attempt.payment_intent_id&&attempt.provider_reference&&!["pending","paid","refunded"].includes(String(order.payment_status))){
+      anomalies.push({
+        key:`food-payment-order-state-${attempt.id}`,
+        severity:"critical",
+        source:"Food payment",
+        reference,
+        title:"Correlated M-Pesa attempt is not reflected on the order",
+        detail:`M-Pesa correlation exists while order payment state is ${order.payment_status}. Do not retry; reconcile the provider result and order state first.`,
+        updatedAt:attempt.created_at,
+      });
+    }
+
+    if(active&&order&&["paid","refunded"].includes(String(order.payment_status))){
+      anomalies.push({
+        key:`food-payment-active-terminal-${attempt.id}`,
+        severity:"warning",
+        source:"Food payment",
+        reference,
+        title:"Terminal restaurant order still has an active payment attempt",
+        detail:`Order payment state is ${order.payment_status}, but the M-Pesa attempt is still active. Confirm callback cleanup before starting any new payment action.`,
+        updatedAt:attempt.created_at,
+      });
+    }
+  }
+
   const dayMs=24*60*60*1000;
   for(const payout of payoutResult.data||[]){
     const evidence=payout.transaction_receipt||payout.mpesa_transaction_id||payout.payout_reference;
@@ -242,13 +302,14 @@ export default async function ReconciliationPage(){
   const warnings=anomalies.filter(x=>x.severity==="warning");
   const queryErrors=[
     serviceLedgerResult.error,serviceAppointmentResult.error,foodRefundResult.error,
-    foodOrderResult.error,payoutResult.error,checkoutResult.error,paymentIntentResult.error,
+    foodOrderResult.error,foodPaymentAttemptResult.error,payoutResult.error,checkoutResult.error,paymentIntentResult.error,
   ].filter(Boolean);
   const cappedSources=[
     (serviceLedgerResult.data||[]).length>=1000?"service payment ledger":null,
     (serviceAppointmentResult.data||[]).length>=1000?"service appointments":null,
     (foodRefundResult.data||[]).length>=1000?"food refunds":null,
     (foodOrderResult.data||[]).length>=1000?"food orders":null,
+    (foodPaymentAttemptResult.data||[]).length>=1000?"food payment attempts":null,
     (payoutResult.data||[]).length>=1000?"provider payouts":null,
     (checkoutResult.data||[]).length>=1000?"package checkout attempts":null,
     (paymentIntentResult.data||[]).length>=1000?"package payment intents":null,
@@ -277,7 +338,7 @@ export default async function ReconciliationPage(){
         <Metric label="Open anomalies" value={anomalies.length}/>
         <Metric label="Critical" value={critical.length}/>
         <Metric label="Warnings" value={warnings.length}/>
-        <Metric label="Sources checked" value={7}/>
+        <Metric label="Sources checked" value={8}/>
       </section>
 
       <section className="mt-8">
@@ -291,7 +352,7 @@ export default async function ReconciliationPage(){
 
         {!anomalies.length?<div className="mt-5 rounded-2xl border border-emerald-900/40 bg-emerald-950/10 p-8">
           <p className="font-semibold text-emerald-300">No reconciliation anomalies detected.</p>
-          <p className="mt-2 text-sm text-zinc-500">The checked service payments, food refunds, provider payouts and package payment states are internally consistent in the current query window.</p>
+          <p className="mt-2 text-sm text-zinc-500">The checked service payments, restaurant payment attempts, food refunds, provider payouts and package payment states are internally consistent in the current query window.</p>
         </div>:<div className="mt-5 space-y-3">
           {anomalies.map(item=><article key={item.key} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
