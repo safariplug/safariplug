@@ -1,0 +1,93 @@
+name: Build Redundant Index Cleanup
+
+on:
+  push:
+    branches:
+      - perf/remove-redundant-indexes-20260920
+    paths:
+      - .github/workflows/build-redundant-index-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_DISABLE_TELEMETRY: "1"
+      NO_COLOR: "1"
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: perf/remove-redundant-indexes-20260920
+          fetch-depth: 0
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Create migration with Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration new remove_redundant_indexes
+          migration_file="$(find supabase/migrations -maxdepth 1 -type f -name '*_remove_redundant_indexes.sql' -printf '%f\n' | head -n1)"
+          test -n "${migration_file}"
+          cat > "supabase/migrations/${migration_file}" <<'SQL'
+          -- Remove only indexes that are fully covered by wider indexes with
+          -- the same leftmost key sequence. Primary, unique, constraint-backed,
+          -- partial, and expression indexes are intentionally excluded.
+
+          drop index if exists public.service_provider_payouts_status_idx;
+          drop index if exists public.idx_food_delivery_assignments_driver;
+          drop index if exists public.verification_evidence_case_idx;
+          SQL
+
+      - name: Validate migration history
+        shell: bash
+        run: npm run validate:migrations
+
+      - name: Start local Supabase
+        shell: bash
+        run: supabase db start
+
+      - name: Rebuild from migrations
+        shell: bash
+        run: supabase db reset
+
+      - name: Verify redundant indexes are absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          export DB_URL
+          psql "${DB_URL}" -v ON_ERROR_STOP=1 -Atc "
+            select indexname
+            from pg_indexes
+            where schemaname='public'
+              and indexname in (
+                'service_provider_payouts_status_idx',
+                'idx_food_delivery_assignments_driver',
+                'verification_evidence_case_idx'
+              )
+            order by indexname;
+          " | tee remaining-indexes.txt
+
+          if [ -s remaining-indexes.txt ]; then
+            echo "One or more redundant indexes still exist after reset."
+            exit 1
+          fi
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/migrations
+          git commit -m "Remove proven redundant indexes"
+          git push origin HEAD:perf/remove-redundant-indexes-20260920
