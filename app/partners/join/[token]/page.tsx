@@ -162,12 +162,29 @@ export default async function Page({ params }: { params: Promise<{ token: string
         .maybeSingle();
       if (latestError) throw new Error(latestError.message);
       if (!latest || latest.onboarded_user_id !== user.id) notFound();
+    } else if (invitation.prospect_id || invitation.partner_id) {
+      await supabaseAdmin.from("crm_activities").insert({
+        prospect_id: invitation.prospect_id || null,
+        partner_id: invitation.partner_id || null,
+        activity_type: "system",
+        summary: "Partner signup started",
+        details: `Invitation ${invitation.id} was claimed by the partner account.`,
+      });
     }
   }
 
   const provisioned = await provisionServiceEnrollment(user, invitation);
   if (provisioned) {
     await supabaseAdmin.from("partner_invitations").update({ status: "onboarding", updated_at: new Date().toISOString() }).eq("id", invitation.id).eq("onboarded_user_id", user.id);
+    if (invitation.status !== "onboarding" && (invitation.prospect_id || invitation.partner_id)) {
+      await supabaseAdmin.from("crm_activities").insert({
+        prospect_id: invitation.prospect_id || null,
+        partner_id: invitation.partner_id || null,
+        activity_type: "system",
+        summary: "Supplier onboarding started",
+        details: `Invitation ${invitation.id} entered supplier onboarding.`,
+      });
+    }
   }
 
   const href = destination(invitation.partner_type);
