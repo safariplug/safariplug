@@ -11,7 +11,7 @@ export type OutreachHistoryItem = {
   sent_at: string | null;
 };
 
-export function OutreachPanel({ prospectId, invitations }: { prospectId: string; invitations: OutreachHistoryItem[] }) {
+export function OutreachPanel({ prospectId, invitations, canDraft }: { prospectId: string; invitations: OutreachHistoryItem[]; canDraft: boolean }) {
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -21,9 +21,10 @@ export function OutreachPanel({ prospectId, invitations }: { prospectId: string;
         </div>
         <form action={createContextualPartnerInvitation}>
           <input type="hidden" name="prospect_id" value={prospectId} />
-          <button className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-black">Create outreach draft</button>
+          <button disabled={!canDraft} title={canDraft ? "Create a governed outreach draft" : "Add a CRM email/phone or a discovered business email first"} className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-40">Create outreach draft</button>
         </form>
       </div>
+      {!canDraft && <p className="mt-4 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-sm text-amber-300">No governed outreach channel is available. Add a named CRM contact with email/phone, or capture a public business email during prospect research.</p>}
       <div className="mt-4 space-y-3">
         {invitations.map((item) => (
           <div key={item.id} className="rounded-xl border border-zinc-800 p-3">

@@ -40,6 +40,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const latest = conversions?.[0];
   const dbError = ce || ae || fe || xe || outreach.error;
   const hasDiscoveredContact = Boolean(p.contact_email || p.phone || p.website || p.instagram || p.facebook);
+  const canDraftOutreach = Boolean(p.contact_email || (contacts || []).some((contact) => contact.email || contact.phone));
 
   return (
     <main className="min-h-screen bg-[#070707] p-5 text-white md:p-10">
@@ -68,7 +69,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
           <div className="space-y-5">
-            <OutreachPanel prospectId={id} invitations={outreach.invitations} />
+            <OutreachPanel prospectId={id} invitations={outreach.invitations} canDraft={canDraftOutreach} />
 
             <Panel t="Follow-up intelligence">
               {overdue.length > 0 && <div className="mb-4 rounded-xl border border-red-900/60 bg-red-950/20 p-3 text-sm text-red-300">{overdue.length} follow-up{overdue.length === 1 ? " is" : "s are"} overdue and needs attention.</div>}
