@@ -12,3 +12,16 @@ export function isAppointmentProviderBusinessType(
   if (normalized) return !NON_APPOINTMENT_SUPPLIER_TYPES.has(normalized);
   return hasServiceProfile;
 }
+
+
+export function canSubmitSupplierOnboarding({
+  locked,
+  submitted,
+  ready,
+}: {
+  locked: boolean;
+  submitted: boolean;
+  ready: boolean;
+}) {
+  return !locked && !submitted && ready;
+}
