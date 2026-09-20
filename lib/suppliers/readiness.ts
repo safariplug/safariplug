@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { isAppointmentProviderBusinessType } from "@/lib/services/supplier-onboarding";
 
 export type SupplierReadinessKey =
   | "business_details"
@@ -90,8 +91,10 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
   if (completion.error) throw completion.error;
   if (!business) throw new Error("Supplier business not found.");
 
-  const businessType = String(business.business_type || "");
-  const appointmentProvider = Boolean((profiles ?? []).length) && !["Restaurant", "Hotel", "Event Organizer"].includes(businessType);
+  const appointmentProvider = isAppointmentProviderBusinessType(
+    business.business_type,
+    Boolean((profiles ?? []).length),
+  );
   const profileRows = profiles ?? [];
   const offerings = profileRows.flatMap((profile: any) => {
     const raw = profile.service_offerings;
