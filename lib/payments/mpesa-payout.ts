@@ -98,14 +98,32 @@ export async function createMpesaB2CPayout(input: MpesaPayoutInput) {
     );
   }
 
-  const body = await response.text();
+  let body: string;
+  try {
+    body = await response.text();
+  } catch (error) {
+    throw new MpesaPayoutSubmissionError(
+      "mpesa_b2c_response_unreadable_after_submission",
+      "uncertain",
+      { cause: error },
+    );
+  }
+
   let parsed: Record<string, unknown> = {};
   try { parsed = JSON.parse(body) as Record<string, unknown>; } catch {}
 
-  if (!response.ok || String(parsed.ResponseCode ?? "0") !== "0") {
+  const responseCode = parsed.ResponseCode == null ? null : String(parsed.ResponseCode);
+  if (responseCode && responseCode !== "0") {
     throw new MpesaPayoutSubmissionError(
-      `mpesa_b2c_error:${response.status}:${String(parsed.ResponseDescription || body).slice(0, 300)}`,
+      `mpesa_b2c_rejected:${response.status}:${String(parsed.ResponseDescription || body).slice(0, 300)}`,
       "not_sent",
+    );
+  }
+
+  if (!response.ok) {
+    throw new MpesaPayoutSubmissionError(
+      `mpesa_b2c_http_error:${response.status}:${String(parsed.ResponseDescription || body).slice(0, 300)}`,
+      response.status >= 500 ? "uncertain" : "not_sent",
     );
   }
 
