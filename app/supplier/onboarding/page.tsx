@@ -8,7 +8,7 @@ type SuggestedOffering = { name: string; description: string; durationMinutes: n
 type Staff = { id: string; display_name: string; bio?: string | null; status: string };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string; is_active: boolean };
 type ReadinessIssue = { key: string; label: string; href: string; owner?: "supplier" | "platform" };
-type ActivationReadiness = { ready: boolean; completionPercent: number; issues: ReadinessIssue[] };
+type ActivationReadiness = { ready: boolean; completionPercent: number; issues: ReadinessIssue[]; checks?: Record<string, boolean> };
 type State = { account?: { contact_name: string; onboarding_status: string; completion_percent: number; review_items?: string[] | null; review_note?: string | null; review_requested_at?: string | null }; business?: Record<string, any>; profile?: Record<string, any>; offerings?: Record<string, any>[]; suggestedOfferings?: SuggestedOffering[]; staff?: Staff[]; availability?: Availability[]; activationReadiness?: ActivationReadiness };
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -19,7 +19,7 @@ const REVIEW_FIXES: Record<string, { label: string; href: string }> = {
   team: { label: "Team information", href: "/supplier/onboarding#team-availability" },
   personal_photos: { label: "Personal photos", href: "/business/services/identity" },
   availability: { label: "Availability", href: "/supplier/onboarding#team-availability" },
-  staff_verification: { label: "Specialist identity + liveness", href: "/business/services/identity" },
+  staff_verification: { label: "Specialist SafariPlug review", href: "/business/services/identity" },
   verification: { label: "Provider verification", href: "/business/verification" },
   payout_details: { label: "Payout details", href: "/business/payouts" },
   other: { label: "Other requested update", href: "/supplier/onboarding" },
@@ -94,6 +94,24 @@ export default function SupplierOnboardingPage() {
   const suggested = state.suggestedOfferings || [];
   const existingNames = new Set((state.offerings || []).map((offering) => String(offering.name).toLowerCase()));
   const availableSuggestions = suggested.filter((offering) => !existingNames.has(offering.name.toLowerCase()));
+  const checks = readiness?.checks || {};
+  const activationRoadmap = isAppointmentProvider
+    ? [
+        { key: "businessDetails", label: "Business details", href: "#business-details" },
+        { key: "businessImages", label: "Business images", href: "#business-images" },
+        { key: "servicesPricing", label: "Services & pricing", href: "#services-pricing" },
+        { key: "team", label: "Team member", href: "#team-availability" },
+        { key: "personalPhotos", label: "Personal photo", href: "/business/services/identity" },
+        { key: "availability", label: "Availability", href: "#team-availability" },
+        { key: "staffVerification", label: "Specialist SafariPlug review", href: "/business/services/identity" },
+        { key: "providerVerification", label: "Provider SafariPlug review", href: "/business/verification" },
+        { key: "payout", label: "M-Pesa payout destination", href: "/business/payouts" },
+      ]
+    : [
+        { key: "businessDetails", label: "Business details", href: "#business-details" },
+        { key: "businessImages", label: "Business images", href: "#business-images" },
+      ];
+  const firstIncompleteRoadmapIndex = activationRoadmap.findIndex((step) => !checks[step.key]);
 
   const setupTitle = isRestaurant ? "Restaurant setup" : isHotel ? "Hotel setup" : isEventOrganizer ? "Event & experience setup" : "Service setup";
   const setupBody = isRestaurant
@@ -138,6 +156,29 @@ export default function SupplierOnboardingPage() {
           <span className="shrink-0 font-semibold">Fix →</span>
         </a>)}
       </div> : <p className="mt-4 text-sm font-medium text-emerald-800">No activation blockers remain.</p>}
+    </section>
+    <section className="mt-6 rounded-2xl border border-black/10 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.18em] text-black/40">Activation roadmap</p>
+          <h2 className="mt-1 text-xl font-semibold">One step at a time</h2>
+          <p className="mt-1 text-sm leading-6 text-black/50">Green steps are complete. SafariPlug highlights the first unfinished step so you always know what to do next.</p>
+        </div>
+        <span className="rounded-full bg-black/[.04] px-3 py-1.5 text-xs font-semibold text-black/55">{activationRoadmap.filter((step) => checks[step.key]).length}/{activationRoadmap.length} complete</span>
+      </div>
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
+        {activationRoadmap.map((step, index) => {
+          const complete = Boolean(checks[step.key]);
+          const current = !complete && index === firstIncompleteRoadmapIndex;
+          return <a key={step.key} href={step.href} className={`flex items-center justify-between gap-4 rounded-xl border p-3 text-sm transition ${complete ? "border-emerald-200 bg-emerald-50/60" : current ? "border-amber-300 bg-amber-50" : "border-black/10 bg-black/[.02]"}`}>
+            <span className="flex items-center gap-3">
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${complete ? "bg-emerald-600 text-white" : current ? "bg-amber-500 text-black" : "bg-black/5 text-black/40"}`}>{complete ? "✓" : index + 1}</span>
+              <span className={complete ? "font-medium text-emerald-900" : current ? "font-semibold" : "text-black/55"}>{step.label}</span>
+            </span>
+            <span className="shrink-0 text-xs font-semibold">{complete ? "Done" : current ? "Next →" : "Later"}</span>
+          </a>;
+        })}
+      </div>
     </section>
     {state.account?.onboarding_status === "changes_requested" && <section className="mt-6 rounded-2xl border border-red-200 bg-red-50/60 p-5">
       <p className="text-xs font-semibold uppercase tracking-[.18em] text-red-700/70">SafariPlug requested changes</p>

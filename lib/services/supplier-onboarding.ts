@@ -55,8 +55,8 @@ export function supplierNextAction({
     const issue = readinessIssues.find((item) => item.key === key);
     if (issue?.owner === "platform") {
       return {
-        title: "SafariPlug verification setup is pending",
-        detail: "This requested item is blocked by SafariPlug's verification configuration. You do not need to fix the platform setup yourself.",
+        title: "SafariPlug setup is pending",
+        detail: "This requested item depends on SafariPlug configuration. You do not need to fix the platform setup yourself.",
         href: null as string | null,
         cta: null as string | null,
       };
@@ -81,8 +81,8 @@ export function supplierNextAction({
 
   if (!readinessReady && platformIssues.length) {
     return {
-      title: "Waiting on SafariPlug verification setup",
-      detail: "Your supplier-owned steps are complete. SafariPlug must finish the external identity + liveness configuration before activation can proceed.",
+      title: "Waiting on SafariPlug",
+      detail: "Your supplier-owned steps are complete. SafariPlug must finish the remaining platform setup before activation can proceed.",
       href: null as string | null,
       cta: null as string | null,
     };
