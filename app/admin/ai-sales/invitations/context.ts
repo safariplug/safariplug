@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { chooseOutreachContact } from "@/lib/services/crm-outreach";
+import { resolveStablePartnerIdForProspect } from "@/lib/services/crm-partner-link";
 
 export type OutreachContext = {
   prospectId: string | null;
@@ -38,13 +39,11 @@ export async function resolveOutreachContext(prospectId: string): Promise<Outrea
   ]);
 
   const choice = chooseOutreachContact(primary, fallback, prospect.contact_email);
-  const selectedContact = choice.contactId
-    ? [primary, fallback].find((contact) => contact?.id === choice.contactId)
-    : null;
+  const partnerId = await resolveStablePartnerIdForProspect(prospectId);
 
   return {
     prospectId,
-    partnerId: selectedContact?.partner_id || null,
+    partnerId,
     contactId: choice.contactId,
     businessName: prospect.business_name,
     partnerType: prospect.category || "Other travel partner",
