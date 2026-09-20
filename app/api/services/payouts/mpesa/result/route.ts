@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { findServiceProviderPayoutByMpesaReferences } from "@/lib/payments/mpesa-payout-correlation";
 
 export const dynamic = "force-dynamic";
 
@@ -11,36 +12,6 @@ function authorized(request: Request) {
 
 function callbackError(status: number, description: string) {
   return NextResponse.json({ ResultCode: 1, ResultDesc: description }, { status });
-}
-
-async function findPayout(references: string[]) {
-  const uniqueReferences=[...new Set(references.map(value=>value.trim()).filter(Boolean))];
-  const exactFields=["mpesa_conversation_id","conversation_id","originator_conversation_id"] as const;
-
-  for(const reference of uniqueReferences){
-    for(const field of exactFields){
-      const result=await supabaseAdmin
-        .from("service_provider_payouts")
-        .select("id,status,metadata")
-        .eq(field,reference)
-        .maybeSingle();
-      if(result.error) throw result.error;
-      if(result.data) return result.data;
-    }
-
-    const byReference=await supabaseAdmin
-      .from("service_provider_payouts")
-      .select("id,status,metadata")
-      .eq("payout_reference",reference)
-      .limit(2);
-    if(byReference.error) throw byReference.error;
-    if((byReference.data||[]).length>1){
-      throw new Error("ambiguous_payout_reference");
-    }
-    if(byReference.data?.[0]) return byReference.data[0];
-  }
-
-  return null;
 }
 
 export async function POST(request: Request) {
@@ -58,7 +29,7 @@ export async function POST(request: Request) {
     }
     if (!Number.isFinite(resultCode)) return callbackError(400, "Missing or invalid ResultCode");
 
-    const payout = await findPayout([conversationId,originatorConversationId]);
+    const payout = await findServiceProviderPayoutByMpesaReferences([conversationId,originatorConversationId]);
 
     if (!payout) {
       console.error("Unmatched M-Pesa B2C result callback", {
