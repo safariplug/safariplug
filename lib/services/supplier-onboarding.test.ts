@@ -65,3 +65,29 @@ test("ready suppliers are directed to submission", () => {
   assert.equal(next.title, "Submit for SafariPlug review");
   assert.equal(next.href, "#submit-for-review");
 });
+
+
+test("supplier next action skips platform-owned blockers", () => {
+  const next = supplierNextAction({
+    onboardingStatus: "draft",
+    readinessReady: false,
+    readinessIssues: [
+      { key: "verification", label: "SafariPlug verification is not configured", href: "/business/verification", owner: "platform" },
+      { key: "payout_details", label: "Configure payout details", href: "/business/payouts", owner: "supplier" },
+    ],
+  });
+  assert.equal(next.title, "Configure payout details");
+  assert.equal(next.href, "/business/payouts");
+});
+
+test("platform blocker becomes waiting state when supplier work is complete", () => {
+  const next = supplierNextAction({
+    onboardingStatus: "draft",
+    readinessReady: false,
+    readinessIssues: [
+      { key: "verification", label: "SafariPlug verification is not configured", href: "/business/verification", owner: "platform" },
+    ],
+  });
+  assert.equal(next.title, "Waiting on SafariPlug verification setup");
+  assert.equal(next.href, null);
+});
