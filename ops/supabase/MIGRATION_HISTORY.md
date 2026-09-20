@@ -34,6 +34,25 @@ The existing files listed in `legacy-migration-files.txt` are grandfathered hist
 
 Use `supabase migration new <name>` when working through the Supabase CLI. CI runs `npm run validate:migrations` to stop new history drift.
 
+## Read-only baseline audit
+
+A manual owner-only workflow now exists at `.github/workflows/supabase-baseline-audit.yml`.
+
+It intentionally runs from an isolated temporary Supabase directory and uses only read-oriented operations against production:
+
+- `supabase migration list --linked`
+- `supabase db dump --linked`
+- `supabase db dump --linked --role-only`
+- `supabase gen types typescript --linked`
+
+It does **not** run `db pull`, `db push`, `migration repair`, or remote `db reset`.
+
+The workflow requires `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` GitHub Actions secrets. Those secrets were not present during the earlier repair attempt, so this workflow is prepared but should only be dispatched after the credentials are intentionally configured.
+
+When run, it keeps the production schema dump, role dump, migration-list output, generated types, manifest, and SHA-256 checksums as a 30-day private GitHub Actions artifact. The artifact is evidence for normalization review; it is not automatically committed to the repository.
+
+A live read-only catalog inventory captured on 2026-09-20 is stored in `production-schema-inventory-20260920.json`. At that checkpoint production had 97 public tables, 84 public functions, 88 policies, 411 indexes, 47 non-internal triggers, 470 constraints, and one public view.
+
 ## Production status
 
 The production schema remains healthy and was not changed by the aborted repair workflow. The legacy-history problem is bookkeeping/deployment-history drift, not evidence that the verified production schema repairs are missing.
