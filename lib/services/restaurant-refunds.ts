@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { reverseMpesaTransaction } from "@/lib/payments/mpesa-reversal";
+import { isMpesaReversalSubmissionUncertain, reverseMpesaTransaction } from "@/lib/payments/mpesa-reversal";
 
 export async function initiateRestaurantRefund(input: { orderId: string; requestedBy: string; idempotencyKey: string }) {
   const { orderId, requestedBy, idempotencyKey } = input;
@@ -51,10 +51,6 @@ export async function initiateRestaurantRefund(input: { orderId: string; request
       occasion: "Restaurant order refund",
     });
     const now = new Date().toISOString();
-    if (!reversal.accepted) {
-      await supabaseAdmin.from("food_order_refunds").update({ status: "failed", error_message: reversal.responseDescription || "M-Pesa rejected the reversal", updated_at: now, processed_at: now }).eq("id", refund.id);
-      throw new Error(reversal.responseDescription || "mpesa_reversal_rejected");
-    }
     const { data: updatedRefund, error: updateError } = await supabaseAdmin
       .from("food_order_refunds")
       .update({ provider_reference: reversal.originatorConversationId, refund_reference: reversal.conversationId, updated_at: now })
@@ -65,7 +61,33 @@ export async function initiateRestaurantRefund(input: { orderId: string; request
     return { status: "processing" as const, order, refund: updatedRefund };
   } catch (error) {
     const message = error instanceof Error ? error.message : "refund_provider_error";
-    await supabaseAdmin.from("food_order_refunds").update({ status: "failed", error_message: message.slice(0, 1000), updated_at: new Date().toISOString(), processed_at: new Date().toISOString() }).eq("id", refund.id).eq("status", "processing");
+    const now = new Date().toISOString();
+
+    if (isMpesaReversalSubmissionUncertain(error)) {
+      const { data: uncertainRefund, error: uncertainUpdateError } = await supabaseAdmin
+        .from("food_order_refunds")
+        .update({
+          error_message: `${message}: reconciliation required; do not retry automatically`.slice(0, 1000),
+          updated_at: now,
+        })
+        .eq("id", refund.id)
+        .eq("status", "processing")
+        .select()
+        .maybeSingle();
+      if (uncertainUpdateError) throw uncertainUpdateError;
+      return { status: "processing" as const, order, refund: uncertainRefund || refund };
+    }
+
+    await supabaseAdmin
+      .from("food_order_refunds")
+      .update({
+        status: "failed",
+        error_message: message.slice(0, 1000),
+        updated_at: now,
+        processed_at: now,
+      })
+      .eq("id", refund.id)
+      .eq("status", "processing");
     throw error;
   }
 }
