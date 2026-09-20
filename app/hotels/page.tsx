@@ -74,7 +74,7 @@ export default function HotelsPage() {
       if (!response.ok) throw new Error(body?.message || "Unable to verify rooms for this stay.");
       const packages = Array.isArray(body?.data?.packages) ? body.data.packages : [];
       if (!packages.length) {
-        setUnavailableHotelIds(current => ({ ...current, [hotel.property_id]: "No live room package is available for these dates. Choose another stay." }));
+        setUnavailableHotelIds(current => ({ ...current, [hotel.property_id]: "This stay no longer has a bookable room for these dates. Choose another live option." }));
         return;
       }
       const activeSearchKey = String(body?.searchKey || body?.data?.searchKey || ctx.search_key);
