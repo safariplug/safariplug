@@ -8,12 +8,14 @@ export default function RefundReviewActions({
   provider,
   reason,
   review,
+  canManageFinance,
 }:{
   product:"hotel"|"transfer"|"activity"|"service"|"food";
   ledgerId:string;
   provider:string;
   reason:string;
   review:{id:string;status:string;resolution:string|null;notes:string|null}|null;
+  canManageFinance:boolean;
 }) {
   const [notes,setNotes]=useState(review?.notes||"");
   const [busy,setBusy]=useState(false);
@@ -21,6 +23,14 @@ export default function RefundReviewActions({
   const [error,setError]=useState("");
   const [correctionNotes,setCorrectionNotes]=useState("");
   const resolved=review?.status==="resolved";
+
+  if(!canManageFinance) {
+    return <div className="mt-5 rounded-xl border border-zinc-800 bg-black p-4">
+      <p className="font-semibold text-zinc-100">Finance review</p>
+      <p className="mt-2 text-xs leading-5 text-amber-300">Read only. A super admin or finance manager is required to start, resolve, or reopen a finance review.</p>
+      {review?.notes?<p className="mt-3 rounded-xl bg-zinc-950 p-3 text-xs leading-5 text-zinc-400">{review.notes}</p>:null}
+    </div>;
+  }
 
   async function act(action:"start_review"|"resolve"|"reopen",resolution?:string,overrideNotes?:string) {
     setBusy(true);setMessage("");setError("");
