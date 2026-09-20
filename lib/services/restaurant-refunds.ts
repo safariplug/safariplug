@@ -21,7 +21,10 @@ export async function initiateRestaurantRefund(input: { orderId: string; request
     .eq("idempotency_key", idempotencyKey)
     .maybeSingle();
   if (existingByKeyError) throw existingByKeyError;
-  if (existingByKey) return { status: existingByKey.status === "succeeded" ? "succeeded" as const : "processing" as const, order, refund: existingByKey };
+  if (existingByKey) {
+    if (existingByKey.order_id !== orderId) throw new Error("idempotency_key_bound_to_another_order");
+    return { status: existingByKey.status === "succeeded" ? "succeeded" as const : "processing" as const, order, refund: existingByKey };
+  }
 
   const { data: active, error: activeError } = await supabaseAdmin
     .from("food_order_refunds")
