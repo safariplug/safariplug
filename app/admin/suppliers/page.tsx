@@ -49,17 +49,11 @@ function first<T>(value: T | T[] | null | undefined): T | undefined { return Arr
 function stageLabel(status: string) { return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
 function guidance(supplier: Supplier) {
-  const business = first(supplier.businesses);
-  const profile = first(business?.service_profiles);
-  const offerings = profile?.service_offerings ?? [];
-  const staff = profile?.service_staff ?? [];
   const status = supplier.onboarding_status;
-  const basics = Boolean(business?.name && business?.description && (business?.email || business?.phone));
-  const images = Boolean(business?.logo_url || business?.cover_image_url);
-  const staffPhotos = staff.length > 0 && staff.every((member) => Boolean(member.personal_photo_url));
+  const readiness = supplier.activation_readiness;
 
   if (status === "submitted") {
-    const blockers = supplier.activation_readiness?.issues ?? [];
+    const blockers = readiness?.issues ?? [];
     if (blockers.length) return { owner: "staff", title: "Review activation blockers", detail: `${blockers.length} activation requirement${blockers.length === 1 ? "" : "s"} still incomplete.`, priority: 0 };
     return { owner: "staff", title: "Review submission", detail: "Supplier passed the activation-readiness gate and is waiting for a human decision.", priority: 0 };
   }
@@ -69,13 +63,18 @@ function guidance(supplier: Supplier) {
   }
   if (["approved", "live"].includes(status)) return { owner: "active", title: "Active supplier", detail: "Onboarding is complete. Manage verification and quality.", priority: 4 };
   if (status === "rejected") return { owner: "closed", title: "Closed", detail: "No onboarding action is required.", priority: 5 };
-  if (!basics) return { owner: "supplier", title: "Complete business details", detail: "Description and a working business contact are still needed.", priority: 2 };
-  if (!images) return { owner: "supplier", title: "Add business images", detail: "Logo or cover image is still missing.", priority: 2 };
-  if (profile && !offerings.length) return { owner: "supplier", title: "Add services and pricing", detail: "No service offering has been added yet.", priority: 2 };
-  if (profile && !staff.length) return { owner: "supplier", title: "Add team", detail: "At least one service provider is still needed.", priority: 2 };
-  if (profile && !staffPhotos) return { owner: "supplier", title: "Add personal photos", detail: "One or more providers are missing a personal photo.", priority: 2 };
-  if (supplier.completion_percent < 80) return { owner: "supplier", title: "Finish onboarding", detail: `Profile is ${supplier.completion_percent}% complete.`, priority: 2 };
-  return { owner: "supplier", title: "Submit for review", detail: "Profile appears ready but has not been submitted.", priority: 2 };
+
+  if (readiness && !readiness.ready) {
+    const firstIssue = readiness.issues[0];
+    return {
+      owner: "supplier",
+      title: firstIssue?.label || "Finish activation requirements",
+      detail: `${readiness.issues.length} canonical activation requirement${readiness.issues.length === 1 ? "" : "s"} remaining. Partner 360 shows the complete list.`,
+      priority: 2,
+    };
+  }
+  if (readiness?.ready) return { owner: "supplier", title: "Submit for review", detail: "Activation requirements are complete. Supplier can submit for staff review.", priority: 2 };
+  return { owner: "supplier", title: "Open Partner 360", detail: "Readiness could not be fully evaluated. Review the supplier record before taking action.", priority: 2 };
 }
 
 export default function SuppliersAdminPage() {
