@@ -67,8 +67,14 @@ export type MpesaPayoutInput = {
 
 export async function createMpesaB2CPayout(input: MpesaPayoutInput) {
   const cfg = config();
-  const amount = Math.round(input.amount);
+  const amount = Number(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid_mpesa_payout_amount");
+  if (!Number.isInteger(amount)) {
+    throw new MpesaPayoutSubmissionError(
+      "mpesa_b2c_fractional_amount_requires_reconciliation",
+      "not_sent",
+    );
+  }
   const phone = normalizePhone(input.phone);
   const token = await accessToken();
 
