@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export class AdminAuthError extends Error {
   status: number;
@@ -33,6 +34,30 @@ export async function requireAdmin() {
 
   if (isAdmin !== true) {
     throw new AdminAuthError("Admin access required.", 403);
+  }
+
+  return user;
+}
+
+
+const FINANCE_ADMIN_ROLES = new Set(["super_admin", "finance_manager"]);
+
+export async function requireFinanceAdmin() {
+  const user = await requireAdmin();
+
+  const { data, error } = await supabaseAdmin
+    .from("admin_users")
+    .select("role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("FINANCE ADMIN ROLE LOOKUP ERROR:", error);
+    throw new AdminAuthError("Unable to verify finance admin access.", 500);
+  }
+
+  if (!data || !FINANCE_ADMIN_ROLES.has(String(data.role))) {
+    throw new AdminAuthError("Finance admin access required.", 403);
   }
 
   return user;
