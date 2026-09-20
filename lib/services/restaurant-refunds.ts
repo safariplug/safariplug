@@ -15,19 +15,24 @@ export async function initiateRestaurantRefund(input: { orderId: string; request
   if (String(order.currency).toUpperCase() !== "KES") throw new Error("mpesa_refunds_require_kes");
   if (!order.payment_reference) throw new Error("mpesa_transaction_reference_missing");
 
-  const { data: existingByKey } = await supabaseAdmin
+  const { data: existingByKey, error: existingByKeyError } = await supabaseAdmin
     .from("food_order_refunds")
     .select("*")
     .eq("idempotency_key", idempotencyKey)
     .maybeSingle();
-  if (existingByKey) return { status: existingByKey.status === "succeeded" ? "succeeded" as const : "processing" as const, order, refund: existingByKey };
+  if (existingByKeyError) throw existingByKeyError;
+  if (existingByKey) {
+    if (existingByKey.order_id !== orderId) throw new Error("idempotency_key_bound_to_another_order");
+    return { status: existingByKey.status === "succeeded" ? "succeeded" as const : "processing" as const, order, refund: existingByKey };
+  }
 
-  const { data: active } = await supabaseAdmin
+  const { data: active, error: activeError } = await supabaseAdmin
     .from("food_order_refunds")
     .select("*")
     .eq("order_id", orderId)
     .in("status", ["pending", "processing"])
     .maybeSingle();
+  if (activeError) throw activeError;
   if (active) return { status: "processing" as const, order, refund: active };
 
   const amount = Number(order.customer_total);
@@ -55,9 +60,20 @@ export async function initiateRestaurantRefund(input: { orderId: string; request
       .from("food_order_refunds")
       .update({ provider_reference: reversal.originatorConversationId, refund_reference: reversal.conversationId, updated_at: now })
       .eq("id", refund.id)
+      .eq("status", "processing")
       .select()
-      .single();
-    if (updateError) throw updateError;
+      .maybeSingle();
+    if (updateError || !updatedRefund) {
+      const persistenceMessage = "M-Pesa reversal accepted; correlation persistence failed; reconciliation required; do not retry automatically";
+      const { error: markerError } = await supabaseAdmin
+        .from("food_order_refunds")
+        .update({ error_message: persistenceMessage, updated_at: now })
+        .eq("id", refund.id)
+        .eq("status", "processing");
+      if (markerError) console.error("Failed to mark restaurant reversal correlation persistence uncertainty", markerError);
+      console.error("Restaurant reversal correlation persistence failed after provider acceptance", updateError);
+      return { status: "processing" as const, order, refund, reconciliationRequired: true as const };
+    }
     return { status: "processing" as const, order, refund: updatedRefund };
   } catch (error) {
     const message = error instanceof Error ? error.message : "refund_provider_error";
