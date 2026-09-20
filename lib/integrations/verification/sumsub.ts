@@ -55,3 +55,19 @@ export class SumsubVerificationAdapter implements VerificationAdapter {
 }
 
 export { configured as sumsubConfigured, LEVEL as sumsubVerificationLevel };
+
+
+export function sumsubConfigurationStatus() {
+  const checks = [
+    ["SUMSUB_APP_TOKEN", Boolean(APP_TOKEN)],
+    ["SUMSUB_SECRET_KEY", Boolean(SECRET_KEY)],
+    ["SUMSUB_VERIFICATION_LEVEL", Boolean(LEVEL)],
+    ["SUMSUB_WEBHOOK_SECRET", Boolean(process.env.SUMSUB_WEBHOOK_SECRET)],
+  ] as const;
+
+  return {
+    configured: checks.every(([, present]) => present),
+    missing: checks.filter(([, present]) => !present).map(([name]) => name),
+    webhookUrl: `${(process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "")}/api/integrations/sumsub/webhook`,
+  };
+}
