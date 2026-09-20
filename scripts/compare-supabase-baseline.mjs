@@ -33,6 +33,48 @@ function normalize(value) {
   return value;
 }
 
+function collectDiffs(expected, actual, path = "$", out = [], limit = 25) {
+  if (out.length >= limit) return out;
+
+  if (Object.is(expected, actual)) return out;
+
+  if (Array.isArray(expected) && Array.isArray(actual)) {
+    if (expected.length !== actual.length) {
+      out.push(`${path}.length: expected ${expected.length}, got ${actual.length}`);
+      if (out.length >= limit) return out;
+    }
+    const length = Math.min(expected.length, actual.length);
+    for (let i = 0; i < length && out.length < limit; i += 1) {
+      collectDiffs(expected[i], actual[i], `${path}[${i}]`, out, limit);
+    }
+    return out;
+  }
+
+  if (
+    expected && actual &&
+    typeof expected === "object" &&
+    typeof actual === "object" &&
+    !Array.isArray(expected) &&
+    !Array.isArray(actual)
+  ) {
+    const keys = [...new Set([...Object.keys(expected), ...Object.keys(actual)])].sort();
+    for (const key of keys) {
+      if (out.length >= limit) break;
+      if (!(key in expected)) {
+        out.push(`${path}.${key}: unexpected value ${JSON.stringify(actual[key])}`);
+      } else if (!(key in actual)) {
+        out.push(`${path}.${key}: missing; expected ${JSON.stringify(expected[key])}`);
+      } else {
+        collectDiffs(expected[key], actual[key], `${path}.${key}`, out, limit);
+      }
+    }
+    return out;
+  }
+
+  out.push(`${path}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+  return out;
+}
+
 let failed = false;
 
 for (const file of files) {
@@ -55,6 +97,9 @@ for (const file of files) {
     console.log(`PASS ${file}`);
   } else {
     console.error(`FAIL ${file}`);
+    for (const diff of collectDiffs(expected, actual)) {
+      console.error(`  - ${diff}`);
+    }
     failed = true;
   }
 }
