@@ -94,7 +94,9 @@ export async function POST(request: Request) {
 
   const acceptedUpdate = {
     payout_provider: "mpesa_b2c",
-    mpesa_conversation_id: result.providerReference,
+    mpesa_conversation_id: result.conversationId || result.providerReference,
+    conversation_id: result.conversationId,
+    originator_conversation_id: result.originatorConversationId,
     payout_reference: result.providerReference,
     failure_reason: null,
     updated_at: new Date().toISOString(),
@@ -133,5 +135,10 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, status: "processing", conversationId: result.providerReference });
+  return NextResponse.json({
+    ok: true,
+    status: "processing",
+    conversationId: result.conversationId || result.providerReference,
+    originatorConversationId: result.originatorConversationId,
+  });
 }
