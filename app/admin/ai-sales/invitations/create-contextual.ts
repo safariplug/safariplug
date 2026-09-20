@@ -13,6 +13,9 @@ export async function createContextualPartnerInvitation(formData: FormData) {
 
   const context = await resolveOutreachContext(prospectId);
   if (!context) throw new Error("Prospect could not be resolved.");
+  if (context.reviewStatus !== "approved" || context.prospectStatus === "rejected") {
+    throw new Error("This prospect must be approved by a person before partner outreach can be created.");
+  }
   if (!context.contactEmail && !context.whatsappPhone) {
     throw new Error("Add a named CRM contact with email/phone, or review a discovered business email before creating outreach.");
   }

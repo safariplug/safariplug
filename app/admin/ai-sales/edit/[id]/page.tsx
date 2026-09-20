@@ -86,7 +86,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
           <div className="space-y-5">
-            <OutreachPanel prospectId={id} invitations={outreach.invitations} canDraft={canDraftOutreach} />
+            <OutreachPanel prospectId={id} invitations={outreach.invitations} canDraft={canDraftOutreach} approved={p.review_status === "approved"} />
 
             <Panel t="Follow-up intelligence">
               {overdue.length > 0 && <div className="mb-4 rounded-xl border border-red-900/60 bg-red-950/20 p-3 text-sm text-red-300">{overdue.length} follow-up{overdue.length === 1 ? " is" : "s are"} overdue and needs attention.</div>}
