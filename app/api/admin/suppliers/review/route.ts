@@ -94,6 +94,61 @@ export async function POST(request: Request) {
         warnings.push("Recruitment invitation status could not be advanced to active.");
       }
 
+      if (account.prospect_id) {
+        const { error: prospectStageError } = await supabaseAdmin
+          .from("ai_sales_prospects")
+          .update({ status: "partnered", review_status: "approved", updated_at: now })
+          .eq("id", account.prospect_id);
+        if (prospectStageError) {
+          console.error("Supplier activated but prospect stage sync failed", prospectStageError);
+          warnings.push("Prospect stage could not be advanced to partnered.");
+        } else {
+          const { data: existingConversion, error: conversionLookupError } = await supabaseAdmin
+            .from("crm_conversions")
+            .select("id")
+            .eq("prospect_id", account.prospect_id)
+            .eq("outcome", "partnered")
+            .limit(1)
+            .maybeSingle();
+          if (conversionLookupError) {
+            console.error("Supplier activated but conversion lookup failed", conversionLookupError);
+            warnings.push("Partner conversion history could not be checked.");
+          } else if (!existingConversion) {
+            const { error: conversionError } = await supabaseAdmin.from("crm_conversions").insert({
+              prospect_id: account.prospect_id,
+              partner_id: account.partner_id || null,
+              outcome: "partnered",
+              source: "system",
+              notes: `Supplier account ${account.id} completed activation review.`,
+            });
+            if (conversionError) {
+              console.error("Supplier activated but conversion logging failed", conversionError);
+              warnings.push("Partner conversion could not be recorded.");
+            }
+          }
+          const { error: closeFollowupsError } = await supabaseAdmin
+            .from("crm_followups")
+            .update({ status: "completed", completed_at: now, updated_at: now })
+            .eq("prospect_id", account.prospect_id)
+            .eq("status", "open");
+          if (closeFollowupsError) {
+            console.error("Supplier activated but open follow-ups could not be closed", closeFollowupsError);
+            warnings.push("Open CRM follow-ups could not be closed.");
+          }
+        }
+      }
+
+      if (account.partner_id) {
+        const { error: partnerStageError } = await supabaseAdmin
+          .from("safari_partners")
+          .update({ outreach_stage: "partnered" })
+          .eq("id", account.partner_id);
+        if (partnerStageError) {
+          console.error("Supplier activated but relationship stage sync failed", partnerStageError);
+          warnings.push("Partner relationship stage could not be advanced.");
+        }
+      }
+
       if (account.prospect_id || account.partner_id) {
         const { error: activityError } = await supabaseAdmin.from("crm_activities").insert({
           prospect_id: account.prospect_id || null,
@@ -156,7 +211,7 @@ export async function POST(request: Request) {
       const { error: activityError } = await supabaseAdmin.from("crm_activities").insert({
         prospect_id: account.prospect_id || null,
         partner_id: account.partner_id || null,
-        activity_type: "status_change",
+        activity_type: "stage_change",
         summary: "Supplier onboarding rejected",
         details: `Supplier account ${account.id} was rejected during SafariPlug review.`,
       });
