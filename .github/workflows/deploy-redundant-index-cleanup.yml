@@ -1,0 +1,83 @@
+name: Deploy Redundant Index Cleanup
+
+on:
+  push:
+    branches:
+      - ops/deploy-redundant-index-cleanup-20260920
+    paths:
+      - .github/workflows/deploy-redundant-index-cleanup.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROJECT_REF: "safcizxahjqassrwhrup"
+      TARGET_VERSION: "20260920034326"
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DISABLE_TELEMETRY: "1"
+      NO_COLOR: "1"
+
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Validate credentials and target migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN}"
+          test -n "${SUPABASE_DB_PASSWORD}"
+          test -f "supabase/migrations/${TARGET_VERSION}_remove_redundant_indexes.sql"
+          npm run validate:migrations
+
+      - name: Link SafariPlug production
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "${PROJECT_REF}"
+
+      - name: Dry run deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --dry-run | tee dry-run.txt
+          grep -q "${TARGET_VERSION}" dry-run.txt
+
+      - name: Deploy migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push
+
+      - name: Verify migration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --linked | tee migration-list.txt
+          awk -F'|' '
+            NR > 2 {
+              remote=$2
+              gsub(/[`[:space:]]/, "", remote)
+              if (remote ~ /^[0-9]{14}$/) print remote
+            }
+          ' migration-list.txt | sort -u > remote.txt
+          grep -qx "20260920030845" remote.txt
+          grep -qx "${TARGET_VERSION}" remote.txt
+          count="$(wc -l < remote.txt | tr -d ' ')"
+          if [ "${count}" -ne 2 ]; then
+            echo "Expected exactly 2 remote migration rows after deployment, found ${count}."
+            cat remote.txt
+            exit 1
+          fi
