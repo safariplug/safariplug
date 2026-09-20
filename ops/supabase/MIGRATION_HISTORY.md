@@ -43,7 +43,7 @@ It intentionally runs from an isolated temporary Supabase directory and uses onl
 - `supabase migration list --linked`
 - `supabase db dump --linked`
 - `supabase db dump --linked --role-only`
-- `supabase gen types typescript --linked`
+- `supabase gen types --lang typescript --linked`
 
 It does **not** run `db pull`, `db push`, `migration repair`, or remote `db reset`.
 
