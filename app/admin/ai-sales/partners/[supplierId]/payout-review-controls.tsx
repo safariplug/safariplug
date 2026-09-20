@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 export function PayoutReviewControls({
   providerUserId,
   status,
+  canManageFinance,
 }: {
   providerUserId: string;
   status: string | null;
+  canManageFinance: boolean;
 }) {
   const router = useRouter();
   const [reason, setReason] = useState("");
@@ -41,7 +43,8 @@ export function PayoutReviewControls({
     <div className="mt-4 rounded-xl border border-zinc-800 bg-black/20 p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Payout destination review</p>
       <p className="mt-1 text-sm text-zinc-300">Current status: <strong className="capitalize">{status || "not set up"}</strong></p>
-      {status && status !== "verified" ? (
+      {!canManageFinance?<p className="mt-3 rounded-lg border border-amber-800/50 bg-amber-950/20 p-3 text-xs leading-5 text-amber-300">Read only. A super admin or finance manager is required to verify or reject payout destinations.</p>:null}
+      {canManageFinance && status && status !== "verified" ? (
         <>
           <textarea
             value={reason}
