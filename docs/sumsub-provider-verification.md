@@ -46,11 +46,31 @@ Sumsub supports WebSDK access tokens and external WebSDK links. The implementati
 
 ## Go-live checklist
 
-- Create Sumsub production app token with only required permissions.
-- Create/enable the production enhanced verification level containing identity and liveness.
-- Set all five server-side environment variables.
-- Configure the HTTPS webhook and SHA-256 secret.
-- Test a sandbox applicant before production activation.
-- Verify the webhook changes a test case only after a valid signed event.
-- Verify a non-verified provider remains blocked by the payout database trigger.
-- Verify an approved provider still needs a verified M-Pesa payout destination and compliant documents before payout execution.
+Follow Sumsub's current production sequence:
+
+1. Complete and test the integration in Sandbox.
+2. Create a verification level under Individuals → Levels with the identity-document and live face/liveness steps SafariPlug requires.
+3. Test a sandbox applicant through the SafariPlug WebSDK flow.
+4. Configure a Sumsub webhook to:
+   `https://www.safariplug.com/api/integrations/sumsub/webhook`
+5. Configure webhook HMAC signing with SHA-256 and set the same value in `SUMSUB_WEBHOOK_SECRET`.
+6. Confirm SafariPlug receives and processes a signed test webhook.
+7. Move the Sumsub account/key to Production according to the account plan.
+8. Create/use the production app token and secret key. Sandbox keys/settings are not assumed to be production credentials.
+9. Set the production runtime variables:
+   - `SUMSUB_APP_TOKEN`
+   - `SUMSUB_SECRET_KEY`
+   - `SUMSUB_VERIFICATION_LEVEL`
+   - `SUMSUB_WEBHOOK_SECRET`
+   - optional `SUMSUB_API_BASE_URL=https://api.sumsub.com`
+10. Open `/admin/integrations/verification` and confirm identity + liveness shows connected with no missing configuration.
+11. Run one controlled provider or specialist verification.
+12. Confirm:
+   - `verification_cases` is created and linked to Sumsub.
+   - signed `applicantReviewed` updates the case.
+   - identity and liveness evidence are accepted only after a GREEN result.
+   - service-staff verification state / liveness timestamp update when applicable.
+   - an unverified provider remains blocked from activation/payout.
+   - a verified provider still requires a verified M-Pesa payout destination and the remaining SafariPlug readiness gates.
+
+Sumsub notes that production settings are not automatically copied from Sandbox, so production webhooks and production API credentials must be configured explicitly.
