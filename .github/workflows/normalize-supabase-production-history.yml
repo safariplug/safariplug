@@ -1,5 +1,5 @@
 name: Normalize Supabase Production Migration History
-# one-time-normalization-trigger-remote-column
+# one-time-normalization-trigger-remote-column-2
 
 on:
   push:
