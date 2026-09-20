@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-type Category = { id: string; name: string; slug: string };
 type Offering = { id: string; name: string; price: number; currency: string; status: string; duration_minutes: number };
 type Staff = { id: string; display_name: string | null; personal_photo_url: string | null; status: string };
 type Profile = { status: string; booking_status: string; service_categories?: { name: string } | null; service_offerings?: Offering[]; service_staff?: Staff[] };
@@ -28,7 +27,6 @@ type Supplier = {
   businesses?: Business | Business[] | null;
   activation_readiness?: SupplierReadiness | null;
 };
-type SupplierForm = { businessName: string; contactName: string; email: string; phone: string; categorySlug: string; cityId: string; notes: string };
 type Filter = "attention" | "supplier" | "staff" | "active" | "all";
 
 const REVIEW_OPTIONS = [
@@ -38,13 +36,12 @@ const REVIEW_OPTIONS = [
   ["team", "Team information"],
   ["personal_photos", "Personal photos"],
   ["availability", "Availability"],
-  ["staff_verification", "Specialist identity + liveness"],
+  ["staff_verification", "Specialist SafariPlug review"],
   ["verification", "Provider verification"],
   ["payout_details", "Payout details"],
   ["other", "Other"],
 ] as const;
 
-const emptyForm: SupplierForm = { businessName: "", contactName: "", email: "", phone: "", categorySlug: "", cityId: "", notes: "" };
 function first<T>(value: T | T[] | null | undefined): T | undefined { return Array.isArray(value) ? value[0] : value ?? undefined; }
 function stageLabel(status: string) { return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
@@ -78,13 +75,9 @@ function guidance(supplier: Supplier) {
 }
 
 export default function SuppliersAdminPage() {
-  const [form, setForm] = useState<SupplierForm>(emptyForm);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
   const [reviewing, setReviewing] = useState("");
-  const [loadingCategories, setLoadingCategories] = useState(true);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("attention");
   const [feedbackSupplier, setFeedbackSupplier] = useState<Supplier | null>(null);
@@ -98,17 +91,7 @@ export default function SuppliersAdminPage() {
     else setMessage(data?.error || "Unable to load supplier pipeline.");
   }
 
-  useEffect(() => { void (async () => {
-    const response = await fetch("/api/admin/supplier-categories", { cache: "no-store" });
-    const data = await response.json().catch(() => null);
-    if (response.ok) {
-      const loaded = Array.isArray(data?.categories) ? data.categories : [];
-      setCategories(loaded);
-      if (loaded.length) setForm((current) => ({ ...current, categorySlug: current.categorySlug || loaded[0].slug }));
-    } else setMessage(data?.error || "Unable to load supplier categories.");
-    setLoadingCategories(false);
-    await loadReviews();
-  })(); }, []);
+  useEffect(() => { void loadReviews(); }, []);
 
   const counts = useMemo(() => ({
     total: suppliers.length,
@@ -129,17 +112,6 @@ export default function SuppliersAdminPage() {
       return haystack.includes(query.trim().toLowerCase());
     })
     .sort((a, b) => guidance(a).priority - guidance(b).priority || (b.completion_percent || 0) - (a.completion_percent || 0)), [suppliers, filter, query]);
-
-  const set = (key: keyof SupplierForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
-
-  async function invite() {
-    setSaving(true); setMessage("");
-    const response = await fetch("/api/admin/suppliers/invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
-    const data = await response.json().catch(() => null);
-    setMessage(response.ok ? "Supplier created and invitation email sent." : data?.error || "Unable to create supplier.");
-    setSaving(false);
-    if (response.ok) { setForm((current) => ({ ...emptyForm, categorySlug: current.categorySlug })); await loadReviews(); }
-  }
 
   async function review(supplierId: string, action: "approve" | "reject", extra?: Record<string, unknown>) {
     setReviewing(supplierId); setMessage("");
@@ -219,7 +191,15 @@ export default function SuppliersAdminPage() {
       </div>
     </section>
 
-    <details className="mt-8 rounded-2xl border border-black/10 p-5"><summary className="cursor-pointer font-semibold">Invite a new supplier</summary><section className="mt-5 grid gap-4 md:grid-cols-2">{[["businessName","Business name"],["contactName","Contact person"],["email","Email"],["phone","Phone"],["cityId","City ID (optional)"]].map(([key,label]) => <label key={key} className="text-sm"><span className="mb-1 block font-medium">{label}</span><input value={form[key as keyof SupplierForm]} onChange={(event) => set(key as keyof SupplierForm, event.target.value)} className="w-full rounded-xl border border-black/15 px-3 py-2.5" /></label>)}<label className="text-sm"><span className="mb-1 block font-medium">Supplier category</span><select value={form.categorySlug} disabled={loadingCategories || !categories.length} onChange={(event) => set("categorySlug", event.target.value)} className="w-full rounded-xl border border-black/15 px-3 py-2.5 disabled:opacity-50">{!categories.length && <option value="">{loadingCategories ? "Loading categories…" : "No active categories"}</option>}{categories.map((category) => <option key={category.id} value={category.slug}>{category.name}</option>)}</select></label><label className="text-sm md:col-span-2"><span className="mb-1 block font-medium">Internal notes</span><textarea value={form.notes} onChange={(event) => set("notes", event.target.value)} rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2.5" /></label><div className="md:col-span-2"><button onClick={invite} disabled={saving || loadingCategories || !form.categorySlug} className="rounded-full bg-black px-5 py-2.5 text-sm text-white disabled:opacity-50">{saving ? "Creating…" : "Create & invite supplier"}</button></div></section></details>
+    <section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+      <p className="text-xs font-semibold uppercase tracking-[.18em] text-amber-800/60">Governed recruitment</p>
+      <h2 className="mt-1 text-xl font-semibold">New suppliers start in CRM</h2>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-black/60">Create or review the organization in Organization 360, confirm a real contact, then draft and approve outreach. This keeps the prospect, invitation, supplier account and Partner 360 relationship connected from the first contact through activation.</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link href="/admin/ai-sales" className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white">Choose or review a prospect →</Link>
+        <Link href="/admin/ai-sales/invitations" className="rounded-full border border-black/15 px-5 py-2.5 text-sm font-semibold">Open governed outreach</Link>
+      </div>
+    </section>
 
     {feedbackSupplier && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-6 shadow-xl sm:rounded-3xl">
