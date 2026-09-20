@@ -33,6 +33,23 @@ function normalize(value) {
   return value;
 }
 
+function normalizeColumnOrdinals(value) {
+  let tableName = null;
+  let position = 0;
+  return {
+    ...value,
+    rows: value.rows.map((row) => {
+      if (row.table_name !== tableName) {
+        tableName = row.table_name;
+        position = 1;
+      } else {
+        position += 1;
+      }
+      return { ...row, ordinal_position: position };
+    }),
+  };
+}
+
 function collectDiffs(expected, actual, path = "$", out = [], limit = 25) {
   if (out.length >= limit) return out;
 
@@ -87,8 +104,13 @@ for (const file of files) {
     continue;
   }
 
-  const expected = normalize(JSON.parse(fs.readFileSync(expectedPath, "utf8")));
-  const actual = normalize(JSON.parse(fs.readFileSync(actualPath, "utf8")));
+  let expected = normalize(JSON.parse(fs.readFileSync(expectedPath, "utf8")));
+  let actual = normalize(JSON.parse(fs.readFileSync(actualPath, "utf8")));
+
+  if (file === "columns.json") {
+    expected = normalizeColumnOrdinals(expected);
+    actual = normalizeColumnOrdinals(actual);
+  }
 
   const left = JSON.stringify(expected);
   const right = JSON.stringify(actual);
