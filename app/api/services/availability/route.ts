@@ -40,8 +40,20 @@ export async function GET(request: Request) {
     const timeZone = profile.timezone || "Africa/Nairobi";
     const { data: offering } = await supabaseAdmin.from("service_offerings").select("id,duration_minutes,status").eq("id",offeringId).eq("service_profile_id",profileId).maybeSingle();
     if (!offering || offering.status !== "active") return NextResponse.json({ error:"Service is not currently available" }, { status:404 });
-    const { data: staffRows } = await supabaseAdmin.from("service_staff").select("id,display_name,personal_photo_url,verification_state,identity_liveness_verified_at,user_id").eq("service_profile_id",profileId).eq("status","active").eq("verification_state","verified").not("identity_liveness_verified_at","is",null).not("user_id","is",null).not("personal_photo_url","is",null);
-    const staff = staffRows ?? [];
+    const { data: staffRows } = await supabaseAdmin.from("service_staff").select("id,display_name,personal_photo_url,verification_state,identity_liveness_verified_at,user_id").eq("service_profile_id",profileId).eq("status","active").eq("verification_state","verified").not("user_id","is",null).not("personal_photo_url","is",null);
+    const candidateStaff = staffRows ?? [];
+    const candidateIds = candidateStaff.map((row) => String(row.id));
+    const { data: approvedCases } = candidateIds.length
+      ? await supabaseAdmin.from("verification_cases").select("subject_id,provider,status,expires_at").eq("subject_type","service_staff").in("subject_id",candidateIds).eq("status","approved")
+      : { data: [] };
+    const approvedProvider = new Map(
+      (approvedCases ?? [])
+        .filter((row) => !row.expires_at || new Date(row.expires_at).getTime() > Date.now())
+        .map((row) => [String(row.subject_id), String(row.provider || "")])
+    );
+    const staff = candidateStaff.filter((row) =>
+      approvedProvider.get(String(row.id)) === "human_review" || Boolean(row.identity_liveness_verified_at)
+    );
     const staffIds = staff.map(s => s.id);
     if (!staffIds.length) return NextResponse.json({ timeZone, slots:[] });
     const dayStart = localToUtc(date, 0, 0, timeZone);
