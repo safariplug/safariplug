@@ -54,7 +54,7 @@ export default async function AISalesPage({
   ] = await Promise.all([
     supabaseAdmin.from("ai_sales_prospects").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("ai_sales_prospects").select("*", { count: "exact", head: true }).eq("review_status", "pending_review"),
-    supabaseAdmin.from("ai_sales_prospects").select("*", { count: "exact", head: true }).eq("status", "partnered"),
+    supabaseAdmin.from("safari_partners").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("partner_invitations").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("partner_invitations").select("*", { count: "exact", head: true }).in("status", ["signup_started", "onboarding"]),
     supabaseAdmin
@@ -87,6 +87,7 @@ export default async function AISalesPage({
   });
 
   const visible = filtered.slice(0, 100);
+  const reviewReady = allProspects.filter((p) => p.review_status === "pending_review" && Boolean(p.contact_email)).length;
 
   return (
     <main className="min-h-screen bg-gray-50 p-5 md:p-8">
@@ -107,10 +108,11 @@ export default async function AISalesPage({
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             {[
               ["Prospects", total],
               ["Pending review", pending],
+              ["Review-ready", reviewReady],
               ["CRM partners", partners],
               ["Invitations", invites],
               ["Onboarding", signupStarted],
@@ -144,6 +146,16 @@ export default async function AISalesPage({
           </section>
 
           <section id="prospect-feed" className="mt-8 rounded-xl border p-6">
+            {stage === "pending_review" && contact === "all" && reviewReady > 0 ? (
+              <div className="mb-5 flex flex-col justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-4 md:flex-row md:items-center">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-amber-700/70">Fastest path to outreach</p>
+                  <p className="mt-1 font-semibold text-amber-950">{reviewReady} pending prospect{reviewReady === 1 ? "" : "s"} already have a business email.</p>
+                  <p className="mt-1 text-sm text-amber-900/65">Review these first; approval is still a human decision and nothing is sent automatically.</p>
+                </div>
+                <Link href="/admin/ai-sales?stage=pending_review&contact=email&sort=score#prospect-feed" className="shrink-0 rounded-xl bg-black px-5 py-3 text-center text-sm font-semibold text-white">Review email-ready prospects →</Link>
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">Prospect review queue</h2>
