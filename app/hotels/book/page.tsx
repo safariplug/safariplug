@@ -29,7 +29,8 @@ export default function HotelBookPage() {
   const params = useMemo(() => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search), []);
   const hotelId = params.get("hotelId") || "";
   const hotelName = params.get("hotelName") || "Hotel stay";
-  const searchKey = params.get("searchKey") || "";
+  const initialSearchKey = params.get("searchKey") || "";
+  const [searchKey, setSearchKey] = useState(initialSearchKey);
   const regionId = params.get("regionId") || "";
   const checkIn = params.get("checkIn") || "";
   const checkOut = params.get("checkOut") || "";
@@ -48,7 +49,7 @@ export default function HotelBookPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!hotelId || !searchKey || !regionId || !checkIn || !checkOut) {
+    if (!hotelId || !initialSearchKey || !regionId || !checkIn || !checkOut) {
       setError("This hotel search session is incomplete. Please search again.");
       setLoading(false);
       return;
@@ -59,13 +60,15 @@ export default function HotelBookPage() {
         const response = await fetch("/api/v1/hotels/locktrip/public", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "rooms", hotelId, searchKey, regionId, checkIn, checkOut, rooms: [{ adults: guestCount, childrenAges: [] }], currency }),
+          body: JSON.stringify({ action: "rooms", hotelId, searchKey: initialSearchKey, regionId, checkIn, checkOut, rooms: [{ adults: guestCount, childrenAges: [] }], currency }),
           cache: "no-store",
         });
         const body = await response.json();
         if (!response.ok) throw new Error(body?.message || "Unable to load hotel rooms.");
         if (cancelled) return;
         const rows = Array.isArray(body?.data?.packages) ? body.data.packages as RoomPackage[] : [];
+        const activeSearchKey = String(body?.searchKey || body?.data?.searchKey || initialSearchKey);
+        setSearchKey(activeSearchKey);
         setPackages(rows);
         if (rows[0]) setSelected(rows[0]);
       } catch (err) {
@@ -76,7 +79,7 @@ export default function HotelBookPage() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [hotelId, searchKey, regionId, checkIn, checkOut, guestCount, currency]);
+  }, [hotelId, initialSearchKey, regionId, checkIn, checkOut, guestCount, currency]);
 
   useEffect(() => {
     if (!selected?.quoteId) { setPolicy(null); return; }
@@ -179,7 +182,7 @@ export default function HotelBookPage() {
           <div className="mt-6 space-y-4"><h3 className="font-semibold">Guest details</h3>{guests.map((guest,index)=><div key={index} className="grid grid-cols-2 gap-3"><input value={guest.firstName} onChange={e=>updateGuest(index,"firstName",e.target.value)} placeholder={`Guest ${index+1} first name`} className="rounded-xl border border-black/10 px-3 py-3"/><input value={guest.lastName} onChange={e=>updateGuest(index,"lastName",e.target.value)} placeholder="Last name" className="rounded-xl border border-black/10 px-3 py-3"/></div>)}<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Contact email" className="w-full rounded-xl border border-black/10 px-3 py-3"/><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="M-Pesa phone e.g. 2547…" className="w-full rounded-xl border border-black/10 px-3 py-3"/><textarea value={specialRequests} onChange={e=>setSpecialRequests(e.target.value)} placeholder="Special requests (optional)" className="min-h-24 w-full rounded-xl border border-black/10 px-3 py-3"/></div>
           {error ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
           <button disabled={submitting} className="mt-6 w-full rounded-xl bg-black px-4 py-3.5 font-semibold text-white disabled:opacity-50">{submitting ? "Starting M-Pesa payment…" : `Pay ${selected.customerCurrency || currency} ${Number(selected.price).toLocaleString(undefined,{maximumFractionDigits:2})} with M-Pesa`}</button>
-          <p className="mt-3 text-center text-[11px] leading-5 text-black/40">No booking is confirmed until payment succeeds and LockTrip confirms the reservation.</p>
+          <p className="mt-3 text-center text-[11px] leading-5 text-black/40">No booking is confirmed until payment succeeds and the hotel supplier confirms the reservation.</p>
         </form> : null}</aside>
       </div>
     </div>

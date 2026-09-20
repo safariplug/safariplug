@@ -393,6 +393,49 @@ export class LockTripHotelAdapter implements HotelAdapter {
     return { ...response, packages, pricing: { markupPercent: DEFAULT_MARKUP_PERCENT, supplierCurrency: DEFAULT_SUPPLIER_CURRENCY, customerCurrency: target, displayMode: "retail" as const } };
   }
 
+  async refreshRooms(input: { hotelId: string; regionId: string; checkIn: string; checkOut: string; rooms: Array<{ adults: number; childrenAges?: number[] }>; currency?: string }) {
+    const started = await this.call<{ searchKey?: string }>("hotel_search", {
+      regionId: input.regionId,
+      startDate: input.checkIn,
+      endDate: input.checkOut,
+      currency: DEFAULT_SUPPLIER_CURRENCY,
+      rooms: input.rooms,
+      nationality: this.nationality,
+    });
+    if (!started.searchKey) throw new Error("Hotel supplier did not return a refreshed search key.");
+
+    let seenSelectedHotel = false;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 500 : 750));
+      const result = await this.call<SearchResults>("get_search_results", {
+        searchKey: started.searchKey,
+        page: 0,
+        size: 100,
+        currency: DEFAULT_SUPPLIER_CURRENCY,
+        sortBy: "PRICE_ASC",
+      });
+      seenSelectedHotel = (result.hotels || []).some((hotel) => String(hotel.hotelId ?? "") === input.hotelId);
+      if (seenSelectedHotel || (result.searchStatus || "").toUpperCase() === "COMPLETED") break;
+    }
+
+    if (!seenSelectedHotel) {
+      return {
+        searchKey: started.searchKey,
+        hotelId: input.hotelId,
+        packages: [],
+        pricing: {
+          markupPercent: DEFAULT_MARKUP_PERCENT,
+          supplierCurrency: DEFAULT_SUPPLIER_CURRENCY,
+          customerCurrency: customerCurrency(input.currency),
+          displayMode: "retail" as const,
+        },
+      };
+    }
+
+    const rooms = await this.getRooms({ ...input, searchKey: started.searchKey });
+    return { ...rooms, searchKey: started.searchKey };
+  }
+
   getHotelDetails(hotelId: string, includeImages = true, imageLimit = 30) {
     return this.call<LockTripHotelDetails>("get_hotel_details", { hotelId: Number(hotelId), language: "en", includeImages, imageLimit: Math.max(1, Math.min(100, imageLimit)) });
   }
