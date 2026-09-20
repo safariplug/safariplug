@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       if (!hotelId || !searchKey || !regionId || !checkIn || !checkOut || rooms.length === 0) {
         return fail(400, "hotelId, searchKey, regionId, checkIn, checkOut and rooms are required.");
       }
-      const data = await adapter.getRooms({
+      const roomInput = {
         hotelId,
         searchKey,
         regionId,
@@ -37,8 +37,37 @@ export async function POST(request: Request) {
         checkOut,
         rooms: rooms as Array<{ adults: number; childrenAges?: number[] }>,
         currency: typeof body.currency === "string" ? body.currency : "KES",
+      };
+      let data;
+      try {
+        data = await adapter.getRooms(roomInput);
+      } catch {
+        data = await adapter.refreshRooms({
+          hotelId,
+          regionId,
+          checkIn,
+          checkOut,
+          rooms: roomInput.rooms,
+          currency: roomInput.currency,
+        });
+      }
+      if (!data.packages?.length) {
+        data = await adapter.refreshRooms({
+          hotelId,
+          regionId,
+          checkIn,
+          checkOut,
+          rooms: roomInput.rooms,
+          currency: roomInput.currency,
+        });
+      }
+      return NextResponse.json({
+        provider: "hotel_supplier",
+        action,
+        data,
+        searchKey: data.searchKey || searchKey,
+        refreshed: Boolean(data.searchKey && data.searchKey !== searchKey),
       });
-      return NextResponse.json({ provider: "locktrip", action, data });
     }
 
     if (action === "details") {
