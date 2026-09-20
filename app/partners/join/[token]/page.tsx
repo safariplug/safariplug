@@ -14,6 +14,7 @@ const SERVICE_INVITATION_TYPES: Record<string, { businessType: string; category:
 
 function destination(type: string) {
   const t = type.toLowerCase();
+  if (SERVICE_INVITATION_TYPES[t]) return "/supplier/onboarding";
   if (t.includes("driver") || t.includes("transfer")) return "/driver/signup";
   if (t.includes("local")) return "/locals/onboarding";
   if (t.includes("restaurant") || t.includes("food")) return "/business/restaurants";
@@ -75,7 +76,7 @@ async function provisionServiceEnrollment(user: { id: string; email?: string | n
     const phone = profile?.phone?.trim() || null;
     const { data: createdBusiness, error: businessError } = await supabaseAdmin
       .from("businesses")
-      .insert({ owner_id: user.id, name: invitation.business_name, slug, business_type: config.businessType, phone, whatsapp: phone, email: user.email || null, status: "INACTIVE", verified: false, claimed: true })
+      .insert({ owner_id: user.id, name: invitation.business_name, slug, business_type: config.businessType, phone, whatsapp: phone, email: user.email || null, supplier_contact_name: profile?.full_name?.trim() || invitation.business_name, status: "INACTIVE", verified: false, claimed: true })
       .select("id")
       .single();
     if (businessError || !createdBusiness) throw new Error(businessError?.message || "Unable to create invited partner business.");
