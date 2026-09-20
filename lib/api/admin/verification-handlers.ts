@@ -33,6 +33,24 @@ function fail(status: number, code: string, message: string) {
   );
 }
 
+async function syncHumanReviewSubjectState(
+  subjectType: string,
+  subjectId: string,
+  state: "verified" | "rejected" | "unverified",
+) {
+  if (subjectType === "service_staff") {
+    const { error } = await supabaseAdmin
+      .from("service_staff")
+      .update({
+        verification_state: state,
+        identity_liveness_verified_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", subjectId);
+    if (error) throw error;
+  }
+}
+
 async function withStore() {
   const hydrated = await hydrateVerificationStore(supabaseAdmin);
   if (!hydrated.ok) {
@@ -184,6 +202,17 @@ async function mutate(
     result.data.id
   );
   if (!persisted.ok) return fail(500, "internal_error", "Unable to save case.");
+
+  if (current.provider === "human_review") {
+    if (result.data.status === "approved") {
+      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "verified");
+    } else if (result.data.status === "rejected") {
+      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "rejected");
+    } else if (result.data.status === "revoked") {
+      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "unverified");
+    }
+  }
+
   return NextResponse.json({ success: true, data: result.data });
 }
 
