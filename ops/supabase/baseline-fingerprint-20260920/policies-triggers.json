@@ -1,0 +1,816 @@
+{
+  "captured_at_utc": "2026-09-20",
+  "project_ref": "safcizxahjqassrwhrup",
+  "rows": [
+    {
+      "kind": "policy",
+      "object_name": "admin_users",
+      "name": "admin_users_self_select",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(( SELECT auth.uid() AS uid) = user_id); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "ai_discovered_events",
+      "name": "Admins can read AI discoveries",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=is_admin(); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "ai_scans",
+      "name": "Admins can create AI scans",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=is_admin()"
+    },
+    {
+      "kind": "policy",
+      "object_name": "ai_scans",
+      "name": "Admins can view AI scans",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=is_admin(); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "ai_scout_runs",
+      "name": "Admins can create AI scout runs",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=( SELECT is_admin() AS is_admin)"
+    },
+    {
+      "kind": "policy",
+      "object_name": "ai_scout_runs",
+      "name": "Admins can view AI scout runs",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=( SELECT is_admin() AS is_admin); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "booking_status_events",
+      "name": "Users read own booking audit",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM bookings b\n  WHERE ((b.id = booking_status_events.booking_id) AND (b.traveler_id = ( SELECT auth.uid() AS uid))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "bookings",
+      "name": "Users insert own bookings",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=((( SELECT auth.uid() AS uid) = traveler_id) AND (status = 'quote'::text) AND (supplier_reference IS NULL))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "bookings",
+      "name": "Users read own bookings",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(( SELECT auth.uid() AS uid) = traveler_id); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "businesses",
+      "name": "Partners can create own business",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(owner_id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "businesses",
+      "name": "Partners can read own business",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(owner_id = ( SELECT auth.uid() AS uid)); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "businesses",
+      "name": "Partners can update own business",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(owner_id = ( SELECT auth.uid() AS uid)); with_check=(owner_id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "cities",
+      "name": "Public can read active cities",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon,authenticated}; qual=(active = true); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "driver_transfer_rates",
+      "name": "anon reads eligible active transfer rates",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon}; qual=((status = 'active'::text) AND (EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_rates.driver_id) AND (d.service_status = 'active'::text) AND (d.verification_state = 'verified'::text) AND (d.identity_liveness_verified_at IS NOT NULL) AND (d.personal_photo_url IS NOT NULL) AND (d.driving_license_compliance_status = ANY (ARRAY['valid'::text, 'expiring_soon'::text])))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "driver_transfer_rates",
+      "name": "authenticated reads eligible or own transfer rates",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(((status = 'active'::text) AND (EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_rates.driver_id) AND (d.service_status = 'active'::text) AND (d.verification_state = 'verified'::text) AND (d.identity_liveness_verified_at IS NOT NULL) AND (d.personal_photo_url IS NOT NULL) AND (d.driving_license_compliance_status = ANY (ARRAY['valid'::text, 'expiring_soon'::text])))))) OR (EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_rates.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "driver_transfer_rates",
+      "name": "drivers delete own transfer rates",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_rates.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "driver_transfer_rates",
+      "name": "drivers insert own transfer rates",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_rates.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "driver_transfer_rates",
+      "name": "drivers update own transfer rates",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_rates.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid))))); with_check=(EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_rates.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "driver_transfer_requests",
+      "name": "transfer request participant read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((traveler_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_requests.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "driver_transfer_requests",
+      "name": "travelers create eligible transfer requests",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=((traveler_id = ( SELECT auth.uid() AS uid)) AND (requested_at > now()) AND (EXISTS ( SELECT 1\n   FROM verification_cases vc\n  WHERE ((vc.subject_type = 'traveler'::text) AND (vc.subject_id = ( SELECT auth.uid() AS uid)) AND (vc.status = 'approved'::text) AND ((vc.expires_at IS NULL) OR (vc.expires_at > now()))))) AND (EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = driver_transfer_requests.driver_id) AND (d.service_status = 'active'::text) AND (d.verification_state = 'verified'::text) AND (d.identity_liveness_verified_at IS NOT NULL) AND (d.personal_photo_url IS NOT NULL) AND (d.driving_license_compliance_status = ANY (ARRAY['valid'::text, 'expiring_soon'::text]))))) AND ((trip_id IS NULL) OR (EXISTS ( SELECT 1\n   FROM trips t\n  WHERE ((t.id = driver_transfer_requests.trip_id) AND (t.traveler_id = ( SELECT auth.uid() AS uid)))))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "events",
+      "name": "Admins can delete events",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=( SELECT is_admin() AS is_admin); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "events",
+      "name": "Admins can update events",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=( SELECT is_admin() AS is_admin); with_check=( SELECT is_admin() AS is_admin)"
+    },
+    {
+      "kind": "policy",
+      "object_name": "events",
+      "name": "Authenticated users can submit events",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(( SELECT is_admin() AS is_admin) OR ((submitted_by = ( SELECT auth.uid() AS uid)) AND (status = 'pending'::text) AND (featured = false)) OR ((submitted_by IS NULL) AND (status = 'pending'::text) AND (featured = false)))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "events",
+      "name": "Public can submit unclaimed pending events",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={anon}; qual=; with_check=((submitted_by IS NULL) AND (status = 'pending'::text) AND (featured = false))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "events",
+      "name": "Users can read permitted events",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon,authenticated}; qual=((status = 'approved'::text) OR ( SELECT is_admin() AS is_admin) OR (submitted_by = ( SELECT auth.uid() AS uid))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "food_delivery_assignments",
+      "name": "food_delivery_driver_or_supplier_update",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=((EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = food_delivery_assignments.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid))))) OR (EXISTS ( SELECT 1\n   FROM (food_orders o\n     JOIN supplier_accounts sa ON ((sa.business_id = o.business_id)))\n  WHERE ((o.id = food_delivery_assignments.order_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))); with_check=((EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = food_delivery_assignments.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid))))) OR (EXISTS ( SELECT 1\n   FROM (food_orders o\n     JOIN supplier_accounts sa ON ((sa.business_id = o.business_id)))\n  WHERE ((o.id = food_delivery_assignments.order_id) AND (sa.user_id = ( SELECT auth.uid() AS uid))))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "food_delivery_assignments",
+      "name": "food_delivery_participant_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((EXISTS ( SELECT 1\n   FROM food_orders o\n  WHERE ((o.id = food_delivery_assignments.order_id) AND (o.customer_user_id = ( SELECT auth.uid() AS uid))))) OR (EXISTS ( SELECT 1\n   FROM driver_profiles d\n  WHERE ((d.id = food_delivery_assignments.driver_id) AND (d.user_id = ( SELECT auth.uid() AS uid))))) OR (EXISTS ( SELECT 1\n   FROM (food_orders o\n     JOIN supplier_accounts sa ON ((sa.business_id = o.business_id)))\n  WHERE ((o.id = food_delivery_assignments.order_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "food_delivery_assignments",
+      "name": "food_delivery_supplier_delete",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM (food_orders o\n     JOIN supplier_accounts sa ON ((sa.business_id = o.business_id)))\n  WHERE ((o.id = food_delivery_assignments.order_id) AND (sa.user_id = ( SELECT auth.uid() AS uid))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "food_delivery_assignments",
+      "name": "food_delivery_supplier_insert",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(EXISTS ( SELECT 1\n   FROM (food_orders o\n     JOIN supplier_accounts sa ON ((sa.business_id = o.business_id)))\n  WHERE ((o.id = food_delivery_assignments.order_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "food_order_item_options",
+      "name": "food_order_item_options_participant_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((EXISTS ( SELECT 1\n   FROM (food_order_items oi\n     JOIN food_orders o ON ((o.id = oi.order_id)))\n  WHERE ((oi.id = food_order_item_options.order_item_id) AND (o.customer_user_id = ( SELECT auth.uid() AS uid))))) OR (EXISTS ( SELECT 1\n   FROM ((food_order_items oi\n     JOIN food_orders o ON ((o.id = oi.order_id)))\n     JOIN supplier_accounts sa ON ((sa.business_id = o.business_id)))\n  WHERE ((oi.id = food_order_item_options.order_item_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "food_order_items",
+      "name": "food_order_items_participant_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((EXISTS ( SELECT 1\n   FROM food_orders o\n  WHERE ((o.id = food_order_items.order_id) AND (o.customer_user_id = ( SELECT auth.uid() AS uid))))) OR (EXISTS ( SELECT 1\n   FROM (food_orders o\n     JOIN supplier_accounts sa ON ((sa.business_id = o.business_id)))\n  WHERE ((o.id = food_order_items.order_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "food_orders",
+      "name": "food_orders_participant_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((customer_user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = food_orders.business_id))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "food_orders",
+      "name": "food_orders_supplier_update",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = food_orders.business_id)))); with_check=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = food_orders.business_id))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "hotel_booking_pricing_ledger",
+      "name": "hotel_booking_pricing_ledger_customer_select",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(customer_user_id = ( SELECT auth.uid() AS uid)); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "inventory_kinds",
+      "name": "Public can read inventory kinds",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={public}; qual=true; with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "journal_articles",
+      "name": "Public can read published journal articles",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={public}; qual=(status = 'published'::text); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_availability",
+      "name": "anonymous can view verified local availability",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon}; qual=(EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_availability.local_id) AND (p.service_status = 'active'::text) AND (p.verification_state = 'verified'::text) AND (p.identity_liveness_verified_at IS NOT NULL)))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_availability",
+      "name": "authenticated local availability read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_availability.local_id) AND (((p.service_status = 'active'::text) AND (p.verification_state = 'verified'::text) AND (p.identity_liveness_verified_at IS NOT NULL)) OR (p.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_availability",
+      "name": "locals delete own availability",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_availability.local_id) AND (p.user_id = ( SELECT auth.uid() AS uid))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_availability",
+      "name": "locals insert own availability",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_availability.local_id) AND (p.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_availability",
+      "name": "locals update own availability",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_availability.local_id) AND (p.user_id = ( SELECT auth.uid() AS uid))))); with_check=(EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_availability.local_id) AND (p.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_profiles",
+      "name": "anonymous can view active verified locals",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon}; qual=((service_status = 'active'::text) AND (verification_state = 'verified'::text) AND (identity_liveness_verified_at IS NOT NULL)); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_profiles",
+      "name": "locals can create own profile",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=((( SELECT auth.uid() AS uid) = user_id) AND (verification_state = 'unverified'::text) AND (service_status = 'draft'::text))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_profiles",
+      "name": "locals can update own non-active profile",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(( SELECT auth.uid() AS uid) = user_id); with_check=((( SELECT auth.uid() AS uid) = user_id) AND (service_status <> 'active'::text) AND (verification_state <> 'verified'::text))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_profiles",
+      "name": "locals profile read access",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(((service_status = 'active'::text) AND (verification_state = 'verified'::text) AND (identity_liveness_verified_at IS NOT NULL)) OR (( SELECT auth.uid() AS uid) = user_id)); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_requests",
+      "name": "local request participant read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((( SELECT auth.uid() AS uid) = traveler_id) OR (EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_requests.local_id) AND (p.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_requests",
+      "name": "local request participant update",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=((traveler_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_requests.local_id) AND (p.user_id = ( SELECT auth.uid() AS uid)))))); with_check=(((traveler_id = ( SELECT auth.uid() AS uid)) AND (status = 'cancelled'::text)) OR ((EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_requests.local_id) AND (p.user_id = ( SELECT auth.uid() AS uid))))) AND (status = ANY (ARRAY['accepted'::text, 'declined'::text]))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "local_requests",
+      "name": "travelers create own local requests",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=((( SELECT auth.uid() AS uid) = traveler_id) AND (EXISTS ( SELECT 1\n   FROM verification_cases vc\n  WHERE ((vc.subject_type = 'traveler'::text) AND (vc.subject_id = ( SELECT auth.uid() AS uid)) AND (vc.status = 'approved'::text) AND ((vc.expires_at IS NULL) OR (vc.expires_at > now()))))) AND (EXISTS ( SELECT 1\n   FROM local_profiles p\n  WHERE ((p.id = local_requests.local_id) AND (p.service_status = 'active'::text) AND (p.verification_state = 'verified'::text) AND (p.identity_liveness_verified_at IS NOT NULL)))) AND ((trip_id IS NULL) OR (EXISTS ( SELECT 1\n   FROM trips t\n  WHERE ((t.id = local_requests.trip_id) AND (t.traveler_id = ( SELECT auth.uid() AS uid)))))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "offerings",
+      "name": "Public can read approved offerings",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={public}; qual=(status = 'approved'::text); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "profiles",
+      "name": "Users can create own profile",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "profiles",
+      "name": "Users can read own profile",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(id = ( SELECT auth.uid() AS uid)); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "profiles",
+      "name": "Users can update own profile",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(id = ( SELECT auth.uid() AS uid)); with_check=(id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "providers",
+      "name": "Public can read active providers",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={public}; qual=(status = 'active'::text); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "push_notification_tokens",
+      "name": "Users manage their own push tokens",
+      "definition": "cmd=ALL; permissive=PERMISSIVE; roles={authenticated}; qual=(user_id = ( SELECT auth.uid() AS uid)); with_check=(user_id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_categories",
+      "name": "restaurant_categories_anon_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon}; qual=(active AND (EXISTS ( SELECT 1\n   FROM restaurant_settings s\n  WHERE ((s.business_id = restaurant_menu_categories.business_id) AND s.ordering_enabled)))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_categories",
+      "name": "restaurant_categories_authenticated_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((active AND (EXISTS ( SELECT 1\n   FROM restaurant_settings s\n  WHERE ((s.business_id = restaurant_menu_categories.business_id) AND s.ordering_enabled)))) OR (EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_categories.business_id))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_categories",
+      "name": "restaurant_categories_supplier_delete",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_categories.business_id)))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_categories",
+      "name": "restaurant_categories_supplier_insert",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_categories.business_id))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_categories",
+      "name": "restaurant_categories_supplier_update",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_categories.business_id)))); with_check=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_categories.business_id))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_option_values",
+      "name": "restaurant_option_values_anon_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon}; qual=(active AND (EXISTS ( SELECT 1\n   FROM ((restaurant_menu_item_options o\n     JOIN restaurant_menu_items i ON ((i.id = o.menu_item_id)))\n     JOIN restaurant_settings s ON ((s.business_id = i.business_id)))\n  WHERE ((o.id = restaurant_menu_item_option_values.option_id) AND o.active AND i.active AND i.available AND s.ordering_enabled)))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_option_values",
+      "name": "restaurant_option_values_authenticated_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((active AND (EXISTS ( SELECT 1\n   FROM ((restaurant_menu_item_options o\n     JOIN restaurant_menu_items i ON ((i.id = o.menu_item_id)))\n     JOIN restaurant_settings s ON ((s.business_id = i.business_id)))\n  WHERE ((o.id = restaurant_menu_item_option_values.option_id) AND o.active AND i.active AND i.available AND s.ordering_enabled)))) OR (EXISTS ( SELECT 1\n   FROM ((restaurant_menu_item_options o\n     JOIN restaurant_menu_items i ON ((i.id = o.menu_item_id)))\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((o.id = restaurant_menu_item_option_values.option_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_option_values",
+      "name": "restaurant_option_values_supplier_delete",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM ((restaurant_menu_item_options o\n     JOIN restaurant_menu_items i ON ((i.id = o.menu_item_id)))\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((o.id = restaurant_menu_item_option_values.option_id) AND (sa.user_id = ( SELECT auth.uid() AS uid))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_option_values",
+      "name": "restaurant_option_values_supplier_insert",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(EXISTS ( SELECT 1\n   FROM ((restaurant_menu_item_options o\n     JOIN restaurant_menu_items i ON ((i.id = o.menu_item_id)))\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((o.id = restaurant_menu_item_option_values.option_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_option_values",
+      "name": "restaurant_option_values_supplier_update",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM ((restaurant_menu_item_options o\n     JOIN restaurant_menu_items i ON ((i.id = o.menu_item_id)))\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((o.id = restaurant_menu_item_option_values.option_id) AND (sa.user_id = ( SELECT auth.uid() AS uid))))); with_check=(EXISTS ( SELECT 1\n   FROM ((restaurant_menu_item_options o\n     JOIN restaurant_menu_items i ON ((i.id = o.menu_item_id)))\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((o.id = restaurant_menu_item_option_values.option_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_options",
+      "name": "restaurant_options_anon_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon}; qual=(active AND (EXISTS ( SELECT 1\n   FROM (restaurant_menu_items i\n     JOIN restaurant_settings s ON ((s.business_id = i.business_id)))\n  WHERE ((i.id = restaurant_menu_item_options.menu_item_id) AND i.active AND i.available AND s.ordering_enabled)))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_options",
+      "name": "restaurant_options_authenticated_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((active AND (EXISTS ( SELECT 1\n   FROM (restaurant_menu_items i\n     JOIN restaurant_settings s ON ((s.business_id = i.business_id)))\n  WHERE ((i.id = restaurant_menu_item_options.menu_item_id) AND i.active AND i.available AND s.ordering_enabled)))) OR (EXISTS ( SELECT 1\n   FROM (restaurant_menu_items i\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((i.id = restaurant_menu_item_options.menu_item_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_options",
+      "name": "restaurant_options_supplier_delete",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM (restaurant_menu_items i\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((i.id = restaurant_menu_item_options.menu_item_id) AND (sa.user_id = ( SELECT auth.uid() AS uid))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_options",
+      "name": "restaurant_options_supplier_insert",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(EXISTS ( SELECT 1\n   FROM (restaurant_menu_items i\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((i.id = restaurant_menu_item_options.menu_item_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_item_options",
+      "name": "restaurant_options_supplier_update",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM (restaurant_menu_items i\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((i.id = restaurant_menu_item_options.menu_item_id) AND (sa.user_id = ( SELECT auth.uid() AS uid))))); with_check=(EXISTS ( SELECT 1\n   FROM (restaurant_menu_items i\n     JOIN supplier_accounts sa ON ((sa.business_id = i.business_id)))\n  WHERE ((i.id = restaurant_menu_item_options.menu_item_id) AND (sa.user_id = ( SELECT auth.uid() AS uid)))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_items",
+      "name": "restaurant_items_anon_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={anon}; qual=(active AND available AND (EXISTS ( SELECT 1\n   FROM restaurant_settings s\n  WHERE ((s.business_id = restaurant_menu_items.business_id) AND s.ordering_enabled)))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_items",
+      "name": "restaurant_items_authenticated_read",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((active AND available AND (EXISTS ( SELECT 1\n   FROM restaurant_settings s\n  WHERE ((s.business_id = restaurant_menu_items.business_id) AND s.ordering_enabled)))) OR (EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_items.business_id))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_items",
+      "name": "restaurant_items_supplier_delete",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_items.business_id)))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_items",
+      "name": "restaurant_items_supplier_insert",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_items.business_id))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_menu_items",
+      "name": "restaurant_items_supplier_update",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_items.business_id)))); with_check=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_menu_items.business_id))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "restaurant_settings",
+      "name": "restaurant_settings_supplier_manage",
+      "definition": "cmd=ALL; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_settings.business_id)))); with_check=(EXISTS ( SELECT 1\n   FROM supplier_accounts sa\n  WHERE ((sa.user_id = ( SELECT auth.uid() AS uid)) AND (sa.business_id = restaurant_settings.business_id))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "safari_partners",
+      "name": "Admins can manage safari_partners",
+      "definition": "cmd=ALL; permissive=PERMISSIVE; roles={authenticated}; qual=is_admin(); with_check=is_admin()"
+    },
+    {
+      "kind": "policy",
+      "object_name": "saved_events",
+      "name": "travelers can save events",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=(( SELECT auth.uid() AS uid) = traveler_id)"
+    },
+    {
+      "kind": "policy",
+      "object_name": "saved_events",
+      "name": "travelers can unsave events",
+      "definition": "cmd=DELETE; permissive=PERMISSIVE; roles={authenticated}; qual=(( SELECT auth.uid() AS uid) = traveler_id); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "saved_events",
+      "name": "travelers can view their saved events",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(( SELECT auth.uid() AS uid) = traveler_id); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "service_appointment_notifications",
+      "name": "Users can update own appointment notifications",
+      "definition": "cmd=UPDATE; permissive=PERMISSIVE; roles={public}; qual=(( SELECT auth.uid() AS uid) = user_id); with_check=(( SELECT auth.uid() AS uid) = user_id)"
+    },
+    {
+      "kind": "policy",
+      "object_name": "service_appointment_notifications",
+      "name": "Users can view own appointment notifications",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={public}; qual=(( SELECT auth.uid() AS uid) = user_id); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "trip_items",
+      "name": "Users read own trip items",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(EXISTS ( SELECT 1\n   FROM trips t\n  WHERE ((t.id = trip_items.trip_id) AND (t.traveler_id = ( SELECT auth.uid() AS uid))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "trip_items",
+      "name": "Users write own trip items",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=((booking_id IS NULL) AND (EXISTS ( SELECT 1\n   FROM trips t\n  WHERE ((t.id = trip_items.trip_id) AND (t.traveler_id = ( SELECT auth.uid() AS uid))))))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "trip_package_checkout_attempts",
+      "name": "travelers read own package checkout attempts",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((traveler_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM trips t\n  WHERE ((t.id = trip_package_checkout_attempts.trip_id) AND (t.traveler_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "trip_package_payment_intents",
+      "name": "travelers read own package payment intents",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((traveler_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM trips t\n  WHERE ((t.id = trip_package_payment_intents.trip_id) AND (t.traveler_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "trip_package_quotes",
+      "name": "travelers read own package quotes",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=((traveler_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM trips t\n  WHERE ((t.id = trip_package_quotes.trip_id) AND (t.traveler_id = ( SELECT auth.uid() AS uid)))))); with_check="
+    },
+    {
+      "kind": "policy",
+      "object_name": "trips",
+      "name": "Users insert own trips",
+      "definition": "cmd=INSERT; permissive=PERMISSIVE; roles={authenticated}; qual=; with_check=((( SELECT auth.uid() AS uid) = traveler_id) AND (status = 'draft'::text))"
+    },
+    {
+      "kind": "policy",
+      "object_name": "trips",
+      "name": "Users read own trips",
+      "definition": "cmd=SELECT; permissive=PERMISSIVE; roles={authenticated}; qual=(( SELECT auth.uid() AS uid) = traveler_id); with_check="
+    },
+    {
+      "kind": "trigger",
+      "object_name": "activity_booking_pricing_ledger",
+      "name": "activity_booking_pricing_ledger_updated_at",
+      "definition": "CREATE TRIGGER activity_booking_pricing_ledger_updated_at BEFORE UPDATE ON activity_booking_pricing_ledger FOR EACH ROW EXECUTE FUNCTION set_activity_booking_pricing_ledger_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "ai_discovered_events",
+      "name": "ai_discovered_event_image_sanitize",
+      "definition": "CREATE TRIGGER ai_discovered_event_image_sanitize BEFORE INSERT OR UPDATE OF image_url ON ai_discovered_events FOR EACH ROW EXECUTE FUNCTION sanitize_ai_discovered_event_image()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "ai_scout_runs",
+      "name": "ai_scout_provider_retry_accounting",
+      "definition": "CREATE TRIGGER ai_scout_provider_retry_accounting BEFORE UPDATE ON ai_scout_runs FOR EACH ROW EXECUTE FUNCTION enforce_ai_scout_provider_retry_accounting()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "bookings",
+      "name": "travel_os_bookings_approved_event",
+      "definition": "CREATE TRIGGER travel_os_bookings_approved_event BEFORE INSERT OR UPDATE OF event_id ON bookings FOR EACH ROW EXECUTE FUNCTION travel_os_require_approved_event()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "bookings",
+      "name": "travel_os_bookings_approved_offering",
+      "definition": "CREATE TRIGGER travel_os_bookings_approved_offering BEFORE INSERT OR UPDATE OF offering_id ON bookings FOR EACH ROW EXECUTE FUNCTION travel_os_require_approved_offering()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "bookings",
+      "name": "travel_os_bookings_audit",
+      "definition": "CREATE TRIGGER travel_os_bookings_audit AFTER INSERT OR UPDATE OF status ON bookings FOR EACH ROW EXECUTE FUNCTION travel_os_log_booking_status()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "bookings",
+      "name": "travel_os_bookings_lock_user",
+      "definition": "CREATE TRIGGER travel_os_bookings_lock_user BEFORE INSERT OR UPDATE ON bookings FOR EACH ROW EXECUTE FUNCTION travel_os_lock_user_booking()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "businesses",
+      "name": "businesses_sync_supplier_completion",
+      "definition": "CREATE TRIGGER businesses_sync_supplier_completion AFTER INSERT OR UPDATE OF name, description, phone, email, address, website_url, logo_url, cover_image_url, supplier_gallery_urls ON businesses FOR EACH ROW EXECUTE FUNCTION sync_supplier_completion_from_business()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "driver_assignments",
+      "name": "driver_assignments_require_booked",
+      "definition": "CREATE TRIGGER driver_assignments_require_booked BEFORE INSERT ON driver_assignments FOR EACH ROW EXECUTE FUNCTION driver_assignment_booking_must_exist()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "driver_profiles",
+      "name": "driver_profiles_require_approved_verification",
+      "definition": "CREATE TRIGGER driver_profiles_require_approved_verification BEFORE INSERT OR UPDATE OF verification_state, identity_liveness_verified_at ON driver_profiles FOR EACH ROW EXECUTE FUNCTION driver_require_approved_verification()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "driver_profiles",
+      "name": "driver_require_activation_compliance",
+      "definition": "CREATE CONSTRAINT TRIGGER driver_require_activation_compliance AFTER INSERT OR UPDATE OF service_status, verification_state, driving_license_compliance_status ON driver_profiles DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION driver_require_activation_compliance()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "events",
+      "name": "events_updated_at",
+      "definition": "CREATE TRIGGER events_updated_at BEFORE UPDATE ON events FOR EACH ROW EXECUTE FUNCTION update_events_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "food_delivery_assignments",
+      "name": "food_delivery_assignments_updated_at",
+      "definition": "CREATE TRIGGER food_delivery_assignments_updated_at BEFORE UPDATE ON food_delivery_assignments FOR EACH ROW EXECUTE FUNCTION set_restaurant_food_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "food_order_items",
+      "name": "validate_food_order_item_amounts",
+      "definition": "CREATE TRIGGER validate_food_order_item_amounts BEFORE INSERT OR UPDATE OF unit_price, quantity, line_total ON food_order_items FOR EACH ROW EXECUTE FUNCTION validate_food_order_item_amounts()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "food_orders",
+      "name": "enforce_food_order_payment_lifecycle",
+      "definition": "CREATE TRIGGER enforce_food_order_payment_lifecycle BEFORE UPDATE OF status ON food_orders FOR EACH ROW EXECUTE FUNCTION enforce_food_order_payment_lifecycle()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "food_orders",
+      "name": "food_orders_updated_at",
+      "definition": "CREATE TRIGGER food_orders_updated_at BEFORE UPDATE ON food_orders FOR EACH ROW EXECUTE FUNCTION set_restaurant_food_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "food_orders",
+      "name": "protect_food_order_payment_state",
+      "definition": "CREATE TRIGGER protect_food_order_payment_state BEFORE UPDATE OF payment_status ON food_orders FOR EACH ROW EXECUTE FUNCTION protect_food_order_payment_state()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "food_orders",
+      "name": "sync_food_order_delivery_assignment",
+      "definition": "CREATE TRIGGER sync_food_order_delivery_assignment AFTER UPDATE OF status ON food_orders FOR EACH ROW WHEN (old.status IS DISTINCT FROM new.status) EXECUTE FUNCTION sync_food_order_delivery_assignment()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "hotel_booking_pricing_ledger",
+      "name": "hotel_booking_pricing_ledger_updated_at",
+      "definition": "CREATE TRIGGER hotel_booking_pricing_ledger_updated_at BEFORE UPDATE ON hotel_booking_pricing_ledger FOR EACH ROW EXECUTE FUNCTION set_hotel_booking_pricing_ledger_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "hotelbeds_content_sync_state",
+      "name": "hotelbeds_content_sync_state_updated_at",
+      "definition": "CREATE TRIGGER hotelbeds_content_sync_state_updated_at BEFORE UPDATE ON hotelbeds_content_sync_state FOR EACH ROW EXECUTE FUNCTION set_hotelbeds_content_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "hotelbeds_hotel_content",
+      "name": "hotelbeds_hotel_content_updated_at",
+      "definition": "CREATE TRIGGER hotelbeds_hotel_content_updated_at BEFORE UPDATE ON hotelbeds_hotel_content FOR EACH ROW EXECUTE FUNCTION set_hotelbeds_content_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "local_profiles",
+      "name": "local_require_approved_verification_trg",
+      "definition": "CREATE TRIGGER local_require_approved_verification_trg BEFORE INSERT OR UPDATE OF verification_state, identity_liveness_verified_at ON local_profiles FOR EACH ROW EXECUTE FUNCTION local_require_approved_verification()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "offerings",
+      "name": "travel_os_offerings_approved_event",
+      "definition": "CREATE TRIGGER travel_os_offerings_approved_event BEFORE INSERT OR UPDATE OF event_id ON offerings FOR EACH ROW EXECUTE FUNCTION travel_os_require_approved_event()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "restaurant_menu_categories",
+      "name": "restaurant_menu_categories_updated_at",
+      "definition": "CREATE TRIGGER restaurant_menu_categories_updated_at BEFORE UPDATE ON restaurant_menu_categories FOR EACH ROW EXECUTE FUNCTION set_restaurant_food_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "restaurant_menu_items",
+      "name": "restaurant_menu_items_updated_at",
+      "definition": "CREATE TRIGGER restaurant_menu_items_updated_at BEFORE UPDATE ON restaurant_menu_items FOR EACH ROW EXECUTE FUNCTION set_restaurant_food_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "restaurant_menu_items",
+      "name": "validate_restaurant_menu_item_category",
+      "definition": "CREATE TRIGGER validate_restaurant_menu_item_category BEFORE INSERT OR UPDATE OF business_id, category_id ON restaurant_menu_items FOR EACH ROW EXECUTE FUNCTION validate_restaurant_menu_item_category()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "restaurant_settings",
+      "name": "restaurant_settings_updated_at",
+      "definition": "CREATE TRIGGER restaurant_settings_updated_at BEFORE UPDATE ON restaurant_settings FOR EACH ROW EXECUTE FUNCTION set_restaurant_food_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_appointment_status_events",
+      "name": "service_appointment_status_notification_trigger",
+      "definition": "CREATE TRIGGER service_appointment_status_notification_trigger AFTER INSERT ON service_appointment_status_events FOR EACH ROW EXECUTE FUNCTION create_service_appointment_notifications()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_appointments",
+      "name": "service_appointment_require_verified_traveler",
+      "definition": "CREATE TRIGGER service_appointment_require_verified_traveler BEFORE INSERT OR UPDATE OF customer_user_id ON service_appointments FOR EACH ROW EXECUTE FUNCTION service_appointment_require_verified_traveler()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_appointments",
+      "name": "service_appointments_calculate_provider_fee",
+      "definition": "CREATE TRIGGER service_appointments_calculate_provider_fee BEFORE INSERT OR UPDATE OF service_profile_id, price ON service_appointments FOR EACH ROW EXECUTE FUNCTION calculate_service_provider_fee()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_appointments",
+      "name": "service_appointments_mark_payout_eligible",
+      "definition": "CREATE TRIGGER service_appointments_mark_payout_eligible AFTER UPDATE OF status ON service_appointments FOR EACH ROW EXECUTE FUNCTION mark_service_provider_payout_eligible()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_appointments",
+      "name": "service_appointments_sync_payment_ledger",
+      "definition": "CREATE TRIGGER service_appointments_sync_payment_ledger AFTER INSERT OR UPDATE OF price, currency, service_fee_percent, service_fee_amount, provider_net_amount, payment_status ON service_appointments FOR EACH ROW EXECUTE FUNCTION sync_service_payment_ledger()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_appointments",
+      "name": "service_appointments_validate_time_window",
+      "definition": "CREATE TRIGGER service_appointments_validate_time_window BEFORE INSERT OR UPDATE OF starts_at, ends_at, staff_id, service_profile_id, offering_id ON service_appointments FOR EACH ROW EXECUTE FUNCTION validate_service_appointment_time_window()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_appointments",
+      "name": "sync_service_appointment_journey_times",
+      "definition": "CREATE TRIGGER sync_service_appointment_journey_times AFTER UPDATE OF starts_at, ends_at ON service_appointments FOR EACH ROW EXECUTE FUNCTION sync_service_appointment_journey_times()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_profiles",
+      "name": "service_profiles_require_provider_terms",
+      "definition": "CREATE TRIGGER service_profiles_require_provider_terms BEFORE INSERT OR UPDATE OF booking_status, provider_terms_version, provider_terms_accepted_at ON service_profiles FOR EACH ROW EXECUTE FUNCTION enforce_service_provider_terms_before_booking()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_profiles",
+      "name": "service_profiles_sync_supplier_completion",
+      "definition": "CREATE TRIGGER service_profiles_sync_supplier_completion AFTER INSERT OR DELETE OR UPDATE OF business_id ON service_profiles FOR EACH ROW EXECUTE FUNCTION sync_supplier_completion_from_service_profile()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_provider_payouts",
+      "name": "service_provider_payouts_require_verification",
+      "definition": "CREATE TRIGGER service_provider_payouts_require_verification BEFORE UPDATE OF status ON service_provider_payouts FOR EACH ROW EXECUTE FUNCTION enforce_service_provider_payout_verification()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "service_staff",
+      "name": "service_staff_require_external_verification_trg",
+      "definition": "CREATE TRIGGER service_staff_require_external_verification_trg BEFORE INSERT OR UPDATE OF verification_state, identity_liveness_verified_at, user_id ON service_staff FOR EACH ROW EXECUTE FUNCTION service_staff_require_external_verification()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "supplier_accounts",
+      "name": "supplier_accounts_set_completion",
+      "definition": "CREATE TRIGGER supplier_accounts_set_completion BEFORE INSERT OR UPDATE OF business_id ON supplier_accounts FOR EACH ROW EXECUTE FUNCTION set_supplier_completion_on_account()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "transfer_booking_pricing_ledger",
+      "name": "transfer_booking_pricing_ledger_updated_at",
+      "definition": "CREATE TRIGGER transfer_booking_pricing_ledger_updated_at BEFORE UPDATE ON transfer_booking_pricing_ledger FOR EACH ROW EXECUTE FUNCTION set_transfer_booking_pricing_ledger_updated_at()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "travel_refund_reviews",
+      "name": "travel_refund_review_audit_trigger",
+      "definition": "CREATE TRIGGER travel_refund_review_audit_trigger AFTER INSERT OR UPDATE ON travel_refund_reviews FOR EACH ROW EXECUTE FUNCTION capture_travel_refund_review_event()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "trip_items",
+      "name": "protect_trip_item_service_appointment_mutation",
+      "definition": "CREATE TRIGGER protect_trip_item_service_appointment_mutation BEFORE UPDATE ON trip_items FOR EACH ROW EXECUTE FUNCTION protect_trip_item_service_appointment_mutation()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "trip_items",
+      "name": "travel_os_trip_items_approved_event",
+      "definition": "CREATE TRIGGER travel_os_trip_items_approved_event BEFORE INSERT OR UPDATE OF event_id ON trip_items FOR EACH ROW EXECUTE FUNCTION travel_os_require_approved_event()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "trip_items",
+      "name": "travel_os_trip_items_approved_offering",
+      "definition": "CREATE TRIGGER travel_os_trip_items_approved_offering BEFORE INSERT OR UPDATE OF offering_id ON trip_items FOR EACH ROW EXECUTE FUNCTION travel_os_require_approved_offering()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "trip_items",
+      "name": "trip_items_sync_hotel_ledger_reference",
+      "definition": "CREATE TRIGGER trip_items_sync_hotel_ledger_reference BEFORE INSERT OR UPDATE ON trip_items FOR EACH ROW EXECUTE FUNCTION sync_hotel_trip_item_ledger_reference()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "vehicles",
+      "name": "driver_require_vehicle_compliance_for_active",
+      "definition": "CREATE CONSTRAINT TRIGGER driver_require_vehicle_compliance_for_active AFTER INSERT OR DELETE OR UPDATE OF status, registration_compliance_status, insurance_compliance_status ON vehicles DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION driver_require_vehicle_compliance_for_active()"
+    },
+    {
+      "kind": "trigger",
+      "object_name": "verification_events",
+      "name": "verification_events_no_update",
+      "definition": "CREATE TRIGGER verification_events_no_update BEFORE DELETE OR UPDATE ON verification_events FOR EACH ROW EXECUTE FUNCTION verification_events_immutable()"
+    }
+  ]
+}
