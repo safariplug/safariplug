@@ -20,10 +20,11 @@ export async function POST(request: Request) {
     const transactionId = String(result?.TransactionID || "").trim();
     const conversationId = String(result?.ConversationID || "").trim() || null;
     const originatorConversationId = String(result?.OriginatorConversationID || "").trim() || null;
-    const resultCode = Number(result?.ResultCode ?? -1);
+    const rawResultCode = result?.ResultCode;
+    const resultCode = Number(rawResultCode);
     const resultDesc = result?.ResultDesc == null ? null : String(result.ResultDesc).slice(0, 1000);
 
-    if (!Number.isFinite(resultCode) || (!transactionId && !conversationId && !originatorConversationId)) {
+    if (rawResultCode == null || !Number.isFinite(resultCode) || (!transactionId && !conversationId && !originatorConversationId)) {
       return callbackError(400, "Invalid reversal callback");
     }
 
