@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { runSalesScoutForm, type SalesScoutFormState } from "./actions/run-sales-scout";
 
 const cities=["Nairobi","Mombasa","Diani","Kilifi","Malindi","Watamu","Lamu","Zanzibar","Kampala","Dar es Salaam","Accra","Lagos","Cape Town","Johannesburg","Cairo","Casablanca"];
-const categories=["Barbers","Hair & Beauty","Spas & Massage","Tattoo Artists & Body Art","Nails","Lashes & Brows","Fitness & Personal Training","Yoga/Pilates/Mindfulness","Diving & Marine","Surfing & Board Sports","Water Sports & Kite","Tours & Local Guides","Photography & Content","Private Chefs & Cooking","Hotels","Restaurants","Nightlife","Tour Operators","Experiences"];
+const categories=["Barbers","Hair & Beauty","Spas & Massage","Tattoo Artists & Body Art","Nails","Lashes & Brows","Fitness & Personal Training","Yoga/Pilates/Mindfulness","Diving & Marine","Surfing & Board Sports","Water Sports & Kite","Tours & Local Guides","Photography & Content","Private Chefs & Cooking","Hotels","Restaurants","Nightlife","Tour Operators","Experiences","Beach Clubs"];
 
 const initialState: SalesScoutFormState = { status: "idle", message: "" };
 
