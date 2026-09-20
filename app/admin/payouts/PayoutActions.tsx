@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function PayoutActions({ payoutId, status }: { payoutId: string; status: string }) {
+export default function PayoutActions({ payoutId, status, canManageFinance }: { payoutId: string; status: string; canManageFinance: boolean }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -34,6 +34,7 @@ export default function PayoutActions({ payoutId, status }: { payoutId: string; 
     }
   }
 
+  if (!canManageFinance && ["eligible","approved"].includes(status)) return <span className="text-xs text-amber-300">Finance role required</span>;
   if (status === "eligible") return <div className="flex gap-2"><button disabled={busy} onClick={() => act("approve")} className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50">Approve</button><button disabled={busy} onClick={() => act("hold")} className="rounded-full border border-white/15 px-3 py-1.5 text-xs disabled:opacity-50">Hold</button>{message && <span className="self-center text-xs text-white/45">{message}</span>}</div>;
   if (status === "approved") return <div className="flex gap-2"><button disabled={busy} onClick={() => act("execute")} className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50">Send M-Pesa</button>{message && <span className="self-center text-xs text-white/45">{message}</span>}</div>;
   if (status === "processing") return <span className="text-xs text-white/45">Awaiting M-Pesa result</span>;
