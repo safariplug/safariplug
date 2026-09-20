@@ -103,7 +103,6 @@ export default function HotelsPage() {
         const singleRoom = rooms === "1";
         const lockTripReady = hotel.provider === "locktrip" && singleRoom && Boolean(ctx.search_key && ctx.region_id);
         const hotelbedsReady = hotel.provider === "hotelbeds" && singleRoom && Boolean(ctx.booking_token);
-        const lockTripParams = new URLSearchParams({ hotelId: hotel.property_id, hotelName: hotel.property_name, searchKey: ctx.search_key || "", regionId: ctx.region_id || "", checkIn, checkOut, guests, currency: "KES" });
         const hotelbedsParams = new URLSearchParams({ provider: "hotelbeds", hotelName: hotel.property_name, bookingToken: ctx.booking_token || "", checkIn, checkOut, guests, currency: "KES", total: String(hotel.total?.amount || "") });
         return <article key={`${hotel.provider}-${hotel.property_id}`} className="overflow-hidden rounded-[1.75rem] border border-black/8 bg-white p-5 shadow-[0_18px_60px_-45px_rgba(0,0,0,.45)]">
           {ctx.images?.[0] ? <img src={ctx.images[0]} alt="" className="aspect-[16/9] w-full rounded-[1.25rem] object-cover" /> : <div className="aspect-[16/9] rounded-[1.25rem] bg-gradient-to-br from-[#e7e2d7] via-[#d4cec0] to-[#aaa394]" />}
