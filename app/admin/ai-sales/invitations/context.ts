@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { chooseOutreachContact } from "@/lib/services/crm-outreach";
 
 export type OutreachContext = {
   prospectId: string | null;
@@ -8,12 +9,13 @@ export type OutreachContext = {
   partnerType: string;
   contactEmail: string;
   whatsappPhone: string;
+  contactSource: "crm_contact" | "discovered_business_email" | "none";
 };
 
 export async function resolveOutreachContext(prospectId: string): Promise<OutreachContext | null> {
   const { data: prospect, error } = await supabaseAdmin
     .from("ai_sales_prospects")
-    .select("id,business_name,category")
+    .select("id,business_name,category,contact_email")
     .eq("id", prospectId)
     .single();
 
@@ -40,14 +42,15 @@ export async function resolveOutreachContext(prospectId: string): Promise<Outrea
       .maybeSingle(),
   ]);
 
-  const contact = primary || fallback;
+  const choice = chooseOutreachContact(primary, fallback, prospect.contact_email);
   return {
     prospectId,
     partnerId: partner?.id || null,
-    contactId: contact?.id || null,
+    contactId: choice.contactId,
     businessName: prospect.business_name,
     partnerType: prospect.category || "Other travel partner",
-    contactEmail: contact?.email || "",
-    whatsappPhone: contact?.phone || "",
+    contactEmail: choice.contactEmail,
+    whatsappPhone: choice.whatsappPhone,
+    contactSource: choice.contactSource,
   };
 }
