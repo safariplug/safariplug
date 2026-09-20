@@ -201,6 +201,18 @@ export default async function ReconciliationPage(){
       });
     }
 
+    if(active&&order&&attempt.payment_intent_id&&attempt.provider_reference&&!["pending","paid","refunded"].includes(String(order.payment_status))){
+      anomalies.push({
+        key:`food-payment-order-state-${attempt.id}`,
+        severity:"critical",
+        source:"Food payment",
+        reference,
+        title:"Correlated M-Pesa attempt is not reflected on the order",
+        detail:`M-Pesa correlation exists while order payment state is ${order.payment_status}. Do not retry; reconcile the provider result and order state first.`,
+        updatedAt:attempt.created_at,
+      });
+    }
+
     if(active&&order&&["paid","refunded"].includes(String(order.payment_status))){
       anomalies.push({
         key:`food-payment-active-terminal-${attempt.id}`,
