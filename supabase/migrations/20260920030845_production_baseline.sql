@@ -10162,33 +10162,84 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUN
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
 
+-- SafariPlug canonical access-control normalization.
+-- The hosted production project intentionally exposes only a small subset of
+-- public relations to anon/authenticated. A fresh local Supabase stack grants
+-- broader defaults, so normalize the rebuilt baseline back to production.
 
+revoke all privileges on all tables in schema public from anon, authenticated;
+grant all privileges on all tables in schema public to service_role;
 
+grant references, select, trigger, truncate on table
+  public.cities,
+  public.journal_articles
+to anon;
 
+grant all privileges on table public.events to anon;
+grant select on table
+  public.inventory_kinds,
+  public.local_availability,
+  public.local_profiles
+to anon;
 
+grant select on table
+  public.admin_users,
+  public.ai_discovered_events,
+  public.ai_scout_runs,
+  public.booking_status_events,
+  public.inventory_kinds,
+  public.offerings,
+  public.providers
+to authenticated;
 
+grant insert, select on table
+  public.bookings,
+  public.trip_items,
+  public.trips
+to authenticated;
 
+grant all privileges on table
+  public.businesses,
+  public.events,
+  public.profiles,
+  public.saved_events
+to authenticated;
 
+grant references, select, trigger, truncate on table
+  public.cities,
+  public.journal_articles
+to authenticated;
 
+grant delete, insert, select, update on table
+  public.local_availability
+to authenticated;
 
+grant insert, select, update on table
+  public.local_profiles,
+  public.local_requests
+to authenticated;
 
+-- Production intentionally withholds these three privileges from service_role
+-- on the append-oriented refund-review event relation.
+revoke delete, truncate, update
+on table public.travel_refund_review_events
+from service_role;
 
+-- Match hosted production defaults for future objects created by postgres in
+-- public: service_role receives access; anon/authenticated do not inherit broad
+-- table, sequence, or function privileges by default.
+alter default privileges for role postgres in schema public
+  revoke all on tables from anon, authenticated;
+alter default privileges for role postgres in schema public
+  grant all on tables to service_role;
 
+alter default privileges for role postgres in schema public
+  revoke all on sequences from anon, authenticated;
+alter default privileges for role postgres in schema public
+  grant all on sequences to service_role;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+alter default privileges for role postgres in schema public
+  revoke all on functions from anon, authenticated;
+alter default privileges for role postgres in schema public
+  grant all on functions to service_role;
 
