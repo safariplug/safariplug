@@ -1,9 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const [expectedDir, actualDir] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const schemaOnly = args[0] === "--schema-only";
+const positional = schemaOnly ? args.slice(1) : args;
+const [expectedDir, actualDir] = positional;
 if (!expectedDir || !actualDir) {
-  console.error("Usage: node scripts/compare-supabase-baseline.mjs <expected-dir> <actual-dir>");
+  console.error("Usage: node scripts/compare-supabase-baseline.mjs [--schema-only] <expected-dir> <actual-dir>");
   process.exit(2);
 }
 
@@ -13,7 +16,7 @@ const files = [
   "policies-triggers.json",
   "functions.json",
   "api-grants.json",
-  "migrations.json",
+  ...(schemaOnly ? [] : ["migrations.json"]),
   "schema-meta.json",
 ];
 
