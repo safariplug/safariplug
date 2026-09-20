@@ -88,28 +88,27 @@ export async function POST(request: Request) {
         .update({ status: "active", updated_at: now })
         .eq("onboarded_user_id", account.user_id)
         .eq("status", "onboarding");
+      const warnings: string[] = [];
       if (invitationError) {
-        return NextResponse.json({
-          error: "Supplier was activated, but the recruitment invitation could not be advanced to active. Review CRM state before continuing.",
-        }, { status: 500 });
+        console.error("Supplier activated but invitation CRM sync failed", invitationError);
+        warnings.push("Recruitment invitation status could not be advanced to active.");
       }
 
       if (account.prospect_id || account.partner_id) {
         const { error: activityError } = await supabaseAdmin.from("crm_activities").insert({
           prospect_id: account.prospect_id || null,
           partner_id: account.partner_id || null,
-          activity_type: "status_change",
+          activity_type: "approval",
           summary: "Supplier approved and activated",
-          details: `Supplier account ${account.id} passed activation review and its linked recruitment invitation was advanced to active.`,
+          details: `Supplier account ${account.id} passed activation review.`,
         });
         if (activityError) {
-          return NextResponse.json({
-            error: "Supplier was activated, but CRM activity logging failed. Review CRM state before continuing.",
-          }, { status: 500 });
+          console.error("Supplier activated but CRM activity logging failed", activityError);
+          warnings.push("CRM activity could not be recorded.");
         }
       }
 
-      return NextResponse.json({ success: true, onboarding_status: "approved" });
+      return NextResponse.json({ success: true, onboarding_status: "approved", warnings });
     }
 
     if (action === "request_changes") {
