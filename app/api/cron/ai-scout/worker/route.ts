@@ -28,6 +28,7 @@ type ProviderSnapshot = {
   status: string;
   outputText: string;
   error: string | null;
+  incompleteReason: string | null;
 };
 
 function compactCounts(values: Record<string, number>) {
@@ -46,7 +47,8 @@ function transientProviderError(message: string) {
     || value.includes("temporarily unavailable")
     || value.includes("server overloaded")
     || value.includes("timeout")
-    || value.includes("timed out");
+    || value.includes("timed out")
+    || value.includes("completed without output text");
 }
 
 async function authorized(request: NextRequest) {
@@ -176,6 +178,7 @@ async function snapshotProvider(job: RunningScoutJob): Promise<ProviderSnapshot>
       status: provider.status || "unknown",
       outputText: provider.outputText,
       error: provider.error,
+      incompleteReason: provider.incompleteReason,
     };
   } catch (error) {
     return {
@@ -183,6 +186,7 @@ async function snapshotProvider(job: RunningScoutJob): Promise<ProviderSnapshot>
       status: "poll_error",
       outputText: "",
       error: error instanceof Error ? error.message : "Could not poll OpenAI background response",
+      incompleteReason: null,
     };
   }
 }
@@ -239,7 +243,9 @@ async function pollActivePool() {
     const message = snapshot.error || (
       status === "completed"
         ? "AI Scout background response completed without output text"
-        : `OpenAI background response ended with status ${status}`
+        : status === "incomplete" && snapshot.incompleteReason
+          ? `OpenAI background response ended with status incomplete (${snapshot.incompleteReason})`
+          : `OpenAI background response ended with status ${status}`
     );
     await finishJob(job, undefined, message, transientProviderError(message));
   }
