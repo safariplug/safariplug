@@ -83,11 +83,14 @@ export async function POST(request: Request) {
       }
 
       const now = new Date().toISOString();
-      const { error: invitationError } = await supabaseAdmin
+      let activeInvitationQuery = supabaseAdmin
         .from("partner_invitations")
         .update({ status: "active", updated_at: now })
         .eq("onboarded_user_id", account.user_id)
         .eq("status", "onboarding");
+      if (account.prospect_id) activeInvitationQuery = activeInvitationQuery.eq("prospect_id", account.prospect_id);
+      else if (account.partner_id) activeInvitationQuery = activeInvitationQuery.eq("partner_id", account.partner_id);
+      const { error: invitationError } = await activeInvitationQuery;
       const warnings: string[] = [];
       if (invitationError) {
         console.error("Supplier activated but invitation CRM sync failed", invitationError);
@@ -196,11 +199,14 @@ export async function POST(request: Request) {
     const { error: businessError } = await supabaseAdmin.from("businesses").update({ status: "inactive" }).eq("id", account.business_id);
     if (businessError) return NextResponse.json({ error: businessError.message }, { status: 500 });
 
-    const { error: invitationError } = await supabaseAdmin
+    let declinedInvitationQuery = supabaseAdmin
       .from("partner_invitations")
       .update({ status: "declined", updated_at: rejectedAt })
       .eq("onboarded_user_id", account.user_id)
       .in("status", ["signup_started", "onboarding"]);
+    if (account.prospect_id) declinedInvitationQuery = declinedInvitationQuery.eq("prospect_id", account.prospect_id);
+    else if (account.partner_id) declinedInvitationQuery = declinedInvitationQuery.eq("partner_id", account.partner_id);
+    const { error: invitationError } = await declinedInvitationQuery;
     if (invitationError) {
       return NextResponse.json({
         error: "Supplier was rejected, but the recruitment invitation could not be marked declined.",
