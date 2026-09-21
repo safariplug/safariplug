@@ -24,6 +24,7 @@ function safeMetadata(value: unknown) {
     "guests",
     "result_count",
     "filter",
+    "click_target",
   ] as const;
   const out: Record<string, unknown> = {};
   for (const key of allowed) {

@@ -4,7 +4,6 @@ import EventCard from "@/components/EventCard";
 import EventFilters from "@/app/events/components/EventFilters";
 import EventSearch from "@/app/events/components/EventSearch";
 import { EVENT_CATEGORIES } from "@/lib/constants/events";
-import { emitGrowthEvent } from "@/lib/growth/events";
 
 export const dynamic = "force-dynamic";
 
@@ -101,27 +100,6 @@ export default async function EventsPage({
   });
 
   const cities = Array.from(new Set(normalizedEvents.map((event) => event.city?.name).filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b));
-
-  const hasDiscoveryIntent =
-    Boolean(search) ||
-    Boolean(city) ||
-    Boolean(category && category.toLowerCase() !== "all") ||
-    when !== "upcoming";
-  if (hasDiscoveryIntent) {
-    await emitGrowthEvent({
-      event_type: "SEARCH",
-      source: "safariplug.com",
-      destination: city || null,
-      category: category && category.toLowerCase() !== "all" ? category : "events",
-      product_type: "event",
-      query: search || city || (category && category.toLowerCase() !== "all" ? category : when),
-      landing_url: "https://www.safariplug.com/events",
-      metadata: {
-        result_count: filteredEvents.length,
-        filter: when,
-      },
-    });
-  }
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white md:px-8 md:py-12">

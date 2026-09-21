@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { emitBrowserGrowthEvent } from "@/lib/growth/browser-events";
 
 type EventFiltersProps = {
   cities: string[];
@@ -42,6 +43,19 @@ export default function EventFilters({
     }
 
     const query = params.toString();
+
+    if (value && value !== "all") {
+      void emitBrowserGrowthEvent({
+        event_type: "SEARCH",
+        destination: name === "city" ? value : selectedCity !== "all" ? selectedCity : null,
+        category: name === "category" ? value : selectedCategory !== "all" ? selectedCategory : "events",
+        product_type: "event",
+        query: value,
+        metadata: {
+          filter: name,
+        },
+      });
+    }
 
     if (query) {
       router.push("/events?" + query);
