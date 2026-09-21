@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { emitGrowthEvent, type GrowthEventInput } from "@/lib/growth/events";
+import { emitGrowthEvent, growthEventRelayConfigured, type GrowthEventInput } from "@/lib/growth/events";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +32,29 @@ function safeMetadata(value: unknown) {
     else if (typeof entry === "number" || typeof entry === "boolean") out[key] = entry;
   }
   return out;
+}
+
+export async function GET() {
+  const configured = growthEventRelayConfigured();
+  const rawEndpoint = (process.env.SAFARIPLUG_GROWTH_EVENTS_URL || "https://growth.safariplug.com/api/events").trim();
+
+  let endpointHost: string | null = null;
+  try {
+    endpointHost = new URL(rawEndpoint).host;
+  } catch {
+    endpointHost = null;
+  }
+
+  return NextResponse.json({
+    ok: true,
+    relay: "safariplug-growth-events",
+    configured,
+    secret_configured: Boolean((process.env.SAFARIPLUG_EVENT_SECRET || "").trim()),
+    endpoint_configured: Boolean(rawEndpoint),
+    endpoint_host: endpointHost,
+    expected_endpoint_host: "growth.safariplug.com",
+    browser_secret_exposed: false,
+  });
 }
 
 export async function POST(request: Request) {
