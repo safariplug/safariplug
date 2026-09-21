@@ -1,4 +1,4 @@
-import { emitGrowthEvent, emitGrowthEvents, stableGrowthEventId } from "./events";
+import { emitGrowthEvent, emitGrowthEvents, stableGrowthEventId, type GrowthEventInput } from "./events";
 
 export async function emitHotelBookingStart(input: {
   provider: "locktrip" | "hotelbeds";
@@ -39,7 +39,7 @@ export async function emitConfirmedHotelBooking(input: {
   checkOut?: string | null;
 }) {
   const bookingEventId = stableGrowthEventId("booking-complete", input.ledgerId);
-  const events = [
+  const events: GrowthEventInput[] = [
     {
       event_id: bookingEventId,
       event_type: "BOOKING_COMPLETE" as const,
