@@ -102,16 +102,7 @@ export async function POST(request: Request) {
       if (customerCurrency !== "KES") return errorResponse(400, "Hotel M-Pesa checkout currently supports KES only.");
 
       if (original.preflighted) {
-        await emitHotelBookingStart({
-        provider: "hotelbeds",
-        intentId: String(intent.id),
-        productId: `hotel-hotelbeds-${final.propertyId}`,
-        hotelName: final.propertyName,
-        checkIn: final.checkIn,
-        checkOut: final.checkOut,
-      });
-
-      const percent = markupPercent();
+        const percent = markupPercent();
         const supplierRetail = retailSupplierAmount(original.supplierNet, percent);
         const converted = await convertCurrency(supplierRetail, original.supplierCurrency, customerCurrency);
         return NextResponse.json({
@@ -276,6 +267,15 @@ export async function POST(request: Request) {
         }
         throw new Error(intentError?.message || "Unable to initialize Hotelbeds checkout.");
       }
+
+      await emitHotelBookingStart({
+        provider: "hotelbeds",
+        intentId: String(intent.id),
+        productId: `hotel-hotelbeds-${final.propertyId}`,
+        hotelName: final.propertyName,
+        checkIn: final.checkIn,
+        checkOut: final.checkOut,
+      });
 
       const percent = markupPercent();
       const supplierRetail = retailSupplierAmount(final.supplierNet, percent);
