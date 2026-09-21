@@ -11,6 +11,7 @@ import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 import { publicHotelCheckoutLedger } from "@/lib/integrations/hotels/hotel-public-ledger";
 import { hotelPaymentSafeToRetry, normalizeHotelCheckoutIntentKey, publicHotelCheckoutIntentStatus } from "@/lib/integrations/hotels/hotel-payment-safety";
+import { emitConfirmedHotelBooking, emitHotelBookingStart } from "@/lib/growth/hotel-events";
 
 export const dynamic = "force-dynamic";
 const DEFAULT_MARKUP_PERCENT = 10;
@@ -101,7 +102,16 @@ export async function POST(request: Request) {
       if (customerCurrency !== "KES") return errorResponse(400, "Hotel M-Pesa checkout currently supports KES only.");
 
       if (original.preflighted) {
-        const percent = markupPercent();
+        await emitHotelBookingStart({
+        provider: "hotelbeds",
+        intentId: String(intent.id),
+        productId: `hotel-hotelbeds-${final.propertyId}`,
+        hotelName: final.propertyName,
+        checkIn: final.checkIn,
+        checkOut: final.checkOut,
+      });
+
+      const percent = markupPercent();
         const supplierRetail = retailSupplierAmount(original.supplierNet, percent);
         const converted = await convertCurrency(supplierRetail, original.supplierCurrency, customerCurrency);
         return NextResponse.json({
@@ -541,6 +551,17 @@ export async function POST(request: Request) {
         metadata: { ...currentMetadata, confirmAcceptedAt: confirmedAt, providerBooking: provider, voucher, clientReference },
       }).eq("id", workingLedger.id).eq("customer_user_id", user.id).select("*").single();
       if (updateError) throw new Error(updateError.message);
+      await emitConfirmedHotelBooking({
+        provider: "hotelbeds",
+        ledgerId: String(updatedLedger?.id || workingLedger.id),
+        productId: `hotel-hotelbeds-${token.propertyId}`,
+        confirmationRef: reference,
+        value: Number(updatedLedger?.customer_retail_amount ?? workingLedger.customer_retail_amount ?? 0),
+        currency: String(updatedLedger?.customer_currency || workingLedger.customer_currency || workingLedger.currency || "KES"),
+        hotelName: token.propertyName,
+        checkIn: token.checkIn,
+        checkOut: token.checkOut,
+      });
       return NextResponse.json({ provider: "hotelbeds", status: "confirmed", providerBooking: provider, voucher, ledger: publicHotelCheckoutLedger(updatedLedger), itineraryItem });
     } catch (error) {
       const timestamp = new Date().toISOString();
