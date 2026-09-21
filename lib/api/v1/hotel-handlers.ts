@@ -7,6 +7,7 @@ import {
 } from "@/lib/services/hotels";
 import { jsonError, jsonOk } from "./http";
 import { ParamError } from "./params";
+import { emitGrowthEvent } from "@/lib/growth/events";
 
 export function hotelInventoryNotConfigured(): Response {
   return jsonError(
@@ -54,6 +55,23 @@ export async function handleHotelSearch(request: Request): Promise<Response> {
     const result = await searchHotels(query);
     if (!result.ok) return fromHotelError(result.error.code, result.error.message);
     const providerCount = new Set(result.data.results.map((item) => item.provider)).size;
+    await emitGrowthEvent({
+      event_type: "SEARCH",
+      source: "safariplug.com",
+      destination: query.destination || null,
+      category: "hotels",
+      product_type: "hotel",
+      query: query.destination || null,
+      landing_url: "https://www.safariplug.com/hotels",
+      metadata: {
+        result_count: result.data.results.length,
+        provider_filter: query.provider || null,
+        check_in: query.check_in,
+        check_out: query.check_out,
+        guests: query.guests,
+        rooms: query.rooms,
+      },
+    });
     return jsonOk(result.data.results, {
       meta: {
         inventory: "supplier",
