@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { emitBrowserGrowthEvent } from "@/lib/growth/browser-events";
 
 interface EventCardProps {
   event: {
@@ -16,6 +17,7 @@ interface EventCardProps {
     image_url: string | null;
     start_at: string;
     is_featured: boolean | null;
+    city?: { name: string; country?: string | null } | null;
   };
 }
 
@@ -27,8 +29,20 @@ export default function EventCard({ event }: EventCardProps) {
   const imageSource = event.image_url?.trim();
   const hasPrice = event.price !== null && event.price !== undefined;
 
+  function trackClick() {
+    void emitBrowserGrowthEvent({
+      event_type: "PRODUCT_CLICK",
+      product_id: event.id,
+      product_type: "event",
+      category: event.category,
+      destination: event.city?.name || null,
+      event_id: `click-event-${event.id}-${Date.now()}`,
+      metadata: { click_target: "event_card" },
+    });
+  }
+
   return (
-    <Link href={eventHref} aria-label={`View ${event.title}`} className={`group flex flex-col overflow-hidden rounded-xl border bg-zinc-900/50 transition-all duration-300 ${event.is_featured ? "border-amber-500/80 shadow-lg shadow-amber-500/10" : "border-zinc-800 hover:border-amber-500/50"}`}>
+    <Link href={eventHref} onClick={trackClick} aria-label={`View ${event.title}`} className={`group flex flex-col overflow-hidden rounded-xl border bg-zinc-900/50 transition-all duration-300 ${event.is_featured ? "border-amber-500/80 shadow-lg shadow-amber-500/10" : "border-zinc-800 hover:border-amber-500/50"}`}>
       <div className="relative h-52 w-full overflow-hidden bg-zinc-800">
         {imageSource && !imgError ? <img src={imageSource} alt={event.title} onError={() => setImgError(true)} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-500/20 via-zinc-900 to-black p-6 text-center"><span className="text-xs font-semibold uppercase tracking-widest text-amber-400/80">{event.category || "SafariPlug"}</span></div>}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
