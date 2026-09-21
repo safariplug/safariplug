@@ -13,6 +13,7 @@ import {
   searchCatalog,
   type CatalogClient,
 } from "./catalog";
+import { emitGrowthEvent } from "@/lib/growth/events";
 import {
   isUuid,
   ParamError,
@@ -122,6 +123,14 @@ export async function handleSearch(request: Request): Promise<Response> {
 
     const result = await searchCatalog(ready.client, { q, page, limit });
     if (!result.ok) return catalogUnavailable();
+    await emitGrowthEvent({
+      event_type: "SEARCH",
+      source: "safariplug.com",
+      category: "catalog",
+      query: q,
+      landing_url: `https://www.safariplug.com/search?q=${encodeURIComponent(q)}`,
+      metadata: { result_count: result.count, page, limit },
+    });
     return jsonOk(result.data, {
       meta: { q, page, limit, total: result.count },
     });

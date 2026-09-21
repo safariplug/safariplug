@@ -6,6 +6,7 @@ import LuxuryImage from "@/components/LuxuryImage";
 import { ShareButton } from "@/components/pwa/ShareButton";
 import AddToTripButton from "./AddToTripButton";
 import SaveExperienceButton from "../SaveExperienceButton";
+import GrowthProductView from "@/components/growth/GrowthProductView";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -100,6 +101,11 @@ export default async function EventPage({
 
   return (
     <main className="min-h-screen bg-black p-8 text-white md:p-16">
+      <GrowthProductView
+        productId={event.id}
+        productType="event"
+        category={event.category}
+      />
       <header className="border-b border-white/10 bg-[#0b0b0d]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <Link href="/" className="text-3xl font-black text-white">
