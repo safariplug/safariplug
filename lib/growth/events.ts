@@ -72,7 +72,7 @@ export async function emitGrowthEvents(events: GrowthEventInput[]) {
       },
       body: JSON.stringify({ events: payload }),
       cache: "no-store",
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(1200),
     });
 
     const result = await response.json().catch(() => null) as
