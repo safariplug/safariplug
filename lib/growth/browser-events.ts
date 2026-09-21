@@ -53,18 +53,30 @@ function attribution() {
 export async function emitBrowserGrowthEvent(event: BrowserGrowthEvent) {
   if (typeof window === "undefined") return;
   try {
+    const body = JSON.stringify({
+      ...event,
+      ...attribution(),
+      session_reference: getSessionReference(),
+      anonymous_reference: getAnonymousReference(),
+      landing_url: event.landing_url || window.location.href,
+      original_url: event.original_url || window.location.href,
+    });
+
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const sent = navigator.sendBeacon(
+        "/api/growth/events",
+        new Blob([body], { type: "application/json" }),
+      );
+      if (sent) return;
+    }
+
     await fetch("/api/growth/events", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...event,
-        ...attribution(),
-        session_reference: getSessionReference(),
-        anonymous_reference: getAnonymousReference(),
-        landing_url: event.landing_url || window.location.href,
-        original_url: event.original_url || window.location.href,
-      }),
+      body,
       keepalive: true,
+      cache: "no-store",
+      credentials: "same-origin",
     });
   } catch {
     // Growth telemetry must never interrupt the customer journey.
