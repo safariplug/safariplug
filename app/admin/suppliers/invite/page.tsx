@@ -13,7 +13,7 @@ export default async function ManualSupplierInvitePage() {
             <p className="font-mono text-[11px] font-bold uppercase tracking-[.22em] text-amber-400">SafariPlug // Partner Operations</p>
             <h1 className="mt-2 text-4xl font-bold">Invite a supplier manually</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
-              Use this when SafariPlug already knows the supplier and you do not need AI discovery first. This follows the same linked enrollment model used for Samuel Juma: CRM prospect → partner relationship → invitation → onboarding → Partner 360.
+              Use this when SafariPlug wants to invite a known or partially known supplier without AI discovery first. If all you have is an email address, that is enough to start the same linked enrollment model used for Samuel Juma: CRM prospect → partner relationship → invitation → onboarding → Partner 360.
             </p>
           </div>
           <Link href="/admin/suppliers" className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:text-white">Back to suppliers</Link>
@@ -22,26 +22,26 @@ export default async function ManualSupplierInvitePage() {
         <section className="mt-7 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-5">
           <p className="text-sm font-semibold text-amber-200">Nothing is sent automatically</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            Creating this record makes an approved, human-entered CRM prospect and a draft invitation. You will still review the invitation, approve it, and explicitly send it from the governed outreach workspace.
+            Email is the only required field. SafariPlug creates provisional linked CRM records when the business or contact name is not yet known. You will still review the invitation, approve it, and explicitly send it from the governed outreach workspace.
           </p>
         </section>
 
         <form action={createManualSupplierInvite} className="mt-7 space-y-6 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 md:p-8">
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Business / supplier name" name="business_name" required placeholder="e.g. Sam Juma" />
-            <Field label="Supplier category" name="category" required placeholder="e.g. Tattoo & Body Art, Hotel, Transfer Vendor" />
+            <Field label="Email" name="contact_email" type="email" required placeholder="supplier@example.com" />
+            <Field label="Business / supplier name" name="business_name" placeholder="Optional if unknown" />
+            <Field label="Contact name" name="contact_name" placeholder="Optional if unknown" />
+            <Field label="Supplier category" name="category" placeholder="Optional — defaults to Other" />
             <Field label="City / location" name="city" placeholder="e.g. Nairobi" />
             <Field label="Website" name="website" type="url" placeholder="https://..." />
           </div>
 
           <div className="border-t border-zinc-800 pt-6">
-            <p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Primary contact</p>
+            <p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Optional contact details</p>
             <div className="mt-4 grid gap-5 md:grid-cols-2">
-              <Field label="Contact name" name="contact_name" required placeholder="Full name" />
-              <Field label="Email" name="contact_email" type="email" placeholder="supplier@example.com" />
               <Field label="Phone / WhatsApp" name="phone" placeholder="+254..." />
             </div>
-            <p className="mt-3 text-xs text-zinc-500">At least one of email or phone is required. Email can be sent automatically only after human approval and only when SafariPlug email delivery is configured. WhatsApp remains disabled until a real provider is connected.</p>
+            <p className="mt-3 text-xs text-zinc-500">If the business or contact name is unknown, SafariPlug uses provisional internal labels until the supplier completes onboarding. The email invitation remains generic and does not invent a name. WhatsApp remains disabled until a real provider is connected.</p>
           </div>
 
           <label className="block">
