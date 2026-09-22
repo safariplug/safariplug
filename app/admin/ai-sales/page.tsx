@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { SupplierScoutForm } from "./supplier-scout-form";
+import { startOutreachForAllApproved } from "./bulk-outreach";
 
 type SearchParams = {
   stage?: string;
@@ -9,6 +10,7 @@ type SearchParams = {
   category?: string;
   contact?: string;
   sort?: string;
+  outreach?: string;
 };
 
 type Prospect = {
@@ -43,6 +45,7 @@ export default async function AISalesPage({
   const category = String(params.category || "");
   const contact = contactFilters.has(params.contact || "") ? String(params.contact) : (stage === "pending_review" ? "email" : "all");
   const sort = sortModes.has(params.sort || "") ? String(params.sort) : "score";
+  const outreachMessage = String(params.outreach || "");
 
   const [
     { count: total },
@@ -157,14 +160,15 @@ export default async function AISalesPage({
                 <Link href="/admin/ai-sales?stage=pending_review&contact=email&sort=score#prospect-feed" className="shrink-0 rounded-xl bg-black px-5 py-3 text-center text-sm font-semibold text-white">Review email-ready prospects →</Link>
               </div>
             ) : null}
-            {stage === "approved" && contact === "all" && outreachReady > 0 ? (
+            {outreachMessage ? <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">{outreachMessage}</div> : null}
+            {stage === "approved" && outreachReady > 0 ? (
               <div className="mb-5 flex flex-col justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 md:flex-row md:items-center">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[.16em] text-emerald-700/70">Approved and actionable</p>
                   <p className="mt-1 font-semibold text-emerald-950">{outreachReady} approved prospect{outreachReady === 1 ? "" : "s"} have a direct email or phone contact.</p>
-                  <p className="mt-1 text-sm text-emerald-900/65">These are ready for governed outreach drafting. Sending still requires human approval.</p>
+                  <p className="mt-1 text-sm text-emerald-900/65">You can start governed outreach for all approved email-ready suppliers at once. This creates drafts only; nothing is sent.</p>
                 </div>
-                <Link href="/admin/ai-sales?stage=approved&contact=any&sort=score#prospect-feed" className="shrink-0 rounded-xl bg-black px-5 py-3 text-center text-sm font-semibold text-white">Open outreach-ready prospects →</Link>
+                <div className="flex shrink-0 flex-wrap gap-2"><form action={startOutreachForAllApproved}><button className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Start outreach for all approved</button></form><Link href="/admin/ai-sales/invitations" className="rounded-xl border border-emerald-300 px-5 py-3 text-center text-sm font-semibold text-emerald-900">Open outreach drafts →</Link></div>
               </div>
             ) : null}
             <div className="flex flex-wrap items-end justify-between gap-4">
