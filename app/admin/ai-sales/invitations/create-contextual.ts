@@ -26,6 +26,19 @@ export async function createContextualPartnerInvitation(formData: FormData) {
       ? "email"
       : "whatsapp";
 
+  const { data: existingOpenInvite, error: existingOpenInviteError } = await supabaseAdmin
+    .from("partner_invitations")
+    .select("id,status")
+    .eq("prospect_id", prospectId)
+    .in("status", ["draft", "ready_for_approval", "approved"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingOpenInviteError) throw new Error(existingOpenInviteError.message);
+  if (existingOpenInvite?.id) {
+    redirect(`/admin/ai-sales/invitations?prospect_id=${encodeURIComponent(prospectId)}`);
+  }
+
   const { data: invitation, error } = await supabaseAdmin
     .from("partner_invitations")
     .insert({
