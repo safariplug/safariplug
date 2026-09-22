@@ -41,7 +41,7 @@ export default async function AISalesPage({
   const stage = reviewStages.has(params.stage || "") ? String(params.stage) : "pending_review";
   const city = String(params.city || "");
   const category = String(params.category || "");
-  const contact = contactFilters.has(params.contact || "") ? String(params.contact) : "all";
+  const contact = contactFilters.has(params.contact || "") ? String(params.contact) : (stage === "pending_review" ? "email" : "all");
   const sort = sortModes.has(params.sort || "") ? String(params.sort) : "score";
 
   const [
@@ -203,10 +203,10 @@ export default async function AISalesPage({
                 </select>
               </label>
               <label className="text-xs font-semibold text-gray-600">
-                Public contact
+                Contact readiness
                 <select name="contact" defaultValue={contact} className="mt-1 w-full rounded-lg border bg-white p-2.5 text-sm">
-                  <option value="all">Any state</option>
                   <option value="email">Business email ready</option>
+                  <option value="all">All historical records</option>
                   <option value="any">Any public contact</option>
                   <option value="missing">No public contact</option>
                 </select>
