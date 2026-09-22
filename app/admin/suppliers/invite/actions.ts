@@ -24,13 +24,27 @@ export async function createManualSupplierInvite(formData: FormData) {
   if (!contactName) throw new Error("Contact name is required.");
   if (!contactEmail && !phone) throw new Error("Add at least an email address or phone number.");
 
-  let duplicateQuery = supabaseAdmin.from("ai_sales_prospects").select("id,business_name,status,review_status").limit(1);
-  if (contactEmail && phone) duplicateQuery = duplicateQuery.or("contact_email.eq." + contactEmail + ",phone.eq." + phone);
-  else if (contactEmail) duplicateQuery = duplicateQuery.eq("contact_email", contactEmail);
-  else duplicateQuery = duplicateQuery.eq("phone", phone);
-
-  const { data: existing, error: duplicateError } = await duplicateQuery.maybeSingle();
-  if (duplicateError) throw new Error(duplicateError.message);
+  let existing: { id: string } | null = null;
+  if (contactEmail) {
+    const { data, error } = await supabaseAdmin
+      .from("ai_sales_prospects")
+      .select("id")
+      .eq("contact_email", contactEmail)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    existing = data;
+  }
+  if (!existing && phone) {
+    const { data, error } = await supabaseAdmin
+      .from("ai_sales_prospects")
+      .select("id")
+      .eq("phone", phone)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    existing = data;
+  }
   if (existing?.id) redirect("/admin/ai-sales/edit/" + existing.id);
 
   let prospectId: string | null = null;
