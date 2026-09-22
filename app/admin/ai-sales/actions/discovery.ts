@@ -58,8 +58,8 @@ function normalizeProspect(value: unknown, city: string, category: string): Disc
   const website=normalizePublicUrl(value.website), instagram=normalizePublicUrl(value.instagram), facebook=normalizePublicUrl(value.facebook);
   const contactEmail=isValidEmail(value.contact_email)?normalizeText(value.contact_email):undefined;
   const phone=hasUsefulPhone(value.phone)?normalizeText(value.phone):undefined;
-  if (!contactEmail && !phone && !website && !instagram && !facebook) return undefined;
-  const contactReadiness=contactEmail||phone?"Contact-ready: public email or phone found.":"Needs contact research: official public web/social property found, but no public email or phone was verified.";
+  if (!contactEmail) return undefined;
+  const contactReadiness="Email-ready: verified public business email found.";
   const notes = [normalizeText(value.notes), contactReadiness, `Source: ${sourceName} - ${sourceUrl}`].filter(Boolean).join("\n");
   return { business_name: businessName, category, city, website, instagram, facebook, contact_email:contactEmail, phone, source_url: sourceUrl, source_name: sourceName, description, notes };
 }
@@ -71,10 +71,10 @@ export async function discoverBusinesses(city: string, category: string): Promis
   const searchPrompt = [
     `Find real businesses in ${city}, ${country}, Africa that operate in the ${category} category and could be relevant SafariPlug partners.`,
     "Use live web search. Discovery is not complete until you also perform contact enrichment for each candidate.",
-    "For every candidate, actively search the official website, contact page, official Instagram/Facebook profile, and other credible public sources for a business email or business phone number.",
-    "Prioritize prospects with a publicly verified business email or phone number because they are immediately actionable for governed outreach.",
-    "If no public email or phone can be verified, include the business only when at least one official website, Instagram URL, or Facebook URL is verified so a human or later enrichment step has an actionable research path.",
-    "Do not return a business that has no verified email, phone, official website, official Instagram URL, and official Facebook URL.",
+    "For every candidate, actively search the official website, contact page, official Instagram/Facebook profile, and other credible public sources for a publicly listed business email address.",
+    "A publicly verified business email address is mandatory because SafariPlug only wants prospects that are immediately actionable for governed email outreach.",
+    "If no public business email can be verified, do not return the business.",
+    "Do not return phone-only, website-only, directory-only, or social-only prospects.",
     "Never return obfuscated or redacted email text such as [email protected], [email protected], email protected, placeholder/example addresses, or no-reply addresses as a contact email. Use null instead.",
     "Only return genuine businesses with externally verifiable information.",
     "Never invent or infer a business, website, social account, email, phone number, address, decision-maker, or description.",
@@ -96,7 +96,7 @@ export async function discoverBusinesses(city: string, category: string): Promis
     model: process.env.OPENAI_SALES_SCOUT_MODEL || "gpt-5-mini",
     tools: [{ type: "web_search" }],
     input: [
-      { role: "system", content: "You are SafariPlug Supplier Discovery for Africa. Discover and enrich contacts using live web information. Never fabricate fields. Prefer verified public business email/phone; reject obfuscated or placeholder contact data; otherwise require an official public website or social profile for later contact research. Return only valid JSON." },
+      { role: "system", content: "You are SafariPlug Supplier Discovery for Africa. Discover real businesses using live web information. A verified publicly listed business email address is mandatory. Never fabricate fields. Reject phone-only, website-only, directory-only, social-only, obfuscated, placeholder, personal/private, and no-reply contacts. Return only valid JSON." },
       { role: "user", content: searchPrompt },
     ],
   });
