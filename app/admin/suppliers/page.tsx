@@ -152,7 +152,7 @@ export default function SuppliersAdminPage() {
   }
 
   return <main className="mx-auto max-w-7xl px-6 py-10">
-    <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">Admin · Partner CRM</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Supplier onboarding</h1><p className="mt-2 max-w-2xl text-black/55">Start with the suppliers who need attention. Everything else can stay out of the way.</p></div><button onClick={() => void loadReviews()} className="rounded-full border border-black/15 px-4 py-2 text-sm">Refresh</button></div>
+    <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">Admin · Partner CRM</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Supplier onboarding</h1><p className="mt-2 max-w-2xl text-black/55">Start with the suppliers who need attention. Everything else can stay out of the way.</p></div><div className="flex flex-wrap gap-2"><Link href="/admin/suppliers/invite" className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white">+ Invite supplier manually</Link><button onClick={() => void loadReviews()} className="rounded-full border border-black/15 px-4 py-2 text-sm">Refresh</button></div></div>
 
     <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Metric label="Needs staff review" value={counts.staff} active={filter === "staff"} onClick={() => setFilter("staff")} />
@@ -196,7 +196,7 @@ export default function SuppliersAdminPage() {
       <h2 className="mt-1 text-xl font-semibold">New suppliers start in CRM</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-black/60">Create or review the organization in Organization 360, confirm a real contact, then draft and approve outreach. This keeps the prospect, invitation, supplier account and Partner 360 relationship connected from the first contact through activation.</p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Link href="/admin/ai-sales" className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white">Choose or review a prospect →</Link>
+        <Link href="/admin/suppliers/invite" className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white">Invite a known supplier →</Link><Link href="/admin/ai-sales" className="rounded-full border border-black/15 px-5 py-2.5 text-sm font-semibold">Choose or review a prospect</Link>
         <Link href="/admin/ai-sales/invitations" className="rounded-full border border-black/15 px-5 py-2.5 text-sm font-semibold">Open governed outreach</Link>
       </div>
     </section>
