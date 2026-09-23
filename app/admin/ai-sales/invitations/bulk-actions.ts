@@ -293,3 +293,148 @@ export async function sendAllApprovedPartnerInvitations() {
 
   redirect(finalUrl);
 }
+
+
+export async function approveAndSendAllReadyPartnerInvitations() {
+  const admin = await requireAdmin();
+  let finalUrl = resultUrl("error", "Unable to approve and send AI drafts.");
+
+  try {
+    if (!process.env.RESEND_API_KEY) throw new Error("Email delivery is not configured on the server.");
+
+    const { data: rows, error } = await supabaseAdmin
+      .from("partner_invitations")
+      .select("*")
+      .eq("status", "ready_for_approval")
+      .not("contact_email", "is", null)
+      .order("updated_at", { ascending: true })
+      .limit(BATCH_LIMIT);
+
+    if (error) throw new Error(error.message);
+
+    const invitations = (rows || []).filter(
+      (row) => Boolean(row.contact_email && row.ai_subject?.trim() && row.ai_message?.trim()),
+    );
+
+    if (!invitations.length) {
+      finalUrl = resultUrl("bulk", "No review-ready email invitations are waiting for batch approval.");
+    } else {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      let sentCount = 0;
+      let failed = 0;
+
+      for (const invitation of invitations) {
+        const approvedAt = new Date().toISOString();
+
+        const { data: approvedRow, error: approvalError } = await supabaseAdmin
+          .from("partner_invitations")
+          .update({
+            status: "approved",
+            approved_at: approvedAt,
+            updated_at: approvedAt,
+          })
+          .eq("id", invitation.id)
+          .eq("status", "ready_for_approval")
+          .select("id")
+          .maybeSingle();
+
+        if (approvalError || !approvedRow) {
+          console.error("Bulk invitation approval failed", invitation.id, approvalError);
+          failed++;
+          continue;
+        }
+
+        try {
+          const sent = await resend.emails.send({
+            from: process.env.OUTREACH_FROM_EMAIL || "SafariPlug <onboarding@resend.dev>",
+            to: invitation.contact_email,
+            subject: invitation.ai_subject,
+            text: invitation.ai_message,
+          });
+
+          if (sent.error) {
+            console.error("Bulk approved email provider rejected invitation", invitation.id, sent.error);
+            failed++;
+            continue;
+          }
+
+          const sentAt = new Date().toISOString();
+          const { data: changed, error: updateError } = await supabaseAdmin
+            .from("partner_invitations")
+            .update({ status: "sent", sent_at: sentAt, updated_at: sentAt })
+            .eq("id", invitation.id)
+            .eq("status", "approved")
+            .select("id")
+            .maybeSingle();
+
+          if (updateError || !changed) {
+            console.error("Batch invitation sent but status sync failed", invitation.id, updateError);
+            failed++;
+            continue;
+          }
+
+          if (invitation.prospect_id) {
+            await supabaseAdmin
+              .from("ai_sales_prospects")
+              .update({ status: "contacted", updated_at: sentAt })
+              .eq("id", invitation.prospect_id);
+
+            await supabaseAdmin.from("crm_activities").insert({
+              prospect_id: invitation.prospect_id,
+              partner_id: invitation.partner_id || null,
+              contact_id: invitation.contact_id || null,
+              activity_type: "email",
+              summary: "AI outreach batch approved and sent",
+              details: `Invitation ${invitation.id} was explicitly batch-approved by admin ${admin.id} and sent.`,
+            });
+
+            const { data: existingFollowup } = await supabaseAdmin
+              .from("crm_followups")
+              .select("id")
+              .eq("prospect_id", invitation.prospect_id)
+              .eq("status", "open")
+              .ilike("title", "%invitation%")
+              .limit(1)
+              .maybeSingle();
+
+            if (!existingFollowup) {
+              await supabaseAdmin.from("crm_followups").insert({
+                prospect_id: invitation.prospect_id,
+                title: "Follow up on partner invitation",
+                due_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                priority: "normal",
+                notes: `Invitation ${invitation.id} sent from batch-approved AI outreach; review response or opening status.`,
+              });
+            }
+          }
+
+          if (invitation.partner_id) {
+            await supabaseAdmin
+              .from("safari_partners")
+              .update({ outreach_stage: "contacted" })
+              .eq("id", invitation.partner_id);
+          }
+
+          sentCount++;
+        } catch (sendError) {
+          console.error("Batch approve-and-send failed", invitation.id, sendError);
+          failed++;
+        }
+      }
+
+      revalidatePath(PATH);
+      revalidatePath("/admin/crm");
+      revalidatePath("/admin/ai-sales");
+
+      finalUrl = resultUrl(
+        "bulk",
+        `Batch approved and sent ${sentCount} invitation${sentCount === 1 ? "" : "s"}.${failed ? ` ${failed} failed and remain approved for retry.` : ""}`,
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to approve and send AI drafts.";
+    finalUrl = resultUrl("error", message);
+  }
+
+  redirect(finalUrl);
+}
