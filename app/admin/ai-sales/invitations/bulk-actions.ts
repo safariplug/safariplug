@@ -11,6 +11,15 @@ const PATH = "/admin/ai-sales/invitations";
 const BATCH_LIMIT = 50;
 const AI_CHUNK_SIZE = 8;
 
+function isUsableEmail(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const email = value.trim();
+  const lower = email.toLowerCase();
+  if (!email || lower.includes("[email") || lower.includes("protected") || lower.includes("example.") || lower.includes("noreply") || lower.includes("no-reply")) return false;
+  if (/[\[\]<>\s]/.test(email)) return false;
+  return /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email);
+}
+
 function resultUrl(kind: "bulk" | "error", message: string) {
   return `${PATH}?${kind}=${encodeURIComponent(message)}`;
 }
@@ -91,7 +100,7 @@ export async function generateAllPartnerInvitationDrafts() {
 
     if (error) throw new Error(error.message);
 
-    const drafts = (rows || []) as DraftRow[];
+    const drafts = ((rows || []) as DraftRow[]).filter((row) => isUsableEmail(row.contact_email));
     if (!drafts.length) {
       finalUrl = resultUrl("bulk", "No email invitation drafts need AI generation.");
     } else {
@@ -194,7 +203,7 @@ export async function sendAllApprovedPartnerInvitations() {
       let failed = 0;
 
       for (const invitation of invitations) {
-        if (!invitation.contact_email || !invitation.ai_subject || !invitation.ai_message) {
+        if (!isUsableEmail(invitation.contact_email) || !invitation.ai_subject || !invitation.ai_message) {
           failed++;
           continue;
         }
@@ -313,7 +322,7 @@ export async function approveAndSendAllReadyPartnerInvitations() {
     if (error) throw new Error(error.message);
 
     const invitations = (rows || []).filter(
-      (row) => Boolean(row.contact_email && row.ai_subject?.trim() && row.ai_message?.trim()),
+      (row) => Boolean(isUsableEmail(row.contact_email) && row.ai_subject?.trim() && row.ai_message?.trim()),
     );
 
     if (!invitations.length) {
