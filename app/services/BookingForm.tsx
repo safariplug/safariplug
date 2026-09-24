@@ -55,7 +55,17 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
       const j=await r.json();
       if(!r.ok && j?.code === "traveler_verification_required") { window.location.href = `/account/verification?next=${encodeURIComponent(window.location.pathname + window.location.search)}`; return; }
       if(!r.ok) throw new Error(j.error ?? "That time is no longer available. Please choose another slot.");
-      setSuccess(true); setCustomerLinked(Boolean(j.customerLinked)); setAttachedToTrip(Boolean(j.attachedToTrip)); setMessage(`Appointment ${j.appointment.public_id} ${j.appointment.status === "pending" ? "requested" : "confirmed"}.`); e.currentTarget.reset(); setSlot(null); setDate(""); setStaffId(""); setSlots([]);
+      setSuccess(true);
+      setCustomerLinked(Boolean(j.customerLinked));
+      setAttachedToTrip(Boolean(j.attachedToTrip));
+      const paymentSettled = String(j.appointment?.payment_status || "").toLowerCase() === "paid";
+      const bookingState = j.appointment?.status === "pending" ? "requested" : "reserved";
+      setMessage(
+        paymentSettled
+          ? `Appointment ${j.appointment.public_id} ${bookingState} and payment confirmed.`
+          : `Appointment ${j.appointment.public_id} ${bookingState}. Payment is still due — open My Bookings to complete payment.`
+      );
+      e.currentTarget.reset(); setSlot(null); setDate(""); setStaffId(""); setSlots([]);
     } catch(err) { setMessage(err instanceof Error ? err.message : "Unable to complete your booking."); }
     finally { setBusy(false); }
   }
