@@ -27,8 +27,8 @@ async function getWebhookSecret(apiKey: string) {
 
 type ResendTags = Record<string, string> | Array<{ name?: string; value?: string }> | undefined;
 
-type ResendFailureEvent = {
-  type: "email.bounced" | "email.complained" | "email.suppressed" | "email.failed";
+type ResendEvent = {
+  type: "email.bounced" | "email.complained" | "email.suppressed" | "email.failed" | "email.opened" | "email.clicked";
   created_at?: string;
   data?: {
     email_id?: string;
@@ -51,7 +51,7 @@ function cleanEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
-function failureLabel(type: ResendFailureEvent["type"]) {
+function failureLabel(type: ResendEvent["type"]) {
   if (type === "email.bounced") return "bounced";
   if (type === "email.complained") return "complained";
   if (type === "email.suppressed") return "suppressed";
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   const svixTimestamp = request.headers.get("svix-timestamp") || "";
   const svixSignature = request.headers.get("svix-signature") || "";
 
-  let event: ResendFailureEvent;
+  let event: ResendEvent;
   try {
     const resend = new Resend(apiKey);
     event = resend.webhooks.verify({
@@ -88,14 +88,13 @@ export async function POST(request: Request) {
         signature: svixSignature,
       },
       webhookSecret: secret,
-    }) as ResendFailureEvent;
+    }) as ResendEvent;
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid webhook signature." }, { status: 400 });
   }
 
-  if (!["email.bounced", "email.complained", "email.suppressed", "email.failed"].includes(event.type)) {
-    return NextResponse.json({ ok: true, ignored: true });
-  }
+  const supported = ["email.bounced", "email.complained", "email.suppressed", "email.failed", "email.opened", "email.clicked"];
+  if (!supported.includes(event.type)) return NextResponse.json({ ok: true, ignored: true });
 
   const invitationId = tagValue(event.data?.tags, "invitation_id");
   const recipient = cleanEmail(event.data?.to?.[0]);
@@ -123,7 +122,7 @@ export async function POST(request: Request) {
       .from("partner_invitations")
       .select("id,prospect_id,partner_id,contact_id,contact_email,status")
       .ilike("contact_email", recipient)
-      .in("status", ["sent", "opened"])
+      .in("status", ["sent", "opened", "signup_started", "onboarding", "active"])
       .order("sent_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -150,6 +149,39 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
+
+  if (event.type === "email.opened" || event.type === "email.clicked") {
+    if (event.type === "email.opened" && invitation.status === "sent") {
+      await supabaseAdmin
+        .from("partner_invitations")
+        .update({ status: "opened", opened_at: now, updated_at: now })
+        .eq("id", invitation.id)
+        .eq("status", "sent");
+    }
+
+    if (invitation.prospect_id) {
+      await supabaseAdmin.from("crm_activities").insert({
+        prospect_id: invitation.prospect_id,
+        partner_id: invitation.partner_id || null,
+        contact_id: invitation.contact_id || null,
+        activity_type: "email",
+        summary: event.type === "email.opened" ? "Partner invitation opened" : "Partner invitation clicked",
+        details: [
+          marker,
+          `Invitation ${invitation.id} generated a verified Resend ${event.type === "email.opened" ? "open" : "click"} event.`,
+          "Later signup, onboarding, and activation stages are not downgraded by engagement events.",
+        ].join(" "),
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      reconciled: true,
+      invitationId: invitation.id,
+      status: event.type === "email.opened" ? "opened" : "clicked",
+    });
+  }
+
   const label = failureLabel(event.type);
   const providerMessage = event.data?.bounce?.message?.trim() || "";
   const email = cleanEmail(invitation.contact_email) || recipient;
