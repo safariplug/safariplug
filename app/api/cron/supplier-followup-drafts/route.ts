@@ -58,12 +58,35 @@ export async function GET(request: Request) {
     if (dueError) throw dueError;
 
     type DueRow = { supplier_id: string; sent_at: string; next_followup_due_at: string | null; missing_requirements: unknown };
-    const latestDue = new Map<string, DueRow>();
-    for (const row of (due || []) as DueRow[]) if (!latestDue.has(row.supplier_id)) latestDue.set(row.supplier_id, row);
+    const candidates = new Map<string, DueRow | null>();
+    for (const row of (due || []) as DueRow[]) if (!candidates.has(row.supplier_id)) candidates.set(row.supplier_id, row);
+
+    const firstTouchCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: firstTouch, error: firstTouchError } = await supabaseAdmin
+      .from("supplier_accounts")
+      .select("id")
+      .in("onboarding_status", ["draft", "onboarding", "in_progress", "changes_requested"])
+      .lte("updated_at", firstTouchCutoff)
+      .order("updated_at", { ascending: true })
+      .limit(200);
+    if (firstTouchError) throw firstTouchError;
+
+    for (const supplier of firstTouch || []) {
+      if (candidates.has(supplier.id)) continue;
+      const { data: priorSent, error: priorSentError } = await supabaseAdmin
+        .from("supplier_onboarding_followups")
+        .select("id")
+        .eq("supplier_id", supplier.id)
+        .eq("status", "sent")
+        .limit(1)
+        .maybeSingle();
+      if (priorSentError) throw priorSentError;
+      if (!priorSent) candidates.set(supplier.id, null);
+    }
 
     let prepared = 0;
     let skipped = 0;
-    for (const [supplierId, previous] of latestDue) {
+    for (const [supplierId, previous] of candidates) {
       const { data: supplier, error } = await supabaseAdmin
         .from("supplier_accounts")
         .select("id,user_id,business_id,contact_name,onboarding_status,completion_percent,review_items,businesses!inner(id,name,email,service_profiles(id,service_staff(id)))")
@@ -86,13 +109,13 @@ export async function GET(request: Request) {
         ...reviewRequested,
         ...workflowItems,
       ])].slice(0, 20);
-      const previousRequirements = Array.isArray(previous.missing_requirements) ? previous.missing_requirements.map(String) : [];
-      const comparison = {
+      const previousRequirements = previous && Array.isArray(previous.missing_requirements) ? previous.missing_requirements.map(String) : [];
+      const comparison = previous ? {
         previousSentAt: previous.sent_at,
         resolvedSinceLast: previousRequirements.filter((item: string) => !missing.includes(item)),
         stillMissing: missing.filter((item) => previousRequirements.includes(item)),
         newlyMissing: missing.filter((item) => !previousRequirements.includes(item)),
-      };
+      } : null;
       const draft = draftMessage({
         name: clean(supplier.contact_name, 200),
         businessName: clean(business?.name, 300) || "your business",
@@ -116,13 +139,13 @@ export async function GET(request: Request) {
     }
     await supabaseAdmin.from("supplier_followup_prep_runs").insert({
       status: "success",
-      checked_count: latestDue.size,
+      checked_count: candidates.size,
       prepared_count: prepared,
       skipped_count: skipped,
       started_at: startedAt,
       completed_at: new Date().toISOString(),
     });
-    return NextResponse.json({ ok: true, prepared, skipped, checked: latestDue.size });
+    return NextResponse.json({ ok: true, prepared, skipped, checked: candidates.size, firstTouchAfterHours: 24 });
   } catch (error) {
     console.error("Supplier follow-up draft preparation failed", error);
     const message = error instanceof Error ? error.message : "Draft preparation failed";
