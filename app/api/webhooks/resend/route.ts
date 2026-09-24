@@ -5,6 +5,26 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const RESEND_WEBHOOK_ID = process.env.RESEND_WEBHOOK_ID?.trim() || "c82dbffb-7441-4711-9093-b9ac56264302";
+let cachedWebhookSecret = "";
+
+async function getWebhookSecret(apiKey: string) {
+  const configured = process.env.RESEND_WEBHOOK_SECRET?.trim();
+  if (configured) return configured;
+  if (cachedWebhookSecret) return cachedWebhookSecret;
+
+  const response = await fetch(`https://api.resend.com/webhooks/${RESEND_WEBHOOK_ID}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Unable to load Resend webhook secret (${response.status}).`);
+  const body = await response.json() as { signing_secret?: unknown };
+  const secret = typeof body.signing_secret === "string" ? body.signing_secret.trim() : "";
+  if (!secret) throw new Error("Resend webhook signing secret is unavailable.");
+  cachedWebhookSecret = secret;
+  return secret;
+}
+
 type ResendTags = Record<string, string> | Array<{ name?: string; value?: string }> | undefined;
 
 type ResendFailureEvent = {
@@ -39,9 +59,16 @@ function failureLabel(type: ResendFailureEvent["type"]) {
 }
 
 export async function POST(request: Request) {
-  const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!secret || !apiKey) {
+  if (!apiKey) {
+    return NextResponse.json({ ok: false, error: "Resend API access is not configured." }, { status: 503 });
+  }
+
+  let secret = "";
+  try {
+    secret = await getWebhookSecret(apiKey);
+  } catch (error) {
+    console.error("Unable to load Resend webhook verification secret", error);
     return NextResponse.json({ ok: false, error: "Resend webhook verification is not configured." }, { status: 503 });
   }
 
