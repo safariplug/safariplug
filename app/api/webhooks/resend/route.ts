@@ -174,14 +174,6 @@ export async function POST(request: Request) {
       });
     }
 
-    if (invitation.partner_id) {
-      await supabaseAdmin
-        .from("safari_partners")
-        .update({ outreach_stage: event.type === "email.clicked" ? "engaged" : "opened" })
-        .eq("id", invitation.partner_id)
-        .in("outreach_stage", ["contacted", "opened", "engaged"]);
-    }
-
     return NextResponse.json({
       ok: true,
       reconciled: true,
