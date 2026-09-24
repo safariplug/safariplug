@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type ResendTags = Record<string, string> | Array<{ name?: string; value?: string }> | undefined;
+
 type ResendFailureEvent = {
   type: "email.bounced" | "email.complained" | "email.suppressed" | "email.failed";
   created_at?: string;
@@ -12,12 +14,12 @@ type ResendFailureEvent = {
     email_id?: string;
     to?: string[];
     subject?: string;
-    tags?: Record<string, string> | Array<{ name?: string; value?: string }>;
+    tags?: ResendTags;
     bounce?: { message?: string; type?: string; subType?: string };
   };
 };
 
-function tagValue(tags: ResendFailureEvent["data"] extends infer D ? D extends { tags?: infer T } ? T : never : never, key: string) {
+function tagValue(tags: ResendTags, key: string) {
   if (!tags) return "";
   if (Array.isArray(tags)) {
     return String(tags.find((tag) => tag?.name === key)?.value || "").trim();
