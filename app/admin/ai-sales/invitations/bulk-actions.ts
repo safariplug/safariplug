@@ -214,6 +214,10 @@ export async function sendAllApprovedPartnerInvitations() {
             to: invitation.contact_email,
             subject: invitation.ai_subject,
             text: invitation.ai_message,
+            tags: [
+              { name: "email_kind", value: "partner_invitation" },
+              { name: "invitation_id", value: invitation.id },
+            ],
           });
 
           if (sent.error) {
@@ -359,6 +363,10 @@ export async function approveAndSendAllReadyPartnerInvitations() {
             to: invitation.contact_email,
             subject: invitation.ai_subject,
             text: invitation.ai_message,
+            tags: [
+              { name: "email_kind", value: "partner_invitation" },
+              { name: "invitation_id", value: invitation.id },
+            ],
           });
 
           if (sent.error) {
