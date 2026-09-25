@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { OutreachPanel } from "./outreach-panel";
 import { loadProspectOutreachHistory } from "../../invitations/history";
 import { resolveStablePartnerIdForProspect } from "@/lib/services/crm-partner-link";
+import { salesProspectQualityIssues } from "@/lib/services/sales-prospect-quality";
 import {
   approveSalesProspect,
   rejectSalesProspect,
@@ -47,6 +48,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const dbError = ce || ae || fe || xe || outreach.error;
   const hasDiscoveredContact = Boolean(p.contact_email || p.phone || p.website || p.instagram || p.facebook);
   const canDraftOutreach = Boolean(p.contact_email || (contacts || []).some((contact) => contact.email || contact.phone));
+  const qualityIssues = salesProspectQualityIssues(p);
 
   return (
     <main className="min-h-screen bg-[#070707] p-5 text-white md:p-10">
@@ -159,7 +161,17 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
         <section className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
           <h2 className="font-semibold">Human decision</h2>
-          <div className="mt-4 flex gap-3"><form action={approveSalesProspect.bind(null, id)}><button className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-bold text-black">Approve & enroll</button></form><form action={rejectSalesProspect.bind(null, id)}><button className="rounded-xl border border-red-900 px-5 py-3 text-sm text-red-300">Reject</button></form></div>
+          {qualityIssues.length > 0 ? (
+            <div className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4">
+              <p className="text-sm font-semibold text-amber-300">Approval is blocked until the prospect quality issues below are fixed.</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-100/75">
+                {qualityIssues.map((issue) => <li key={issue}>{issue}</li>)}
+              </ul>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-emerald-400">Quality gate passed: direct business contact and external source evidence are recorded.</p>
+          )}
+          <div className="mt-4 flex gap-3"><form action={approveSalesProspect.bind(null, id)}><button disabled={qualityIssues.length > 0} className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-40">Approve for outreach</button></form><form action={rejectSalesProspect.bind(null, id)}><button className="rounded-xl border border-red-900 px-5 py-3 text-sm text-red-300">Reject</button></form></div>
         </section>
       </div>
     </main>
