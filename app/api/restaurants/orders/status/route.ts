@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { currentCompliance, driverVerificationCurrent } from "@/lib/services/driver-verification";
 
 const ORDER_TRANSITIONS: Record<string, string[]> = { pending:["accepted","rejected","cancelled"], accepted:["preparing","cancelled"], preparing:["ready","cancelled"], ready:["driver_assigned","picked_up","cancelled"], driver_assigned:["picked_up","cancelled"], picked_up:["on_the_way","delivered"], on_the_way:["delivered"], delivered:[], cancelled:[], rejected:[] };
 const DRIVER_TRANSITIONS: Record<string, string[]> = { assigned:["accepted","declined","cancelled"], accepted:["arrived_at_restaurant","cancelled"], arrived_at_restaurant:["picked_up","cancelled"], picked_up:["on_the_way","delivered","cancelled"], on_the_way:["delivered","cancelled"], declined:[], cancelled:[], delivered:[] };
@@ -14,8 +15,8 @@ async function driverProfileId(userId:string) { const {data}=await supabaseAdmin
 
 async function eligibleDriver(driverId:string, order:any) {
   const {data:driver}=await supabaseAdmin.from("driver_profiles").select("id,personal_photo_url,identity_liveness_verified_at,service_city_id,service_lat,service_lng,service_radius_km,driving_license_compliance_status,service_status,verification_state").eq("id",driverId).maybeSingle();
-  if(!driver||driver.service_status!=="active"||driver.verification_state!=="verified"||!driver.identity_liveness_verified_at||!driver.personal_photo_url)return {error:"Selected driver is not available"};
-  if(driver.driving_license_compliance_status!=="compliant")return {error:"Selected driver license compliance is not current"};
+  if(!driver||driver.service_status!=="active"||driver.verification_state!=="verified"||!driver.personal_photo_url||!(await driverVerificationCurrent(driver)))return {error:"Selected driver is not available"};
+  if(!currentCompliance(driver.driving_license_compliance_status))return {error:"Selected driver license compliance is not current"};
   const {data:business}=await supabaseAdmin.from("businesses").select("city_id,latitude,longitude").eq("id",order.business_id).maybeSingle();
   if(!business)return {error:"Restaurant location is not configured"};
   const destinationLat=Number(order.delivery_latitude), destinationLng=Number(order.delivery_longitude);
@@ -29,7 +30,7 @@ async function eligibleDriver(driverId:string, order:any) {
     if(!Number.isFinite(km)||km>radius)return {error:"Selected driver does not serve this delivery area"};
   }
   const {data:vehicles}=await supabaseAdmin.from("vehicles").select("id,status,registration_compliance_status,insurance_compliance_status").eq("driver_id",driver.id);
-  const vehicle=(vehicles??[]).find((v:any)=>v.status==="active"&&v.registration_compliance_status==="compliant"&&v.insurance_compliance_status==="compliant");
+  const vehicle=(vehicles??[]).find((v:any)=>v.status==="active"&&currentCompliance(v.registration_compliance_status)&&currentCompliance(v.insurance_compliance_status));
   if(!vehicle)return {error:"Selected driver has no compliant active vehicle"};
   const {data:busy}=await supabaseAdmin.from("food_delivery_assignments").select("id").eq("driver_id",driver.id).in("status",ACTIVE_ASSIGNMENT_STATUSES).limit(1).maybeSingle();
   if(busy)return {error:"Selected driver is already assigned to another active delivery"};
