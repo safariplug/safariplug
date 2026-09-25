@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     const { data: profile, error: profileError } = await supabaseAdmin.from("service_profiles").select("id,business_id,timezone,booking_status,booking_notice_minutes,max_booking_days,status").eq("id",profileId).maybeSingle();
     if (profileError || !profile || profile.status !== "active" || profile.booking_status !== "open") return NextResponse.json({ error:"Service is not currently bookable" }, { status:404 });
     const { data: business, error: businessError } = await supabaseAdmin.from("businesses").select("status").eq("id",profile.business_id).maybeSingle();
-    if (businessError || !business || business.status !== "active") return NextResponse.json({ error:"Service is not currently bookable" }, { status:404 });
+    if (businessError || !business || !["active", "ACTIVE"].includes(String(business.status || ""))) return NextResponse.json({ error:"Service is not currently bookable" }, { status:404 });
     const timeZone = profile.timezone || "Africa/Nairobi";
     const { data: offering } = await supabaseAdmin.from("service_offerings").select("id,duration_minutes,status").eq("id",offeringId).eq("service_profile_id",profileId).maybeSingle();
     if (!offering || offering.status !== "active") return NextResponse.json({ error:"Service is not currently available" }, { status:404 });
