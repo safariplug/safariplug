@@ -13,6 +13,7 @@ test("staff users land in the staff portal", () => {
 test("ordinary users keep a safe requested destination", () => {
   assert.equal(postAuthDestination({ next: "/account/hotels" }), "/account/hotels");
   assert.equal(postAuthDestination({ next: "/partners/join/token-123", accountIntent: "partner" }), "/partners/join/token-123");
+  assert.equal(postAuthDestination({ next: "/account/verification?next=%2Fdrivers" }), "/account/verification?next=%2Fdrivers");
 });
 
 test("account intent supplies the correct fallback", () => {
