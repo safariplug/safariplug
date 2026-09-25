@@ -210,8 +210,12 @@ function locationMatchScore(location: Location, destination: string) {
     if (candidate === query) score = Math.max(score, 100);
     else if (candidate.startsWith(query + " ")) score = Math.max(score, 90);
     else {
+      const candidateTokens = candidate.split(" ").filter(Boolean);
       const tokens = query.split(" ").filter(Boolean);
-      if (tokens.length && tokens.every((token) => candidate.split(" ").includes(token))) {
+      const acronym = candidateTokens.map((token) => token[0]).join("");
+      if (query.length >= 3 && !query.includes(" ") && acronym === query) {
+        score = Math.max(score, 85);
+      } else if (tokens.length && tokens.every((token) => candidateTokens.includes(token))) {
         score = Math.max(score, 70);
       }
     }
