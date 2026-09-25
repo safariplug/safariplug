@@ -12,7 +12,45 @@ export type HotelHealth = { provider: HotelProviderKey; status: HotelProviderSta
 export type HotelLocationScope = "destination" | "specific";
 export type HotelSearchRequest = { destination: string; check_in: string; check_out: string; guests: number; rooms: number; currency?: string; adults?: number; children?: number; child_ages?: number[]; provider?: HotelProviderKey; location_scope?: HotelLocationScope; bookable_only?: boolean };
 export type HotelMoney = { amount: number; currency: string };
-export type HotelSearchResult = { provider: HotelProviderKey; property_id: string; property_name: string; room_id: string | null; rate_id: string | null; currency: string; total: HotelMoney | null; cancellation: string | null; availability: "available" | "unavailable" | "unknown"; source: "supplier"; supplier_context?: { search_key?: string; region_id?: string; rate_class?: string; board_code?: string; board_name?: string; booking_token?: string; notices?: string[] } };
+export type HotelSupplierOption = {
+  provider: HotelProviderKey;
+  property_id: string;
+  property_name: string;
+  room_id: string | null;
+  rate_id: string | null;
+  currency: string;
+  total: HotelMoney | null;
+  cancellation: string | null;
+  availability: "available" | "unavailable" | "unknown";
+  supplier_context?: HotelSupplierContext;
+};
+export type HotelSupplierContext = {
+  search_key?: string;
+  region_id?: string;
+  rate_class?: string;
+  board_code?: string;
+  board_name?: string;
+  booking_token?: string;
+  notices?: string[];
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  [key: string]: unknown;
+};
+export type HotelSearchResult = {
+  provider: HotelProviderKey;
+  property_id: string;
+  property_name: string;
+  room_id: string | null;
+  rate_id: string | null;
+  currency: string;
+  total: HotelMoney | null;
+  cancellation: string | null;
+  availability: "available" | "unavailable" | "unknown";
+  source: "supplier";
+  supplier_context?: HotelSupplierContext;
+  supplier_options?: HotelSupplierOption[];
+};
 export type HotelSearchResponse = { results: HotelSearchResult[]; provider: HotelProviderKey };
 export type HotelAvailabilityRequest = HotelSearchRequest & { property_id: string };
 export type HotelAvailabilityResponse = { provider: HotelProviderKey; property_id: string; available: boolean; rooms: Array<{ room_id: string; rate_id: string | null; remaining: number | null; total: HotelMoney | null }>; source: "supplier" };
