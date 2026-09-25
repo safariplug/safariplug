@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getTravelerVerificationState } from "@/lib/services/traveler-verification";
+import { localVerificationCurrent } from "@/lib/services/local-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function LocalPage({ params }: { params: Promise<{ id: stri
     .not("identity_liveness_verified_at", "is", null)
     .maybeSingle();
 
-  if (!local) notFound();
+  if (!local || !(await localVerificationCurrent(local))) notFound();
 
   // Capture the fields used by the server action after the null guard. Server
   // actions are compiled separately, so relying on closure narrowing of the
@@ -61,6 +62,28 @@ export default async function LocalPage({ params }: { params: Promise<{ id: stri
 
     const start = String(formData.get("requested_start_at") || "");
     const end = String(formData.get("requested_end_at") || "");
+    const startAt = new Date(start);
+    const endAt = end ? new Date(end) : null;
+    if (!start || Number.isNaN(startAt.getTime()) || startAt <= new Date()) {
+      throw new Error("Choose a future start time.");
+    }
+    if (endAt && (Number.isNaN(endAt.getTime()) || endAt <= startAt)) {
+      throw new Error("End time must be after the start time.");
+    }
+    const { data: currentLocal, error: currentLocalError } = await supabaseAdmin
+      .from("local_profiles")
+      .select("id,identity_liveness_verified_at,verification_state,service_status")
+      .eq("id", id)
+      .maybeSingle();
+    if (currentLocalError) throw new Error(currentLocalError.message);
+    if (
+      !currentLocal ||
+      currentLocal.verification_state !== "verified" ||
+      currentLocal.service_status !== "active" ||
+      !(await localVerificationCurrent(currentLocal))
+    ) {
+      throw new Error("This Local is no longer eligible to receive SafariPlug requests.");
+    }
     const trip = String(formData.get("trip_id") || "") || null;
     const { data: req, error } = await db
       .from("local_requests")
@@ -68,8 +91,8 @@ export default async function LocalPage({ params }: { params: Promise<{ id: stri
         traveler_id: user.id,
         local_id: id,
         trip_id: trip,
-        requested_start_at: new Date(start).toISOString(),
-        requested_end_at: end ? new Date(end).toISOString() : null,
+        requested_start_at: startAt.toISOString(),
+        requested_end_at: endAt ? endAt.toISOString() : null,
         activity: String(formData.get("activity") || "").trim() || null,
         notes: String(formData.get("notes") || "").trim() || null,
         city: localRequestContext.city,
@@ -93,8 +116,8 @@ export default async function LocalPage({ params }: { params: Promise<{ id: stri
         local_request_id: req.id,
         item_kind: "local",
         title: `Local: ${localRequestContext.displayName}`,
-        start_at: new Date(start).toISOString(),
-        end_at: end ? new Date(end).toISOString() : null,
+        start_at: startAt.toISOString(),
+        end_at: endAt ? endAt.toISOString() : null,
         position: (last?.position ?? -1) + 1,
       });
     }
