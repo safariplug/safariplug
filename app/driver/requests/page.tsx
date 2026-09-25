@@ -90,6 +90,35 @@ export default async function DriverRequestsPage({
     redirect(`/driver/requests?updated=${decision}`);
   }
 
+  async function complete(formData: FormData) {
+    "use server";
+    const client = await createSupabaseServerClient();
+    const { data: { user: current } } = await client.auth.getUser();
+    if (!current || current.is_anonymous) redirect(`/driver/login?next=${encodeURIComponent("/driver/requests")}`);
+
+    const requestId = String(formData.get("request_id") || "");
+    if (!requestId) throw new Error("Driver request is required.");
+
+    const { error: completionError } = await client.rpc("complete_driver_transfer_request", {
+      p_request_id: requestId,
+    });
+
+    if (completionError) {
+      const message = completionError.message;
+      const friendly = message.includes("request_not_completable") ? "Only an accepted driver request can be marked completed."
+        : message.includes("ride_not_started") ? "This ride cannot be completed before its scheduled pickup time."
+        : message.includes("request_not_found") ? "This request could not be found."
+        : message;
+      redirect(`/driver/requests?error=${encodeURIComponent(friendly)}`);
+    }
+
+    revalidatePath("/driver/requests");
+    revalidatePath("/account/drivers");
+    revalidatePath("/account");
+    redirect("/driver/requests?updated=completed");
+  }
+
+
   const pending = requests.filter(r => r.status === "requested");
   const history = requests.filter(r => r.status !== "requested");
 
@@ -106,7 +135,7 @@ export default async function DriverRequestsPage({
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm"><span className="text-zinc-500">Driver</span><p className="mt-1 font-semibold">{driver.display_name}</p><p className="text-xs text-zinc-600">{[driver.service_city,driver.service_country].filter(Boolean).join(", ")}</p></div>
       </div>
 
-      {params.updated && <div className="mt-6 rounded-2xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-sm text-emerald-300">Request {params.updated === "accepted" ? "accepted" : "declined"}.</div>}
+      {params.updated && <div className="mt-6 rounded-2xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-sm text-emerald-300">Request {params.updated === "accepted" ? "accepted" : params.updated === "completed" ? "completed" : "declined"}.</div>}
       {params.error && <div className="mt-6 rounded-2xl border border-red-900/50 bg-red-950/20 p-4 text-sm text-red-300">{params.error}</div>}
 
       <section className="mt-10">
@@ -120,7 +149,7 @@ export default async function DriverRequestsPage({
       <section className="mt-12">
         <div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.2em] text-zinc-600">History</p><h2 className="mt-1 text-2xl font-bold">Resolved requests</h2></div><span className="text-sm text-zinc-600">{history.length}</span></div>
         <div className="mt-5 space-y-3">
-          {history.map(request => <article key={request.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><div className="flex flex-col justify-between gap-4 sm:flex-row"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-zinc-600">{STATUS_COPY[request.status] || request.status}</p><h3 className="mt-2 font-semibold">{request.pickup_label} → {request.destination_label}</h3><p className="mt-2 text-sm text-zinc-500">{formatDate(request.requested_at)} · {request.passenger_count} passenger{request.passenger_count === 1 ? "" : "s"}</p></div>{request.quoted_amount != null && <p className="text-sm font-semibold text-zinc-300">{request.currency} {Number(request.quoted_amount).toLocaleString()}</p>}</div></article>)}
+          {history.map(request => <article key={request.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><div className="flex flex-col justify-between gap-4 sm:flex-row"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-zinc-600">{STATUS_COPY[request.status] || request.status}</p><h3 className="mt-2 font-semibold">{request.pickup_label} → {request.destination_label}</h3><p className="mt-2 text-sm text-zinc-500">{formatDate(request.requested_at)} · {request.passenger_count} passenger{request.passenger_count === 1 ? "" : "s"}</p></div>{request.quoted_amount != null && <p className="text-sm font-semibold text-zinc-300">{request.currency} {Number(request.quoted_amount).toLocaleString()}</p>}</div>{request.status==="accepted"&&<div className="mt-4 border-t border-zinc-800 pt-4">{new Date(request.requested_at).getTime()<=Date.now()?<form action={complete}><input type="hidden" name="request_id" value={request.id}/><button className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black">Mark ride completed</button></form>:<p className="text-xs text-zinc-600">Completion becomes available after the scheduled pickup time.</p>}</div>}</article>)}
           {!history.length && <div className="rounded-2xl border border-dashed border-zinc-800 px-6 py-10 text-center text-sm text-zinc-600">No resolved requests yet.</div>}
         </div>
       </section>
