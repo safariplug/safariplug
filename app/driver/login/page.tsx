@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function DriverLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +23,8 @@ export default function DriverLoginPage() {
       setLoading(false);
       return;
     }
-    router.push("/driver/application");
+    const next = searchParams.get("next");
+    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/driver/application");
     router.refresh();
   }
 
