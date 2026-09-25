@@ -2,11 +2,13 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import ReconciliationActions from "./ReconciliationActions";
+import LockTripReconciliationActions from "./LockTripReconciliationActions";
 
 export const dynamic = "force-dynamic";
 
 type LedgerRow = {
   id: string;
+  provider: string;
   prepared_booking_id: string;
   provider_booking_reference: string | null;
   customer_currency: string | null;
@@ -34,8 +36,7 @@ export default async function HotelReconciliationPage() {
 
   const { data, error } = await supabaseAdmin
     .from("hotel_booking_pricing_ledger")
-    .select("id,prepared_booking_id,provider_booking_reference,customer_currency,customer_retail_amount,retail_amount,payment_status,booking_status,supplier_settlement_status,paid_at,created_at,metadata")
-    .eq("provider", "hotelbeds")
+    .select("id,provider,prepared_booking_id,provider_booking_reference,customer_currency,customer_retail_amount,retail_amount,payment_status,booking_status,supplier_settlement_status,paid_at,created_at,metadata")
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -53,23 +54,23 @@ export default async function HotelReconciliationPage() {
           <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">
             Manual reconciliation
           </p>
-          <h1 className="mt-2 text-3xl font-extrabold">Hotelbeds hotel confirmations</h1>
+          <h1 className="mt-2 text-3xl font-extrabold">Hotel confirmation reconciliation</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
             Paid hotel bookings appear here only when SafariPlug could not prove the supplier confirmation result.
-            This workspace never re-submits a Hotelbeds booking. Staff may verify one known supplier reference or
-            explicitly record that no supplier booking exists.
+            This workspace never re-submits a supplier confirmation. Hotelbeds cases may verify one known supplier reference;
+            LockTrip cases may perform one read-only lookup of the existing prepared booking.
           </p>
         </header>
 
         <section className="grid gap-4 md:grid-cols-3">
-          <Card label="Needs review" value={String(rows.length)} note="Paid + confirmation indeterminate" />
+          <Card label="Needs review" value={String(rows.length)} note="Paid + supplier confirmation indeterminate" />
           <Card label="Automatic booking retry" value="Disabled" note="Prevents duplicate hotel reservations" />
           <Card label="Refund handling" value="Manual" note="No automatic M-Pesa refund" />
         </section>
 
         {!rows.length ? (
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-8 text-sm text-zinc-400">
-            No paid Hotelbeds hotel confirmations currently require reconciliation.
+            No paid hotel confirmations currently require reconciliation.
           </div>
         ) : (
           <div className="space-y-4">
@@ -94,7 +95,8 @@ export default async function HotelReconciliationPage() {
                 <article key={row.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <p className="text-lg font-bold">{hotelName}</p>
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-amber-400">{row.provider}</p>
+                      <p className="mt-1 text-lg font-bold">{hotelName}</p>
                       <p className="mt-1 font-mono text-xs text-zinc-500">{row.prepared_booking_id}</p>
                       <p className="mt-1 font-mono text-xs text-zinc-400">
                         Supplier ref: {row.provider_booking_reference || "unknown"}
@@ -118,11 +120,18 @@ export default async function HotelReconciliationPage() {
                     {errorMessage}
                   </div>
 
-                  <ReconciliationActions
-                    ledgerId={row.id}
-                    preparedBookingId={row.prepared_booking_id}
-                    storedReference={row.provider_booking_reference || ""}
-                  />
+                  {row.provider === "hotelbeds" ? (
+                    <ReconciliationActions
+                      ledgerId={row.id}
+                      preparedBookingId={row.prepared_booking_id}
+                      storedReference={row.provider_booking_reference || ""}
+                    />
+                  ) : (
+                    <LockTripReconciliationActions
+                      ledgerId={row.id}
+                      preparedBookingId={row.prepared_booking_id}
+                    />
+                  )}
                 </article>
               );
             })}
