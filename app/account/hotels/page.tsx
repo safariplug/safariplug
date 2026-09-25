@@ -52,7 +52,9 @@ export default async function AccountHotelsPage() {
             const amount = Number(row.customer_retail_amount ?? row.retail_amount ?? 0);
             const currency = row.customer_currency || "KES";
             const provider = row.provider === "hotelbeds" ? "hotelbeds" : "locktrip";
-            const bookingHref = `/hotels/booking-result?provider=${provider}&bookingId=${encodeURIComponent(row.prepared_booking_id)}`;
+            const tripId = typeof metadata.tripId === "string" ? metadata.tripId : "";
+            const bookingHref = `/hotels/booking-result?provider=${provider}&bookingId=${encodeURIComponent(row.prepared_booking_id)}${tripId ? `&tripId=${encodeURIComponent(tripId)}` : ""}`;
+            const hotelSearchHref = tripId ? `/hotels?tripId=${encodeURIComponent(tripId)}` : "/hotels";
 
             return (
               <article key={row.id} className="rounded-2xl border border-black/8 bg-white p-5 shadow-sm">
@@ -76,7 +78,7 @@ export default async function AccountHotelsPage() {
                   <Link href={bookingHref} className="inline-flex rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white">
                     Open booking
                   </Link>
-                  <Link href="/hotels" className="inline-flex rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">
+                  <Link href={hotelSearchHref} className="inline-flex rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">
                     Find another hotel
                   </Link>
                 </div>
