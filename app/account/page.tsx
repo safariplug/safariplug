@@ -36,7 +36,7 @@ export default async function AccountPage() {
         <StatusCard href="/account/trips" label="Local requests" value={localRequests} description="Requests and responses" />
         <StatusCard href="/account/appointments" label="Appointments" value={appointments} description="Services you requested" />
         <StatusCard href="/account/orders" label="Food orders" value={foodOrders} description="Restaurant order activity" />
-        <StatusCard href="/hotels" label="Hotel bookings" value={hotelBookings} description="Real supplier booking records" />
+        <StatusCard href="/account/hotels" label="Hotel bookings" value={hotelBookings} description="Real supplier booking records" />
         <StatusCard href="/account/transfers" label="Transfer bookings" value={transferBookings} description="Supplier transfer checkout records" />
         <StatusCard href="/account/activities" label="Activity bookings" value={activityBookings} description="Hotelbeds activity checkout records" />
         <StatusCard href="/events" label="Experience bookings" value={eventBookings} description="Booked experiences" />
@@ -49,7 +49,7 @@ export default async function AccountPage() {
         <AccountCard href="/account/verification" title="Identity verification" description="Manage traveler identity and live face/liveness verification for trust-sensitive bookings." />
         <AccountCard href="/account/trips" title="Trips" description="Keep experiences, stays, food, services and Local requests connected to the same journey." />
         <AccountCard href="/locals" title="Locals" description="Find verified, active Local profiles and send a real request for a date, time and activity." />
-        <AccountCard href="/hotels" title="Stays" description="Search hotel inventory through configured SafariPlug supplier connections." />
+        <AccountCard href="/account/hotels" title="Stays" description="Review hotel bookings or continue to live hotel search." />
         <AccountCard href="/services" title="Services" description="Find live providers for massage, barbering, beauty, nails, tattoo, fitness, diving and more." />
         <AccountCard href="/restaurants" title="Restaurants & food" description="Browse restaurants with real online ordering enabled and open their live menus." />
         <AccountCard href="/account/transfers" title="Transfer bookings" description="Review Hotelbeds transfer payments, confirmations and cancellations." />
