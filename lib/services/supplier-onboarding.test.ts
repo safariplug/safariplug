@@ -112,7 +112,7 @@ test("approved suppliers are directed to their live workspace", () => {
     readinessIssues: [],
   });
   assert.equal(next.title, "You are live on SafariPlug");
-  assert.equal(next.href, "/business/services");
+  assert.equal(next.href, "/supplier");
 });
 
 test("changes requested with only a staff note still stays in correction mode", () => {
