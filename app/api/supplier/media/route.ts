@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   if (!account) return NextResponse.json({ error: "Supplier account not found." }, { status: 404 });
   const form = await request.formData(); const file = form.get("file"); const kind = String(form.get("kind") || ""); const staffId = String(form.get("staff_id") || "");
   if (!(file instanceof File) || !["logo","cover","gallery","staff"].includes(kind)) return NextResponse.json({ error: "Image file and kind are required." }, { status: 400 });
+  if (account.onboarding_status === "submitted") return NextResponse.json({ error: "This profile is locked while SafariPlug reviews your submission." }, { status: 409 });
   if (["approved", "live"].includes(account.onboarding_status) && kind !== "staff") return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
   if (!file.type.startsWith("image/") || file.size > 8 * 1024 * 1024) return NextResponse.json({ error: "Images must be under 8MB." }, { status: 422 });
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
