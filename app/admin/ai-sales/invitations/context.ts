@@ -13,6 +13,7 @@ export type OutreachContext = {
   contactSource: "crm_contact" | "discovered_business_email" | "none";
   prospectStatus: string;
   reviewStatus: string;
+  linkageError: string | null;
 };
 
 export async function resolveOutreachContext(prospectId: string): Promise<OutreachContext | null> {
@@ -41,7 +42,13 @@ export async function resolveOutreachContext(prospectId: string): Promise<Outrea
   ]);
 
   const choice = chooseOutreachContact(primary, fallback, prospect.contact_email);
-  const partnerId = await resolveStablePartnerIdForProspect(prospectId);
+  let partnerId: string | null = null;
+  let linkageError: string | null = null;
+  try {
+    partnerId = await resolveStablePartnerIdForProspect(prospectId);
+  } catch (error) {
+    linkageError = error instanceof Error ? error.message : "CRM partner linkage could not be resolved.";
+  }
 
   return {
     prospectId,
@@ -54,5 +61,6 @@ export async function resolveOutreachContext(prospectId: string): Promise<Outrea
     contactSource: choice.contactSource,
     prospectStatus: prospect.status,
     reviewStatus: prospect.review_status,
+    linkageError,
   };
 }
