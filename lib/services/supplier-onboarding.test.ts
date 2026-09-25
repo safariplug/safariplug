@@ -92,3 +92,46 @@ test("platform blocker becomes waiting state when supplier work is complete", ()
   assert.match(next.detail, /remaining platform setup/i);
   assert.equal(next.href, null);
 });
+
+
+test("submitted suppliers are told review is locked", () => {
+  const next = supplierNextAction({
+    onboardingStatus: "submitted",
+    readinessReady: true,
+    readinessIssues: [],
+  });
+  assert.equal(next.title, "Waiting for SafariPlug review");
+  assert.match(next.detail, /locked while SafariPlug staff review/i);
+  assert.equal(next.href, null);
+});
+
+test("approved suppliers are directed to their live workspace", () => {
+  const next = supplierNextAction({
+    onboardingStatus: "approved",
+    readinessReady: true,
+    readinessIssues: [],
+  });
+  assert.equal(next.title, "You are live on SafariPlug");
+  assert.equal(next.href, "/business/services");
+});
+
+test("changes requested with only a staff note still stays in correction mode", () => {
+  const next = supplierNextAction({
+    onboardingStatus: "changes_requested",
+    readinessReady: true,
+    readinessIssues: [],
+    reviewItems: [],
+  });
+  assert.equal(next.title, "Review SafariPlug's requested changes");
+  assert.equal(next.href, "/supplier/onboarding");
+});
+
+test("rejected suppliers are not told to resubmit automatically", () => {
+  const next = supplierNextAction({
+    onboardingStatus: "rejected",
+    readinessReady: true,
+    readinessIssues: [],
+  });
+  assert.equal(next.title, "Application closed");
+  assert.equal(next.href, null);
+});
