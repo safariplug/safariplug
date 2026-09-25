@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 const PATH = "/admin/ai-sales/invitations";
 const BATCH_LIMIT = 50;
 const AI_CHUNK_SIZE = 8;
+const AI_CONCURRENCY = 2;
 
 function isUsableEmail(value: unknown): boolean {
   if (typeof value !== "string") return false;
@@ -107,17 +108,22 @@ export async function generateAllPartnerInvitationDrafts() {
       const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "");
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       const groups = chunks(drafts, AI_CHUNK_SIZE);
-      const results = await Promise.allSettled(groups.map((group) => generateDraftChunk(openai, group, site)));
-
       const generated: GeneratedDraft[] = [];
       let failedChunks = 0;
 
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          generated.push(...result.value);
-        } else {
-          failedChunks++;
-          console.error("Bulk AI invitation chunk failed", result.reason);
+      for (let index = 0; index < groups.length; index += AI_CONCURRENCY) {
+        const wave = groups.slice(index, index + AI_CONCURRENCY);
+        const results = await Promise.allSettled(
+          wave.map((group) => generateDraftChunk(openai, group, site)),
+        );
+
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            generated.push(...result.value);
+          } else {
+            failedChunks++;
+            console.error("Bulk AI invitation chunk failed", result.reason);
+          }
         }
       }
 
