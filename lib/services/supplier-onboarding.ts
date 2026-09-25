@@ -51,8 +51,8 @@ export function supplierNextAction({
     return {
       title: "You are live on SafariPlug",
       detail: "SafariPlug approved your supplier profile and activated your business for customers.",
-      href: "/business/services",
-      cta: "Open supplier workspace",
+      href: "/supplier",
+      cta: "Open supplier portal",
     };
   }
 
