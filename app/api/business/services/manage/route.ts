@@ -12,7 +12,7 @@ async function currentUser() {
   return user;
 }
 async function ownedBusiness(userId: string, businessId?: string) {
-  let q = supabaseAdmin.from("businesses").select("id,name,slug,status,verified,claimed,owner_id").eq("owner_id", userId).in("status", ["active", "ACTIVE", "inactive", "INACTIVE"]);
+  let q = supabaseAdmin.from("businesses").select("id,name,slug,status,verified,claimed,owner_id").eq("owner_id", userId).in("status", ["active", "ACTIVE", "inactive", "INACTIVE", "pending", "PENDING"]);
   if (businessId) q = q.eq("id", businessId);
   return (await q.order("created_at", { ascending: true }).limit(1).maybeSingle()).data;
 }
