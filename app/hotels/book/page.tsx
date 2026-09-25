@@ -160,6 +160,7 @@ function HotelBookPageContent() {
           currency: "KES",
           method: "mpesa",
           customerPhone: phone.trim(),
+          email: email.trim(),
           rooms: [{ roomIndex: 0, guests: guests.map((guest, index) => ({ firstName: guest.firstName.trim(), lastName: guest.lastName.trim(), title: "Mr", email: index === 0 ? email.trim() : undefined, phone: index === 0 ? phone.trim() : undefined, isLeadGuest: index === 0 })) }],
           contactPerson: { firstName: guests[0]?.firstName.trim(), lastName: guests[0]?.lastName.trim(), email: email.trim(), phone: phone.trim() },
           specialRequests: specialRequests.trim() || undefined,

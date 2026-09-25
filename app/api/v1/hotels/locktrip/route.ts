@@ -27,7 +27,8 @@ export async function POST(request: Request) {
   try {
     if (action === "rooms") { const hotelId = String(body.hotelId || ""), searchKey = String(body.searchKey || ""), regionId = String(body.regionId || ""), checkIn = String(body.checkIn || ""), checkOut = String(body.checkOut || ""), rooms = Array.isArray(body.rooms) ? body.rooms : []; if (!hotelId || !searchKey || !regionId || !checkIn || !checkOut || rooms.length === 0) return errorResponse(400, "hotelId, searchKey, regionId, checkIn, checkOut and rooms are required."); const data = await adapter.getRooms({ hotelId, searchKey, regionId, checkIn, checkOut, rooms: rooms as Array<{ adults: number; childrenAges?: number[] }>, currency: typeof body.currency === "string" ? body.currency : DEFAULT_CUSTOMER_CURRENCY }); return NextResponse.json({ provider: "locktrip", ...data }); }
     if (action === "prepare") {
-      const email = user.email || String(body.email || "");
+      const contactPerson = body.contactPerson && typeof body.contactPerson === "object" && !Array.isArray(body.contactPerson) ? body.contactPerson as Record<string, unknown> : {};
+      const email = String(body.email || contactPerson.email || user.email || "").trim();
       if (!email) return errorResponse(400, "A customer email is required.");
       const quoteId = String(body.quoteId || "");
       const searchKey = String(body.searchKey || "");
@@ -297,7 +298,7 @@ export async function POST(request: Request) {
           appointmentId: ledger.id,
           amount: converted.amount,
           currency: customerCurrency,
-          customerEmail: user.email,
+          customerEmail: email,
           customerPhone,
           returnUrl: `${SITE_URL}/hotels/booking-result?bookingId=${encodeURIComponent(booking.preparedBookingId)}`,
           idempotencyKey: `hotel-locktrip:${intentKey}`,
