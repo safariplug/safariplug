@@ -58,6 +58,10 @@ function failureLabel(type: ResendEvent["type"]) {
   return "failed";
 }
 
+function preservesEnrollmentStage(status: string) {
+  return ["signup_started", "onboarding", "active"].includes(status);
+}
+
 export async function POST(request: Request) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
@@ -186,10 +190,15 @@ export async function POST(request: Request) {
   const providerMessage = event.data?.bounce?.message?.trim() || "";
   const email = cleanEmail(invitation.contact_email) || recipient;
 
-  await supabaseAdmin
-    .from("partner_invitations")
-    .update({ status: "failed", updated_at: now })
-    .eq("id", invitation.id);
+  const preserveInvitationStage = preservesEnrollmentStage(invitation.status);
+
+  if (!preserveInvitationStage) {
+    await supabaseAdmin
+      .from("partner_invitations")
+      .update({ status: "failed", updated_at: now })
+      .eq("id", invitation.id)
+      .not("status", "in", '("signup_started","onboarding","active")');
+  }
 
   if (invitation.prospect_id && email) {
     await supabaseAdmin
@@ -236,15 +245,16 @@ export async function POST(request: Request) {
       partner_id: invitation.partner_id || null,
       contact_id: invitation.contact_id || null,
       activity_type: "email",
-      summary: "Partner invitation delivery failed",
+      summary: preserveInvitationStage ? "Partner invitation email issue after enrollment" : "Partner invitation delivery failed",
       details: [
         marker,
         `Invitation ${invitation.id} was reported as ${label} by Resend.`,
         providerMessage ? `Provider detail: ${providerMessage}` : "",
         "The prospect email was cleared when it matched the failed recipient and open invitation follow-ups were closed.",
+        preserveInvitationStage ? `Invitation workflow stage ${invitation.status} was preserved.` : "Invitation was marked failed.",
       ].filter(Boolean).join(" "),
     });
   }
 
-  return NextResponse.json({ ok: true, reconciled: true, invitationId: invitation.id, status: label });
+  return NextResponse.json({ ok: true, reconciled: true, invitationId: invitation.id, status: preserveInvitationStage ? invitation.status : label, deliveryStatus: label, stagePreserved: preserveInvitationStage });
 }
