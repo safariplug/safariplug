@@ -152,7 +152,7 @@ export async function POST(request: Request) {
   const ctx = await supplierContext();
   if (!ctx) return NextResponse.json({ error: "Supplier authentication required." }, { status: 401 });
   const body = await request.json().catch(() => null) as { action?: string; offering?: Record<string, unknown>; displayName?: string; bio?: string; staffId?: string; dayOfWeek?: number; startTime?: string; endTime?: string } | null;
-  if (["approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
+  if (["submitted", "approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: ctx.account.onboarding_status === "submitted" ? "This profile is locked while SafariPlug reviews your submission." : "This profile is locked after approval." }, { status: 409 });
 
   if (body?.action === "submit") {
     const readiness = await getSupplierActivationReadiness(ctx.account.id);
