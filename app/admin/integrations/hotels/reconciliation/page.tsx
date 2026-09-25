@@ -37,8 +37,10 @@ export default async function HotelReconciliationPage() {
   const { data, error } = await supabaseAdmin
     .from("hotel_booking_pricing_ledger")
     .select("id,provider,prepared_booking_id,provider_booking_reference,customer_currency,customer_retail_amount,retail_amount,payment_status,booking_status,supplier_settlement_status,paid_at,created_at,metadata")
+    .eq("payment_status", "paid")
+    .eq("booking_status", "payment_pending")
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(500);
 
   if (error) throw new Error(error.message);
   const rows = ((data || []) as LedgerRow[]).filter(needsReconciliation);
