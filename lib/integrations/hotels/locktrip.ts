@@ -349,13 +349,14 @@ export class LockTripHotelAdapter implements HotelAdapter {
           ),
         };
       }
+      const regionId = String(location.id);
       const rooms = Array.from({ length: Math.max(1, request.rooms) }, (_, index) => ({
         adults: index === 0 ? Math.max(1, request.adults ?? request.guests) : 1,
         childrenAges: [],
       }));
       const supplierCurrency = DEFAULT_SUPPLIER_CURRENCY;
       const started = await this.call<{ searchKey?: string }>("hotel_search", {
-        regionId: String(location.id),
+        regionId,
         startDate: request.check_in,
         endDate: request.check_out,
         currency: supplierCurrency,
@@ -375,8 +376,64 @@ export class LockTripHotelAdapter implements HotelAdapter {
         });
         if ((result.searchStatus || "").toUpperCase() === "COMPLETED") break;
       }
+      const rawHotels = result.hotels || [];
+      let bookableHotels = rawHotels;
+      if (request.bookable_only !== false && rawHotels.length) {
+        const configuredLimit = Number(env("SAFARIPLUG_HOTEL_LOCKTRIP_BOOKABLE_CHECK_LIMIT") || "18");
+        const checkLimit = Number.isFinite(configuredLimit)
+          ? Math.max(1, Math.min(30, Math.floor(configuredLimit)))
+          : 18;
+        const candidates = rawHotels.slice(0, checkLimit);
+        const verified: Array<{ index: number; hotel: NonNullable<SearchResults["hotels"]>[number] }> = [];
+        let cursor = 0;
+        let completedChecks = 0;
+        let failedChecks = 0;
+
+        async function worker(adapter: LockTripHotelAdapter) {
+          while (cursor < candidates.length) {
+            const index = cursor++;
+            const hotel = candidates[index];
+            if (!hotel || hotel.hotelId == null) continue;
+            try {
+              const roomResult = await adapter.call<RoomsResponse>("get_hotel_rooms", {
+                hotelId: String(hotel.hotelId),
+                searchKey: started.searchKey,
+                startDate: request.check_in,
+                endDate: request.check_out,
+                rooms,
+                nationality: adapter.nationality,
+                regionId,
+                currency: supplierCurrency,
+              });
+              completedChecks += 1;
+              if ((roomResult.packages || []).length > 0) verified.push({ index, hotel });
+            } catch {
+              failedChecks += 1;
+            }
+          }
+        }
+
+        const workerCount = Math.min(6, candidates.length);
+        await Promise.all(Array.from({ length: workerCount }, () => worker(this)));
+
+        if (completedChecks === 0 && failedChecks > 0) {
+          return {
+            ok: false,
+            error: hotelError(
+              "provider_error",
+              "LockTrip could not verify bookable room packages for this search.",
+              true
+            ),
+          };
+        }
+
+        bookableHotels = verified
+          .sort((a, b) => a.index - b.index)
+          .map((entry) => entry.hotel);
+      }
+
       const target = customerCurrency(request.currency);
-      const hotels = await Promise.all((result.hotels || []).map(async (hotel) => {
+      const hotels = await Promise.all(bookableHotels.map(async (hotel) => {
         const supplier = hotel.currency || supplierCurrency;
         const pricing = typeof hotel.minPrice === "number" ? await mapRetailAmount(hotel.minPrice, supplier, target) : null;
         return {
@@ -392,7 +449,7 @@ export class LockTripHotelAdapter implements HotelAdapter {
           source: "supplier" as const,
           supplier_context: {
             search_key: started.searchKey,
-            region_id: String(location.id),
+            region_id: regionId,
             markup_percent: DEFAULT_MARKUP_PERCENT,
             supplier_currency: pricing?.supplierCurrency || supplier,
             customer_currency: pricing?.customerCurrency || target,

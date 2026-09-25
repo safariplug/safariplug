@@ -44,6 +44,7 @@ function searchInput(url: URL) {
     child_ages: url.searchParams.get("child_ages") ?? undefined,
     provider: url.searchParams.get("provider") ?? undefined,
     location_scope: url.searchParams.get("location_scope") ?? undefined,
+    bookable_only: url.searchParams.get("bookable_only") ?? undefined,
   };
 }
 
@@ -72,6 +73,7 @@ export async function handleHotelSearch(request: Request): Promise<Response> {
         guests: query.guests,
         rooms: query.rooms,
         location_scope: query.location_scope,
+        bookable_only: query.bookable_only,
       },
     });
     return jsonOk(result.data.results, {
@@ -80,6 +82,7 @@ export async function handleHotelSearch(request: Request): Promise<Response> {
         providers: providerCount,
         provider_filter: query.provider || null,
         total: result.data.results.length,
+        bookable_only: query.bookable_only,
       },
     });
   } catch (error) {
