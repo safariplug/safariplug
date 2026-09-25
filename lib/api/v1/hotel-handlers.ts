@@ -43,6 +43,7 @@ function searchInput(url: URL) {
     children: url.searchParams.get("children") ?? undefined,
     child_ages: url.searchParams.get("child_ages") ?? undefined,
     provider: url.searchParams.get("provider") ?? undefined,
+    location_scope: url.searchParams.get("location_scope") ?? undefined,
   };
 }
 
@@ -70,6 +71,7 @@ export async function handleHotelSearch(request: Request): Promise<Response> {
         check_out: query.check_out,
         guests: query.guests,
         rooms: query.rooms,
+        location_scope: query.location_scope,
       },
     });
     return jsonOk(result.data.results, {
