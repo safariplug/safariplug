@@ -71,7 +71,7 @@ export default function HotelbedsBookPage() {
   }
 
   function checkoutIdempotencyKey() {
-    const storageKey = `safariplug:hotelbeds-hotel-intent:${bookingToken.slice(-48)}`;
+    const storageKey = `safariplug:hotelbeds-hotel-intent:${bookingToken.slice(-48)}:${tripId || "standalone"}`;
     const existing = window.sessionStorage.getItem(storageKey);
     if (existing) return existing;
     const created = window.crypto.randomUUID();
@@ -123,7 +123,7 @@ export default function HotelbedsBookPage() {
 
   return <main className="min-h-screen bg-[#f7f7f4] px-6 py-10 text-[#111]">
     <div className="mx-auto max-w-4xl">
-      <Link href="/hotels" className="text-sm font-semibold text-black/55">← Back to hotel search</Link>
+      <Link href={tripId ? `/hotels?tripId=${encodeURIComponent(tripId)}` : "/hotels"} className="text-sm font-semibold text-black/55">← Back to hotel search</Link>
       <div className="mt-6 grid gap-8 lg:grid-cols-[1.1fr_.9fr]">
         <section>
           <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug / Hotelbeds</p>

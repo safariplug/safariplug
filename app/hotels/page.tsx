@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import DiscoverySwitcher from "@/components/DiscoverySwitcher";
 
@@ -29,6 +29,7 @@ export default function HotelsPage() {
   const [checkOut, setCheckOut] = useState(isoDate(9));
   const [guests, setGuests] = useState("2");
   const [rooms, setRooms] = useState("1");
+  const [tripId, setTripId] = useState("");
   const [results, setResults] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -36,6 +37,11 @@ export default function HotelsPage() {
   const [checkingHotelId, setCheckingHotelId] = useState<string | null>(null);
   const [unavailableHotelIds, setUnavailableHotelIds] = useState<Record<string, string>>({});
   const canSearch = useMemo(() => destination.trim() && checkIn && checkOut && checkOut > checkIn, [destination, checkIn, checkOut]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setTripId(params.get("tripId") || "");
+  }, []);
 
   async function search(event: FormEvent) {
     event.preventDefault(); if (!canSearch) return;
@@ -82,6 +88,7 @@ export default function HotelsPage() {
       const cacheKey = "safariplug:hotel-room-preflight:" + hotel.property_id + ":" + checkIn + ":" + checkOut + ":" + guests;
       window.sessionStorage.setItem(cacheKey, JSON.stringify({ createdAt: Date.now(), hotelId: hotel.property_id, checkIn, checkOut, guests, searchKey: activeSearchKey, packages }));
       const params = new URLSearchParams({ hotelId: hotel.property_id, hotelName: hotel.property_name, searchKey: activeSearchKey, regionId: ctx.region_id, checkIn, checkOut, guests, currency: "KES" });
+      if (tripId) params.set("tripId", tripId);
       window.location.href = "/hotels/book?" + params.toString();
     } catch (err) {
       setUnavailableHotelIds(current => ({ ...current, [hotel.property_id]: err instanceof Error ? err.message : "Unable to verify rooms for this stay." }));
@@ -105,6 +112,7 @@ export default function HotelsPage() {
         const lockTripReady = hotel.provider === "locktrip" && singleRoom && Boolean(ctx.search_key && ctx.region_id);
         const hotelbedsReady = hotel.provider === "hotelbeds" && singleRoom && Boolean(ctx.booking_token);
         const hotelbedsParams = new URLSearchParams({ provider: "hotelbeds", hotelName: hotel.property_name, bookingToken: ctx.booking_token || "", checkIn, checkOut, guests, currency: "KES", total: String(hotel.total?.amount || "") });
+        if (tripId) hotelbedsParams.set("tripId", tripId);
         return <article key={`${hotel.provider}-${hotel.property_id}`} className="overflow-hidden rounded-[1.75rem] border border-black/8 bg-white p-5 shadow-[0_18px_60px_-45px_rgba(0,0,0,.45)]">
           {ctx.images?.[0] ? <img src={hotelImage(ctx.images[0])} alt={`${hotel.property_name} accommodation`} loading="lazy" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.display = "none"; event.currentTarget.nextElementSibling?.classList.remove("hidden"); }} className="aspect-[16/9] w-full rounded-[1.25rem] object-cover" /> : null}<div className={`${ctx.images?.[0] ? "hidden " : ""}aspect-[16/9] rounded-[1.25rem] bg-gradient-to-br from-[#e7e2d7] via-[#d4cec0] to-[#aaa394]`} />
           <div className="pt-5"><div className="flex items-start justify-between gap-3"><h3 className="text-xl font-semibold tracking-tight">{hotel.property_name}</h3><span className="rounded-full bg-black/[.05] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide">Live availability</span></div>{ctx.address && <p className="mt-2 text-sm text-black/50">{ctx.address}</p>}{hotel.total ? <div className="mt-5 rounded-2xl bg-black/[.035] p-4"><p className="text-[10px] uppercase tracking-[.14em] text-black/40">SafariPlug customer total · {stayNights} night{stayNights === 1 ? "" : "s"}</p><p className="mt-1 text-2xl font-semibold">{hotel.total.currency} {hotel.total.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div> : null}{hotel.cancellation && <p className="mt-4 text-sm leading-6 text-black/55">{hotel.cancellation}</p>}{ctx.notices?.length ? <p className="mt-2 text-xs leading-5 text-black/45">{ctx.notices.join(" · ")}</p> : null}

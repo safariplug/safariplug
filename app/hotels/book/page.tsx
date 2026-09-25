@@ -41,6 +41,7 @@ function HotelBookPageContent() {
   const checkOut = params.get("checkOut") || "";
   const guestCount = Math.max(1, Math.min(4, Number(params.get("guests") || 1)));
   const currency = params.get("currency") || "KES";
+  const tripId = params.get("tripId") || "";
 
   const [packages, setPackages] = useState<RoomPackage[]>([]);
   const [selected, setSelected] = useState<RoomPackage | null>(null);
@@ -131,7 +132,7 @@ function HotelBookPageContent() {
 
   function checkoutIdempotencyKey() {
     if (!selected?.quoteId) throw new Error("Select a room package first.");
-    const storageKey = `safariplug:locktrip-hotel-intent:${selected.quoteId.slice(-48)}:${searchKey.slice(-24)}`;
+    const storageKey = `safariplug:locktrip-hotel-intent:${selected.quoteId.slice(-48)}:${searchKey.slice(-24)}:${tripId || "standalone"}`;
     const existing = window.sessionStorage.getItem(storageKey);
     if (existing) return existing;
     const created = window.crypto.randomUUID();
@@ -155,6 +156,8 @@ function HotelBookPageContent() {
           quoteId: selected.quoteId,
           searchKey,
           hotelId,
+          hotelName,
+          tripId: tripId || undefined,
           checkIn,
           checkOut,
           currency: "KES",
@@ -178,7 +181,7 @@ function HotelBookPageContent() {
         if (body?.reconciliation === "manual_required") throw new Error(body?.message || "This checkout needs manual reconciliation before SafariPlug can safely continue.");
         throw new Error(body?.message || "The hotel checkout is still initializing. Please check your booking status before trying again.");
       }
-      window.location.href = `/hotels/booking-result?bookingId=${encodeURIComponent(String(bookingId))}`;
+      window.location.href = `/hotels/booking-result?bookingId=${encodeURIComponent(String(bookingId))}${tripId ? `&tripId=${encodeURIComponent(tripId)}` : ""}`;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to start hotel payment.");
       setSubmitting(false);
@@ -187,7 +190,7 @@ function HotelBookPageContent() {
 
   return <main className="min-h-screen bg-[#f7f7f4] px-6 py-10 text-[#111]">
     <div className="mx-auto max-w-5xl">
-      <Link href="/hotels" className="text-sm font-semibold text-black/55">← Back to hotel search</Link>
+      <Link href={tripId ? `/hotels?tripId=${encodeURIComponent(tripId)}` : "/hotels"} className="text-sm font-semibold text-black/55">← Back to hotel search</Link>
       <div className="mt-6 grid gap-8 lg:grid-cols-[1.15fr_.85fr]">
         <section>
           <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug hotel checkout</p>
