@@ -190,15 +190,35 @@ export async function POST(request: Request) {
   const providerMessage = event.data?.bounce?.message?.trim() || "";
   const email = cleanEmail(invitation.contact_email) || recipient;
 
-  const preserveInvitationStage = preservesEnrollmentStage(invitation.status);
+  let preservedInvitationStage = preservesEnrollmentStage(invitation.status) ? invitation.status : "";
 
-  if (!preserveInvitationStage) {
-    await supabaseAdmin
+  if (!preservedInvitationStage) {
+    const { data: failedRow, error: failedStatusError } = await supabaseAdmin
       .from("partner_invitations")
       .update({ status: "failed", updated_at: now })
       .eq("id", invitation.id)
-      .not("status", "in", "(signup_started,onboarding,active)");
+      .not("status", "in", "(signup_started,onboarding,active)")
+      .select("id")
+      .maybeSingle();
+
+    if (failedStatusError) {
+      console.error("Could not record Resend invitation failure status", failedStatusError);
+      return NextResponse.json({ ok: false, error: "Could not reconcile invitation delivery status." }, { status: 500 });
+    }
+
+    if (!failedRow) {
+      const { data: latestInvitation } = await supabaseAdmin
+        .from("partner_invitations")
+        .select("status")
+        .eq("id", invitation.id)
+        .maybeSingle();
+      if (latestInvitation && preservesEnrollmentStage(latestInvitation.status)) {
+        preservedInvitationStage = latestInvitation.status;
+      }
+    }
   }
+
+  const preserveInvitationStage = Boolean(preservedInvitationStage);
 
   if (invitation.prospect_id && email) {
     await supabaseAdmin
@@ -251,10 +271,10 @@ export async function POST(request: Request) {
         `Invitation ${invitation.id} was reported as ${label} by Resend.`,
         providerMessage ? `Provider detail: ${providerMessage}` : "",
         "The prospect email was cleared when it matched the failed recipient and open invitation follow-ups were closed.",
-        preserveInvitationStage ? `Invitation workflow stage ${invitation.status} was preserved.` : "Invitation was marked failed.",
+        preserveInvitationStage ? `Invitation workflow stage ${preservedInvitationStage} was preserved.` : "Invitation was marked failed.",
       ].filter(Boolean).join(" "),
     });
   }
 
-  return NextResponse.json({ ok: true, reconciled: true, invitationId: invitation.id, status: preserveInvitationStage ? invitation.status : label, deliveryStatus: label, stagePreserved: preserveInvitationStage });
+  return NextResponse.json({ ok: true, reconciled: true, invitationId: invitation.id, status: preserveInvitationStage ? preservedInvitationStage : label, deliveryStatus: label, stagePreserved: preserveInvitationStage });
 }
