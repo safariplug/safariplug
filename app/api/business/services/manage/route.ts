@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -110,13 +111,17 @@ export async function POST(request: Request) {
       if(open){
         const { data: supplierAccount, error: supplierError } = await supabaseAdmin
           .from("supplier_accounts")
-          .select("onboarding_status")
+          .select("id,onboarding_status")
           .eq("user_id", user.id)
           .eq("business_id", profile.business.id)
           .maybeSingle();
         if (supplierError) return NextResponse.json({ error: supplierError.message }, { status: 500 });
         if (!supplierAccount || !["approved", "live"].includes(String(supplierAccount.onboarding_status))) {
           return NextResponse.json({ error:"SafariPlug staff approval is required before opening customer bookings." },{status:409});
+        }
+        const readiness=await getSupplierActivationReadiness(supplierAccount.id);
+        if(!readiness.ready){
+          return NextResponse.json({error:"Complete the remaining activation requirements before opening customer bookings.",missing:readiness.issues,checks:readiness.checks},{status:409});
         }
         if (!["active", "ACTIVE"].includes(String(profile.business.status || ""))) {
           return NextResponse.json({ error:"This supplier business is not active yet." },{status:409});
