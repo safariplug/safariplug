@@ -192,12 +192,14 @@ export default async function TravelRefundReviewPage() {
     }
   }
 
+  const serviceReviewByLedger=new Map((reviewResult.data||[]).filter(row=>row.product==="service").map(row=>[String(row.ledger_id),row]));
   for (const row of serviceLedgerResult.data || []) {
     const appointment=appointmentById.get(row.appointment_id);
     if(!appointment) continue;
     const disputed=row.status==="disputed";
     const paidCancelled=appointment.status==="cancelled" && ["paid","partially_refunded"].includes(row.status);
-    if(!disputed && !paidCancelled) continue;
+    const requestedReview=serviceReviewByLedger.has(String(row.id));
+    if(!disputed && !paidCancelled && !requestedReview) continue;
 
     candidates.push({
       product:"service",
@@ -212,9 +214,11 @@ export default async function TravelRefundReviewPage() {
       paymentStatus:String(row.status||appointment.payment_status||"unknown"),
       reason:disputed
         ?"Service payment dispute requires finance reconciliation"
-        :"Paid service appointment was cancelled and may require customer refund review",
+        :requestedReview && appointment.status!=="cancelled"
+          ? String(serviceReviewByLedger.get(String(row.id))?.reason || "Paid service cancellation was requested and requires finance review")
+          :"Paid service appointment was cancelled and may require customer refund review",
       createdAt:row.created_at,
-      refundStatus:disputed?"disputed_payment":"paid_cancelled_appointment",
+      refundStatus:disputed?"disputed_payment":requestedReview&&appointment.status!=="cancelled"?"cancellation_requested":"paid_cancelled_appointment",
     });
   }
 
