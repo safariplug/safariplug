@@ -27,13 +27,20 @@ export default async function LocalRequestsPage() {
     const requestId=String(formData.get("request_id")||"");
     const decision=String(formData.get("decision")||"");
     if(!requestId || !["accepted","declined"].includes(decision)) throw new Error("Invalid response.");
-    const { data: own }=await client.from("local_profiles").select("id,verification_state,identity_liveness_verified_at,service_status").eq("user_id",current.id).maybeSingle();
-    if(!own) throw new Error("Local profile not found.");
-    if(decision==="accepted" && (own.verification_state!=="verified" || !own.identity_liveness_verified_at || own.service_status!=="active")) throw new Error("Only externally identity/liveness-verified active Locals can accept requests.");
-    const { data: request }=await client.from("local_requests").select("id,status").eq("id",requestId).eq("local_id",own.id).maybeSingle();
-    if(!request || request.status!=="requested") throw new Error("This request can no longer be changed.");
-    const { error:updateError }=await client.from("local_requests").update({status:decision}).eq("id",requestId).eq("local_id",own.id).eq("status","requested");
-    if(updateError) throw new Error(updateError.message);
+    const { error:updateError }=await client.rpc("respond_to_local_request",{p_request_id:requestId,p_decision:decision});
+    if(updateError){
+      const message =
+        updateError.message === "local_verification_not_current"
+          ? "Your SafariPlug verification is no longer current. Complete verification before accepting requests."
+          : updateError.message === "local_not_eligible"
+            ? "Your Local profile is not currently eligible to accept requests."
+            : updateError.message === "request_time_passed"
+              ? "This request start time has already passed."
+              : updateError.message === "request_already_resolved"
+                ? "This request can no longer be changed."
+                : updateError.message;
+      throw new Error(message);
+    }
     revalidatePath("/locals/requests"); revalidatePath("/account/trips");
   }
 

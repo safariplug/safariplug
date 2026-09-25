@@ -1,6 +1,7 @@
 import Link from "next/link";
 import DiscoverySwitcher from "@/components/DiscoverySwitcher";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { currentVerifiedLocalIds } from "@/lib/services/local-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +9,8 @@ const interests = ["Nightlife", "Food & culture", "Hidden gems", "Shopping", "Ph
 
 export default async function LocalsPage() {
   const { data } = await supabaseAdmin.from("local_profiles").select("id,display_name,bio,personal_photo_url,identity_liveness_verified_at,city,country,languages,interests,specialties,hourly_rate,currency,verification_state,service_status").eq("service_status", "active").eq("verification_state", "verified").not("identity_liveness_verified_at","is",null).order("created_at", { ascending: false }).limit(30);
-  const locals = data ?? [];
+  const trustedLocalIds = await currentVerifiedLocalIds(data ?? []);
+  const locals = (data ?? []).filter((local) => trustedLocalIds.has(local.id));
 
   return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
     <section className="bg-[#111] text-white"><div className="mx-auto max-w-7xl px-6 pb-16 pt-12 sm:px-10 sm:pb-20 sm:pt-16">
