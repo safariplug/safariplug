@@ -61,11 +61,14 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
       setAttachedToTrip(Boolean(j.attachedToTrip));
       setTripAttachmentError(typeof j.tripAttachmentError === "string" ? j.tripAttachmentError : "");
       const paymentSettled = String(j.appointment?.payment_status || "").toLowerCase() === "paid";
-      const bookingState = j.appointment?.status === "pending" ? "requested" : "reserved";
+      const appointmentStatus = String(j.appointment?.status || "");
+      const bookingState = appointmentStatus === "pending" ? "requested" : "confirmed";
       setMessage(
         paymentSettled
           ? `Appointment ${j.appointment.public_id} ${bookingState} and payment confirmed.`
-          : `Appointment ${j.appointment.public_id} ${bookingState}. Payment is still due — open My Bookings to complete payment.`
+          : appointmentStatus === "pending"
+            ? `Appointment ${j.appointment.public_id} requested. Payment will unlock after the provider confirms the appointment.`
+            : `Appointment ${j.appointment.public_id} confirmed. Payment is still due — open My Bookings to complete payment.`
       );
       e.currentTarget.reset(); setSlot(null); setDate(""); setStaffId(""); setSlots([]);
     } catch(err) { setMessage(err instanceof Error ? err.message : "Unable to complete your booking."); }
