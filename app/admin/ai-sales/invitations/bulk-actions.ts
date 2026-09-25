@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { partnerInvitationEmailIdempotencyKey } from "@/lib/email/partner-invitation-idempotency";
 
 const PATH = "/admin/ai-sales/invitations";
 const BATCH_LIMIT = 50;
@@ -224,6 +225,8 @@ export async function sendAllApprovedPartnerInvitations() {
               { name: "email_kind", value: "partner_invitation" },
               { name: "invitation_id", value: invitation.id },
             ],
+          }, {
+            idempotencyKey: partnerInvitationEmailIdempotencyKey(invitation.id, invitation.approved_at),
           });
 
           if (sent.error) {
@@ -373,6 +376,8 @@ export async function approveAndSendAllReadyPartnerInvitations() {
               { name: "email_kind", value: "partner_invitation" },
               { name: "invitation_id", value: invitation.id },
             ],
+          }, {
+            idempotencyKey: partnerInvitationEmailIdempotencyKey(invitation.id, approvedAt),
           });
 
           if (sent.error) {
