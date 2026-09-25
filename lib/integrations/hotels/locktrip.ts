@@ -349,13 +349,14 @@ export class LockTripHotelAdapter implements HotelAdapter {
           ),
         };
       }
+      const regionId = String(location.id);
       const rooms = Array.from({ length: Math.max(1, request.rooms) }, (_, index) => ({
         adults: index === 0 ? Math.max(1, request.adults ?? request.guests) : 1,
         childrenAges: [],
       }));
       const supplierCurrency = DEFAULT_SUPPLIER_CURRENCY;
       const started = await this.call<{ searchKey?: string }>("hotel_search", {
-        regionId: String(location.id),
+        regionId,
         startDate: request.check_in,
         endDate: request.check_out,
         currency: supplierCurrency,
@@ -401,7 +402,7 @@ export class LockTripHotelAdapter implements HotelAdapter {
                 endDate: request.check_out,
                 rooms,
                 nationality: adapter.nationality,
-                regionId: String(location.id),
+                regionId,
                 currency: supplierCurrency,
               });
               completedChecks += 1;
@@ -448,7 +449,7 @@ export class LockTripHotelAdapter implements HotelAdapter {
           source: "supplier" as const,
           supplier_context: {
             search_key: started.searchKey,
-            region_id: String(location.id),
+            region_id: regionId,
             markup_percent: DEFAULT_MARKUP_PERCENT,
             supplier_currency: pricing?.supplierCurrency || supplier,
             customer_currency: pricing?.customerCurrency || target,
