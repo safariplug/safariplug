@@ -79,7 +79,7 @@ export default async function HotelReconciliationPage() {
               const hotelName =
                 typeof metadata.hotelName === "string" && metadata.hotelName.trim()
                   ? metadata.hotelName
-                  : "Hotelbeds hotel";
+                  : row.provider === "locktrip" ? "LockTrip hotel" : "Hotelbeds hotel";
               const attemptedAt =
                 typeof metadata.confirmAttemptIndeterminateAt === "string"
                   ? metadata.confirmAttemptIndeterminateAt
