@@ -34,7 +34,7 @@ export async function GET() {
   if (!ctx) return NextResponse.json({ error: "Supplier authentication required." }, { status: 401 });
   const { data: business } = await supabaseAdmin
     .from("businesses")
-    .select("id,name,description,business_type,city_id,address,latitude,longitude,phone,whatsapp,email,website_url,instagram_url,facebook_url,tiktok_url,logo_url,cover_image_url,supplier_contact_name,supplier_gallery_urls,status")
+    .select("id,name,slug,description,business_type,city_id,address,latitude,longitude,phone,whatsapp,email,website_url,instagram_url,facebook_url,tiktok_url,logo_url,cover_image_url,supplier_contact_name,supplier_gallery_urls,status")
     .eq("id", ctx.account.business_id)
     .eq("owner_id", ctx.user.id)
     .single();
