@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { postAuthDestination, safeInternalNext } from "./post-auth-destination";
 
-test("full admins always land in the admin command center", () => {
+test("full admins keep authorized operations deep links", () => {
+  assert.equal(postAuthDestination({ isAdmin: true, isStaff: true, next: "/admin/ai-sales/invitations?prospect_id=123" }), "/admin/ai-sales/invitations?prospect_id=123");
+  assert.equal(postAuthDestination({ isAdmin: true, isStaff: true, next: "/staff" }), "/staff");
   assert.equal(postAuthDestination({ isAdmin: true, isStaff: true, next: "/account" }), "/admin");
 });
 
-test("staff users land in the staff portal", () => {
+test("staff users keep staff deep links but cannot enter admin routes", () => {
+  assert.equal(postAuthDestination({ isStaff: true, next: "/staff?view=suppliers" }), "/staff?view=suppliers");
+  assert.equal(postAuthDestination({ isStaff: true, next: "/admin" }), "/staff");
   assert.equal(postAuthDestination({ isStaff: true, next: "/account" }), "/staff");
 });
 
