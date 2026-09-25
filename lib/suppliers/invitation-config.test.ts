@@ -4,6 +4,7 @@ import {
   invitationDestination,
   invitationEnrollmentKind,
   resolveSupplierInvitationConfig,
+  SUPPORTED_SUPPLIER_INVITATION_TYPES,
 } from "./invitation-config";
 
 test("maps current Supplier Scout categories into supported onboarding", () => {
@@ -47,4 +48,12 @@ test("does not silently provision unsupported categories", () => {
   assert.equal(resolveSupplierInvitationConfig("Other"), null);
   assert.equal(invitationEnrollmentKind("Other"), "unsupported");
   assert.equal(invitationDestination("Other"), null);
+});
+
+test("every staff-selectable supplier category has a safe provisioning config", () => {
+  for (const partnerType of SUPPORTED_SUPPLIER_INVITATION_TYPES) {
+    assert.ok(resolveSupplierInvitationConfig(partnerType), partnerType);
+    assert.equal(invitationEnrollmentKind(partnerType), "supplier");
+    assert.equal(invitationDestination(partnerType), "/supplier/onboarding");
+  }
 });
