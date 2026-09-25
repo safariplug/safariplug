@@ -74,6 +74,14 @@ export function parseHotelSearchRequest(
     throw new Error("currency must be a 3-letter code.");
   }
 
+  const locationScopeValue = input.location_scope?.trim().toLowerCase();
+  const location_scope = locationScopeValue === undefined || locationScopeValue === ""
+    ? "specific"
+    : locationScopeValue;
+  if (location_scope !== "specific" && location_scope !== "destination") {
+    throw new Error("location_scope must be specific or destination.");
+  }
+
   const providerValue = input.provider?.trim().toLowerCase();
   let provider: HotelProviderKey | undefined;
   if (providerValue) {
@@ -94,6 +102,7 @@ export function parseHotelSearchRequest(
     children,
     child_ages: child_ages.length ? child_ages : undefined,
     provider,
+    location_scope,
   };
 }
 
