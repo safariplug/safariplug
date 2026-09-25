@@ -126,15 +126,23 @@ function normalizeHotelIdentity(value?: string | null) {
     .replace(/\s+/g, " ");
 }
 
-function hotelIdentityKey(result: HotelSearchResult) {
-  const name = normalizeHotelIdentity(result.property_name);
-  const address = normalizeHotelIdentity(
-    typeof result.supplier_context?.address === "string"
-      ? result.supplier_context.address
-      : ""
-  );
-  if (!name) return `${result.provider}:${result.property_id}`;
-  return address ? `${name}|${address}` : name;
+function hotelIdentity(result: HotelSearchResult) {
+  return {
+    name: normalizeHotelIdentity(result.property_name),
+    address: normalizeHotelIdentity(
+      typeof result.supplier_context?.address === "string"
+        ? result.supplier_context.address
+        : ""
+    ),
+  };
+}
+
+function compatibleHotelIdentity(a: HotelSearchResult, b: HotelSearchResult) {
+  const left = hotelIdentity(a);
+  const right = hotelIdentity(b);
+  if (!left.name || !right.name || left.name !== right.name) return false;
+  if (left.address && right.address && left.address !== right.address) return false;
+  return true;
 }
 
 function asSupplierOption(result: HotelSearchResult): HotelSupplierOption {
@@ -180,15 +188,16 @@ function isBetterHotelOption(candidate: HotelSearchResult, current: HotelSearchR
 }
 
 export function dedupeHotelResults(results: HotelSearchResult[]): HotelSearchResult[] {
-  const groups = new Map<string, HotelSearchResult[]>();
+  const groups: HotelSearchResult[][] = [];
   for (const result of results) {
-    const key = hotelIdentityKey(result);
-    const group = groups.get(key);
-    if (group) group.push(result);
-    else groups.set(key, [result]);
+    const matchingGroup = groups.find((group) =>
+      group.some((existing) => compatibleHotelIdentity(existing, result))
+    );
+    if (matchingGroup) matchingGroup.push(result);
+    else groups.push([result]);
   }
 
-  return Array.from(groups.values()).map((group) => {
+  return groups.map((group) => {
     let selected = group[0];
     for (const candidate of group.slice(1)) {
       if (isBetterHotelOption(candidate, selected)) selected = candidate;
