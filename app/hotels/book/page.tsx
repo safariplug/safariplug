@@ -39,7 +39,7 @@ function HotelBookPageContent() {
   const regionId = params.get("regionId") || "";
   const checkIn = params.get("checkIn") || "";
   const checkOut = params.get("checkOut") || "";
-  const guestCount = Math.max(1, Math.min(4, Number(params.get("guests") || 1)));
+  const guestCount = Math.max(1, Math.min(20, Number(params.get("guests") || 1)));
   const currency = params.get("currency") || "KES";
   const tripId = params.get("tripId") || "";
 
