@@ -440,7 +440,7 @@ export async function POST(request: Request) {
           appointmentId: ledger.id,
           amount: converted.amount,
           currency: customerCurrency,
-          customerEmail: user.email,
+          customerEmail: holder.email || user.email,
           customerPhone: phone,
           returnUrl: `${SITE_URL}/activities/booking-result?provider=hotelbeds&bookingId=${encodeURIComponent(preparedBookingId)}`,
           idempotencyKey: `hotelbeds-activity:${intentKey}`,

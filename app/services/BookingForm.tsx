@@ -21,19 +21,17 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
   const [success, setSuccess] = useState(false);
   const [customerLinked, setCustomerLinked] = useState(false);
   const [attachedToTrip, setAttachedToTrip] = useState(false);
+  const [tripAttachmentError, setTripAttachmentError] = useState("");
 
   const minimumDate = useMemo(() => {
     const now = new Date();
     const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" });
     const parts = Object.fromEntries(formatter.formatToParts(now).filter(x => x.type !== "literal").map(x => [x.type, x.value]));
-    const today = `${parts.year}-${parts.month}-${parts.day}`;
-    const tomorrow = new Date(`${today}T12:00:00Z`);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    return tomorrow.toISOString().slice(0, 10);
+    return `${parts.year}-${parts.month}-${parts.day}`;
   }, [timezone]);
 
   useEffect(() => {
-    setSlot(null); setStaffId(""); setSlots([]); setMessage(""); setCustomerLinked(false); setAttachedToTrip(false);
+    setSlot(null); setStaffId(""); setSlots([]); setMessage(""); setCustomerLinked(false); setAttachedToTrip(false); setTripAttachmentError("");
     if (!offering || !date) return;
     let cancelled = false;
     setLoadingSlots(true);
@@ -51,14 +49,25 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
     e.preventDefault();
     if (busy) return;
     if (!offering || !slot) { setMessage("Choose an available time first."); return; }
-    setBusy(true); setMessage(""); setSuccess(false); setCustomerLinked(false); setAttachedToTrip(false);
+    setBusy(true); setMessage(""); setSuccess(false); setCustomerLinked(false); setAttachedToTrip(false); setTripAttachmentError("");
     const f = new FormData(e.currentTarget);
     try {
       const r = await fetch("/api/services/appointments", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({ serviceProfileId:profileId, offeringId:offering.id, staffId:slot.staffId, customerName:f.get("name"), customerEmail:f.get("email"), customerPhone:f.get("phone"), startsAt:slot.startsAt, customerNotes:f.get("notes"), tripId: tripId || undefined }) });
       const j=await r.json();
       if(!r.ok && j?.code === "traveler_verification_required") { window.location.href = `/account/verification?next=${encodeURIComponent(window.location.pathname + window.location.search)}`; return; }
       if(!r.ok) throw new Error(j.error ?? "That time is no longer available. Please choose another slot.");
-      setSuccess(true); setCustomerLinked(Boolean(j.customerLinked)); setAttachedToTrip(Boolean(j.attachedToTrip)); setMessage(`Appointment ${j.appointment.public_id} ${j.appointment.status === "pending" ? "requested" : "confirmed"}.`); e.currentTarget.reset(); setSlot(null); setDate(""); setStaffId(""); setSlots([]);
+      setSuccess(true);
+      setCustomerLinked(Boolean(j.customerLinked));
+      setAttachedToTrip(Boolean(j.attachedToTrip));
+      setTripAttachmentError(typeof j.tripAttachmentError === "string" ? j.tripAttachmentError : "");
+      const paymentSettled = String(j.appointment?.payment_status || "").toLowerCase() === "paid";
+      const bookingState = j.appointment?.status === "pending" ? "requested" : "reserved";
+      setMessage(
+        paymentSettled
+          ? `Appointment ${j.appointment.public_id} ${bookingState} and payment confirmed.`
+          : `Appointment ${j.appointment.public_id} ${bookingState}. Payment is still due — open My Bookings to complete payment.`
+      );
+      e.currentTarget.reset(); setSlot(null); setDate(""); setStaffId(""); setSlots([]);
     } catch(err) { setMessage(err instanceof Error ? err.message : "Unable to complete your booking."); }
     finally { setBusy(false); }
   }
@@ -75,7 +84,7 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
     </div>
     {offering && <div className="mt-5 flex items-center justify-between rounded-xl bg-black/[.03] px-4 py-3 text-sm"><span>{offering.name} · {offering.duration_minutes} min</span><strong>{offering.currency} {Number(offering.price).toLocaleString()}</strong></div>}
     <button disabled={busy || !slot} className="mt-5 w-full rounded-xl bg-black px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Securing your appointment…" : slot ? "Confirm appointment" : "Choose a time"}</button>
-    {message && <div className={`mt-3 rounded-xl px-4 py-3 text-sm ${success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}><p>{message}</p>{success && customerLinked && <div className="mt-2 flex flex-wrap gap-4 font-semibold"><a href="/account/appointments" className="underline underline-offset-2">View My Bookings →</a>{attachedToTrip && <a href={`/account/trips/${encodeURIComponent(tripId!)}`} className="underline underline-offset-2">View This Journey →</a>}</div>}</div>}
+    {message && <div className={`mt-3 rounded-xl px-4 py-3 text-sm ${success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}><p>{message}</p>{success && customerLinked && <div className="mt-2 flex flex-wrap gap-4 font-semibold"><a href="/account/appointments" className="underline underline-offset-2">View My Bookings →</a>{attachedToTrip && <a href={`/account/trips/${encodeURIComponent(tripId!)}`} className="underline underline-offset-2">View This Journey →</a>}</div>}{success && tripId && tripAttachmentError && <p className="mt-2 text-xs leading-5 text-amber-800">Your appointment was created, but SafariPlug could not add it to this journey. The booking is still available in My Bookings.</p>}</div>}
     <p className="mt-4 text-center text-[11px] leading-5 text-black/40">Availability is checked again when you confirm. Personal-service bookings also require an approved SafariPlug traveler identity + live face verification.</p>
   </form>;
 }

@@ -11,10 +11,11 @@ export class AdminAuthError extends Error {
   }
 }
 
-export async function requireAdmin() {
+const FULL_ADMIN_ROLES = new Set(["super_admin", "operations_admin", "finance_manager"]);
+const FINANCE_ADMIN_ROLES = new Set(["super_admin", "finance_manager"]);
+
+async function authenticatedUser() {
   const supabase = await createSupabaseServerClient();
-
-
   const {
     data: { user },
     error: userError,
@@ -24,8 +25,12 @@ export async function requireAdmin() {
     throw new AdminAuthError("Authentication required.", 401);
   }
 
-  const { data: isAdmin, error: adminError } = await supabase.rpc("is_admin");
+  return { supabase, user };
+}
 
+export async function requireAdmin() {
+  const { supabase, user } = await authenticatedUser();
+  const { data: isAdmin, error: adminError } = await supabase.rpc("is_admin");
 
   if (adminError) {
     console.error("ADMIN AUTH RPC ERROR:", adminError);
@@ -39,8 +44,25 @@ export async function requireAdmin() {
   return user;
 }
 
+export async function requireStaff() {
+  const { supabase, user } = await authenticatedUser();
+  const { data: isStaff, error: staffError } = await supabase.rpc("is_staff_portal_user");
 
-const FINANCE_ADMIN_ROLES = new Set(["super_admin", "finance_manager"]);
+  if (staffError) {
+    console.error("STAFF AUTH RPC ERROR:", staffError);
+    throw new AdminAuthError("Unable to verify staff access.", 500);
+  }
+
+  if (isStaff !== true) {
+    throw new AdminAuthError("SafariPlug staff access required.", 403);
+  }
+
+  return user;
+}
+
+export function isFullAdminRole(role: unknown) {
+  return typeof role === "string" && FULL_ADMIN_ROLES.has(role);
+}
 
 export function isFinanceAdminRole(role: unknown) {
   return typeof role === "string" && FINANCE_ADMIN_ROLES.has(role);

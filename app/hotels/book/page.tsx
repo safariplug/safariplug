@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type RoomPackage = {
   quoteId: string;
@@ -26,10 +27,15 @@ type Policy = {
 type Guest = { firstName: string; lastName: string };
 
 export default function HotelBookPage() {
-  const params = useMemo(() => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search), []);
+  return <Suspense fallback={<main className="min-h-screen bg-[#f7f7f4] px-6 py-10 text-[#111]"><div className="mx-auto max-w-5xl"><div className="rounded-3xl bg-white p-8">Loading hotel checkout…</div></div></main>}><HotelBookPageContent /></Suspense>;
+}
+
+function HotelBookPageContent() {
+  const params = useSearchParams();
   const hotelId = params.get("hotelId") || "";
   const hotelName = params.get("hotelName") || "Hotel stay";
-  const searchKey = params.get("searchKey") || "";
+  const initialSearchKey = params.get("searchKey") || "";
+  const [searchKey, setSearchKey] = useState(initialSearchKey);
   const regionId = params.get("regionId") || "";
   const checkIn = params.get("checkIn") || "";
   const checkOut = params.get("checkOut") || "";
@@ -48,24 +54,46 @@ export default function HotelBookPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!hotelId || !searchKey || !regionId || !checkIn || !checkOut) {
+    if (!hotelId || !initialSearchKey || !regionId || !checkIn || !checkOut) {
       setError("This hotel search session is incomplete. Please search again.");
       setLoading(false);
       return;
     }
+    const cacheKey = "safariplug:hotel-room-preflight:" + hotelId + ":" + checkIn + ":" + checkOut + ":" + guestCount;
+    try {
+      const cachedRaw = window.sessionStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw) as { createdAt?: number; searchKey?: string; packages?: RoomPackage[] };
+        const fresh = typeof cached.createdAt === "number" && Date.now() - cached.createdAt < 120000;
+        const rows = Array.isArray(cached.packages) ? cached.packages : [];
+        if (fresh && rows.length) {
+          setSearchKey(String(cached.searchKey || initialSearchKey));
+          setPackages(rows);
+          setSelected(rows[0] || null);
+          setLoading(false);
+          return;
+        }
+        window.sessionStorage.removeItem(cacheKey);
+      }
+    } catch {
+      window.sessionStorage.removeItem(cacheKey);
+    }
+
     let cancelled = false;
     const load = async () => {
       try {
         const response = await fetch("/api/v1/hotels/locktrip/public", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "rooms", hotelId, searchKey, regionId, checkIn, checkOut, rooms: [{ adults: guestCount, childrenAges: [] }], currency }),
+          body: JSON.stringify({ action: "rooms", hotelId, searchKey: initialSearchKey, regionId, checkIn, checkOut, rooms: [{ adults: guestCount, childrenAges: [] }], currency }),
           cache: "no-store",
         });
         const body = await response.json();
         if (!response.ok) throw new Error(body?.message || "Unable to load hotel rooms.");
         if (cancelled) return;
         const rows = Array.isArray(body?.data?.packages) ? body.data.packages as RoomPackage[] : [];
+        const activeSearchKey = String(body?.searchKey || body?.data?.searchKey || initialSearchKey);
+        setSearchKey(activeSearchKey);
         setPackages(rows);
         if (rows[0]) setSelected(rows[0]);
       } catch (err) {
@@ -76,7 +104,7 @@ export default function HotelBookPage() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [hotelId, searchKey, regionId, checkIn, checkOut, guestCount, currency]);
+  }, [hotelId, initialSearchKey, regionId, checkIn, checkOut, guestCount, currency]);
 
   useEffect(() => {
     if (!selected?.quoteId) { setPolicy(null); return; }
@@ -132,6 +160,7 @@ export default function HotelBookPage() {
           currency: "KES",
           method: "mpesa",
           customerPhone: phone.trim(),
+          email: email.trim(),
           rooms: [{ roomIndex: 0, guests: guests.map((guest, index) => ({ firstName: guest.firstName.trim(), lastName: guest.lastName.trim(), title: "Mr", email: index === 0 ? email.trim() : undefined, phone: index === 0 ? phone.trim() : undefined, isLeadGuest: index === 0 })) }],
           contactPerson: { firstName: guests[0]?.firstName.trim(), lastName: guests[0]?.lastName.trim(), email: email.trim(), phone: phone.trim() },
           specialRequests: specialRequests.trim() || undefined,
@@ -174,12 +203,12 @@ export default function HotelBookPage() {
         </section>
         <aside>{selected ? <form onSubmit={checkout} className="rounded-3xl bg-white p-6 shadow-sm lg:sticky lg:top-6">
           <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-black/40">Review & pay</p>
-          <div className="mt-4 rounded-2xl bg-black/[.035] p-4"><p className="text-xs text-black/45">SafariPlug customer total</p><p className="mt-1 text-3xl font-semibold">{selected.customerCurrency || currency} {Number(selected.price).toLocaleString(undefined,{maximumFractionDigits:2})}</p><p className="mt-2 text-xs leading-5 text-black/45">Includes SafariPlug&apos;s booking margin. The total is revalidated against the supplier before M-Pesa payment starts.</p></div>
-          <div className="mt-5 rounded-2xl border border-black/8 p-4"><p className="text-sm font-semibold">Cancellation</p>{policy ? <><p className="mt-2 text-sm text-black/60">{policy.isRefundable ? "Refundable" : "Non-refundable / restricted"}</p>{policy.freeCancellationUntil ? <p className="mt-1 text-xs text-black/50">Free cancellation until {policy.freeCancellationUntil}</p> : null}{policy.fees?.length ? <p className="mt-2 text-xs text-black/45">Provider cancellation fees apply after the stated deadline.</p> : null}</> : <p className="mt-2 text-xs text-black/45">Checking the supplier&apos;s cancellation policy…</p>}</div>
+          <div className="mt-4 rounded-2xl bg-black/[.035] p-4"><p className="text-xs text-black/45">SafariPlug customer total</p><p className="mt-1 text-3xl font-semibold">{selected.customerCurrency || currency} {Number(selected.price).toLocaleString(undefined,{maximumFractionDigits:2})}</p><p className="mt-2 text-xs leading-5 text-black/45">Total price for your stay. Price is confirmed before payment.</p></div>
+          <div className="mt-5 rounded-2xl border border-black/8 p-4"><p className="text-sm font-semibold">Cancellation</p>{policy ? <>{policy.freeCancellationUntil ? <><p className="mt-2 text-sm font-medium text-black/65">Free cancellation until {policy.freeCancellationUntil}</p><p className="mt-1 text-xs text-black/50">Cancellation fees or restrictions may apply after this deadline.</p></> : <p className="mt-2 text-sm text-black/60">{policy.isRefundable ? "Refundable under the supplier policy" : "Non-refundable / restricted"}</p>}{!policy.freeCancellationUntil && policy.fees?.length ? <p className="mt-2 text-xs text-black/45">Provider cancellation fees apply under the supplier policy.</p> : null}</> : <p className="mt-2 text-xs text-black/45">Checking the supplier&apos;s cancellation policy…</p>}</div>
           <div className="mt-6 space-y-4"><h3 className="font-semibold">Guest details</h3>{guests.map((guest,index)=><div key={index} className="grid grid-cols-2 gap-3"><input value={guest.firstName} onChange={e=>updateGuest(index,"firstName",e.target.value)} placeholder={`Guest ${index+1} first name`} className="rounded-xl border border-black/10 px-3 py-3"/><input value={guest.lastName} onChange={e=>updateGuest(index,"lastName",e.target.value)} placeholder="Last name" className="rounded-xl border border-black/10 px-3 py-3"/></div>)}<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Contact email" className="w-full rounded-xl border border-black/10 px-3 py-3"/><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="M-Pesa phone e.g. 2547…" className="w-full rounded-xl border border-black/10 px-3 py-3"/><textarea value={specialRequests} onChange={e=>setSpecialRequests(e.target.value)} placeholder="Special requests (optional)" className="min-h-24 w-full rounded-xl border border-black/10 px-3 py-3"/></div>
           {error ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
           <button disabled={submitting} className="mt-6 w-full rounded-xl bg-black px-4 py-3.5 font-semibold text-white disabled:opacity-50">{submitting ? "Starting M-Pesa payment…" : `Pay ${selected.customerCurrency || currency} ${Number(selected.price).toLocaleString(undefined,{maximumFractionDigits:2})} with M-Pesa`}</button>
-          <p className="mt-3 text-center text-[11px] leading-5 text-black/40">No booking is confirmed until payment succeeds and LockTrip confirms the reservation.</p>
+          <p className="mt-3 text-center text-[11px] leading-5 text-black/40">No booking is confirmed until payment succeeds and the hotel supplier confirms the reservation.</p>
         </form> : null}</aside>
       </div>
     </div>

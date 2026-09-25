@@ -63,7 +63,35 @@ export async function POST(request: Request) {
     }
     if (action === "toggle_booking") {
       const open=Boolean(body.open);
-      if(open){const {count}=await supabaseAdmin.from("service_staff").select("id",{count:"exact",head:true}).eq("service_profile_id",profile.id).eq("status","active").eq("verification_state","verified").not("identity_liveness_verified_at","is",null).not("user_id","is",null).not("personal_photo_url","is",null);if(!count)return NextResponse.json({error:"Add at least one active specialist with a personal photo, linked SafariPlug account, and approved identity + live face verification before opening bookings."},{status:409});}
+      if(open){
+        const {data:staffRows}=await supabaseAdmin
+          .from("service_staff")
+          .select("id,identity_liveness_verified_at")
+          .eq("service_profile_id",profile.id)
+          .eq("status","active")
+          .eq("verification_state","verified")
+          .not("user_id","is",null)
+          .not("personal_photo_url","is",null);
+        const candidateStaff=staffRows??[];
+        const candidateIds=candidateStaff.map((row)=>String(row.id));
+        const {data:approvedCases}=candidateIds.length
+          ? await supabaseAdmin
+              .from("verification_cases")
+              .select("subject_id,provider,expires_at")
+              .eq("subject_type","service_staff")
+              .in("subject_id",candidateIds)
+              .eq("status","approved")
+          : {data:[] as {subject_id:string;provider:string|null;expires_at:string|null}[]};
+        const approvedProvider=new Map(
+          (approvedCases??[])
+            .filter((row)=>!row.expires_at||new Date(row.expires_at).getTime()>Date.now())
+            .map((row)=>[String(row.subject_id),String(row.provider||"")])
+        );
+        const verifiedStaff=candidateStaff.filter((row)=>
+          approvedProvider.get(String(row.id))==="human_review"||Boolean(row.identity_liveness_verified_at)
+        );
+        if(!verifiedStaff.length)return NextResponse.json({error:"Add at least one active specialist with a personal photo, linked SafariPlug account, and approved SafariPlug staff review or identity + live face verification before opening bookings."},{status:409});
+      }
       const {data,error}=await supabaseAdmin.from("service_profiles").update({booking_status:open?"open":"closed",status:"active"}).eq("id",profile.id).select("id,status,booking_status").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({profile:data});
     }
     if (action === "create_offering") {

@@ -4,166 +4,77 @@ export type ScoringInput = {
   city: string;
 };
 
-
 export type ScoringResult = {
   score: number;
   priority: "High" | "Medium" | "Low";
   reason: string;
 };
 
+const CATEGORY_WEIGHTS: Record<string, number> = {
+  Hotels: 25,
+  Experiences: 20,
+  "Tour Operators": 18,
+  "Tours & Local Guides": 18,
+  "Beach Clubs": 18,
+  "Diving & Marine": 16,
+  "Water Sports & Kite": 16,
+  "Surfing & Board Sports": 14,
+  "Spas & Massage": 15,
+  Restaurants: 15,
+  Nightlife: 15,
+  Barbers: 12,
+  "Hair & Beauty": 12,
+  "Tattoo Artists & Body Art": 12,
+  Nails: 12,
+  "Lashes & Brows": 10,
+  "Fitness & Personal Training": 10,
+  "Yoga/Pilates/Mindfulness": 10,
+  "Private Chefs & Cooking": 10,
+  "Photography & Content": 8,
+};
 
+const PRIORITY_CITY_WEIGHTS: Record<string, number> = {
+  Nairobi: 10,
+  Mombasa: 10,
+  Diani: 10,
+  Kilifi: 8,
+  Malindi: 8,
+  Watamu: 8,
+  Lamu: 8,
+  Zanzibar: 8,
+  Kampala: 6,
+};
 
-export function scoreProspect(
-  prospect: ScoringInput
-): ScoringResult {
+const COASTAL_CITIES = new Set(["Mombasa", "Diani", "Kilifi", "Malindi", "Watamu", "Lamu", "Zanzibar"]);
+const COASTAL_CATEGORIES = new Set(["Beach Clubs", "Diving & Marine", "Surfing & Board Sports", "Water Sports & Kite"]);
 
-
+export function scoreProspect(prospect: ScoringInput): ScoringResult {
   let score = 50;
-
   const reasons: string[] = [];
 
-
-
-  // Category scoring
-
-  if (
-    prospect.category === "Hotels"
-  ) {
-
-    score += 25;
-
-    reasons.push(
-      "Strong tourism partnership category"
-    );
-
+  const categoryWeight = CATEGORY_WEIGHTS[prospect.category] || 0;
+  if (categoryWeight) {
+    score += categoryWeight;
+    reasons.push("Marketplace-priority supplier category");
   }
 
-
-
-  if (
-    prospect.category === "Experiences"
-  ) {
-
-    score += 20;
-
-    reasons.push(
-      "Direct traveler engagement opportunity"
-    );
-
+  const cityWeight = PRIORITY_CITY_WEIGHTS[prospect.city] || 0;
+  if (cityWeight) {
+    score += cityWeight;
+    reasons.push("Priority SafariPlug growth market");
   }
 
-
-
-  if (
-    prospect.category === "Beach Clubs"
-  ) {
-
-    score += 18;
-
-    reasons.push(
-      "High leisure discovery potential"
-    );
-
-  }
-
-
-
-  if (
-    prospect.category === "Restaurants"
-  ) {
-
+  if (COASTAL_CITIES.has(prospect.city) && COASTAL_CATEGORIES.has(prospect.category)) {
     score += 12;
-
-    reasons.push(
-      "Local discovery value"
-    );
-
+    reasons.push("Strong coastal destination fit");
   }
 
-
-
-  if (
-    prospect.category === "Nightlife"
-  ) {
-
-    score += 15;
-
-    reasons.push(
-      "Entertainment discovery opportunity"
-    );
-
-  }
-
-
-
-  // City scoring
-
-  const tourismCities = [
-    "Nairobi",
-    "Mombasa",
-    "Diani",
-    "Kilifi",
-    "Zanzibar",
-    "Malindi",
-    "Watamu"
-  ];
-
-
-
-  if (
-    tourismCities.includes(
-      prospect.city
-    )
-  ) {
-
-    score += 10;
-
-    reasons.push(
-      "Priority SafariPlug destination"
-    );
-
-  }
-
-
-
-  // Cap score
-
-  if (score > 100) {
-    score = 100;
-  }
-
-
-
-  let priority:
-    "High" | "Medium" | "Low";
-
-  if (score >= 85) {
-
-    priority = "High";
-
-  } else if (score >= 70) {
-
-    priority = "Medium";
-
-  } else {
-
-    priority = "Low";
-
-  }
-
-
+  score = Math.min(score, 100);
+  const priority: ScoringResult["priority"] = score >= 85 ? "High" : score >= 70 ? "Medium" : "Low";
 
   return {
-
     score,
-
     priority,
-
-    reason:
-      reasons.join(
-        ". "
-      ),
-
+    reason: reasons.length ? reasons.join(". ") : "General discovery prospect",
   };
-
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { handleHotelSearch } from "@/lib/api/v1/hotel-handlers";
 import {
+  dedupeHotelResults,
   hotelConfirm,
   mapSupplierQuote,
   parseHotelSearchRequest,
@@ -308,6 +309,101 @@ test("test-only live adapter is used for mapping, then unregistered", async () =
   assert.equal(afterRestore.some((row) => row.key === "locktrip"), true);
 });
 
+test("dedupeHotelResults collapses the same hotel across suppliers and keeps the best bookable price", () => {
+  const results = dedupeHotelResults([
+    {
+      provider: "locktrip",
+      property_id: "lt-1",
+      property_name: "Sarova Panafric Hotel",
+      room_id: null,
+      rate_id: null,
+      currency: "KES",
+      total: { amount: 18000, currency: "KES" },
+      cancellation: null,
+      availability: "available",
+      source: "supplier",
+      supplier_context: { address: "Kenyatta Avenue, Nairobi" },
+    },
+    {
+      provider: "hotelbeds",
+      property_id: "hb-9",
+      property_name: "Sarova Panafric Hotel",
+      room_id: "STD",
+      rate_id: "rate-key",
+      currency: "KES",
+      total: { amount: 16500, currency: "KES" },
+      cancellation: "Free cancellation available",
+      availability: "available",
+      source: "supplier",
+    },
+  ]);
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0]?.provider, "hotelbeds");
+  assert.equal(results[0]?.total?.amount, 16500);
+  assert.equal(results[0]?.supplier_options?.length, 2);
+});
+
+test("dedupeHotelResults normalizes punctuation but does not merge conflicting addresses", () => {
+  const normalized = dedupeHotelResults([
+    {
+      provider: "locktrip",
+      property_id: "a",
+      property_name: "Hotel & Spa Nairobi",
+      room_id: null,
+      rate_id: null,
+      currency: "KES",
+      total: { amount: 10000, currency: "KES" },
+      cancellation: null,
+      availability: "available",
+      source: "supplier",
+    },
+    {
+      provider: "hotelbeds",
+      property_id: "b",
+      property_name: "Hotel and Spa Nairobi",
+      room_id: "1",
+      rate_id: "2",
+      currency: "KES",
+      total: { amount: 9500, currency: "KES" },
+      cancellation: null,
+      availability: "available",
+      source: "supplier",
+    },
+  ]);
+  assert.equal(normalized.length, 1);
+
+  const separated = dedupeHotelResults([
+    {
+      provider: "locktrip",
+      property_id: "a",
+      property_name: "Royal Hotel",
+      room_id: null,
+      rate_id: null,
+      currency: "KES",
+      total: { amount: 10000, currency: "KES" },
+      cancellation: null,
+      availability: "available",
+      source: "supplier",
+      supplier_context: { address: "Moi Avenue, Nairobi" },
+    },
+    {
+      provider: "hotelbeds",
+      property_id: "b",
+      property_name: "Royal Hotel",
+      room_id: "1",
+      rate_id: "2",
+      currency: "KES",
+      total: { amount: 9000, currency: "KES" },
+      cancellation: null,
+      availability: "available",
+      source: "supplier",
+      supplier_context: { address: "Beach Road, Mombasa" },
+    },
+  ]);
+  assert.equal(separated.length, 2);
+});
+
 test("parseHotelSearchRequest validates dates and occupancy", () => {
   const parsed = parseHotelSearchRequest({
     destination: "Diani",
@@ -321,6 +417,32 @@ test("parseHotelSearchRequest validates dates and occupancy", () => {
   assert.equal(parsed.check_out, "2026-12-03");
   assert.equal(parsed.guests, 2);
   assert.equal(parsed.rooms, 1);
+  assert.equal(parsed.location_scope, "specific");
+  assert.equal(parsed.bookable_only, true);
+});
+
+test("hotel search accepts explicit bookable-only opt out", () => {
+  const parsed = parseHotelSearchRequest({
+    destination: "Nairobi",
+    check_in: "2026-12-01",
+    check_out: "2026-12-03",
+    guests: "2",
+    rooms: "1",
+    bookable_only: "false",
+  });
+  assert.equal(parsed.bookable_only, false);
+});
+
+test("hotel search accepts explicit broad destination scope", () => {
+  const parsed = parseHotelSearchRequest({
+    destination: "Nairobi",
+    check_in: "2026-12-01",
+    check_out: "2026-12-03",
+    guests: "2",
+    rooms: "1",
+    location_scope: "destination",
+  });
+  assert.equal(parsed.location_scope, "destination");
 });
 
 test("aurelian hotel key is scaffolded, not a live hotel source", () => {

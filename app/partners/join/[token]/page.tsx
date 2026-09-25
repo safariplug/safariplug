@@ -3,23 +3,24 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-const SERVICE_INVITATION_TYPES: Record<string, { businessType: string; category: string }> = {
+const SUPPLIER_INVITATION_TYPES: Record<string, { businessType: string; category?: string }> = {
   "massage / wellness": { businessType: "Spa & Massage", category: "Spas & Massage" },
   "barber / grooming": { businessType: "Barber", category: "Barbers" },
   "nails / beauty": { businessType: "Nails", category: "Nails" },
   tattoo: { businessType: "Tattoo & Body Art", category: "Tattoo Artists & Body Art" },
   "diving / watersports": { businessType: "Diving & Marine", category: "Diving & Marine" },
   "kitesurfing / instructor": { businessType: "Water Sports & Kite", category: "Water Sports & Kite" },
+  "restaurant / food": { businessType: "Restaurant" },
+  "hotel / stay": { businessType: "Hotel" },
+  "tour / experience": { businessType: "Tour Operator", category: "Tours & Local Guides" },
 };
 
 function destination(type: string) {
   const t = type.toLowerCase();
-  if (SERVICE_INVITATION_TYPES[t]) return "/supplier/onboarding";
+  if (SUPPLIER_INVITATION_TYPES[t]) return "/supplier/onboarding";
   if (t.includes("driver") || t.includes("transfer")) return "/driver/signup";
   if (t.includes("local")) return "/locals/onboarding";
-  if (t.includes("restaurant") || t.includes("food")) return "/business/restaurants";
-  if (t.includes("hotel") || t.includes("stay")) return "/contact";
-  if (t.includes("tour") || t.includes("experience")) return "/submit";
+  if (t.includes("restaurant") || t.includes("food") || t.includes("hotel") || t.includes("stay") || t.includes("tour") || t.includes("experience")) return "/supplier/onboarding";
   return "/business/services";
 }
 
@@ -27,8 +28,32 @@ function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 72);
 }
 
-async function provisionServiceEnrollment(user: { id: string; email?: string | null }, invitation: { id: string; business_name: string; partner_type: string; prospect_id?: string | null; partner_id?: string | null }) {
-  const config = SERVICE_INVITATION_TYPES[invitation.partner_type.toLowerCase()];
+type StableEnrollmentLink = {
+  prospect_id?: string | null;
+  partner_id?: string | null;
+};
+
+function assertCompatibleEnrollmentLink(existing: StableEnrollmentLink, invitation: StableEnrollmentLink) {
+  if (existing.prospect_id && invitation.prospect_id && existing.prospect_id !== invitation.prospect_id) {
+    throw new Error("This account is already linked to a different SafariPlug prospect. Staff must resolve the CRM link before this invitation can continue.");
+  }
+  if (existing.partner_id && invitation.partner_id && existing.partner_id !== invitation.partner_id) {
+    throw new Error("This account is already linked to a different SafariPlug partner relationship. Staff must resolve the CRM link before this invitation can continue.");
+  }
+}
+
+async function preflightSupplierEnrollment(userId: string, invitation: StableEnrollmentLink) {
+  const { data: existingSupplier, error } = await supabaseAdmin
+    .from("supplier_accounts")
+    .select("prospect_id,partner_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (existingSupplier) assertCompatibleEnrollmentLink(existingSupplier, invitation);
+}
+
+async function provisionSupplierEnrollment(user: { id: string; email?: string | null }, invitation: { id: string; business_name: string; partner_type: string; prospect_id?: string | null; partner_id?: string | null }) {
+  const config = SUPPLIER_INVITATION_TYPES[invitation.partner_type.toLowerCase()];
   if (!config) return false;
 
   const { data: existingSupplier, error: supplierLookupError } = await supabaseAdmin
@@ -38,6 +63,7 @@ async function provisionServiceEnrollment(user: { id: string; email?: string | n
     .maybeSingle();
   if (supplierLookupError) throw new Error(supplierLookupError.message);
   if (existingSupplier) {
+    assertCompatibleEnrollmentLink(existingSupplier, invitation);
     const updates: Record<string, string> = {};
     if (!existingSupplier.prospect_id && invitation.prospect_id) updates.prospect_id = invitation.prospect_id;
     if (!existingSupplier.partner_id && invitation.partner_id) updates.partner_id = invitation.partner_id;
@@ -83,25 +109,27 @@ async function provisionServiceEnrollment(user: { id: string; email?: string | n
     business = createdBusiness;
   }
 
-  const { data: serviceProfile, error: serviceProfileLookupError } = await supabaseAdmin
-    .from("service_profiles")
-    .select("id")
-    .eq("business_id", business.id)
-    .maybeSingle();
-  if (serviceProfileLookupError) throw new Error(serviceProfileLookupError.message);
-  if (!serviceProfile) {
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from("service_categories")
-      .select("id")
-      .eq("name", config.category)
-      .eq("status", "active")
-      .maybeSingle();
-    if (categoryError) throw new Error(categoryError.message);
-    if (!category) throw new Error(`Service category ${config.category} is not available.`);
-    const { error: createProfileError } = await supabaseAdmin
+  if (config.category) {
+    const { data: serviceProfile, error: serviceProfileLookupError } = await supabaseAdmin
       .from("service_profiles")
-      .insert({ business_id: business.id, category_id: category.id, status: "pending", booking_status: "closed" });
-    if (createProfileError) throw new Error(createProfileError.message);
+      .select("id")
+      .eq("business_id", business.id)
+      .maybeSingle();
+    if (serviceProfileLookupError) throw new Error(serviceProfileLookupError.message);
+    if (!serviceProfile) {
+      const { data: category, error: categoryError } = await supabaseAdmin
+        .from("service_categories")
+        .select("id")
+        .eq("name", config.category)
+        .eq("status", "active")
+        .maybeSingle();
+      if (categoryError) throw new Error(categoryError.message);
+      if (!category) throw new Error(`Service category ${config.category} is not available.`);
+      const { error: createProfileError } = await supabaseAdmin
+        .from("service_profiles")
+        .insert({ business_id: business.id, category_id: category.id, status: "pending", booking_status: "closed" });
+      if (createProfileError) throw new Error(createProfileError.message);
+    }
   }
 
   const { error: supplierError } = await supabaseAdmin.from("supplier_accounts").insert({
@@ -138,6 +166,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
   if (!user) return <main className="mx-auto max-w-2xl p-6 py-16"><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug Partner Invitation</p><h1 className="mt-4 text-4xl font-semibold">You’re invited, {invitation.business_name}.</h1><p className="mt-5 text-black/60">Join SafariPlug as a {invitation.partner_type}. Create or sign in to your SafariPlug account first. Your invitation will remain attached to your enrollment.</p><Link href={`/login?mode=signup&as=partner&next=${encodeURIComponent(next)}`} className="mt-8 inline-flex rounded-full bg-black px-6 py-3 font-semibold text-white">Create partner account</Link><p className="mt-5 text-sm text-black/45">Signing up does not automatically verify or activate a listing. Marketplace-specific identity, business, licensing, photo and compliance checks still apply.</p></main>;
 
   if (invitation.onboarded_user_id && invitation.onboarded_user_id !== user.id) notFound();
+  await preflightSupplierEnrollment(user.id, invitation);
   if (!invitation.onboarded_user_id) {
     const { data: claimed, error: claimError } = await supabaseAdmin
       .from("partner_invitations")
@@ -162,12 +191,44 @@ export default async function Page({ params }: { params: Promise<{ token: string
         .maybeSingle();
       if (latestError) throw new Error(latestError.message);
       if (!latest || latest.onboarded_user_id !== user.id) notFound();
+    } else if (invitation.prospect_id || invitation.partner_id) {
+      await supabaseAdmin.from("crm_activities").insert({
+        prospect_id: invitation.prospect_id || null,
+        partner_id: invitation.partner_id || null,
+        activity_type: "system",
+        summary: "Partner signup started",
+        details: `Invitation ${invitation.id} was claimed by the partner account.`,
+      });
     }
   }
 
-  const provisioned = await provisionServiceEnrollment(user, invitation);
+  const provisioned = await provisionSupplierEnrollment(user, invitation);
   if (provisioned) {
-    await supabaseAdmin.from("partner_invitations").update({ status: "onboarding", updated_at: new Date().toISOString() }).eq("id", invitation.id).eq("onboarded_user_id", user.id);
+    const onboardingAt = new Date().toISOString();
+    await supabaseAdmin.from("partner_invitations").update({ status: "onboarding", updated_at: onboardingAt }).eq("id", invitation.id).eq("onboarded_user_id", user.id);
+
+    if (invitation.prospect_id) {
+      const { error: followupError } = await supabaseAdmin
+        .from("crm_followups")
+        .update({ status: "completed", completed_at: onboardingAt, updated_at: onboardingAt })
+        .eq("prospect_id", invitation.prospect_id)
+        .eq("status", "open")
+        .ilike("title", "%invitation%")
+        .ilike("notes", `%Invitation ${invitation.id}%`);
+      if (followupError) {
+        console.error("Partner entered onboarding but invitation follow-up could not be completed", followupError);
+      }
+    }
+
+    if (invitation.status !== "onboarding" && (invitation.prospect_id || invitation.partner_id)) {
+      await supabaseAdmin.from("crm_activities").insert({
+        prospect_id: invitation.prospect_id || null,
+        partner_id: invitation.partner_id || null,
+        activity_type: "system",
+        summary: "Supplier onboarding started",
+        details: `Invitation ${invitation.id} entered supplier onboarding.`,
+      });
+    }
   }
 
   const href = destination(invitation.partner_type);

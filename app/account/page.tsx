@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import TravelerNav from "@/components/TravelerNav";
+import AccountSessionControls from "./session-controls";
 import { getTravelerVerificationState } from "@/lib/services/traveler-verification";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -27,7 +28,7 @@ export default async function AccountPage() {
 
   return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
     <TravelerNav />
-    <section className="bg-[#111] text-white"><div className="mx-auto max-w-6xl px-6 pb-14 pt-12 sm:px-10"><p className="text-[11px] font-semibold uppercase tracking-[.28em] text-[#c9a86a]">My SafariPlug</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">Welcome back, {firstName}.</h1><p className="mt-4 max-w-2xl text-base leading-7 text-white/55">One place for your trips, stays, experiences, Local requests, services and restaurant orders.</p><div className="mt-7 flex flex-wrap gap-2"><Link href="/account/trips" className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black">Open my trips</Link><Link href="/concierge" className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white">Ask Concierge</Link></div></div></section>
+    <section className="bg-[#111] text-white"><div className="mx-auto max-w-6xl px-6 pb-14 pt-12 sm:px-10"><div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start"><div><p className="text-[11px] font-semibold uppercase tracking-[.28em] text-[#c9a86a]">My SafariPlug</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">Welcome back, {firstName}.</h1><p className="mt-4 max-w-2xl text-base leading-7 text-white/55">One place for your trips, stays, experiences, Local requests, services and restaurant orders.</p></div><AccountSessionControls email={user.email || "SafariPlug account"} /></div><div className="mt-7 flex flex-wrap gap-2"><Link href="/account/trips" className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black">Open my trips</Link><Link href="/concierge" className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white">Ask Concierge</Link></div></div></section>
 
     <section className="mx-auto max-w-6xl px-6 py-10 sm:px-10">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -35,7 +36,7 @@ export default async function AccountPage() {
         <StatusCard href="/account/trips" label="Local requests" value={localRequests} description="Requests and responses" />
         <StatusCard href="/account/appointments" label="Appointments" value={appointments} description="Services you requested" />
         <StatusCard href="/account/orders" label="Food orders" value={foodOrders} description="Restaurant order activity" />
-        <StatusCard href="/hotels" label="Hotel bookings" value={hotelBookings} description="Real supplier booking records" />
+        <StatusCard href="/account/hotels" label="Hotel bookings" value={hotelBookings} description="Real supplier booking records" />
         <StatusCard href="/account/transfers" label="Transfer bookings" value={transferBookings} description="Supplier transfer checkout records" />
         <StatusCard href="/account/activities" label="Activity bookings" value={activityBookings} description="Hotelbeds activity checkout records" />
         <StatusCard href="/events" label="Experience bookings" value={eventBookings} description="Booked experiences" />
@@ -48,7 +49,7 @@ export default async function AccountPage() {
         <AccountCard href="/account/verification" title="Identity verification" description="Manage traveler identity and live face/liveness verification for trust-sensitive bookings." />
         <AccountCard href="/account/trips" title="Trips" description="Keep experiences, stays, food, services and Local requests connected to the same journey." />
         <AccountCard href="/locals" title="Locals" description="Find verified, active Local profiles and send a real request for a date, time and activity." />
-        <AccountCard href="/hotels" title="Stays" description="Search hotel inventory through configured SafariPlug supplier connections." />
+        <AccountCard href="/account/hotels" title="Stays" description="Review hotel bookings or continue to live hotel search." />
         <AccountCard href="/services" title="Services" description="Find live providers for massage, barbering, beauty, nails, tattoo, fitness, diving and more." />
         <AccountCard href="/restaurants" title="Restaurants & food" description="Browse restaurants with real online ordering enabled and open their live menus." />
         <AccountCard href="/account/transfers" title="Transfer bookings" description="Review Hotelbeds transfer payments, confirmations and cancellations." />

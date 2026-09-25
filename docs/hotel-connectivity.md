@@ -57,7 +57,13 @@ No silent FX conversion. Listed/public prices stay `unconfirmed_listed` on event
 | GET | `/api/v1/availability` | still **501** (Travel OS, not hotel-specific) |
 | POST | `/api/v1/bookings/confirm` | still **501** |
 
-Query: `destination`, `check_in`, `check_out`, `guests`, `rooms`, `currency`.
+Query: `destination`, `check_in`, `check_out`, `guests`, `rooms`, `currency`, `location_scope`, `bookable_only`.
+
+`location_scope=specific` and `bookable_only=true` are the defaults. Bookable-only searches must exclude supplier search hits that do not expose a selectable live room/rate for the requested dates. LockTrip verifies room packages for a capped set of top results; Hotelbeds requires a live rateKey, sealed booking token, and customer total before a property is returned.
+
+`location_scope=specific` is the default. Supplier adapters must resolve the requested place as the traveler entered it (for example a neighborhood, beach, landmark, airport, town, or city) rather than silently widening to a different destination. `location_scope=destination` is reserved for explicitly broad destination searches.
+
+LockTrip ranks its returned location candidates and rejects searches that do not match the requested specific place. Hotelbeds uses the exact normalized destination key from `SAFARIPLUG_HOTEL_HOTELBEDS_DESTINATION_MAP`, so each configured area can map only to the Hotelbeds property codes allowed for that place. Future supplier adapters receive the same shared search scope in `HotelSearchRequest`.
 
 Never returns an empty hotel list pretending inventory exists. Never returns fabricated properties.
 

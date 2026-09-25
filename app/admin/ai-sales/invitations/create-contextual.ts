@@ -13,6 +13,9 @@ export async function createContextualPartnerInvitation(formData: FormData) {
 
   const context = await resolveOutreachContext(prospectId);
   if (!context) throw new Error("Prospect could not be resolved.");
+  if (context.reviewStatus !== "approved" || context.prospectStatus === "rejected") {
+    throw new Error("This prospect must be approved by a person before partner outreach can be created.");
+  }
   if (!context.contactEmail && !context.whatsappPhone) {
     throw new Error("Add a named CRM contact with email/phone, or review a discovered business email before creating outreach.");
   }
@@ -22,6 +25,19 @@ export async function createContextualPartnerInvitation(formData: FormData) {
     : context.contactEmail
       ? "email"
       : "whatsapp";
+
+  const { data: existingOpenInvite, error: existingOpenInviteError } = await supabaseAdmin
+    .from("partner_invitations")
+    .select("id,status")
+    .eq("prospect_id", prospectId)
+    .in("status", ["draft", "ready_for_approval", "approved"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingOpenInviteError) throw new Error(existingOpenInviteError.message);
+  if (existingOpenInvite?.id) {
+    redirect(`/admin/ai-sales/invitations?prospect_id=${encodeURIComponent(prospectId)}`);
+  }
 
   const { data: invitation, error } = await supabaseAdmin
     .from("partner_invitations")

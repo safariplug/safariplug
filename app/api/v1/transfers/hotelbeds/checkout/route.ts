@@ -289,7 +289,7 @@ export async function POST(request: Request) {
           appointmentId: ledger.id,
           amount: converted.amount,
           currency: customerCurrency,
-          customerEmail: user.email,
+          customerEmail: holder.email || user.email,
           customerPhone: phone,
           returnUrl: `${SITE_URL}/account?transferBooking=${encodeURIComponent(preparedBookingId)}`,
           idempotencyKey: `hotelbeds-transfer:${intentKey}`,

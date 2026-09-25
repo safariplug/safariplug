@@ -19,7 +19,7 @@ type StatusResponse = {
   status: "confirmed" | "payment_pending" | "failed" | "cancelled";
   supplierStatus?: string;
   reconciliation?: string;
-  ledger?: { retail_amount?: number; customer_retail_amount?: number; currency?: string; customer_currency?: string; booking_status?: string; provider_booking_reference?: string };
+  ledger?: { retail_amount?: number; customer_retail_amount?: number; currency?: string; customer_currency?: string; booking_status?: string; payment_status?: string; provider_booking_reference?: string };
   providerBooking?: {
     bookingReferenceId?: string;
     status?: string;
@@ -107,12 +107,31 @@ export default function HotelBookingResultPage() {
 
   return <main className="mx-auto max-w-2xl px-6 py-16"><div className="rounded-3xl border bg-white p-8 shadow-sm">
     {state === "loading" && <Status title="Checking your hotel booking…" body={`We are confirming payment and reservation with ${provider === "hotelbeds" ? "Hotelbeds" : "LockTrip"}.`} attempts={attempts} />}
-    {state === "pending" && <Status title={data?.reconciliation === "manual_required" ? "Payment received — supplier confirmation needs review" : "Payment received — booking is processing"} body={data?.message || (attempts < 12 ? `${provider === "hotelbeds" ? "Hotelbeds" : "LockTrip"} is still confirming the reservation.` : "The supplier is taking longer than usual. You can check again below.")} attempts={attempts} />}
+    {state === "pending" && <Status
+      title={
+        data?.reconciliation === "manual_required"
+          ? data?.ledger?.payment_status === "paid"
+            ? "Payment received — supplier confirmation needs review"
+            : "Checkout needs review"
+          : data?.ledger?.payment_status === "paid"
+            ? "Payment received — booking is processing"
+            : "Waiting for payment confirmation"
+      }
+      body={
+        data?.message ||
+        (data?.ledger?.payment_status === "paid"
+          ? attempts < 12
+            ? `${provider === "hotelbeds" ? "Hotelbeds" : "LockTrip"} is still confirming the reservation.`
+            : "The supplier is taking longer than usual. You can check again below."
+          : "SafariPlug is waiting for M-Pesa to confirm the payment before the hotel reservation can be finalized.")
+      }
+      attempts={attempts}
+    />}
     {state === "failed" && <Status title="Hotel booking needs attention" body={error || "The reservation could not be confirmed."} attempts={attempts} />}
     {state === "cancelled" && <><p className="text-sm font-semibold uppercase tracking-wide text-amber-700">Booking cancelled</p><h1 className="mt-2 text-3xl font-bold">{hotelName}</h1><p className="mt-4 text-sm text-gray-600">Supplier cancellation is recorded. Any customer refund due is handled separately and is not automatically issued by this cancellation action.</p></>}
     {state === "confirmed" && <><div className="mb-6 text-4xl">✓</div><p className="text-sm font-semibold uppercase tracking-wide text-green-700">Hotel confirmed</p><h1 className="mt-2 text-3xl font-bold">{hotelName}</h1><div className="mt-6 grid gap-4 rounded-2xl bg-gray-50 p-5 sm:grid-cols-2"><div><p className="text-xs text-gray-500">Check-in</p><p className="font-semibold">{checkIn}</p></div><div><p className="text-xs text-gray-500">Check-out</p><p className="font-semibold">{checkOut}</p></div><div><p className="text-xs text-gray-500">Booking reference</p><p className="font-semibold">{reference}</p></div><div><p className="text-xs text-gray-500">Provider</p><p className="font-semibold capitalize">{provider}</p></div></div>{data?.voucher ? <div className="mt-6 rounded-2xl border p-5"><h2 className="font-semibold">Booking voucher</h2><p className="mt-2 text-sm text-gray-600">Holder: {data.voucher.holder_name || "—"}</p><p className="text-sm text-gray-600">{data.voucher.hotel?.address || ""}</p>{data.voucher.rooms?.map((room, index) => <div key={index} className="mt-3 text-sm text-gray-600"><p>{room.room_type || "Room"} · {room.board_type || "Board"}</p>{room.rate_comments?.map((comment, i) => <p key={i} className="text-xs text-gray-500">{comment}</p>)}</div>)}{data.voucher.payment_notice ? <p className="mt-4 text-xs leading-5 text-gray-500">{data.voucher.payment_notice}</p> : null}</div> : null}{provider === "hotelbeds" ? <div className="mt-6 rounded-2xl border p-5"><h2 className="font-semibold">Manage booking</h2>{!cancelPreview ? <button disabled={cancelling} onClick={previewCancellation} className="mt-3 rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">{cancelling ? "Checking…" : "Preview cancellation"}</button> : <><p className="mt-3 text-sm text-gray-600">Hotelbeds cancellation simulation completed. Review the supplier response before confirming.</p><details className="mt-3 text-xs text-gray-500"><summary>Supplier simulation details</summary><pre className="mt-2 overflow-auto whitespace-pre-wrap">{JSON.stringify(cancelPreview, null, 2)}</pre></details><button disabled={cancelling} onClick={confirmCancellation} className="mt-4 rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{cancelling ? "Cancelling…" : "Confirm cancellation"}</button></>}</div> : null}</>}
     {error && state !== "failed" ? <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-    <div className="mt-8 flex flex-wrap gap-3">{(state === "failed" || (state === "pending" && attempts >= 12)) && <button className="rounded-xl border px-4 py-2 font-medium" onClick={() => window.location.reload()}>Check again</button>}<Link className="rounded-xl bg-black px-4 py-2 font-medium text-white" href={tripId ? `/trips/${encodeURIComponent(tripId)}` : "/trips"}>View my trip</Link><Link className="rounded-xl border px-4 py-2 font-medium" href="/hotels">Find another hotel</Link></div>
+    <div className="mt-8 flex flex-wrap gap-3">{(state === "failed" || (state === "pending" && attempts >= 12)) && <button className="rounded-xl border px-4 py-2 font-medium" onClick={() => window.location.reload()}>Check again</button>}<Link className="rounded-xl bg-black px-4 py-2 font-medium text-white" href={tripId ? `/account/trips/${encodeURIComponent(tripId)}` : "/account/hotels"}>{tripId ? "View my trip" : "My hotel bookings"}</Link><Link className="rounded-xl border px-4 py-2 font-medium" href="/hotels">Find another hotel</Link></div>
   </div></main>;
 }
 

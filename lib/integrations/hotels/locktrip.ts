@@ -191,6 +191,48 @@ function customerCurrency(requested?: string) {
   return (requested || env("SAFARIPLUG_DEFAULT_CURRENCY") || DEFAULT_CUSTOMER_CURRENCY).toUpperCase();
 }
 
+function normalizeLocation(value?: string) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function locationMatchScore(location: Location, destination: string) {
+  const query = normalizeLocation(destination);
+  if (!query) return 0;
+  const candidates = [location.name, location.fullName]
+    .map(normalizeLocation)
+    .filter(Boolean);
+  let score = 0;
+  for (const candidate of candidates) {
+    if (candidate === query) score = Math.max(score, 100);
+    else if (candidate.startsWith(query + " ")) score = Math.max(score, 90);
+    else {
+      const candidateTokens = candidate.split(" ").filter(Boolean);
+      const tokens = query.split(" ").filter(Boolean);
+      const acronym = candidateTokens.map((token) => token[0]).join("");
+      if (query.length >= 3 && !query.includes(" ") && acronym === query) {
+        score = Math.max(score, 85);
+      } else if (tokens.length && tokens.every((token) => candidateTokens.includes(token))) {
+        score = Math.max(score, 70);
+      }
+    }
+  }
+  return score;
+}
+
+function chooseLocation(locations: Location[], destination: string, specific: boolean) {
+  const ranked = locations
+    .filter((item) => item.id != null)
+    .map((item) => ({ item, score: locationMatchScore(item, destination) }))
+    .sort((a, b) => b.score - a.score);
+  if (!ranked.length) return undefined;
+  if (!specific) return ranked[0]?.item;
+  return ranked[0] && ranked[0].score >= 70 ? ranked[0].item : undefined;
+}
+
 async function mapRetailAmount(netPrice: number, supplierCurrency: string, requestedCurrency?: string) {
   const retailSupplier = retailPrice(netPrice);
   const target = customerCurrency(requestedCurrency);
@@ -292,15 +334,29 @@ export class LockTripHotelAdapter implements HotelAdapter {
   async search(request: HotelSearchRequest): Promise<HotelResult<HotelSearchResponse>> {
     try {
       const locations = await this.call<{ locations?: Location[] }>("search_location", { query: request.destination });
-      const location = locations.locations?.find((item) => item.id != null);
-      if (!location) return { ok: false, error: hotelError("bad_request", `LockTrip could not resolve destination: ${request.destination}`, false) };
+      const location = chooseLocation(
+        locations.locations || [],
+        request.destination,
+        request.location_scope !== "destination"
+      );
+      if (!location) {
+        return {
+          ok: false,
+          error: hotelError(
+            "bad_request",
+            `LockTrip could not resolve the specific location: ${request.destination}. Try a neighborhood, landmark, airport, town, or city name.`,
+            false
+          ),
+        };
+      }
+      const regionId = String(location.id);
       const rooms = Array.from({ length: Math.max(1, request.rooms) }, (_, index) => ({
         adults: index === 0 ? Math.max(1, request.adults ?? request.guests) : 1,
         childrenAges: [],
       }));
       const supplierCurrency = DEFAULT_SUPPLIER_CURRENCY;
       const started = await this.call<{ searchKey?: string }>("hotel_search", {
-        regionId: String(location.id),
+        regionId,
         startDate: request.check_in,
         endDate: request.check_out,
         currency: supplierCurrency,
@@ -320,8 +376,64 @@ export class LockTripHotelAdapter implements HotelAdapter {
         });
         if ((result.searchStatus || "").toUpperCase() === "COMPLETED") break;
       }
+      const rawHotels = result.hotels || [];
+      let bookableHotels = rawHotels;
+      if (request.bookable_only !== false && rawHotels.length) {
+        const configuredLimit = Number(env("SAFARIPLUG_HOTEL_LOCKTRIP_BOOKABLE_CHECK_LIMIT") || "18");
+        const checkLimit = Number.isFinite(configuredLimit)
+          ? Math.max(1, Math.min(30, Math.floor(configuredLimit)))
+          : 18;
+        const candidates = rawHotels.slice(0, checkLimit);
+        const verified: Array<{ index: number; hotel: NonNullable<SearchResults["hotels"]>[number] }> = [];
+        let cursor = 0;
+        let completedChecks = 0;
+        let failedChecks = 0;
+
+        async function worker(adapter: LockTripHotelAdapter) {
+          while (cursor < candidates.length) {
+            const index = cursor++;
+            const hotel = candidates[index];
+            if (!hotel || hotel.hotelId == null) continue;
+            try {
+              const roomResult = await adapter.call<RoomsResponse>("get_hotel_rooms", {
+                hotelId: String(hotel.hotelId),
+                searchKey: started.searchKey,
+                startDate: request.check_in,
+                endDate: request.check_out,
+                rooms,
+                nationality: adapter.nationality,
+                regionId,
+                currency: supplierCurrency,
+              });
+              completedChecks += 1;
+              if ((roomResult.packages || []).length > 0) verified.push({ index, hotel });
+            } catch {
+              failedChecks += 1;
+            }
+          }
+        }
+
+        const workerCount = Math.min(6, candidates.length);
+        await Promise.all(Array.from({ length: workerCount }, () => worker(this)));
+
+        if (completedChecks === 0 && failedChecks > 0) {
+          return {
+            ok: false,
+            error: hotelError(
+              "provider_error",
+              "LockTrip could not verify bookable room packages for this search.",
+              true
+            ),
+          };
+        }
+
+        bookableHotels = verified
+          .sort((a, b) => a.index - b.index)
+          .map((entry) => entry.hotel);
+      }
+
       const target = customerCurrency(request.currency);
-      const hotels = await Promise.all((result.hotels || []).map(async (hotel) => {
+      const hotels = await Promise.all(bookableHotels.map(async (hotel) => {
         const supplier = hotel.currency || supplierCurrency;
         const pricing = typeof hotel.minPrice === "number" ? await mapRetailAmount(hotel.minPrice, supplier, target) : null;
         return {
@@ -337,7 +449,7 @@ export class LockTripHotelAdapter implements HotelAdapter {
           source: "supplier" as const,
           supplier_context: {
             search_key: started.searchKey,
-            region_id: String(location.id),
+            region_id: regionId,
             markup_percent: DEFAULT_MARKUP_PERCENT,
             supplier_currency: pricing?.supplierCurrency || supplier,
             customer_currency: pricing?.customerCurrency || target,
@@ -391,6 +503,49 @@ export class LockTripHotelAdapter implements HotelAdapter {
       };
     }));
     return { ...response, packages, pricing: { markupPercent: DEFAULT_MARKUP_PERCENT, supplierCurrency: DEFAULT_SUPPLIER_CURRENCY, customerCurrency: target, displayMode: "retail" as const } };
+  }
+
+  async refreshRooms(input: { hotelId: string; regionId: string; checkIn: string; checkOut: string; rooms: Array<{ adults: number; childrenAges?: number[] }>; currency?: string }) {
+    const started = await this.call<{ searchKey?: string }>("hotel_search", {
+      regionId: input.regionId,
+      startDate: input.checkIn,
+      endDate: input.checkOut,
+      currency: DEFAULT_SUPPLIER_CURRENCY,
+      rooms: input.rooms,
+      nationality: this.nationality,
+    });
+    if (!started.searchKey) throw new Error("Hotel supplier did not return a refreshed search key.");
+
+    let seenSelectedHotel = false;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 500 : 750));
+      const result = await this.call<SearchResults>("get_search_results", {
+        searchKey: started.searchKey,
+        page: 0,
+        size: 100,
+        currency: DEFAULT_SUPPLIER_CURRENCY,
+        sortBy: "PRICE_ASC",
+      });
+      seenSelectedHotel = (result.hotels || []).some((hotel) => String(hotel.hotelId ?? "") === input.hotelId);
+      if (seenSelectedHotel || (result.searchStatus || "").toUpperCase() === "COMPLETED") break;
+    }
+
+    if (!seenSelectedHotel) {
+      return {
+        searchKey: started.searchKey,
+        hotelId: input.hotelId,
+        packages: [],
+        pricing: {
+          markupPercent: DEFAULT_MARKUP_PERCENT,
+          supplierCurrency: DEFAULT_SUPPLIER_CURRENCY,
+          customerCurrency: customerCurrency(input.currency),
+          displayMode: "retail" as const,
+        },
+      };
+    }
+
+    const rooms = await this.getRooms({ ...input, searchKey: started.searchKey });
+    return { ...rooms, searchKey: started.searchKey };
   }
 
   getHotelDetails(hotelId: string, includeImages = true, imageLimit = 30) {

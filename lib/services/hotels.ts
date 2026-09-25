@@ -12,6 +12,7 @@ import {
   type HotelResult,
   type HotelSearchRequest,
   type HotelSearchResult,
+  type HotelSupplierOption,
 } from "@/lib/integrations/hotels/types";
 import { prepareQuote } from "./pricing";
 
@@ -74,6 +75,21 @@ export function parseHotelSearchRequest(
     throw new Error("currency must be a 3-letter code.");
   }
 
+  const locationScopeValue = input.location_scope?.trim().toLowerCase();
+  const location_scope = locationScopeValue === undefined || locationScopeValue === ""
+    ? "specific"
+    : locationScopeValue;
+  if (location_scope !== "specific" && location_scope !== "destination") {
+    throw new Error("location_scope must be specific or destination.");
+  }
+
+  const bookableValue = input.bookable_only?.trim().toLowerCase();
+  let bookable_only = true;
+  if (bookableValue && !["true", "1", "false", "0"].includes(bookableValue)) {
+    throw new Error("bookable_only must be true or false.");
+  }
+  if (bookableValue === "false" || bookableValue === "0") bookable_only = false;
+
   const providerValue = input.provider?.trim().toLowerCase();
   let provider: HotelProviderKey | undefined;
   if (providerValue) {
@@ -94,7 +110,115 @@ export function parseHotelSearchRequest(
     children,
     child_ages: child_ages.length ? child_ages : undefined,
     provider,
+    location_scope,
+    bookable_only,
   };
+}
+
+function normalizeHotelIdentity(value?: string | null) {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function hotelIdentity(result: HotelSearchResult) {
+  return {
+    name: normalizeHotelIdentity(result.property_name),
+    address: normalizeHotelIdentity(
+      typeof result.supplier_context?.address === "string"
+        ? result.supplier_context.address
+        : ""
+    ),
+  };
+}
+
+function compatibleHotelIdentity(a: HotelSearchResult, b: HotelSearchResult) {
+  const left = hotelIdentity(a);
+  const right = hotelIdentity(b);
+  if (!left.name || !right.name || left.name !== right.name) return false;
+  if (left.address && right.address && left.address !== right.address) return false;
+  return true;
+}
+
+function asSupplierOption(result: HotelSearchResult): HotelSupplierOption {
+  return {
+    provider: result.provider,
+    property_id: result.property_id,
+    property_name: result.property_name,
+    room_id: result.room_id,
+    rate_id: result.rate_id,
+    currency: result.currency,
+    total: result.total,
+    cancellation: result.cancellation,
+    availability: result.availability,
+    supplier_context: result.supplier_context,
+  };
+}
+
+function optionRank(result: HotelSearchResult) {
+  const bookable = result.availability === "available" ? 0 : 1;
+  const hasTotal = result.total && Number.isFinite(result.total.amount) ? 0 : 1;
+  const total = result.total && Number.isFinite(result.total.amount)
+    ? result.total.amount
+    : Number.POSITIVE_INFINITY;
+  return [bookable, hasTotal, total] as const;
+}
+
+function isBetterHotelOption(candidate: HotelSearchResult, current: HotelSearchResult) {
+  const a = optionRank(candidate);
+  const b = optionRank(current);
+  if (a[0] !== b[0]) return a[0] < b[0];
+  if (a[1] !== b[1]) return a[1] < b[1];
+
+  if (
+    candidate.total &&
+    current.total &&
+    candidate.total.currency === current.total.currency &&
+    candidate.total.amount !== current.total.amount
+  ) {
+    return candidate.total.amount < current.total.amount;
+  }
+
+  return false;
+}
+
+export function dedupeHotelResults(results: HotelSearchResult[]): HotelSearchResult[] {
+  const groups: HotelSearchResult[][] = [];
+  for (const result of results) {
+    const matchingGroup = groups.find((group) =>
+      group.some((existing) => compatibleHotelIdentity(existing, result))
+    );
+    if (matchingGroup) matchingGroup.push(result);
+    else groups.push([result]);
+  }
+
+  return groups.map((group) => {
+    let selected = group[0];
+    for (const candidate of group.slice(1)) {
+      if (isBetterHotelOption(candidate, selected)) selected = candidate;
+    }
+
+    const supplierOptions = group
+      .map(asSupplierOption)
+      .sort((a, b) => {
+        if (a.total && b.total && a.total.currency === b.total.currency) {
+          return a.total.amount - b.total.amount;
+        }
+        if (a.total && !b.total) return -1;
+        if (!a.total && b.total) return 1;
+        return a.provider.localeCompare(b.provider);
+      });
+
+    return {
+      ...selected,
+      supplier_options: supplierOptions.length > 1 ? supplierOptions : undefined,
+    };
+  });
 }
 
 export function mapSupplierQuote(request: HotelQuoteRequest): HotelQuoteResponse {
@@ -144,7 +268,7 @@ export async function searchHotels(
     const result = await adapter.search(request);
     if (result.ok) collected.push(...result.data.results);
   }
-  return { ok: true, data: { results: collected } };
+  return { ok: true, data: { results: dedupeHotelResults(collected) } };
 }
 
 export async function hotelAvailability(

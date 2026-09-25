@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { OutreachPanel } from "./outreach-panel";
 import { loadProspectOutreachHistory } from "../../invitations/history";
+import { resolveStablePartnerIdForProspect } from "@/lib/services/crm-partner-link";
 import {
   approveSalesProspect,
   rejectSalesProspect,
@@ -26,14 +27,19 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     return <main className="min-h-screen bg-[#070707] p-8 text-white"><Link href="/admin/crm" className="text-amber-400">← CRM</Link><p className="mt-8">Prospect not found.</p></main>;
   }
 
-  const [{ data: partner }, { data: contacts, error: ce }, { data: activities, error: ae }, { data: followups, error: fe }, { data: conversions, error: xe }, outreach] = await Promise.all([
-    supabaseAdmin.from("safari_partners").select("id,outreach_stage").eq("venue_or_promoter_name", p.business_name).maybeSingle(),
-    supabaseAdmin.from("crm_contacts").select("id,full_name,job_title,email,phone,linkedin_url,source_url,notes,is_primary,verification_status,created_at").eq("prospect_id", id).order("is_primary", { ascending: false }).order("created_at"),
+  const [{ data: supplier }, { data: contacts, error: ce }, { data: activities, error: ae }, { data: followups, error: fe }, { data: conversions, error: xe }, outreach] = await Promise.all([
+    supabaseAdmin.from("supplier_accounts").select("id,partner_id,onboarding_status,completion_percent").eq("prospect_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from("crm_contacts").select("id,full_name,job_title,email,phone,linkedin_url,source_url,notes,is_primary,verification_status,created_at,partner_id").eq("prospect_id", id).order("is_primary", { ascending: false }).order("created_at"),
     supabaseAdmin.from("crm_activities").select("id,activity_type,summary,details,occurred_at").eq("prospect_id", id).order("occurred_at", { ascending: false }).limit(30),
     supabaseAdmin.from("crm_followups").select("id,title,due_at,status,priority,notes").eq("prospect_id", id).order("due_at"),
     supabaseAdmin.from("crm_conversions").select("id,outcome,source,notes,occurred_at").eq("prospect_id", id).order("occurred_at", { ascending: false }).limit(20),
     loadProspectOutreachHistory(id),
   ]);
+
+  const stablePartnerId = await resolveStablePartnerIdForProspect(id);
+  const { data: partner } = stablePartnerId
+    ? await supabaseAdmin.from("safari_partners").select("id,outreach_stage").eq("id", stablePartnerId).maybeSingle()
+    : { data: null };
 
   const open = (followups || []).filter((x) => x.status === "open");
   const overdue = open.filter((x) => new Date(x.due_at) < new Date());
@@ -60,16 +66,27 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
         <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <Metric l="Opportunity" v={`${Number(p.opportunity_score || 0)}%`} />
-          <Metric l="Relationship" v={partner?.outreach_stage?.replaceAll("_", " ") || "Not enrolled"} />
+          <Metric l="Relationship" v={partner?.outreach_stage?.replaceAll("_", " ") || (supplier ? "Supplier onboarding" : "Not enrolled")} />
           <Metric l="Latest outcome" v={latest?.outcome?.replaceAll("_", " ") || "None"} />
           <Metric l="Named contacts" v={String(contacts?.length || 0)} />
           <Metric l="Open follow-ups" v={String(open.length)} />
           <Metric l="Overdue" v={String(overdue.length)} />
         </section>
 
+        {supplier ? <section className="mt-6 rounded-2xl border border-emerald-900/50 bg-emerald-950/10 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.18em] text-emerald-400/70">Supplier handoff</p>
+              <h2 className="mt-1 text-lg font-semibold">This prospect is linked to supplier onboarding.</h2>
+              <p className="mt-1 text-sm text-zinc-400">{supplier.completion_percent || 0}% complete · {supplier.onboarding_status.replaceAll("_", " ")}</p>
+            </div>
+            <Link href={`/admin/ai-sales/partners/${supplier.id}`} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold">Open Partner 360 →</Link>
+          </div>
+        </section> : null}
+
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
           <div className="space-y-5">
-            <OutreachPanel prospectId={id} invitations={outreach.invitations} canDraft={canDraftOutreach} />
+            <OutreachPanel prospectId={id} invitations={outreach.invitations} canDraft={canDraftOutreach} approved={p.review_status === "approved"} />
 
             <Panel t="Follow-up intelligence">
               {overdue.length > 0 && <div className="mb-4 rounded-xl border border-red-900/60 bg-red-950/20 p-3 text-sm text-red-300">{overdue.length} follow-up{overdue.length === 1 ? " is" : "s are"} overdue and needs attention.</div>}

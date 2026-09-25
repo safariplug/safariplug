@@ -1,5 +1,5 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -23,11 +23,12 @@ export async function proxy(request: NextRequest) {
   );
 
   const pathname = request.nextUrl.pathname;
-  const isAdminRoute =
-    pathname === '/admin' || pathname.startsWith('/admin/');
-  const isLoginRoute = pathname === '/admin/login';
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+  const isStaffRoute = pathname === "/staff" || pathname.startsWith("/staff/");
+  const isAccountRoute = pathname === "/account" || pathname.startsWith("/account/");
+  const isLoginRoute = pathname === "/admin/login" || pathname === "/staff/login";
 
-  if (!isAdminRoute || isLoginRoute) {
+  if ((!isAdminRoute && !isStaffRoute && !isAccountRoute) || isLoginRoute) {
     return response;
   }
 
@@ -36,29 +37,37 @@ export async function proxy(request: NextRequest) {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) {
+  if (userError || !user || user.is_anonymous) {
     const url = request.nextUrl.clone();
-    url.pathname = '/admin/login';
-    url.search = '';
+    if (isAccountRoute) {
+      url.pathname = "/login";
+      url.search = `next=${encodeURIComponent(pathname)}`;
+    } else {
+      url.pathname = isStaffRoute ? "/staff/login" : "/admin/login";
+      url.search = "";
+    }
     return NextResponse.redirect(url);
   }
 
-  // Keep the proxy in sync with the canonical server-side admin check.
-  // Admin access is stored in public.admin_users and verified by the
-  // SECURITY INVOKER public.is_admin() RPC, not by JWT app_metadata.
-  const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin');
+  if (isAccountRoute) {
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  }
 
-  if (adminError || isAdmin !== true) {
+  const rpcName = isStaffRoute ? "is_staff_portal_user" : "is_admin";
+  const { data: allowed, error: accessError } = await supabase.rpc(rpcName);
+
+  if (accessError || allowed !== true) {
     const url = request.nextUrl.clone();
-    url.pathname = '/admin/login';
-    url.search = '';
+    url.pathname = isStaffRoute ? "/staff/login" : "/admin/login";
+    url.search = "error=access_denied";
     return NextResponse.redirect(url);
   }
 
-  response.headers.set('Cache-Control', 'private, no-store');
+  response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ["/admin/:path*", "/staff/:path*", "/account/:path*"],
 };

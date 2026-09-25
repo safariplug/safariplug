@@ -6,6 +6,7 @@ import LuxuryImage from "@/components/LuxuryImage";
 import { ShareButton } from "@/components/pwa/ShareButton";
 import AddToTripButton from "./AddToTripButton";
 import SaveExperienceButton from "../SaveExperienceButton";
+import GrowthProductView from "@/components/growth/GrowthProductView";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +28,7 @@ type Event = {
   booking_url: string | null;
   source_url: string | null;
   organizer_name: string | null;
+  city: { name: string; country: string | null } | null;
 };
 
 function formatDate(date: string) {
@@ -85,7 +87,7 @@ export default async function EventPage({
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id,title,description,category,start_at,end_at,venue_name,venue_address,price,currency,image_url,booking_url,source_url,organizer_name,status",
+      "id,title,description,category,start_at,end_at,venue_name,venue_address,price,currency,image_url,booking_url,source_url,organizer_name,status,cities(name,country)",
     )
     .eq("id", eventId)
     .eq("status", "approved")
@@ -96,10 +98,26 @@ export default async function EventPage({
     notFound();
   }
 
-  const event = data as Event;
+  const relatedCity = Array.isArray(data.cities) ? data.cities[0] : data.cities;
+  const event = {
+    ...data,
+    city:
+      relatedCity && typeof relatedCity.name === "string" && relatedCity.name.trim()
+        ? {
+            name: relatedCity.name.trim(),
+            country: typeof relatedCity.country === "string" ? relatedCity.country : null,
+          }
+        : null,
+  } as Event;
 
   return (
     <main className="min-h-screen bg-black p-8 text-white md:p-16">
+      <GrowthProductView
+        productId={event.id}
+        productType="event"
+        category={event.category}
+        destination={event.city?.name || null}
+      />
       <header className="border-b border-white/10 bg-[#0b0b0d]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <Link href="/" className="text-3xl font-black text-white">

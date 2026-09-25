@@ -16,11 +16,19 @@ function tone(status: string) {
   return "border-amber-200 bg-amber-50 text-amber-900";
 }
 
-export default async function TravelerVerificationPage() {
+function safeReturnPath(value: string | undefined) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "";
+  return value;
+}
+
+export default async function TravelerVerificationPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const { next } = await searchParams;
+  const returnPath = safeReturnPath(next);
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) {
-    redirect("/login?next=/account/verification");
+    const verificationPath = `/account/verification${returnPath ? `?next=${encodeURIComponent(returnPath)}` : ""}`;
+    redirect(`/login?next=${encodeURIComponent(verificationPath)}`);
   }
 
   const [{ data: current }, providers] = await Promise.all([
@@ -140,6 +148,14 @@ export default async function TravelerVerificationPage() {
             status={verified ? "approved" : current?.status || null}
             automatedReady={automatedReady}
           />
+          {verified && returnPath ? (
+            <Link
+              href={returnPath}
+              className="mt-5 inline-flex rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white"
+            >
+              Return to booking →
+            </Link>
+          ) : null}
         </section>
 
         <section className="mt-6 rounded-[2rem] bg-white p-7 shadow-sm">

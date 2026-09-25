@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { emitBrowserGrowthEvent } from "@/lib/growth/browser-events";
 
 type EventSearchProps = {
   initialSearch?: string;
@@ -28,6 +29,18 @@ export default function EventSearch({
     }
 
     const query = params.toString();
+
+    if (value) {
+      void emitBrowserGrowthEvent({
+        event_type: "SEARCH",
+        query: value,
+        category: "events",
+        product_type: "event",
+        metadata: {
+          filter: "text_search",
+        },
+      });
+    }
 
     router.push(query ? `/events?${query}` : "/events");
   }

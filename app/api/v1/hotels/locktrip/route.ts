@@ -6,6 +6,7 @@ import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { publicHotelCheckoutLedger } from "@/lib/integrations/hotels/hotel-public-ledger";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 import { hotelPaymentSafeToRetry, normalizeHotelCheckoutIntentKey, publicHotelCheckoutIntentStatus } from "@/lib/integrations/hotels/hotel-payment-safety";
+import { emitConfirmedHotelBooking, emitHotelBookingStart } from "@/lib/growth/hotel-events";
 
 export const dynamic = "force-dynamic";
 const RETAIL_MARKUP_PERCENT = 10;
@@ -26,7 +27,8 @@ export async function POST(request: Request) {
   try {
     if (action === "rooms") { const hotelId = String(body.hotelId || ""), searchKey = String(body.searchKey || ""), regionId = String(body.regionId || ""), checkIn = String(body.checkIn || ""), checkOut = String(body.checkOut || ""), rooms = Array.isArray(body.rooms) ? body.rooms : []; if (!hotelId || !searchKey || !regionId || !checkIn || !checkOut || rooms.length === 0) return errorResponse(400, "hotelId, searchKey, regionId, checkIn, checkOut and rooms are required."); const data = await adapter.getRooms({ hotelId, searchKey, regionId, checkIn, checkOut, rooms: rooms as Array<{ adults: number; childrenAges?: number[] }>, currency: typeof body.currency === "string" ? body.currency : DEFAULT_CUSTOMER_CURRENCY }); return NextResponse.json({ provider: "locktrip", ...data }); }
     if (action === "prepare") {
-      const email = user.email || String(body.email || "");
+      const contactPerson = body.contactPerson && typeof body.contactPerson === "object" && !Array.isArray(body.contactPerson) ? body.contactPerson as Record<string, unknown> : {};
+      const email = String(body.email || contactPerson.email || user.email || "").trim();
       if (!email) return errorResponse(400, "A customer email is required.");
       const quoteId = String(body.quoteId || "");
       const searchKey = String(body.searchKey || "");
@@ -113,6 +115,14 @@ export async function POST(request: Request) {
         }
         throw new Error(intentError?.message || "Unable to initialize LockTrip checkout.");
       }
+
+      await emitHotelBookingStart({
+        provider: "locktrip",
+        intentId: String(intent.id),
+        productId: `hotel-locktrip-${String(body.hotelId || quoteId)}`,
+        checkIn: typeof body.checkIn === "string" ? body.checkIn : null,
+        checkOut: typeof body.checkOut === "string" ? body.checkOut : null,
+      });
 
       const supplierStartedAt = new Date().toISOString();
       const { data: supplierClaim, error: supplierClaimError } = await supabaseAdmin
@@ -288,7 +298,7 @@ export async function POST(request: Request) {
           appointmentId: ledger.id,
           amount: converted.amount,
           currency: customerCurrency,
-          customerEmail: user.email,
+          customerEmail: email,
           customerPhone,
           returnUrl: `${SITE_URL}/hotels/booking-result?bookingId=${encodeURIComponent(booking.preparedBookingId)}`,
           idempotencyKey: `hotel-locktrip:${intentKey}`,
@@ -398,6 +408,19 @@ export async function POST(request: Request) {
         else { updates.booking_status = cancelled ? "cancelled" : "failed"; updates.supplier_settlement_status = "failed"; }
         const { data: updatedLedger, error: updateError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update(updates).eq("id", workingLedger.id).eq("customer_user_id", user.id).select("*").single(); if (updateError) throw new Error(updateError.message);
         const storedTripId = typeof metadata.tripId === "string" ? metadata.tripId : null, tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : storedTripId; let itineraryItem = null; if (confirmed && tripId) itineraryItem = await attachConfirmedHotelToTrip({ supabase, userId: user.id, tripId, ledgerId: workingLedger.id, hotelName: details.hotel?.name || "Hotel stay", checkIn: details.checkIn || null, checkOut: details.checkOut || null, providerReference: details.bookingReferenceId || null, cityId: null });
+        if (confirmed) {
+          await emitConfirmedHotelBooking({
+            provider: "locktrip",
+            ledgerId: String(updatedLedger?.id || workingLedger.id),
+            productId: `hotel-locktrip-${String(metadata.hotelId || workingLedger.quote_id || preparedBookingId)}`,
+            confirmationRef: details.bookingReferenceId || null,
+            value: Number(updatedLedger?.customer_retail_amount ?? workingLedger.customer_retail_amount ?? 0),
+            currency: String(updatedLedger?.customer_currency || workingLedger.customer_currency || workingLedger.currency || "KES"),
+            hotelName: details.hotel?.name || "Hotel stay",
+            checkIn: details.checkIn || null,
+            checkOut: details.checkOut || null,
+          });
+        }
         return NextResponse.json({ provider: "locktrip", status: confirmed ? "confirmed" : String(updates.booking_status), providerBooking: details, ledger: publicHotelCheckoutLedger(updatedLedger), itineraryItem });
       }
       const alreadyAccepted = typeof metadata.confirmAcceptedAt === "string";
@@ -426,6 +449,19 @@ export async function POST(request: Request) {
       if (refreshedConfirmed) { finalUpdates.payment_status = "paid"; finalUpdates.booking_status = "confirmed"; finalUpdates.supplier_settlement_status = "settled"; finalUpdates.provider_booking_reference = refreshedDetails.bookingReferenceId || null; finalUpdates.paid_at = refreshedDetails.confirmedAt || workingLedger.paid_at || new Date().toISOString(); finalUpdates.confirmed_at = refreshedDetails.confirmedAt || new Date().toISOString(); }
       const { data: finalLedger, error: finalError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update(finalUpdates).eq("id", workingLedger.id).eq("customer_user_id", user.id).select("*").single(); if (finalError) throw new Error(finalError.message);
       const storedTripId = typeof latestMetadata.tripId === "string" ? latestMetadata.tripId : null, tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : storedTripId; let itineraryItem = null; if (refreshedConfirmed && tripId) itineraryItem = await attachConfirmedHotelToTrip({ supabase, userId: user.id, tripId, ledgerId: workingLedger.id, hotelName: refreshedDetails.hotel?.name || "Hotel stay", checkIn: refreshedDetails.checkIn || null, checkOut: refreshedDetails.checkOut || null, providerReference: refreshedDetails.bookingReferenceId || null, cityId: null });
+      if (refreshedConfirmed) {
+        await emitConfirmedHotelBooking({
+          provider: "locktrip",
+          ledgerId: String(finalLedger?.id || workingLedger.id),
+          productId: `hotel-locktrip-${String(latestMetadata.hotelId || workingLedger.quote_id || preparedBookingId)}`,
+          confirmationRef: refreshedDetails.bookingReferenceId || null,
+          value: Number(finalLedger?.customer_retail_amount ?? workingLedger.customer_retail_amount ?? 0),
+          currency: String(finalLedger?.customer_currency || workingLedger.customer_currency || workingLedger.currency || "KES"),
+          hotelName: refreshedDetails.hotel?.name || "Hotel stay",
+          checkIn: refreshedDetails.checkIn || null,
+          checkOut: refreshedDetails.checkOut || null,
+        });
+      }
       return NextResponse.json({ provider: "locktrip", status: refreshedConfirmed ? "confirmed" : "payment_pending", supplierStatus: refreshedConfirmed ? "settled" : alreadyAccepted ? "confirmation_accepted_awaiting_supplier" : alreadyIndeterminate ? "confirmation_pending_recheck" : alreadyRefused ? "credit_line_refused" : "confirmation_pending", providerBooking: refreshedDetails, ledger: publicHotelCheckoutLedger(finalLedger), itineraryItem });
     }
     return errorResponse(400, "Unsupported LockTrip action.");
