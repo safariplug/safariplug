@@ -69,7 +69,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const ctx = await supplierContext();
   if (!ctx) return NextResponse.json({ error: "Supplier authentication required." }, { status: 401 });
-  if (["approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
+  if (["submitted", "approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: ctx.account.onboarding_status === "submitted" ? "This profile is locked while SafariPlug reviews your submission." : "This profile is locked after approval." }, { status: 409 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const businessUpdate: Record<string, unknown> = {};
   for (const key of ["name","description","address","latitude","longitude","phone","whatsapp","website_url","instagram_url","facebook_url","tiktok_url","logo_url","cover_image_url","supplier_contact_name","supplier_gallery_urls"]) if (body && key in body) businessUpdate[key] = body[key];
