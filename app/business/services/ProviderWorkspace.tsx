@@ -37,7 +37,7 @@ export default function ProviderWorkspace({ business, profile, category, categor
 
   async function act(payload:any) {
     setBusy(true); setMessage("");
-    try { const r=await fetch("/api/business/services/manage",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...payload,serviceProfileId:profile?.id})}); const j=await r.json(); if(!r.ok) throw new Error(j.error||"Something went wrong"); setMessage("Saved. Refreshing your workspace…"); window.location.reload(); }
+    try { const r=await fetch("/api/business/services/manage",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...payload,serviceProfileId:profile?.id})}); const j=await r.json(); if(!r.ok) throw new Error(j.error||"Something went wrong"); setMessage(j.message||"Saved. Refreshing your workspace…"); if(j.reviewPending){window.setTimeout(()=>window.location.reload(),1200);}else{window.location.reload();} }
     catch(e){setMessage(e instanceof Error?e.message:"Unable to save");} finally{setBusy(false);}
   }
 
