@@ -95,7 +95,7 @@ export async function submitDriverApplication(formData: FormData) {
       if (availabilityError) throw new Error(availabilityError.message);
     }
 
-    const { data: verificationCase, error: verificationError } = await supabaseAdmin.from("verification_cases").insert({ subject_type: "driver", subject_id: driver.id, status: "pending", verification_level: "enhanced", provider: "ai_document_verification", notes: "AI document verification will assess the license, vehicle registration and insurance. Ambiguous results require human review. Mandatory live face/liveness verification remains required before driver approval and booking eligibility." }).select("id").single();
+    const { data: verificationCase, error: verificationError } = await supabaseAdmin.from("verification_cases").insert({ subject_type: "driver", subject_id: driver.id, status: "pending", verification_level: "enhanced", provider: "ai_document_verification", notes: "AI document verification will assess the license, vehicle registration and insurance. Ambiguous results require human review. Driver approval still requires an approved SafariPlug identity-verification path; documents alone cannot make the driver bookable." }).select("id").single();
     if (verificationError || !verificationCase) throw new Error(verificationError?.message ?? "Unable to create verification case.");
 
     const [licenseResult, registrationResult, insuranceResult] = await Promise.all([
@@ -113,13 +113,7 @@ export async function submitDriverApplication(formData: FormData) {
     const note = allDocumentsApproved ? "AI document verification passed all three required documents. Awaiting approved SafariPlug identity verification; documents alone cannot approve the driver." : "One or more documents require human review. Driver remains non-bookable until document review and approved SafariPlug identity verification are complete.";
     const { error: caseUpdateError } = await supabaseAdmin.from("verification_cases").update({ status: "in_review", notes: note, updated_at: new Date().toISOString() }).eq("id", verificationCase.id);
     if (caseUpdateError) throw new Error(caseUpdateError.message);
-  } catch (error) {
-    if (uploadedPaths.length) await supabaseAdmin.storage.from("driver-verification").remove(uploadedPaths);
-    if (profilePhotoPath) await supabaseAdmin.storage.from("driver-profile-photos").remove([profilePhotoPath]);
-    await supabaseAdmin.auth.admin.deleteUser(userId, true);
-    const message = error instanceof Error ? error.message : "Unable to submit application.";
-    redirect(`/driver/signup?error=${encodeURIComponent(message)}`);
-  }
+
     const appUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.safariplug.com";
     const redirectTo = `${appUrl.replace(/\/$/, "")}/auth/confirm?next=${encodeURIComponent("/driver/application")}`;
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
