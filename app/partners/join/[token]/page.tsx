@@ -2,27 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-
-const SUPPLIER_INVITATION_TYPES: Record<string, { businessType: string; category?: string }> = {
-  "massage / wellness": { businessType: "Spa & Massage", category: "Spas & Massage" },
-  "barber / grooming": { businessType: "Barber", category: "Barbers" },
-  "nails / beauty": { businessType: "Nails", category: "Nails" },
-  tattoo: { businessType: "Tattoo & Body Art", category: "Tattoo Artists & Body Art" },
-  "diving / watersports": { businessType: "Diving & Marine", category: "Diving & Marine" },
-  "kitesurfing / instructor": { businessType: "Water Sports & Kite", category: "Water Sports & Kite" },
-  "restaurant / food": { businessType: "Restaurant" },
-  "hotel / stay": { businessType: "Hotel" },
-  "tour / experience": { businessType: "Tour Operator", category: "Tours & Local Guides" },
-};
-
-function destination(type: string) {
-  const t = type.toLowerCase();
-  if (SUPPLIER_INVITATION_TYPES[t]) return "/supplier/onboarding";
-  if (t.includes("driver") || t.includes("transfer")) return "/driver/signup";
-  if (t.includes("local")) return "/locals/onboarding";
-  if (t.includes("restaurant") || t.includes("food") || t.includes("hotel") || t.includes("stay") || t.includes("tour") || t.includes("experience")) return "/supplier/onboarding";
-  return "/business/services";
-}
+import { invitationDestination, invitationEnrollmentKind, resolveSupplierInvitationConfig } from "@/lib/suppliers/invitation-config";
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 72);
@@ -53,7 +33,7 @@ async function preflightSupplierEnrollment(userId: string, invitation: StableEnr
 }
 
 async function provisionSupplierEnrollment(user: { id: string; email?: string | null }, invitation: { id: string; business_name: string; partner_type: string; prospect_id?: string | null; partner_id?: string | null }) {
-  const config = SUPPLIER_INVITATION_TYPES[invitation.partner_type.toLowerCase()];
+  const config = resolveSupplierInvitationConfig(invitation.partner_type);
   if (!config) return false;
 
   const { data: existingSupplier, error: supplierLookupError } = await supabaseAdmin
@@ -156,6 +136,12 @@ export default async function Page({ params }: { params: Promise<{ token: string
     .maybeSingle();
   if (!invitation) notFound();
 
+  const enrollmentKind = invitationEnrollmentKind(invitation.partner_type);
+  const href = invitationDestination(invitation.partner_type);
+  if (enrollmentKind === "unsupported" || !href) {
+    return <main className="mx-auto max-w-2xl p-6 py-16"><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug Partner Invitation</p><h1 className="mt-4 text-4xl font-semibold">This invitation needs SafariPlug review.</h1><p className="mt-5 text-black/60">Your invitation is valid, but its supplier category has not been mapped to a safe onboarding flow yet. SafariPlug staff must classify the supplier before account enrollment continues. Please do not create a second account.</p><p className="mt-5 rounded-2xl bg-black/[.04] p-4 text-sm text-black/55">Invitation type: {invitation.partner_type || "Unclassified"}</p></main>;
+  }
+
   if (!invitation.opened_at) {
     await supabaseAdmin.from("partner_invitations").update({ opened_at: new Date().toISOString(), status: invitation.status === "sent" ? "opened" : invitation.status }).eq("id", invitation.id);
   }
@@ -231,6 +217,5 @@ export default async function Page({ params }: { params: Promise<{ token: string
     }
   }
 
-  const href = destination(invitation.partner_type);
   return <main className="mx-auto max-w-2xl p-6 py-16"><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">Enrollment started</p><h1 className="mt-4 text-4xl font-semibold">Welcome to SafariPlug, {invitation.business_name}.</h1><p className="mt-5 text-black/60">Your account is linked to this invitation. Continue into the existing onboarding flow for {invitation.partner_type}. Your listing will not become verified or public until the applicable requirements are completed.</p><Link href={href} className="mt-8 inline-flex rounded-full bg-black px-6 py-3 font-semibold text-white">Continue onboarding →</Link></main>;
 }
