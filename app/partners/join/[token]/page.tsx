@@ -136,14 +136,18 @@ export default async function Page({ params }: { params: Promise<{ token: string
     .maybeSingle();
   if (!invitation) notFound();
 
+  if (!invitation.opened_at) {
+    await supabaseAdmin.from("partner_invitations").update({ opened_at: new Date().toISOString(), status: invitation.status === "sent" ? "opened" : invitation.status }).eq("id", invitation.id);
+  }
+
   const enrollmentKind = invitationEnrollmentKind(invitation.partner_type);
   const href = invitationDestination(invitation.partner_type);
   if (enrollmentKind === "unsupported" || !href) {
     return <main className="mx-auto max-w-2xl p-6 py-16"><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug Partner Invitation</p><h1 className="mt-4 text-4xl font-semibold">This invitation needs SafariPlug review.</h1><p className="mt-5 text-black/60">Your invitation is valid, but its supplier category has not been mapped to a safe onboarding flow yet. SafariPlug staff must classify the supplier before account enrollment continues. Please do not create a second account.</p><p className="mt-5 rounded-2xl bg-black/[.04] p-4 text-sm text-black/55">Invitation type: {invitation.partner_type || "Unclassified"}</p></main>;
   }
 
-  if (!invitation.opened_at) {
-    await supabaseAdmin.from("partner_invitations").update({ opened_at: new Date().toISOString(), status: invitation.status === "sent" ? "opened" : invitation.status }).eq("id", invitation.id);
+  if (invitation.status === "declined") {
+    return <main className="mx-auto max-w-2xl p-6 py-16"><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug Partner Invitation</p><h1 className="mt-4 text-4xl font-semibold">This enrollment is closed.</h1><p className="mt-5 text-black/60">SafariPlug has closed this supplier enrollment. This invitation cannot restart onboarding. Contact SafariPlug if the business should be reviewed again.</p></main>;
   }
 
   const supabase = await createSupabaseServerClient();
@@ -191,9 +195,17 @@ export default async function Page({ params }: { params: Promise<{ token: string
   const provisioned = await provisionSupplierEnrollment(user, invitation);
   if (provisioned) {
     const onboardingAt = new Date().toISOString();
-    await supabaseAdmin.from("partner_invitations").update({ status: "onboarding", updated_at: onboardingAt }).eq("id", invitation.id).eq("onboarded_user_id", user.id);
+    const { data: transitioned, error: transitionError } = await supabaseAdmin
+      .from("partner_invitations")
+      .update({ status: "onboarding", updated_at: onboardingAt })
+      .eq("id", invitation.id)
+      .eq("onboarded_user_id", user.id)
+      .eq("status", "signup_started")
+      .select("id")
+      .maybeSingle();
+    if (transitionError) throw new Error(transitionError.message);
 
-    if (invitation.prospect_id) {
+    if (transitioned?.id && invitation.prospect_id) {
       const { error: followupError } = await supabaseAdmin
         .from("crm_followups")
         .update({ status: "completed", completed_at: onboardingAt, updated_at: onboardingAt })
@@ -206,7 +218,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
       }
     }
 
-    if (invitation.status !== "onboarding" && (invitation.prospect_id || invitation.partner_id)) {
+    if (transitioned?.id && (invitation.prospect_id || invitation.partner_id)) {
       await supabaseAdmin.from("crm_activities").insert({
         prospect_id: invitation.prospect_id || null,
         partner_id: invitation.partner_id || null,
@@ -215,6 +227,10 @@ export default async function Page({ params }: { params: Promise<{ token: string
         details: `Invitation ${invitation.id} entered supplier onboarding.`,
       });
     }
+  }
+
+  if (invitation.status === "active" && enrollmentKind === "supplier") {
+    return <main className="mx-auto max-w-2xl p-6 py-16"><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">SafariPlug Partner</p><h1 className="mt-4 text-4xl font-semibold">Your partner account is already active.</h1><p className="mt-5 text-black/60">This invitation has already completed enrollment. Reopening the old invitation does not restart onboarding or change your activation status.</p><Link href="/supplier" className="mt-8 inline-flex rounded-full bg-black px-6 py-3 font-semibold text-white">Open supplier portal →</Link></main>;
   }
 
   return <main className="mx-auto max-w-2xl p-6 py-16"><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">Enrollment started</p><h1 className="mt-4 text-4xl font-semibold">Welcome to SafariPlug, {invitation.business_name}.</h1><p className="mt-5 text-black/60">Your account is linked to this invitation. Continue into the existing onboarding flow for {invitation.partner_type}. Your listing will not become verified or public until the applicable requirements are completed.</p><Link href={href} className="mt-8 inline-flex rounded-full bg-black px-6 py-3 font-semibold text-white">Continue onboarding →</Link></main>;
