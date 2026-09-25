@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { postAuthDestination } from "@/lib/auth/post-auth-destination";
 
 export default function StaffLoginPage() {
   const router = useRouter();
@@ -29,7 +30,10 @@ export default function StaffLoginPage() {
       return;
     }
 
-    const { data: allowed, error: accessError } = await supabase.rpc("is_staff_portal_user");
+    const [{ data: allowed, error: accessError }, { data: isAdmin }] = await Promise.all([
+      supabase.rpc("is_staff_portal_user"),
+      supabase.rpc("is_admin"),
+    ]);
     if (accessError || allowed !== true) {
       await supabase.auth.signOut();
       setError("This account is not authorized for the SafariPlug staff portal.");
@@ -37,7 +41,7 @@ export default function StaffLoginPage() {
       return;
     }
 
-    router.replace("/staff");
+    router.replace(postAuthDestination({ isAdmin: isAdmin === true, isStaff: true }));
     router.refresh();
   }
 
