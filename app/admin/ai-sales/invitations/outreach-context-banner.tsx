@@ -14,6 +14,7 @@ export async function OutreachContextBanner({ prospectId }: { prospectId?: strin
           <h2 className="mt-2 text-lg font-semibold">{context.businessName}</h2>
           <p className="mt-1 text-sm text-zinc-400">{context.partnerType} · {context.contactEmail || context.whatsappPhone || "No contact method recorded"}</p>
           <p className="mt-2 text-xs text-zinc-500">{context.contactSource === "discovered_business_email" ? "Using a discovered public business email. No named decision-maker is being inferred." : context.contactSource === "crm_contact" ? "Using a governed CRM contact." : "No governed outreach channel is available yet."}</p>
+          {context.linkageError ? <p className="mt-3 rounded-xl border border-red-900/60 bg-red-950/30 p-3 text-xs leading-5 text-red-300">CRM linkage needs staff review before a new invitation can be created. {context.linkageError}</p> : null}
           <p className="mt-1 text-xs text-zinc-600">Facts are resolved server-side. Missing information is never invented.</p>
         </div>
         <Link href={`/admin/ai-sales/edit/${encodeURIComponent(prospectId)}`} className="text-sm font-semibold text-amber-400">Back to Organization 360 →</Link>
