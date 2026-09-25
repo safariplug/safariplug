@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { postAuthDestination } from "@/lib/auth/post-auth-destination";
 
 type AccountPath = "traveler" | "partner" | "local";
 
@@ -56,7 +57,17 @@ export default function LoginPage() {
       }
       const { error: loginError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (loginError) throw loginError;
-      router.replace(destination()); router.refresh();
+      const [{ data: isAdmin }, { data: isStaff }] = await Promise.all([
+        supabase.rpc("is_admin"),
+        supabase.rpc("is_staff_portal_user"),
+      ]);
+      router.replace(postAuthDestination({
+        isAdmin: isAdmin === true,
+        isStaff: isStaff === true,
+        next: suppliedNext || null,
+        accountIntent: accountPath,
+      }));
+      router.refresh();
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to continue. Please try again."); }
     finally { setLoading(false); }
   }

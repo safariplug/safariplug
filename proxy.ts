@@ -43,7 +43,7 @@ export async function proxy(request: NextRequest) {
       url.pathname = "/login";
       url.search = `next=${encodeURIComponent(pathname)}`;
     } else {
-      url.pathname = isStaffRoute ? "/staff/login" : "/admin/login";
+      url.pathname = "/staff/login";
       url.search = "";
     }
     return NextResponse.redirect(url);
@@ -54,14 +54,23 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const rpcName = isStaffRoute ? "is_staff_portal_user" : "is_admin";
-  const { data: allowed, error: accessError } = await supabase.rpc(rpcName);
-
-  if (accessError || allowed !== true) {
-    const url = request.nextUrl.clone();
-    url.pathname = isStaffRoute ? "/staff/login" : "/admin/login";
-    url.search = "error=access_denied";
-    return NextResponse.redirect(url);
+  if (isAdminRoute) {
+    const { data: isAdmin, error: adminError } = await supabase.rpc("is_admin");
+    if (adminError || isAdmin !== true) {
+      const { data: isStaff } = await supabase.rpc("is_staff_portal_user");
+      const url = request.nextUrl.clone();
+      url.pathname = isStaff === true ? "/staff" : "/staff/login";
+      url.search = isStaff === true ? "" : "error=access_denied";
+      return NextResponse.redirect(url);
+    }
+  } else {
+    const { data: allowed, error: accessError } = await supabase.rpc("is_staff_portal_user");
+    if (accessError || allowed !== true) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/staff/login";
+      url.search = "error=access_denied";
+      return NextResponse.redirect(url);
+    }
   }
 
   response.headers.set("Cache-Control", "private, no-store");
