@@ -13,6 +13,7 @@ export async function createContextualPartnerInvitation(formData: FormData) {
 
   const context = await resolveOutreachContext(prospectId);
   if (!context) throw new Error("Prospect could not be resolved.");
+  if (context.linkageError) throw new Error(`CRM linkage must be resolved before outreach is created: ${context.linkageError}`);
   if (context.reviewStatus !== "approved" || context.prospectStatus === "rejected") {
     throw new Error("This prospect must be approved by a person before partner outreach can be created.");
   }
