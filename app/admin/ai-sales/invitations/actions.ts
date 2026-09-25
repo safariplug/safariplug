@@ -34,7 +34,7 @@ export async function classifyPartnerInvitation(fd:FormData){
   const partnerType=clean(fd.get("partner_type"));
   if(!id||!partnerType)throw new Error("Invitation and supplier category are required.");
   if(!resolveSupplierInvitationConfig(partnerType))throw new Error("Choose a supported SafariPlug supplier category.");
-  const {data:invitation,error:lookupError}=await supabaseAdmin.from("partner_invitations").select("id,prospect_id,status,onboarded_user_id").eq("id",id).maybeSingle();
+  const {data:invitation,error:lookupError}=await supabaseAdmin.from("partner_invitations").select("id,prospect_id,status,onboarded_user_id,partner_type").eq("id",id).maybeSingle();
   if(lookupError||!invitation)throw new Error(lookupError?.message||"Invitation not found.");
   if(invitation.onboarded_user_id||["signup_started","onboarding","active","declined"].includes(String(invitation.status)))throw new Error("This invitation has already entered enrollment and cannot be reclassified here.");
   const now=new Date().toISOString();
@@ -42,7 +42,7 @@ export async function classifyPartnerInvitation(fd:FormData){
   if(updateError)throw new Error(updateError.message);
   if(invitation.prospect_id){
     const {error:prospectError}=await supabaseAdmin.from("ai_sales_prospects").update({category:partnerType,updated_at:now}).eq("id",invitation.prospect_id);
-    if(prospectError)throw new Error("Invitation category was updated, but the linked CRM prospect category could not be synchronized.");
+    if(prospectError){await supabaseAdmin.from("partner_invitations").update({partner_type:invitation.partner_type,updated_at:now}).eq("id",id);throw new Error("The linked CRM prospect category could not be synchronized, so SafariPlug kept the previous invitation category.");}
   }
   revalidatePath(PATH);
   revalidatePath("/admin/crm");
