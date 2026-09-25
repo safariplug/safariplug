@@ -11,7 +11,7 @@ export default async function AccountPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.is_anonymous) redirect(`/login?next=${encodeURIComponent("/account")}`);
 
-  const [trips, foodOrders, appointments, eventBookings, hotelBookings, transferBookings, activityBookings, localRequests, travelerVerification] = await Promise.all([
+  const [trips, foodOrders, appointments, eventBookings, hotelBookings, transferBookings, activityBookings, localRequests, driverRequests, travelerVerification] = await Promise.all([
     countRows(supabase, "trips", "traveler_id", user.id),
     countRows(supabase, "food_orders", "customer_user_id", user.id),
     countRows(supabase, "service_appointments", "customer_user_id", user.id),
@@ -20,10 +20,11 @@ export default async function AccountPage() {
     countAdminRows("transfer_booking_pricing_ledger", "customer_user_id", user.id),
     countAdminRows("activity_booking_pricing_ledger", "customer_user_id", user.id),
     countRows(supabase, "local_requests", "traveler_id", user.id),
+    countRows(supabase, "driver_transfer_requests", "traveler_id", user.id),
     getTravelerVerificationState(user.id),
   ]);
 
-  const totalActivity = foodOrders + appointments + eventBookings + hotelBookings + transferBookings + activityBookings + localRequests;
+  const totalActivity = foodOrders + appointments + eventBookings + hotelBookings + transferBookings + activityBookings + localRequests + driverRequests;
   const firstName = String(user.user_metadata?.full_name || user.email || "Traveler").split(/[ @]/)[0];
 
   return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
@@ -34,6 +35,7 @@ export default async function AccountPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatusCard href="/account/trips" label="Trips" value={trips} description="Journeys and itineraries" />
         <StatusCard href="/account/trips" label="Local requests" value={localRequests} description="Requests and responses" />
+        <StatusCard href="/account/drivers" label="Driver requests" value={driverRequests} description="Specific-driver requests and responses" />
         <StatusCard href="/account/appointments" label="Appointments" value={appointments} description="Services you requested" />
         <StatusCard href="/account/orders" label="Food orders" value={foodOrders} description="Restaurant order activity" />
         <StatusCard href="/account/hotels" label="Hotel bookings" value={hotelBookings} description="Real supplier booking records" />
@@ -54,6 +56,7 @@ export default async function AccountPage() {
         <AccountCard href="/restaurants" title="Restaurants & food" description="Browse restaurants with real online ordering enabled and open their live menus." />
         <AccountCard href="/account/transfers" title="Transfer bookings" description="Review Hotelbeds transfer payments, confirmations and cancellations." />
         <AccountCard href="/account/activities" title="Activity bookings" description="Review live Hotelbeds activity payments, confirmations and cancellations." />
+        <AccountCard href="/account/drivers" title="Driver requests" description="Track pending, accepted, declined, cancelled and completed specific-driver requests." />
         <AccountCard href="/drivers" title="Drivers & transfers" description="Find eligible verified drivers and request transport through SafariPlug." />
         <AccountCard href="/events" title="Events & experiences" description="Discover approved SafariPlug experiences and add the ones you want to your journey." />
         <AccountCard href="/account/saved" title="Saved" description="Return to places and experiences you saved for later." />
