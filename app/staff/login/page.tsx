@@ -41,7 +41,7 @@ export default function StaffLoginPage() {
       return;
     }
 
-    router.replace(postAuthDestination({ isAdmin: isAdmin === true, isStaff: true }));
+    router.replace(postAuthDestination({ isAdmin: isAdmin === true, isStaff: true, next: searchParams.get("next") }));
     router.refresh();
   }
 
