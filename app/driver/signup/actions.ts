@@ -120,5 +120,39 @@ export async function submitDriverApplication(formData: FormData) {
     const message = error instanceof Error ? error.message : "Unable to submit application.";
     redirect(`/driver/signup?error=${encodeURIComponent(message)}`);
   }
+    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.safariplug.com";
+    const redirectTo = `${appUrl.replace(/\/$/, "")}/auth/confirm?next=${encodeURIComponent("/driver/application")}`;
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: { redirectTo },
+    });
+    if (linkError || !linkData?.properties?.action_link) throw new Error(linkError?.message ?? "Unable to create the driver account confirmation link.");
+
+    const { Resend } = await import("resend");
+    if (!process.env.RESEND_API_KEY) throw new Error("RESEND_API_KEY is not configured.");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { error: emailError } = await resend.emails.send({
+      from: process.env.OUTREACH_FROM_EMAIL || "SafariPlug <onboarding@resend.dev>",
+      to: email,
+      subject: "Confirm your SafariPlug driver account",
+      text: `Hello ${fullName},
+
+Your SafariPlug driver application has been received.
+
+Confirm your email and open your driver portal here:
+
+${linkData.properties.action_link}
+
+Your profile remains non-bookable until SafariPlug completes the required document, compliance and identity review.`,
+    });
+    if (emailError) throw new Error(emailError.message);
+  } catch (error) {
+    if (uploadedPaths.length) await supabaseAdmin.storage.from("driver-verification").remove(uploadedPaths);
+    if (profilePhotoPath) await supabaseAdmin.storage.from("driver-profile-photos").remove([profilePhotoPath]);
+    await supabaseAdmin.auth.admin.deleteUser(userId, true);
+    const message = error instanceof Error ? error.message : "Unable to submit application.";
+    redirect(`/driver/signup?error=${encodeURIComponent(message)}`);
+  }
   redirect(`/driver/application?submitted=1&driver=${encodeURIComponent(driverId ?? "")}`);
 }
