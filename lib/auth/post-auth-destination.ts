@@ -37,10 +37,22 @@ function fallbackDestination(accountIntent: unknown, accountType: unknown) {
 }
 
 export function postAuthDestination(input: PostAuthDestinationInput) {
-  if (input.isAdmin) return "/admin";
-  if (input.isStaff) return "/staff";
-
   const next = safeInternalNext(input.next);
+
+  if (input.isAdmin) {
+    if (next && (next === "/admin" || next.startsWith("/admin/") || next === "/staff" || next.startsWith("/staff/"))) {
+      return next;
+    }
+    return "/admin";
+  }
+
+  if (input.isStaff) {
+    if (next && (next === "/staff" || next.startsWith("/staff/"))) {
+      return next;
+    }
+    return "/staff";
+  }
+
   if (next && !next.startsWith("/admin") && !next.startsWith("/staff")) {
     return next;
   }

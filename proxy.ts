@@ -41,10 +41,11 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     if (isAccountRoute) {
       url.pathname = "/login";
-      url.search = `next=${encodeURIComponent(pathname)}`;
+      url.search = `next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
     } else {
+      const requestedPath = pathname + request.nextUrl.search;
       url.pathname = "/staff/login";
-      url.search = "";
+      url.search = `next=${encodeURIComponent(requestedPath)}`;
     }
     return NextResponse.redirect(url);
   }
