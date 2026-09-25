@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getTravelerVerificationState } from "@/lib/services/traveler-verification";
-import { driverVerificationCurrent } from "@/lib/services/driver-verification";
+import { driverVerificationCurrent, currentCompliance } from "@/lib/services/driver-verification";
+import { eligibleDriverRequestVehicles, knownDriverRequestCapacity } from "@/lib/services/driver-request-eligibility";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,32 @@ export default async function DriverPage({
     if (!pickup || !destination) throw new Error("Pickup and destination are required.");
 
     const passengers = Math.max(1, Math.min(50, Number(formData.get("passengers") || 1)));
+
+    const { data: currentDriver, error: driverError } = await supabaseAdmin
+      .from("driver_profiles")
+      .select("id,personal_photo_url,identity_liveness_verified_at,verification_state,service_status,driving_license_compliance_status,vehicles(id,status,passenger_capacity,registration_compliance_status,insurance_compliance_status)")
+      .eq("id", id)
+      .maybeSingle();
+    if (driverError) throw new Error(driverError.message);
+    if (
+      !currentDriver ||
+      currentDriver.service_status !== "active" ||
+      currentDriver.verification_state !== "verified" ||
+      !currentDriver.personal_photo_url ||
+      !currentCompliance(currentDriver.driving_license_compliance_status) ||
+      !(await driverVerificationCurrent(currentDriver))
+    ) {
+      throw new Error("This driver is no longer eligible to receive SafariPlug requests.");
+    }
+
+    const currentVehicles = eligibleDriverRequestVehicles(currentDriver.vehicles);
+    if (!currentVehicles.length) {
+      throw new Error("This driver no longer has an eligible vehicle for SafariPlug requests.");
+    }
+    const knownCapacity = knownDriverRequestCapacity(currentVehicles);
+    if (knownCapacity !== null && passengers > knownCapacity) {
+      throw new Error(`This driver's currently eligible vehicle capacity is ${knownCapacity} passenger${knownCapacity === 1 ? "" : "s"}. Choose another driver or request fewer passengers.`);
+    }
     const rateId = String(formData.get("rate_id") || "") || null;
     const requestedTripId = String(formData.get("trip_id") || "").trim() || null;
 
