@@ -82,6 +82,13 @@ export function parseHotelSearchRequest(
     throw new Error("location_scope must be specific or destination.");
   }
 
+  const bookableValue = input.bookable_only?.trim().toLowerCase();
+  let bookable_only = true;
+  if (bookableValue && !["true", "1", "false", "0"].includes(bookableValue)) {
+    throw new Error("bookable_only must be true or false.");
+  }
+  if (bookableValue === "false" || bookableValue === "0") bookable_only = false;
+
   const providerValue = input.provider?.trim().toLowerCase();
   let provider: HotelProviderKey | undefined;
   if (providerValue) {
@@ -103,6 +110,7 @@ export function parseHotelSearchRequest(
     child_ages: child_ages.length ? child_ages : undefined,
     provider,
     location_scope,
+    bookable_only,
   };
 }
 
