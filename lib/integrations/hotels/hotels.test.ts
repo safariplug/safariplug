@@ -321,6 +321,19 @@ test("parseHotelSearchRequest validates dates and occupancy", () => {
   assert.equal(parsed.check_out, "2026-12-03");
   assert.equal(parsed.guests, 2);
   assert.equal(parsed.rooms, 1);
+  assert.equal(parsed.location_scope, "specific");
+});
+
+test("hotel search accepts explicit broad destination scope", () => {
+  const parsed = parseHotelSearchRequest({
+    destination: "Nairobi",
+    check_in: "2026-12-01",
+    check_out: "2026-12-03",
+    guests: "2",
+    rooms: "1",
+    location_scope: "destination",
+  });
+  assert.equal(parsed.location_scope, "destination");
 });
 
 test("aurelian hotel key is scaffolded, not a live hotel source", () => {
