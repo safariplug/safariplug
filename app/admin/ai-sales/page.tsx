@@ -91,7 +91,7 @@ export default async function AISalesPage({
 
   const visible = filtered.slice(0, 100);
   const reviewReady = allProspects.filter((p) => p.review_status === "pending_review" && Boolean(p.contact_email)).length;
-  const outreachReady = allProspects.filter((p) => p.review_status === "approved" && p.status !== "rejected" && Boolean(p.contact_email || p.phone)).length;
+  const outreachReady = allProspects.filter((p) => p.review_status === "approved" && p.status !== "rejected" && Boolean(p.contact_email)).length;
 
   return (
     <main className="min-h-screen bg-gray-50 p-5 md:p-8">
@@ -165,7 +165,7 @@ export default async function AISalesPage({
               <div className="mb-5 flex flex-col justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 md:flex-row md:items-center">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[.16em] text-emerald-700/70">Approved and actionable</p>
-                  <p className="mt-1 font-semibold text-emerald-950">{outreachReady} approved prospect{outreachReady === 1 ? "" : "s"} have a direct email or phone contact.</p>
+                  <p className="mt-1 font-semibold text-emerald-950">{outreachReady} approved prospect{outreachReady === 1 ? "" : "s"} have a business email ready for governed outreach.</p>
                   <p className="mt-1 text-sm text-emerald-900/65">You can start governed outreach for all approved email-ready suppliers at once. This creates drafts only; nothing is sent.</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2"><form action={startOutreachForAllApproved}><button className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Start outreach for all approved</button></form><Link href="/admin/ai-sales/invitations" className="rounded-xl border border-emerald-300 px-5 py-3 text-center text-sm font-semibold text-emerald-900">Open outreach drafts →</Link></div>
@@ -230,7 +230,8 @@ export default async function AISalesPage({
               {visible.map((p) => {
                 const approved = p.review_status === "approved" && p.status !== "rejected";
                 const publicContact = hasAnyContact(p);
-                const directOutreachContact = Boolean(p.contact_email || p.phone);
+                const emailOutreachReady = Boolean(p.contact_email);
+                const phoneNeedsReview = Boolean(!p.contact_email && p.phone);
                 return (
                   <div key={p.id} className="rounded-xl border p-5">
                     <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
@@ -247,10 +248,12 @@ export default async function AISalesPage({
                       </div>
                       <div className="flex flex-wrap gap-3 text-sm">
                         <Link href={`/admin/ai-sales/edit/${p.id}`} className="font-semibold text-blue-600 hover:underline">{approved ? "Open 360 →" : "Review →"}</Link>
-                        {approved && directOutreachContact ? (
+                        {approved && emailOutreachReady ? (
                           <Link href={`/admin/ai-sales/invitations?prospect_id=${encodeURIComponent(p.id)}`} className="font-semibold text-amber-700 hover:underline">Start outreach →</Link>
+                        ) : approved && phoneNeedsReview ? (
+                          <Link href={`/admin/ai-sales/edit/${p.id}`} className="font-semibold text-amber-700 hover:underline">Review phone/contact →</Link>
                         ) : approved ? (
-                          <Link href={`/admin/ai-sales/edit/${p.id}`} className="font-semibold text-gray-500 hover:underline">Add email or phone first →</Link>
+                          <Link href={`/admin/ai-sales/edit/${p.id}`} className="font-semibold text-gray-500 hover:underline">Add business email/contact →</Link>
                         ) : (
                           <span className="text-gray-400">Approve before outreach</span>
                         )}
