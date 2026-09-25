@@ -5,6 +5,7 @@ import type {
   VerificationEvidence,
 } from "@/lib/integrations/verification/types";
 import { MemoryVerificationStore } from "./verification";
+import { hasApprovedLivenessSignal } from "./verification-signals";
 
 type DbClient = Pick<SupabaseClient, "from" | "rpc">;
 
@@ -104,10 +105,11 @@ export async function persistVerificationMutation(
   }
   if (current.subject_type === "local") {
     const approved = current.status === "approved";
+    const liveFaceApproved = hasApprovedLivenessSignal(current, store.listEvidence(caseId));
     const { error } = await client
       .from("local_profiles")
       .update({
-        identity_liveness_verified_at: approved ? current.reviewed_at : null,
+        identity_liveness_verified_at: liveFaceApproved ? current.reviewed_at : null,
         verification_state: approved ? "verified" : current.status === "rejected" ? "rejected" : "pending",
         service_status: approved ? "pending_review" : "paused",
       })
@@ -120,10 +122,11 @@ export async function persistVerificationMutation(
 
   if (current.subject_type === "service_staff") {
     const approved = current.status === "approved";
+    const liveFaceApproved = hasApprovedLivenessSignal(current, store.listEvidence(caseId));
     const { error } = await client
       .from("service_staff")
       .update({
-        identity_liveness_verified_at: approved ? current.reviewed_at : null,
+        identity_liveness_verified_at: liveFaceApproved ? current.reviewed_at : null,
         verification_state: approved ? "verified" : current.status === "rejected" ? "rejected" : "pending",
       })
       .eq("id", current.subject_id);
