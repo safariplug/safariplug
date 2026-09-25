@@ -35,13 +35,12 @@ export async function GET(request: NextRequest) {
     ? await Promise.all([supabase.rpc("is_admin"), supabase.rpc("is_staff_portal_user")])
     : [{ data: false }, { data: false }];
 
-  url.search = "";
-  url.pathname = postAuthDestination({
+  const destination = postAuthDestination({
     isAdmin: isAdmin === true,
     isStaff: isStaff === true,
     next: requestedNext,
     accountIntent: user?.user_metadata?.account_intent,
     accountType: user?.user_metadata?.account_type,
   });
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(new URL(destination, url.origin));
 }
