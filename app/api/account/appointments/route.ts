@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
+import { queuePaidServiceCancellationReview } from "@/lib/services/service-refund-review";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
 
     if (action === "cancel") {
       if (!["pending", "confirmed"].includes(appointment.status)) return NextResponse.json({ error: "This appointment can no longer be cancelled online." }, { status: 409 });
-      if (["paid", "partially_refunded"].includes(appointment.payment_status)) return NextResponse.json({ error: "This appointment has a settled payment and requires a refund review before cancellation." }, { status: 409 });
+      if (["paid", "partially_refunded"].includes(appointment.payment_status)) { const review=await queuePaidServiceCancellationReview({appointmentId:appointment.id,actor:"customer",reason:String(body.reason||"Cancelled by customer")}); return NextResponse.json({reviewPending:true,review,message:review.status==="resolved"?"A finance decision already exists for this paid cancellation request.":"Cancellation request sent to SafariPlug finance for refund review. The appointment remains active until review is completed."},{status:202}); }
       const { data, error } = await supabaseAdmin.rpc("transition_service_appointment_status", { p_appointment_id: id, p_to_status: "cancelled", p_actor_type: "customer", p_actor_user_id: user.id, p_note: String(body.reason || "Cancelled by customer") });
       if (error) {
         if (error.message.includes("settled_payment_requires_refund_review")) return NextResponse.json({ error: "This appointment has a settled payment and requires a refund review before cancellation." }, { status: 409 });
