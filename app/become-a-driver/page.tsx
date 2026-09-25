@@ -6,7 +6,7 @@ export default function BecomeADriverPage() {
       <section className="mx-auto max-w-4xl rounded-[2rem] border border-zinc-800 bg-zinc-950 p-8 md:p-12">
         <p className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-[#c9a86a]">SafariPlug Driver Network</p>
         <h1 className="mt-4 max-w-3xl text-4xl font-black tracking-tight md:text-6xl">Turn your driving service into trusted travel infrastructure.</h1>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-zinc-400">Join the SafariPlug driver network for airport, hotel and private transfers. We review every application and require mandatory live identity/liveness verification before drivers can become bookable.</p>
+        <p className="mt-5 max-w-2xl text-lg leading-8 text-zinc-400">Join the SafariPlug driver network for airport, hotel and private transfers. We review every application and require approved SafariPlug verification before drivers can become bookable. Verification can use SafariPlug staff review or a connected identity/liveness provider.</p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/driver/signup" className="rounded-full bg-[#c9a86a] px-7 py-3.5 text-center font-black text-black">Apply to become a driver →</Link>
           <Link href="/driver/login" className="rounded-full border border-zinc-700 px-7 py-3.5 text-center font-bold text-white">Existing driver sign in</Link>

@@ -110,7 +110,7 @@ export async function submitDriverApplication(formData: FormData) {
       saveAIDocumentEvidence({ caseId: verificationCase.id, kind: "insurance", path: insurancePath, result: insuranceResult }),
     ]);
     const allDocumentsApproved = licenseApproved && registrationApproved && insuranceApproved;
-    const note = allDocumentsApproved ? "AI document verification passed all three required documents. Awaiting mandatory identity and live face/liveness verification; documents alone cannot approve the driver." : "One or more documents require human review. Driver remains non-bookable until document review and mandatory identity/live face/liveness verification are complete.";
+    const note = allDocumentsApproved ? "AI document verification passed all three required documents. Awaiting approved SafariPlug identity verification; documents alone cannot approve the driver." : "One or more documents require human review. Driver remains non-bookable until document review and approved SafariPlug identity verification are complete.";
     const { error: caseUpdateError } = await supabaseAdmin.from("verification_cases").update({ status: "in_review", notes: note, updated_at: new Date().toISOString() }).eq("id", verificationCase.id);
     if (caseUpdateError) throw new Error(caseUpdateError.message);
   } catch (error) {
