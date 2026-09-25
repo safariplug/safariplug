@@ -51,8 +51,10 @@ export default async function ReconciliationCommandCenter() {
 
   const hotelConfirmRows=(hotels.data||[]).filter(row=>{
     const m=metadataRecord(row.metadata);
-    return row.provider==="hotelbeds"&&row.payment_status==="paid"&&row.booking_status==="payment_pending"&&Boolean(m.confirmAttemptIndeterminateAt);
+    return row.payment_status==="paid"&&row.booking_status==="payment_pending"&&Boolean(m.confirmAttemptIndeterminateAt);
   });
+  const hotelbedsConfirmRows=hotelConfirmRows.filter(row=>row.provider==="hotelbeds");
+  const locktripConfirmRows=hotelConfirmRows.filter(row=>row.provider==="locktrip");
 
   const hotelIntentRows=hotelIntents.data||[];
   const paymentIndeterminate=hotelIntentRows.filter(row=>row.state==="payment_indeterminate");
@@ -112,10 +114,10 @@ export default async function ReconciliationCommandCenter() {
             body="Resolve paid PRECONFIRMED activities whose RECONFIRM result is uncertain without replaying RECONFIRM."
           />
           <QueueCard
-            title="Hotelbeds Hotels"
+            title="Hotel confirmations"
             count={hotelConfirmRows.length}
             href="/admin/integrations/hotels/reconciliation"
-            body="Resolve paid hotel confirmations with one explicit booking-detail lookup or a governed no-booking resolution."
+            body={`Hotelbeds ${hotelbedsConfirmRows.length} · LockTrip ${locktripConfirmRows.length}. Verify existing supplier state without replaying confirmation.`}
           />
         </section>
 
