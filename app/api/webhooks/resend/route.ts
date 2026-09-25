@@ -197,7 +197,7 @@ export async function POST(request: Request) {
       .from("partner_invitations")
       .update({ status: "failed", updated_at: now })
       .eq("id", invitation.id)
-      .not("status", "in", '("signup_started","onboarding","active")');
+      .not("status", "in", "(signup_started,onboarding,active)");
   }
 
   if (invitation.prospect_id && email) {
