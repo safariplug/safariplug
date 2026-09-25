@@ -13,7 +13,7 @@ export default function HotelbedsBookPage() {
   const initialBookingToken = params.get("bookingToken") || "";
   const checkIn = params.get("checkIn") || "";
   const checkOut = params.get("checkOut") || "";
-  const guestCount = Math.max(1, Math.min(10, Number(params.get("guests") || 1)));
+  const guestCount = Math.max(1, Math.min(20, Number(params.get("guests") || 1)));
   const displayedTotal = Number(params.get("total") || 0);
   const currency = params.get("currency") || "KES";
   const tripId = params.get("tripId") || "";
