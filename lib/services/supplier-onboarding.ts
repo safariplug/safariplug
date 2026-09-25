@@ -41,7 +41,25 @@ export function supplierNextAction({
   if (onboardingStatus === "submitted") {
     return {
       title: "Waiting for SafariPlug review",
-      detail: "Your onboarding has been submitted. SafariPlug staff will review the completed activation requirements.",
+      detail: "Your onboarding has been submitted and is locked while SafariPlug staff review it. If changes are needed, we will reopen the profile for you.",
+      href: null as string | null,
+      cta: null as string | null,
+    };
+  }
+
+  if (["approved", "live"].includes(onboardingStatus)) {
+    return {
+      title: "You are live on SafariPlug",
+      detail: "SafariPlug approved your supplier profile and activated your business for customers.",
+      href: "/supplier",
+      cta: "Open supplier portal",
+    };
+  }
+
+  if (onboardingStatus === "rejected") {
+    return {
+      title: "Application closed",
+      detail: "This supplier application is currently closed. Your saved profile has not been deleted.",
       href: null as string | null,
       cta: null as string | null,
     };
@@ -66,6 +84,15 @@ export function supplierNextAction({
       detail: `${reviewItems.length} requested change${reviewItems.length === 1 ? "" : "s"} remain before you can resubmit.`,
       href: issue?.href || "/supplier/onboarding",
       cta: "Fix requested change",
+    };
+  }
+
+  if (onboardingStatus === "changes_requested") {
+    return {
+      title: "Review SafariPlug's requested changes",
+      detail: "SafariPlug reopened your profile for updates. Review the staff note, make the requested changes, then resubmit.",
+      href: "/supplier/onboarding",
+      cta: "Review requested changes",
     };
   }
 

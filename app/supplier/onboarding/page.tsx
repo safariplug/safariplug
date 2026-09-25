@@ -73,7 +73,7 @@ export default function SupplierOnboardingPage() {
   }
 
   if (!state.business) return <main className="mx-auto max-w-3xl px-6 py-16"><h1 className="text-3xl font-semibold">SafariPlug Supplier Portal</h1><p className="mt-3 text-black/60">{message || "Loading your supplier profile…"}</p></main>;
-  const locked = ["approved", "live"].includes(state.account?.onboarding_status || "");
+  const locked = ["submitted", "approved", "live"].includes(state.account?.onboarding_status || "");
   const businessType = String(state.business.business_type || "Other Service Business");
   const categoryName = state.profile?.category?.name || businessType;
   const isRestaurant = businessType === "Restaurant";
