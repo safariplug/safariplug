@@ -95,7 +95,7 @@ export async function submitDriverApplication(formData: FormData) {
       if (availabilityError) throw new Error(availabilityError.message);
     }
 
-    const { data: verificationCase, error: verificationError } = await supabaseAdmin.from("verification_cases").insert({ subject_type: "driver", subject_id: driver.id, status: "pending", verification_level: "enhanced", provider: "ai_document_verification", notes: "AI document verification will assess the license, vehicle registration and insurance. Ambiguous results require human review. Mandatory live face/liveness verification remains required before driver approval and booking eligibility." }).select("id").single();
+    const { data: verificationCase, error: verificationError } = await supabaseAdmin.from("verification_cases").insert({ subject_type: "driver", subject_id: driver.id, status: "pending", verification_level: "enhanced", provider: "ai_document_verification", notes: "AI document verification will assess the license, vehicle registration and insurance. Ambiguous results require human review. Driver approval still requires an approved SafariPlug identity-verification path; documents alone cannot make the driver bookable." }).select("id").single();
     if (verificationError || !verificationCase) throw new Error(verificationError?.message ?? "Unable to create verification case.");
 
     const [licenseResult, registrationResult, insuranceResult] = await Promise.all([
@@ -113,6 +113,34 @@ export async function submitDriverApplication(formData: FormData) {
     const note = allDocumentsApproved ? "AI document verification passed all three required documents. Awaiting approved SafariPlug identity verification; documents alone cannot approve the driver." : "One or more documents require human review. Driver remains non-bookable until document review and approved SafariPlug identity verification are complete.";
     const { error: caseUpdateError } = await supabaseAdmin.from("verification_cases").update({ status: "in_review", notes: note, updated_at: new Date().toISOString() }).eq("id", verificationCase.id);
     if (caseUpdateError) throw new Error(caseUpdateError.message);
+
+    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.safariplug.com";
+    const redirectTo = `${appUrl.replace(/\/$/, "")}/auth/confirm?next=${encodeURIComponent("/driver/application")}`;
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: { redirectTo },
+    });
+    if (linkError || !linkData?.properties?.action_link) throw new Error(linkError?.message ?? "Unable to create the driver account confirmation link.");
+
+    const { Resend } = await import("resend");
+    if (!process.env.RESEND_API_KEY) throw new Error("RESEND_API_KEY is not configured.");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { error: emailError } = await resend.emails.send({
+      from: process.env.OUTREACH_FROM_EMAIL || "SafariPlug <onboarding@resend.dev>",
+      to: email,
+      subject: "Confirm your SafariPlug driver account",
+      text: `Hello ${fullName},
+
+Your SafariPlug driver application has been received.
+
+Confirm your email and open your driver portal here:
+
+${linkData.properties.action_link}
+
+Your profile remains non-bookable until SafariPlug completes the required document, compliance and identity review.`,
+    });
+    if (emailError) throw new Error(emailError.message);
   } catch (error) {
     if (uploadedPaths.length) await supabaseAdmin.storage.from("driver-verification").remove(uploadedPaths);
     if (profilePhotoPath) await supabaseAdmin.storage.from("driver-profile-photos").remove([profilePhotoPath]);
