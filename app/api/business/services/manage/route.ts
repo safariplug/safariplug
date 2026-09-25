@@ -154,7 +154,15 @@ export async function POST(request: Request) {
     if (action === "create_offering") {
       if (!body.name || !body.durationMinutes) return NextResponse.json({error:"Service name and duration are required."},{status:400});
       const baseSlug=slugify(String(body.name)); const slug=`${baseSlug}-${Date.now().toString(36)}`;
-      const {data,error}=await supabaseAdmin.from("service_offerings").insert({service_profile_id:profile.id,category_id:profile.category_id,name:String(body.name).trim(),slug,description:body.description||null,duration_minutes:Number(body.durationMinutes),price:Number(body.price??0),currency:body.currency||"KES",status:body.active===false?"draft":"active",requires_confirmation:Boolean(body.requiresConfirmation)}).select("id,name,description,duration_minutes,price,currency,status,requires_confirmation").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({offering:data},{status:201});
+      const {data,error}=await supabaseAdmin.from("service_offerings").insert({service_profile_id:profile.id,category_id:profile.category_id,name:String(body.name).trim(),slug,description:body.description||null,duration_minutes:Number(body.durationMinutes),price:Number(body.price??0),currency:body.currency||"KES",status:body.active===false?"draft":"active",requires_confirmation:Boolean(body.requiresConfirmation)}).select("id,name,description,duration_minutes,price,currency,status,requires_confirmation").single();
+      if(error)return NextResponse.json({error:error.message},{status:400});
+      const {data:staffRows,error:staffError}=await supabaseAdmin.from("service_staff").select("id").eq("service_profile_id",profile.id).eq("status","active");
+      if(staffError)return NextResponse.json({error:staffError.message},{status:500});
+      if(staffRows?.length){
+        const {error:assignmentError}=await supabaseAdmin.from("service_staff_offerings").upsert(staffRows.map((member)=>({staff_id:member.id,offering_id:data.id})),{onConflict:"staff_id,offering_id"});
+        if(assignmentError)return NextResponse.json({error:assignmentError.message},{status:500});
+      }
+      return NextResponse.json({offering:data},{status:201});
     }
     if (action === "update_offering") {
       if(!body.offeringId)return NextResponse.json({error:"Offering is required."},{status:400}); const {data:offering}=await supabaseAdmin.from("service_offerings").select("id").eq("id",body.offeringId).eq("service_profile_id",profile.id).maybeSingle(); if(!offering)return NextResponse.json({error:"Offering not found."},{status:404}); const patch:any={}; for(const [key,value] of [["name",body.name],["description",body.description],["duration_minutes",body.durationMinutes],["price",body.price],["currency",body.currency],["status",body.status],["requires_confirmation",body.requiresConfirmation]] as const)if(value!==undefined)patch[key]=value; const {data,error}=await supabaseAdmin.from("service_offerings").update(patch).eq("id",body.offeringId).select("*").single(); if(error)return NextResponse.json({error:error.message},{status:400}); return NextResponse.json({offering:data});
@@ -166,6 +174,12 @@ export async function POST(request: Request) {
       if(rawPhoto&&!photo)return NextResponse.json({error:"Personal photo must use a secure HTTPS URL."},{status:400});
       const {data,error}=await supabaseAdmin.from("service_staff").insert({service_profile_id:profile.id,display_name:String(body.displayName).trim(),bio:body.bio||null,personal_photo_url:photo,status:"active"}).select("id,display_name,bio,personal_photo_url,user_id,status,verification_state,identity_liveness_verified_at").single();
       if(error)return NextResponse.json({error:error.message},{status:400});
+      const {data:offeringRows,error:offeringError}=await supabaseAdmin.from("service_offerings").select("id").eq("service_profile_id",profile.id);
+      if(offeringError)return NextResponse.json({error:offeringError.message},{status:500});
+      if(offeringRows?.length){
+        const {error:assignmentError}=await supabaseAdmin.from("service_staff_offerings").upsert(offeringRows.map((offering)=>({staff_id:data.id,offering_id:offering.id})),{onConflict:"staff_id,offering_id"});
+        if(assignmentError)return NextResponse.json({error:assignmentError.message},{status:500});
+      }
       return NextResponse.json({staff:data},{status:201});
     }
     if (action === "update_staff_photo") {
