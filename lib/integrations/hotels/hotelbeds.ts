@@ -380,7 +380,15 @@ export class HotelbedsHotelAdapter implements HotelAdapter {
           },
         };
       }));
-      return { ok: true, data: { provider: this.key, results } };
+      const filteredResults = request.bookable_only === false
+        ? results
+        : results.filter((hotel) =>
+            hotel.availability === "available" &&
+            Boolean(hotel.rate_id) &&
+            Boolean(hotel.supplier_context?.booking_token) &&
+            Boolean(hotel.total)
+          );
+      return { ok: true, data: { provider: this.key, results: filteredResults } };
     } catch (error) {
       return { ok: false, error: hotelError("provider_error", error instanceof Error ? error.message : "Hotelbeds availability failed.", true) };
     }
