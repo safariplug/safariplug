@@ -18,25 +18,31 @@ export default async function ReconciliationCommandCenter() {
       .from("transfer_booking_pricing_ledger")
       .select("id,payment_status,booking_status,metadata")
       .eq("provider","hotelbeds")
+      .eq("payment_status","paid")
+      .eq("booking_status","payment_pending")
       .order("created_at",{ascending:false})
-      .limit(250),
+      .limit(500),
     supabaseAdmin
       .from("activity_booking_pricing_ledger")
       .select("id,payment_status,booking_status,metadata")
       .eq("provider","hotelbeds")
+      .eq("payment_status","paid")
+      .eq("booking_status","payment_pending")
       .order("created_at",{ascending:false})
-      .limit(250),
+      .limit(500),
     supabaseAdmin
       .from("hotel_booking_pricing_ledger")
       .select("id,provider,payment_status,booking_status,metadata")
+      .eq("payment_status","paid")
+      .eq("booking_status","payment_pending")
       .order("created_at",{ascending:false})
-      .limit(250),
+      .limit(500),
     supabaseAdmin
       .from("hotel_checkout_intents")
       .select("id,provider,state,prepared_booking_id,last_error,created_at")
       .in("state",["payment_indeterminate","supplier_prepare_indeterminate"])
       .order("created_at",{ascending:false})
-      .limit(250),
+      .limit(500),
   ]);
 
   const transferRows=(transfers.data||[]).filter(row=>{
