@@ -11,7 +11,7 @@ async function currentUser() {
   return user;
 }
 async function ownedBusiness(userId: string, businessId?: string) {
-  let q = supabaseAdmin.from("businesses").select("id,name,slug,status,verified,claimed,owner_id").eq("owner_id", userId).in("status", ["active", "ACTIVE"]);
+  let q = supabaseAdmin.from("businesses").select("id,name,slug,status,verified,claimed,owner_id").eq("owner_id", userId).in("status", ["active", "ACTIVE", "inactive", "INACTIVE"]);
   if (businessId) q = q.eq("id", businessId);
   return (await q.order("created_at", { ascending: true }).limit(1).maybeSingle()).data;
 }
@@ -25,6 +25,38 @@ async function ownedProfile(userId: string, profileId?: string) {
 function slugify(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
 function safePhotoUrl(value: unknown) { const url=String(value||"").trim(); return /^https:\/\//i.test(url) && url.length<=2048 ? url : null; }
 
+async function ensureSupplierAccount(user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }, businessId: string) {
+  const { data: existing, error: lookupError } = await supabaseAdmin
+    .from("supplier_accounts")
+    .select("id,business_id,onboarding_status")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (existing) {
+    if (existing.business_id !== businessId) {
+      throw new Error("This account is already linked to a different supplier business.");
+    }
+    return existing;
+  }
+
+  const contactName = String(user.user_metadata?.full_name || user.email || "Supplier").trim().slice(0, 120);
+  const { data, error } = await supabaseAdmin
+    .from("supplier_accounts")
+    .insert({
+      user_id: user.id,
+      business_id: businessId,
+      contact_name: contactName || "Supplier",
+      invitation_status: "pending",
+      onboarding_status: "draft",
+      completion_percent: 0,
+    })
+    .select("id,business_id,onboarding_status")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+
 export async function POST(request: Request) {
   try {
     const user = await currentUser();
@@ -33,17 +65,29 @@ export async function POST(request: Request) {
 
     if (action === "create_business") {
       if (!body.name || !body.businessType || !body.phone) return NextResponse.json({ error: "Business name, type and phone are required." }, { status: 400 });
-      const existing = await ownedBusiness(user.id); if (existing) return NextResponse.json({ business: existing });
+      const existing = await ownedBusiness(user.id);
+      if (existing) {
+        try { await ensureSupplierAccount(user, existing.id); }
+        catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to link supplier onboarding." }, { status: 409 }); }
+        return NextResponse.json({ business: existing });
+      }
       const base = slugify(body.name) || `partner-${Date.now()}`;
-      const { data, error } = await supabaseAdmin.from("businesses").insert({ owner_id:user.id, name:String(body.name).trim(), slug:`${base}-${Date.now().toString(36)}`, business_type:String(body.businessType).trim(), phone:String(body.phone).trim(), whatsapp:body.whatsapp || body.phone, email:user.email, status:"active", verified:false, claimed:true }).select("id,name,slug,status,verified,claimed").single();
-      if (error) return NextResponse.json({ error:error.message }, { status:400 }); return NextResponse.json({ business:data }, { status:201 });
+      const { data, error } = await supabaseAdmin.from("businesses").insert({ owner_id:user.id, name:String(body.name).trim(), slug:`${base}-${Date.now().toString(36)}`, business_type:String(body.businessType).trim(), phone:String(body.phone).trim(), whatsapp:body.whatsapp || body.phone, email:user.email, status:"INACTIVE", verified:false, claimed:true }).select("id,name,slug,status,verified,claimed").single();
+      if (error) return NextResponse.json({ error:error.message }, { status:400 });
+      try {
+        await ensureSupplierAccount(user, data.id);
+      } catch (supplierError) {
+        await supabaseAdmin.from("businesses").delete().eq("id", data.id).eq("owner_id", user.id);
+        return NextResponse.json({ error: supplierError instanceof Error ? supplierError.message : "Unable to create supplier onboarding." }, { status: 409 });
+      }
+      return NextResponse.json({ business:data }, { status:201 });
     }
 
     if (action === "create_profile") {
       const business = await ownedBusiness(user.id, body.businessId); if (!business) return NextResponse.json({ error:"Business not found." }, { status:404 });
       const existing = await supabaseAdmin.from("service_profiles").select("id").eq("business_id", business.id).maybeSingle(); if (existing.data) return NextResponse.json({ error:"A service profile already exists for this business." }, { status:409 });
       const { data: category } = await supabaseAdmin.from("service_categories").select("id").eq("slug", String(body.categorySlug || "")).eq("status","active").maybeSingle(); if (!category) return NextResponse.json({ error:"Choose a valid service category." }, { status:400 });
-      const { data, error } = await supabaseAdmin.from("service_profiles").insert({ business_id:business.id, category_id:category.id, status:"active", booking_status:"closed", timezone:body.timezone || "Africa/Nairobi", cancellation_policy:body.cancellationPolicy || null, booking_notice_minutes:Math.max(0, Number(body.bookingNoticeMinutes ?? 60)), max_booking_days:Math.max(1, Number(body.maxBookingDays ?? 90)), service_fee_percent:10, service_fee_minimum:30, customer_fee_percent:0, customer_fee_minimum:0, customer_fee_maximum:0, payout_minimum:1000, payout_schedule:"weekly" }).select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days,service_fee_percent,service_fee_minimum,customer_fee_percent,customer_fee_minimum,customer_fee_maximum,payout_minimum,payout_schedule").single();
+      await ensureSupplierAccount(user, business.id); const { data, error } = await supabaseAdmin.from("service_profiles").insert({ business_id:business.id, category_id:category.id, status:"pending", booking_status:"closed", timezone:body.timezone || "Africa/Nairobi", cancellation_policy:body.cancellationPolicy || null, booking_notice_minutes:Math.max(0, Number(body.bookingNoticeMinutes ?? 60)), max_booking_days:Math.max(1, Number(body.maxBookingDays ?? 90)), service_fee_percent:10, service_fee_minimum:30, customer_fee_percent:0, customer_fee_minimum:0, customer_fee_maximum:0, payout_minimum:1000, payout_schedule:"weekly" }).select("id,business_id,category_id,status,booking_status,timezone,cancellation_policy,booking_notice_minutes,max_booking_days,service_fee_percent,service_fee_minimum,customer_fee_percent,customer_fee_minimum,customer_fee_maximum,payout_minimum,payout_schedule").single();
       if (error) return NextResponse.json({ error:error.message }, { status:400 }); return NextResponse.json({ profile:data }, { status:201 });
     }
 
@@ -64,6 +108,19 @@ export async function POST(request: Request) {
     if (action === "toggle_booking") {
       const open=Boolean(body.open);
       if(open){
+        const { data: supplierAccount, error: supplierError } = await supabaseAdmin
+          .from("supplier_accounts")
+          .select("onboarding_status")
+          .eq("user_id", user.id)
+          .eq("business_id", profile.business.id)
+          .maybeSingle();
+        if (supplierError) return NextResponse.json({ error: supplierError.message }, { status: 500 });
+        if (!supplierAccount || !["approved", "live"].includes(String(supplierAccount.onboarding_status))) {
+          return NextResponse.json({ error:"SafariPlug staff approval is required before opening customer bookings." },{status:409});
+        }
+        if (!["active", "ACTIVE"].includes(String(profile.business.status || ""))) {
+          return NextResponse.json({ error:"This supplier business is not active yet." },{status:409});
+        }
         const {data:staffRows}=await supabaseAdmin
           .from("service_staff")
           .select("id,identity_liveness_verified_at")
