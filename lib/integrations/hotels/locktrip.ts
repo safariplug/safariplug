@@ -191,6 +191,44 @@ function customerCurrency(requested?: string) {
   return (requested || env("SAFARIPLUG_DEFAULT_CURRENCY") || DEFAULT_CUSTOMER_CURRENCY).toUpperCase();
 }
 
+function normalizeLocation(value?: string) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function locationMatchScore(location: Location, destination: string) {
+  const query = normalizeLocation(destination);
+  if (!query) return 0;
+  const candidates = [location.name, location.fullName]
+    .map(normalizeLocation)
+    .filter(Boolean);
+  let score = 0;
+  for (const candidate of candidates) {
+    if (candidate === query) score = Math.max(score, 100);
+    else if (candidate.startsWith(query + " ")) score = Math.max(score, 90);
+    else {
+      const tokens = query.split(" ").filter(Boolean);
+      if (tokens.length && tokens.every((token) => candidate.split(" ").includes(token))) {
+        score = Math.max(score, 70);
+      }
+    }
+  }
+  return score;
+}
+
+function chooseLocation(locations: Location[], destination: string, specific: boolean) {
+  const ranked = locations
+    .filter((item) => item.id != null)
+    .map((item) => ({ item, score: locationMatchScore(item, destination) }))
+    .sort((a, b) => b.score - a.score);
+  if (!ranked.length) return undefined;
+  if (!specific) return ranked[0]?.item;
+  return ranked[0] && ranked[0].score >= 70 ? ranked[0].item : undefined;
+}
+
 async function mapRetailAmount(netPrice: number, supplierCurrency: string, requestedCurrency?: string) {
   const retailSupplier = retailPrice(netPrice);
   const target = customerCurrency(requestedCurrency);
@@ -292,8 +330,21 @@ export class LockTripHotelAdapter implements HotelAdapter {
   async search(request: HotelSearchRequest): Promise<HotelResult<HotelSearchResponse>> {
     try {
       const locations = await this.call<{ locations?: Location[] }>("search_location", { query: request.destination });
-      const location = locations.locations?.find((item) => item.id != null);
-      if (!location) return { ok: false, error: hotelError("bad_request", `LockTrip could not resolve destination: ${request.destination}`, false) };
+      const location = chooseLocation(
+        locations.locations || [],
+        request.destination,
+        request.location_scope !== "destination"
+      );
+      if (!location) {
+        return {
+          ok: false,
+          error: hotelError(
+            "bad_request",
+            `LockTrip could not resolve the specific location: ${request.destination}. Try a neighborhood, landmark, airport, town, or city name.`,
+            false
+          ),
+        };
+      }
       const rooms = Array.from({ length: Math.max(1, request.rooms) }, (_, index) => ({
         adults: index === 0 ? Math.max(1, request.adults ?? request.guests) : 1,
         childrenAges: [],
