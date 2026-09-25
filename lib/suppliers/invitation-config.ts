@@ -1,3 +1,26 @@
+export const SUPPORTED_SUPPLIER_INVITATION_TYPES = [
+  "Barbers",
+  "Hair & Beauty",
+  "Spas & Massage",
+  "Tattoo Artists & Body Art",
+  "Nails",
+  "Lashes & Brows",
+  "Fitness & Personal Training",
+  "Yoga/Pilates/Mindfulness",
+  "Diving & Marine",
+  "Surfing & Board Sports",
+  "Water Sports & Kite",
+  "Tours & Local Guides",
+  "Photography & Content",
+  "Private Chefs & Cooking",
+  "Hotels",
+  "Restaurants",
+  "Nightlife",
+  "Tour Operators",
+  "Experiences",
+  "Beach Clubs",
+] as const;
+
 export type SupplierInvitationConfig = {
   businessType: string;
   category?: string;
