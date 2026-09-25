@@ -40,6 +40,7 @@ export async function POST(request: Request) {
       if (method !== "mpesa") return errorResponse(409, "Hotel customer payment must use SafariPlug M-Pesa checkout.");
       const customerPhone = typeof body.customerPhone === "string" ? body.customerPhone.trim() : "";
       if (!customerPhone) return errorResponse(400, "A customer M-Pesa phone number is required.");
+      const hotelName = typeof body.hotelName === "string" && body.hotelName.trim() ? body.hotelName.trim() : null;
       const mpesa = getPaymentAdapter("mpesa");
       if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
 
@@ -120,6 +121,7 @@ export async function POST(request: Request) {
         provider: "locktrip",
         intentId: String(intent.id),
         productId: `hotel-locktrip-${String(body.hotelId || quoteId)}`,
+        hotelName,
         checkIn: typeof body.checkIn === "string" ? body.checkIn : null,
         checkOut: typeof body.checkOut === "string" ? body.checkOut : null,
       });
@@ -227,6 +229,7 @@ export async function POST(request: Request) {
           metadata: {
             searchKey,
             hotelId: body.hotelId ?? null,
+            hotelName,
             checkIn: body.checkIn ?? null,
             checkOut: body.checkOut ?? null,
             tripId,
@@ -300,7 +303,7 @@ export async function POST(request: Request) {
           currency: customerCurrency,
           customerEmail: email,
           customerPhone,
-          returnUrl: `${SITE_URL}/hotels/booking-result?bookingId=${encodeURIComponent(booking.preparedBookingId)}`,
+          returnUrl: `${SITE_URL}/hotels/booking-result?bookingId=${encodeURIComponent(booking.preparedBookingId)}${tripId ? `&tripId=${encodeURIComponent(tripId)}` : ""}`,
           idempotencyKey: `hotel-locktrip:${intentKey}`,
           callbackUrl: `${SITE_URL}/api/v1/hotels/locktrip/mpesa/callback`,
         });
