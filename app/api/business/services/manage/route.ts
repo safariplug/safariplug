@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
+import { queuePaidServiceCancellationReview } from "@/lib/services/service-refund-review";
 
 export const dynamic = "force-dynamic";
 
@@ -203,7 +204,7 @@ export async function POST(request: Request) {
       const target=String(body.status||""); if(!["confirmed","checked_in","in_progress","completed","cancelled","no_show"].includes(target))return NextResponse.json({error:"Invalid appointment status."},{status:400});
       const {data:appointment}=await supabaseAdmin.from("service_appointments").select("id,service_profile_id,payment_status").eq("id",body.appointmentId).eq("service_profile_id",profile.id).maybeSingle();
       if(!appointment)return NextResponse.json({error:"Appointment not found."},{status:404});
-      if(target === "cancelled" && ["paid", "partially_refunded"].includes(appointment.payment_status)) return NextResponse.json({error:"This appointment has a settled payment and requires a refund review before cancellation."},{status:409});
+      if(target === "cancelled" && ["paid", "partially_refunded"].includes(appointment.payment_status)){const review=await queuePaidServiceCancellationReview({appointmentId:appointment.id,actor:"provider",reason:String(body.reason||"Provider requested cancellation")});return NextResponse.json({reviewPending:true,review,message:review.status==="resolved"?"A finance decision already exists for this paid cancellation request.":"Cancellation request sent to SafariPlug finance for refund review. The appointment remains active until review is completed."},{status:202});}
       const {data,error}=await supabaseAdmin.rpc("transition_service_appointment_status",{p_appointment_id:appointment.id,p_to_status:target,p_actor_type:"provider",p_actor_user_id:user.id,p_note:body.reason||null});
       if(error){const status=error.message.startsWith("invalid_status_transition")?409:error.message.includes("settled_payment_requires_refund_review")?409:error.message.includes("appointment_not_found")?404:400;return NextResponse.json({error:error.message.includes("settled_payment_requires_refund_review")?"This appointment has a settled payment and requires a refund review before cancellation.":error.message},{status});}
       return NextResponse.json({appointment:data});
