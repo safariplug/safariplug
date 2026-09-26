@@ -23,6 +23,7 @@ export default function RefundReviewActions({
   const [error,setError]=useState("");
   const [correctionNotes,setCorrectionNotes]=useState("");
   const resolved=review?.status==="resolved";
+  const serviceFinalized=product==="service"&&resolved&&["no_refund_due","refunded_externally"].includes(String(review?.resolution||""));
 
   if(!canManageFinance) {
     return <div className="mt-5 rounded-xl border border-zinc-800 bg-black p-4">
@@ -65,20 +66,24 @@ export default function RefundReviewActions({
     />
     {resolved
       ?<div className="mt-3 rounded-xl border border-emerald-900/40 bg-emerald-950/10 p-3">
-        <p className="text-xs leading-5 text-emerald-200">Resolved finance decisions are locked against silent overwrite. To correct one, record a new correction reason and reopen it for review. The prior decision stays in append-only history.</p>
-        <textarea
-          value={correctionNotes}
-          onChange={e=>setCorrectionNotes(e.target.value)}
-          placeholder="Reason for reopening this resolved decision"
-          className="mt-3 min-h-20 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
-        />
-        <button
-          disabled={busy||!correctionNotes.trim()}
-          onClick={()=>void act("reopen",undefined,correctionNotes)}
-          className="mt-3 rounded-xl border border-amber-500/40 px-3 py-2 text-xs font-bold text-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Reopen for correction
-        </button>
+        {serviceFinalized
+          ?<p className="text-xs leading-5 text-emerald-200">This service decision already finalized appointment or payment state. Corrections must go through governed reconciliation rather than reopening this review.</p>
+          :<>
+            <p className="text-xs leading-5 text-emerald-200">Resolved finance decisions are locked against silent overwrite. To correct one, record a new correction reason and reopen it for review. The prior decision stays in append-only history.</p>
+            <textarea
+              value={correctionNotes}
+              onChange={e=>setCorrectionNotes(e.target.value)}
+              placeholder="Reason for reopening this resolved decision"
+              className="mt-3 min-h-20 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            />
+            <button
+              disabled={busy||!correctionNotes.trim()}
+              onClick={()=>void act("reopen",undefined,correctionNotes)}
+              className="mt-3 rounded-xl border border-amber-500/40 px-3 py-2 text-xs font-bold text-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reopen for correction
+            </button>
+          </>}
       </div>
       :<div className="mt-3 flex flex-wrap gap-2">
         {(!review||review.status==="pending")?<button disabled={busy} onClick={()=>void act("start_review")} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold">Start review</button>:null}
