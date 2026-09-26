@@ -105,7 +105,7 @@ export default function SearchScreen() {
           </Pressable>
         ))}
       </View>
-      {filter === "Stays" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/hotels" as never)} style={styles.place}><Text style={styles.placeName}>Search live hotels</Text><Text style={styles.placeMeta}>Bookable supplier rooms, Hotelbeds rate review and M-Pesa checkout.</Text></Pressable></View>) : coming && filter !== "All" ? (
+      {filter === "Stays" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/hotels" as never)} style={styles.place}><Text style={styles.placeName}>Search live hotels</Text><Text style={styles.placeMeta}>Bookable supplier rooms, Hotelbeds rate review and M-Pesa checkout.</Text></Pressable></View>) : filter === "Activities" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/live-activities" as never)} style={styles.place}><Text style={styles.placeName}>Search live tours & activities</Text><Text style={styles.placeMeta}>Hotelbeds supplier inventory, live options and M-Pesa checkout.</Text></Pressable></View>) : coming && filter !== "All" ? (
         <View style={{ paddingHorizontal: 20 }}>
           <ComingSoonCard title={coming.title} body={coming.body} />
         </View>
