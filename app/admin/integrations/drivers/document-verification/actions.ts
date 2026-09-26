@@ -25,7 +25,7 @@ export async function reviewDriverDocument(formData: FormData) {
 
   const { data: evidence, error: evidenceError } = await supabaseAdmin
     .from("verification_evidence")
-    .select("id,case_id,evidence_type,status,storage_ref")
+    .select("id,case_id,evidence_type,status,storage_ref,metadata")
     .eq("id", evidenceId)
     .maybeSingle();
   if (evidenceError || !evidence) throw new Error("Verification evidence could not be loaded.");
@@ -47,6 +47,7 @@ export async function reviewDriverDocument(formData: FormData) {
       rejection_reason: decision === "rejected" ? reason : null,
       provider: "human_review",
       metadata: {
+        ...((evidence.metadata || {}) as Record<string, unknown>),
         reviewed_by: admin.id,
         review_method: "safariplug_staff",
       },
