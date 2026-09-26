@@ -18,6 +18,7 @@ type DriverRequest = {
   quoted_amount: number | null;
   currency: string;
   status: string;
+  payment_status: string;
   created_at: string;
 };
 
@@ -51,13 +52,49 @@ export default async function DriverRequestsPage({
 
   const { data: rows, error } = await supabaseAdmin
     .from("driver_transfer_requests")
-    .select("id,traveler_id,trip_id,pickup_label,destination_label,requested_at,passenger_count,notes,quoted_amount,currency,status,created_at")
+    .select("id,traveler_id,trip_id,pickup_label,destination_label,requested_at,passenger_count,notes,quoted_amount,currency,status,payment_status,created_at")
     .eq("driver_id", driver.id)
     .order("requested_at", { ascending: true })
     .limit(200);
 
   if (error) throw new Error(error.message);
   const requests = (rows || []) as DriverRequest[];
+
+  async function quoteRequest(formData: FormData) {
+    "use server";
+    const client = await createSupabaseServerClient();
+    const { data: { user: current } } = await client.auth.getUser();
+    if (!current || current.is_anonymous) redirect(`/driver/login?next=${encodeURIComponent("/driver/requests")}`);
+
+    const requestId = String(formData.get("request_id") || "");
+    const amount = Number(formData.get("quoted_amount"));
+    const currency = String(formData.get("currency") || "KES").trim().toUpperCase();
+    if (!requestId || !Number.isFinite(amount) || amount <= 0) throw new Error("Enter a valid positive quote.");
+    if (currency !== "KES") throw new Error("Driver marketplace transfer quotes currently support KES only.");
+
+    const { data: ownedDriver } = await supabaseAdmin
+      .from("driver_profiles")
+      .select("id")
+      .eq("user_id", current.id)
+      .maybeSingle();
+    if (!ownedDriver) throw new Error("Driver profile required.");
+
+    const { data: updated, error: quoteError } = await supabaseAdmin
+      .from("driver_transfer_requests")
+      .update({ quoted_amount: amount, currency, updated_at: new Date().toISOString() })
+      .eq("id", requestId)
+      .eq("driver_id", ownedDriver.id)
+      .eq("status", "requested")
+      .select("id")
+      .maybeSingle();
+    if (quoteError) throw new Error(quoteError.message);
+    if (!updated) throw new Error("Only a pending request can be quoted.");
+
+    revalidatePath("/driver/requests");
+    revalidatePath("/driver/transfers/requests");
+    revalidatePath("/account/drivers");
+    revalidatePath("/account/trips");
+  }
 
   async function respond(formData: FormData) {
     "use server";
@@ -77,6 +114,7 @@ export default async function DriverRequestsPage({
     if (responseError) {
       const message = responseError.message;
       const friendly = message.includes("request_already_resolved") ? "This request has already been resolved."
+        : message.includes("transfer_quote_required") ? "Add a positive transfer quote before accepting this request."
         : message.includes("driver_not_eligible") ? "Your driver account is not currently eligible to accept requests."
         : message.includes("driver_unavailable") ? "Your availability marks this time as unavailable."
         : message.includes("request_not_found") ? "This request could not be found."
@@ -106,6 +144,7 @@ export default async function DriverRequestsPage({
     if (completionError) {
       const message = completionError.message;
       const friendly = message.includes("request_not_completable") ? "Only an accepted driver request can be marked completed."
+        : message.includes("transfer_payment_required") ? "This ride cannot be completed until SafariPlug records the transfer payment as paid."
         : message.includes("ride_not_started") ? "This ride cannot be completed before its scheduled pickup time."
         : message.includes("request_not_found") ? "This request could not be found."
         : message;
@@ -141,7 +180,7 @@ export default async function DriverRequestsPage({
       <section className="mt-10">
         <div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.2em] text-zinc-600">Needs action</p><h2 className="mt-1 text-2xl font-bold">Pending requests</h2></div><span className="rounded-full bg-[#c9a86a]/10 px-3 py-1 text-sm font-bold text-[#c9a86a]">{pending.length}</span></div>
         <div className="mt-5 space-y-4">
-          {pending.map(request => <RequestCard key={request.id} request={request} respond={respond} />)}
+          {pending.map(request => <RequestCard key={request.id} request={request} respond={respond} quoteRequest={quoteRequest} />)}
           {!pending.length && <div className="rounded-3xl border border-dashed border-zinc-800 px-6 py-12 text-center text-sm text-zinc-600">No pending driver requests.</div>}
         </div>
       </section>
@@ -149,7 +188,7 @@ export default async function DriverRequestsPage({
       <section className="mt-12">
         <div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.2em] text-zinc-600">History</p><h2 className="mt-1 text-2xl font-bold">Resolved requests</h2></div><span className="text-sm text-zinc-600">{history.length}</span></div>
         <div className="mt-5 space-y-3">
-          {history.map(request => <article key={request.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><div className="flex flex-col justify-between gap-4 sm:flex-row"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-zinc-600">{STATUS_COPY[request.status] || request.status}</p><h3 className="mt-2 font-semibold">{request.pickup_label} → {request.destination_label}</h3><p className="mt-2 text-sm text-zinc-500">{formatDate(request.requested_at)} · {request.passenger_count} passenger{request.passenger_count === 1 ? "" : "s"}</p></div>{request.quoted_amount != null && <p className="text-sm font-semibold text-zinc-300">{request.currency} {Number(request.quoted_amount).toLocaleString()}</p>}</div>{request.status==="accepted"&&<div className="mt-4 border-t border-zinc-800 pt-4">{new Date(request.requested_at).getTime()<=Date.now()?<form action={complete}><input type="hidden" name="request_id" value={request.id}/><button className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black">Mark ride completed</button></form>:<p className="text-xs text-zinc-600">Completion becomes available after the scheduled pickup time.</p>}</div>}</article>)}
+          {history.map(request => <article key={request.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"><div className="flex flex-col justify-between gap-4 sm:flex-row"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-zinc-600">{STATUS_COPY[request.status] || request.status}</p><h3 className="mt-2 font-semibold">{request.pickup_label} → {request.destination_label}</h3><p className="mt-2 text-sm text-zinc-500">{formatDate(request.requested_at)} · {request.passenger_count} passenger{request.passenger_count === 1 ? "" : "s"}</p><p className="mt-2 text-xs uppercase tracking-wider text-zinc-600">Payment: {request.payment_status || "unpaid"}</p></div>{request.quoted_amount != null && <p className="text-sm font-semibold text-zinc-300">{request.currency} {Number(request.quoted_amount).toLocaleString()}</p>}</div>{request.status==="accepted"&&<div className="mt-4 border-t border-zinc-800 pt-4">{request.payment_status!=="paid"?<p className="text-xs text-amber-400">Waiting for traveler payment before completion.</p>:new Date(request.requested_at).getTime()<=Date.now()?<form action={complete}><input type="hidden" name="request_id" value={request.id}/><button className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black">Mark ride completed</button></form>:<p className="text-xs text-zinc-600">Completion becomes available after the scheduled pickup time.</p>}</div>}</article>)}
           {!history.length && <div className="rounded-2xl border border-dashed border-zinc-800 px-6 py-10 text-center text-sm text-zinc-600">No resolved requests yet.</div>}
         </div>
       </section>
@@ -157,14 +196,15 @@ export default async function DriverRequestsPage({
   </main>;
 }
 
-function RequestCard({ request, respond }: { request: DriverRequest; respond: (formData: FormData) => Promise<void> }) {
+function RequestCard({ request, respond, quoteRequest }: { request: DriverRequest; respond: (formData: FormData) => Promise<void>; quoteRequest: (formData: FormData) => Promise<void> }) {
   return <article className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
     <div className="flex flex-col justify-between gap-5 sm:flex-row">
       <div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-[#c9a86a]">Awaiting your response</p><h3 className="mt-2 text-xl font-bold">{request.pickup_label} → {request.destination_label}</h3><p className="mt-2 text-sm text-zinc-400">{formatDate(request.requested_at)} · {request.passenger_count} passenger{request.passenger_count === 1 ? "" : "s"}</p>{request.notes && <p className="mt-3 rounded-xl bg-black/40 p-3 text-xs leading-5 text-zinc-500">{request.notes}</p>}</div>
       <div className="shrink-0 sm:text-right">{request.quoted_amount != null ? <><p className="text-xs text-zinc-600">Recorded quote</p><p className="mt-1 text-lg font-bold">{request.currency} {Number(request.quoted_amount).toLocaleString()}</p></> : <p className="text-xs text-zinc-600">Custom quote requested</p>}</div>
     </div>
+    {request.quoted_amount == null ? <form action={quoteRequest} className="mt-5 flex flex-wrap gap-2 border-t border-zinc-800 pt-5"><input type="hidden" name="request_id" value={request.id}/><input required name="quoted_amount" type="number" min="1" step="0.01" placeholder="Custom quote" className="rounded-xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white"/><input name="currency" value="KES" readOnly className="w-24 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm uppercase text-white"/><button className="rounded-xl bg-amber-200 px-5 py-3 text-sm font-black text-black">Save quote</button></form> : null}
     <div className="mt-5 flex flex-wrap gap-3 border-t border-zinc-800 pt-5">
-      <form action={respond}><input type="hidden" name="request_id" value={request.id}/><input type="hidden" name="decision" value="accepted"/><button className="rounded-xl bg-[#c9a86a] px-5 py-3 text-sm font-black text-black">Accept request</button></form>
+      <form action={respond}><input type="hidden" name="request_id" value={request.id}/><input type="hidden" name="decision" value="accepted"/><button disabled={request.quoted_amount == null} className="rounded-xl bg-[#c9a86a] px-5 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-40">Accept request</button></form>
       <form action={respond}><input type="hidden" name="request_id" value={request.id}/><input type="hidden" name="decision" value="declined"/><button className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-300">Decline</button></form>
     </div>
   </article>;
