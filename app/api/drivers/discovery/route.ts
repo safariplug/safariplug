@@ -4,7 +4,7 @@ import { currentVerifiedDriverIds } from "@/lib/services/driver-verification";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   const { data: drivers, error } = await supabaseAdmin
     .from("driver_profiles")
     .select("id,display_name,personal_photo_url,identity_liveness_verified_at,service_city,service_country,capabilities,preferred,driving_license_compliance_status,vehicles(id,category,make_model,passenger_capacity,luggage_capacity,status,registration_compliance_status,insurance_compliance_status),driver_transfer_rates(id,rate_type,origin_label,destination_label,airport_code,amount,currency,status)")
@@ -30,5 +30,11 @@ export async function GET() {
     }))
     .filter((driver:any)=>driver.vehicles.length>0&&Boolean(driver.personal_photo_url));
 
+  const id = new URL(request.url).searchParams.get("id")?.trim();
+  if (id) {
+    const driver = eligible.find((row:any)=>row.id===id) || null;
+    if (!driver) return NextResponse.json({ error: "Verified driver not found." }, { status: 404 });
+    return NextResponse.json({ driver });
+  }
   return NextResponse.json({ drivers: eligible });
 }
