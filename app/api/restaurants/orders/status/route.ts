@@ -9,7 +9,12 @@ const ACTIVE_ASSIGNMENT_STATUSES=["assigned","accepted","arrived_at_restaurant",
 const SUPPLIER_ORDER_STATUSES=["accepted","preparing","ready","delivered","cancelled","rejected"];
 const DRIVER_ORDER_STATUSES=["picked_up","on_the_way","delivered"];
 
-async function user() { const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser(); return user&&!user.is_anonymous?user:null; }
+async function user(request:Request) {
+ const header=request.headers.get("authorization")||""; const token=header.startsWith("Bearer ")?header.slice(7).trim():"";
+ if(token){const {data,error}=await supabaseAdmin.auth.getUser(token);if(!error&&data.user&&!data.user.is_anonymous&&(data.user.email_confirmed_at||data.user.phone_confirmed_at))return data.user;}
+ const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser();
+ return user&&!user.is_anonymous&&(user.email_confirmed_at||user.phone_confirmed_at)?user:null;
+}
 async function supplierBusinessId(userId:string) { const {data}=await supabaseAdmin.from("supplier_accounts").select("business_id").eq("user_id",userId).maybeSingle(); return data?.business_id??null; }
 async function driverProfileId(userId:string) { const {data}=await supabaseAdmin.from("driver_profiles").select("id").eq("user_id",userId).maybeSingle(); return data?.id??null; }
 
@@ -38,7 +43,7 @@ async function eligibleDriver(driverId:string, order:any) {
 }
 
 export async function GET(request:Request) {
- const currentUser=await user(); if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
+ const currentUser=await user(request); if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
  const {searchParams}=new URL(request.url); const orderId=searchParams.get("orderId"); const businessId=searchParams.get("businessId"); const supplierView=searchParams.get("supplier")==="true";
  let query=supabaseAdmin.from("food_orders").select("*, food_order_items(*), food_delivery_assignments(*), businesses:business_id(id,name)").order("created_at",{ascending:false});
  if(orderId) query=query.eq("id",orderId);
