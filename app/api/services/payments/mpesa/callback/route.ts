@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     if (resultCode === 0) {
       const callbackAmount = Number(amountValue);
       const expectedAmount = Number(appointment.customer_total_amount);
-      if (!Number.isFinite(callbackAmount) || !Number.isFinite(expectedAmount) || callbackAmount !== expectedAmount || String(appointment.currency).toUpperCase() !== "KES") {
+      if (!Number.isFinite(callbackAmount) || !Number.isFinite(expectedAmount) || Math.round(callbackAmount) !== Math.round(expectedAmount) || String(appointment.currency).toUpperCase() !== "KES") {
         console.error("M-Pesa service payment amount mismatch", {
           appointmentId: appointment.id,
           checkoutRequestId,
