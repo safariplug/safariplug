@@ -22,14 +22,24 @@ function label(value: string) {
 function requirementLink(requirement: string) {
   const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "");
   const base = `${site}/supplier/onboarding`;
-  if (requirement.toLowerCase().includes("business detail") || requirement.includes("description")) return `${base}#business-details`;
-  if (requirement.toLowerCase().includes("business image") || requirement.includes("logo") || requirement.includes("cover image")) return `${base}#business-images`;
-  if (requirement.toLowerCase().includes("service pricing") || requirement.includes("service offering") || requirement.includes("pricing and duration")) return `${base}#services-pricing`;
-  if (requirement.toLowerCase().includes("availability") || requirement.toLowerCase().includes("add at least one active service specialist") || requirement.includes("team member")) return `${base}#team-availability`;
-  if (requirement.toLowerCase().includes("personal photo") || requirement.toLowerCase().includes("identity + live face verification") || requirement.toLowerCase().includes("specialist identity")) return `${site}/business/services/identity`;
-  if (requirement.toLowerCase().includes("payout") || requirement.includes("M-Pesa")) return `${site}/business/payouts`;
-  if (requirement.toLowerCase().includes("provider") && requirement.toLowerCase().includes("verification")) return `${site}/business/verification`;
-  if (requirement.includes("verification")) return `${site}/supplier/readiness`;
+  const normalized = requirement.toLowerCase();
+  if (normalized.includes("business detail") || normalized.includes("description") || normalized.includes("business address")) return `${base}#business-details`;
+  if (normalized.includes("business image") || normalized.includes("logo") || normalized.includes("cover image")) return `${base}#business-images`;
+  if (normalized.includes("service pricing") || normalized.includes("service offering") || normalized.includes("pricing and duration")) return `${base}#services-pricing`;
+  if (normalized.includes("availability") || normalized.includes("add at least one active service specialist") || normalized.includes("team member")) return `${base}#team-availability`;
+  if (
+    normalized.includes("personal photo") ||
+    normalized.includes("identity + live face verification") ||
+    normalized.includes("specialist identity") ||
+    (normalized.includes("specialist") && (normalized.includes("verification") || normalized.includes("staff review")))
+  ) return `${site}/business/services/identity`;
+  if (normalized.includes("payout") || normalized.includes("m-pesa")) return `${site}/business/payouts`;
+  if (
+    normalized.includes("provider verification") ||
+    normalized.includes("provider account") ||
+    (normalized.includes("provider") && normalized.includes("staff review"))
+  ) return `${site}/business/verification`;
+  if (normalized.includes("verification")) return `${site}/supplier/readiness`;
   return base;
 }
 
