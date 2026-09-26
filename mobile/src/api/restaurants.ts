@@ -10,11 +10,14 @@ export type RestaurantOrderItemInput = {
 
 export type CreateRestaurantOrderInput = {
   businessId: string;
-  fulfillmentMethod: "pickup" | "restaurant_delivery";
+  fulfillmentMethod: "pickup" | "restaurant_delivery" | "safari_driver" | "customer_driver";
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
   deliveryAddress?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+  driverId?: string;
   customerNotes?: string;
   tripId?: string;
   items: RestaurantOrderItemInput[];
