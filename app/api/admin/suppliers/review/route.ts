@@ -102,7 +102,7 @@ export async function POST(request: Request) {
         await supabaseAdmin.from("crm_activities").insert({
           prospect_id: account.prospect_id || null,
           partner_id: account.partner_id || null,
-          activity_type: "review",
+          activity_type: "system",
           summary: "Supplier profile early review completed",
           details: `Supplier account ${account.id} received an early staff profile review while activation setup continued.`,
         });
