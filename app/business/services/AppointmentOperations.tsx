@@ -72,6 +72,7 @@ export default function AppointmentOperations({appointments,timeZone,profileId}:
         const refund=refundLabel(a.refund_review);
         const latestEvent=a.status_events?.[a.status_events.length-1];
         const reviewOpen=Boolean(a.refund_review&&a.refund_review.status!=="resolved");
+        const paymentRequired=a.payment_status!=="paid";
         return <div key={a.id} className="rounded-2xl border border-black/8 p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -101,7 +102,7 @@ export default function AppointmentOperations({appointments,timeZone,profileId}:
           {latestEvent&&<p className="mt-3 text-xs leading-5 text-black/40">Latest: {String(latestEvent.to_status).replaceAll("_"," ")} by {latestEvent.actor_type}{latestEvent.note?" · "+latestEvent.note:""} · {formatTime(latestEvent.created_at,timeZone)}</p>}
 
           {ACTIONS[a.status]?.length>0&&<div className="mt-4 flex flex-wrap gap-2">
-            {ACTIONS[a.status].map((action)=><button key={action.status} disabled={busy||(action.status==="cancelled"&&reviewOpen)} onClick={()=>void act(a,action)} className={"rounded-xl px-3 py-2 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40 "+((action.status==="cancelled"||action.status==="no_show")?"border border-black/10 bg-white text-black/65":"bg-black text-white")}>{action.status==="cancelled"&&reviewOpen?"Cancellation under finance review":action.label}</button>)}
+            {ACTIONS[a.status].map((action)=>{const deliveryAction=["checked_in","in_progress","completed"].includes(action.status);const disabled=busy||(action.status==="cancelled"&&reviewOpen)||(deliveryAction&&paymentRequired);const label=deliveryAction&&paymentRequired?"Payment required":action.status==="cancelled"&&reviewOpen?"Cancellation under finance review":action.label;return <button key={action.status} disabled={disabled} onClick={()=>void act(a,action)} className={"rounded-xl px-3 py-2 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40 "+((action.status==="cancelled"||action.status==="no_show")?"border border-black/10 bg-white text-black/65":"bg-black text-white")}>{label}</button>})}
           </div>}
         </div>;
       })}
