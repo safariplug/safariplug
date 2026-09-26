@@ -48,12 +48,13 @@ export async function POST(request: Request) {
       transactionDate: metadataMap.TransactionDate || null,
       receivedAt: new Date().toISOString(),
     };
+    const { mpesaCallbackRejected: _previousRejectedCallback, reconciliation: _previousReconciliation, ...verifiedMetadata } = metadata;
     const update: Record<string, unknown> = verifiedSuccess
       ? {
           payment_status: "paid",
           booking_status: "payment_pending",
           paid_at: new Date().toISOString(),
-          metadata: { ...metadata, mpesaCallback: callbackRecord },
+          metadata: { ...verifiedMetadata, mpesaCallback: callbackRecord },
         }
       : success
         ? {
