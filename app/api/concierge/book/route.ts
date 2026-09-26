@@ -115,10 +115,12 @@ export async function POST(request: Request) {
       p_customer_notes: customerNotes,
     });
     if (error) {
-      const message = error.message.includes("staff_verification_not_current")
-        ? "This specialist's SafariPlug verification is no longer current. Please choose another verified specialist or try again after verification is restored."
-        : error.message;
-      const status = error.message.includes("slot_unavailable") || error.message.includes("staff_verification_not_current") ? 409 : 400;
+      const message = error.message.includes("provider_verification_not_current")
+        ? "This provider's SafariPlug verification is no longer current. Please choose another verified provider or try again after verification is restored."
+        : error.message.includes("staff_verification_not_current")
+          ? "This specialist's SafariPlug verification is no longer current. Please choose another verified specialist or try again after verification is restored."
+          : error.message;
+      const status = error.message.includes("slot_unavailable") || error.message.includes("provider_verification_not_current") || error.message.includes("staff_verification_not_current") ? 409 : 400;
       return NextResponse.json({ error: message }, { status });
     }
     return NextResponse.json({ appointment }, { status: 201 });
