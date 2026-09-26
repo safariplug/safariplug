@@ -73,6 +73,7 @@ export default async function ServiceOperationsPage(){
     const start=new Date(row.starts_at).getTime();
     return start>=Date.now()&&start<=Date.now()+24*3600000;
   });
+  const stalePendingPayments=appointments.filter((row:any)=>row.payment_status==="pending"&&new Date(row.updated_at).getTime()<Date.now()-30*60*1000);
 
   const ledgerRows=ledgerResult.data??[];
   const ledgerById=new Map(ledgerRows.map((row:any)=>[String(row.id),row]));
@@ -105,7 +106,7 @@ export default async function ServiceOperationsPage(){
   const specialistTrust=verification.filter((row:any)=>row.subject_type==="service_staff");
 
   const queryErrors=[appointmentResult.error,ledgerResult.error,reviewResult.error,payoutResult.error,verificationResult.error].filter(Boolean);
-  const attention=overdue.length+reviews.length+payouts.filter((row:any)=>row.status!=="processing").length+staleProcessing.length+verification.length;
+  const attention=overdue.length+stalePendingPayments.length+reviews.length+payouts.filter((row:any)=>row.status!=="processing").length+staleProcessing.length+verification.length;
 
   return <main className="min-h-screen bg-[#050505] px-5 py-10 text-white md:px-10">
     <div className="mx-auto max-w-7xl">
@@ -131,9 +132,10 @@ export default async function ServiceOperationsPage(){
 
       {queryErrors.length>0&&<section className="mt-5 rounded-2xl border border-red-900/60 bg-red-950/20 p-4"><p className="font-semibold text-red-300">Service operations data is partially unavailable</p><p className="mt-1 text-sm text-red-300/70">One or more operational queries failed. Open the underlying workspace before taking financial or trust action.</p></section>}
 
-      <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
         <Metric label="Overdue active" value={overdue.length} alert={overdue.length>0}/>
         <Metric label="Starting ≤24h" value={startingSoon.length}/>
+        <Metric label="Stale pending payment" value={stalePendingPayments.length} alert={stalePendingPayments.length>0}/>
         <Metric label="Refund reviews" value={reviews.length} alert={reviews.length>0}/>
         <Metric label="Held / failed payouts" value={payouts.filter((row:any)=>["held","failed"].includes(row.status)).length} alert={payouts.some((row:any)=>["held","failed"].includes(row.status))}/>
         <Metric label="Stale processing" value={staleProcessing.length} alert={staleProcessing.length>0}/>
@@ -142,6 +144,10 @@ export default async function ServiceOperationsPage(){
       </section>
 
       <section className="mt-8 grid gap-4 xl:grid-cols-2">
+        <Panel title="Stale pending payments" subtitle="Payment provider state has remained pending for more than 30 minutes. Do not cancel automatically; reconcile the provider result first." href="/admin/accounting/reconciliation">
+          {stalePendingPayments.slice(0,20).map((row:any)=><AppointmentCard key={row.id} row={row}/>)}
+          {!stalePendingPayments.length&&<Empty text="No service payments are stuck pending."/>}
+        </Panel>
         <Panel title="Overdue appointment operations" subtitle="Active appointments whose scheduled end time has passed." href="/admin/accounting/reconciliation">
           {overdue.slice(0,20).map((row:any)=><AppointmentCard key={row.id} row={row}/>)}
           {!overdue.length&&<Empty text="No active service appointments are overdue."/>}
