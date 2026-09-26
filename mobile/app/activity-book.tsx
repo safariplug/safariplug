@@ -10,7 +10,7 @@ type Pax={name:string;surname:string};
 type Preflight={selectionToken:string;pricing?:{customerRetailAmount?:number;customerCurrency?:string};activity?:{name?:string;modalityName?:string;from?:string;to?:string;sessionName?:string|null;languageName?:string|null;freeCancellation?:boolean|null;comments?:string[];questions?:Array<{code:string;text:string;required:boolean}>;paxes?:Array<{age:number}>}};
 
 export default function ActivityBookScreen(){
- const params=useLocalSearchParams<{selectionToken?:string}>(); const token=String(params.selectionToken||"");
+ const params=useLocalSearchParams<{selectionToken?:string;tripId?:string}>(); const token=String(params.selectionToken||"");
  const[preflight,setPreflight]=useState<Preflight|null>(null); const[loading,setLoading]=useState(true); const[busy,setBusy]=useState(false); const[accepted,setAccepted]=useState(false); const[error,setError]=useState("");
  const[holder,setHolder]=useState({name:"",surname:"",email:"",phone:""}); const[paxes,setPaxes]=useState<Pax[]>([]); const[answers,setAnswers]=useState<Record<string,string>>({});
 
@@ -27,10 +27,10 @@ export default function ActivityBookScreen(){
   const questions=preflight.activity?.questions||[]; const missing=questions.find(q=>q.required&&!answers[q.code]?.trim()); if(missing){setError("Answer required: "+missing.text);return;}
   setBusy(true);setError("");
   try{
-   const r=await fetch(API_BASE_URL+"/api/v1/activities/hotelbeds/checkout",{method:"POST",headers:await headers(),body:JSON.stringify({action:"prepare",idempotencyKey:"mobile-activity-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),selectionToken:preflight.selectionToken,currency:"KES",termsAccepted:true,customerPhone:holder.phone.trim(),holder:{name:holder.name.trim(),surname:holder.surname.trim(),email:holder.email.trim(),phone:holder.phone.trim()},paxes:paxes.map(p=>({name:p.name.trim(),surname:p.surname.trim()})),answers:questions.map(q=>({code:q.code,answer:answers[q.code]?.trim()||""}))})});
+   const r=await fetch(API_BASE_URL+"/api/v1/activities/hotelbeds/checkout",{method:"POST",headers:await headers(),body:JSON.stringify({action:"prepare",idempotencyKey:"mobile-activity-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),selectionToken:preflight.selectionToken,currency:"KES",tripId:params.tripId||undefined,termsAccepted:true,customerPhone:holder.phone.trim(),holder:{name:holder.name.trim(),surname:holder.surname.trim(),email:holder.email.trim(),phone:holder.phone.trim()},paxes:paxes.map(p=>({name:p.name.trim(),surname:p.surname.trim()})),answers:questions.map(q=>({code:q.code,answer:answers[q.code]?.trim()||""}))})});
    const b=await r.json().catch(()=>({})); if(!r.ok)throw new Error(b?.message||b?.error||"Unable to start activity checkout."); if(!b?.bookingId)throw new Error("SafariPlug did not return an activity booking session.");
    Alert.alert("M-Pesa request sent","Complete payment on your phone. SafariPlug will reconfirm the activity only after payment succeeds.");
-   router.replace({pathname:"/travel-booking/[product]/[bookingId]",params:{product:"activity",bookingId:String(b.bookingId),label:String(preflight.activity?.name||"Activity booking"),bookingStatus:String(b.status||"payment_pending"),paymentStatus:"pending",currency:String(preflight.pricing?.customerCurrency||"KES"),amount:String(preflight.pricing?.customerRetailAmount||0),providerReference:""}} as never);
+   router.replace({pathname:"/travel-booking/[product]/[bookingId]",params:{product:"activity",bookingId:String(b.bookingId),label:String(preflight.activity?.name||"Activity booking"),bookingStatus:String(b.status||"payment_pending"),paymentStatus:"pending",currency:String(preflight.pricing?.customerCurrency||"KES"),amount:String(preflight.pricing?.customerRetailAmount||0),providerReference:"",...(params.tripId?{tripId:String(params.tripId)}:{})}} as never);
   }catch(e){setError(e instanceof Error?e.message:"Unable to start activity checkout.");setBusy(false);}
  }
 
