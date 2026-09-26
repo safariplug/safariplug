@@ -34,7 +34,7 @@ async function attachConfirmedTravelToTrip(params: {
   if (!params.tripId) return null;
   const { data: trip } = await supabaseAdmin.from("trips").select("id").eq("id", params.tripId).eq("traveler_id", params.userId).maybeSingle();
   if (!trip) return null;
-  const { data: existing } = await supabaseAdmin.from("trip_items").select("id").eq("trip_id", params.tripId).eq("item_kind", params.itemKind).eq("title", params.title).eq("start_at", params.startAt).maybeSingle();
+  const { data: existing } = await supabaseAdmin.from("trip_items").select("id").eq("trip_id", params.tripId).eq("item_kind", params.itemKind).eq("notes", params.notes).maybeSingle();
   if (existing) return existing;
   const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", params.tripId);
   const { data, error } = await supabaseAdmin.from("trip_items").insert({
