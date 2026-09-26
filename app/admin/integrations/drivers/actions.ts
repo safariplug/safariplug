@@ -70,8 +70,20 @@ export async function updateDriverStatus(formData: FormData) {
   }
 
   await updateDriverAdmin(driverId, { service_status: serviceStatus });
+
+  if (serviceStatus === "active") {
+    const { error: rateError } = await supabaseAdmin
+      .from("driver_transfer_rates")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("driver_id", driverId)
+      .eq("status", "draft");
+    if (rateError) throw new Error(`Driver activated, but draft transfer rates could not be published: ${rateError.message}`);
+  }
+
   revalidatePath("/admin/integrations/drivers");
   revalidatePath("/driver/application");
+  revalidatePath("/driver/transfers");
+  revalidatePath("/drivers");
 }
 
 export async function createVehicle(formData: FormData) {
@@ -89,7 +101,24 @@ export async function createVehicle(formData: FormData) {
 
 export async function activateVehicle(formData: FormData) {
   await requireAdmin();
-  await updateVehicleAdmin(text(formData, "vehicle_id"), { status: "active" });
+  const vehicleId = text(formData, "vehicle_id");
+  if (!vehicleId) throw new Error("Vehicle ID is required.");
+
+  const { data: vehicle, error } = await supabaseAdmin
+    .from("vehicles")
+    .select("id,registration_compliance_status,insurance_compliance_status")
+    .eq("id", vehicleId)
+    .maybeSingle();
+
+  if (error || !vehicle) throw new Error("Vehicle could not be loaded.");
+  if (!currentCompliance(vehicle.registration_compliance_status)) {
+    throw new Error("Vehicle registration must be valid or expiring soon before activation.");
+  }
+  if (!currentCompliance(vehicle.insurance_compliance_status)) {
+    throw new Error("Vehicle insurance must be valid or expiring soon before activation.");
+  }
+
+  await updateVehicleAdmin(vehicleId, { status: "active" });
   revalidatePath("/admin/integrations/drivers");
 }
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { describeDriverProviders } from "@/lib/integrations/drivers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { updateDriverStatus } from "./actions";
+import { activateVehicle, updateDriverStatus } from "./actions";
 import { currentCompliance, currentVerifiedDriverIds } from "@/lib/services/driver-verification";
 
 export const dynamic = "force-dynamic";
@@ -115,6 +115,38 @@ export default async function DriverMarketplacePage() {
                     <div className="text-zinc-300">{driver.vehicleCount} record{driver.vehicleCount === 1 ? "" : "s"}</div>
                     <div className={`mt-1 text-xs font-semibold ${driver.eligibleVehicle ? "text-emerald-400" : "text-amber-400"}`}>
                       {driver.eligibleVehicle ? "activation-ready vehicle" : "no compliant active vehicle"}
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {driver.vehicles.map((vehicle) => {
+                        const compliant =
+                          currentCompliance(vehicle.registration_compliance_status) &&
+                          currentCompliance(vehicle.insurance_compliance_status);
+                        return (
+                          <div key={vehicle.id} className="rounded-lg border border-zinc-800 bg-black/20 p-2 text-[11px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-zinc-300">{vehicle.status}</span>
+                              {vehicle.status !== "active" ? (
+                                <form action={activateVehicle}>
+                                  <input type="hidden" name="vehicle_id" value={vehicle.id} />
+                                  <button
+                                    type="submit"
+                                    disabled={!compliant}
+                                    className="rounded-md border border-emerald-500/30 px-2 py-1 font-semibold text-emerald-300 enabled:hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600"
+                                    title={!compliant ? "Current registration and insurance are required before vehicle activation." : "Activate vehicle"}
+                                  >
+                                    Activate vehicle
+                                  </button>
+                                </form>
+                              ) : (
+                                <span className="text-emerald-400">active</span>
+                              )}
+                            </div>
+                            <div className="mt-1 text-zinc-500">
+                              Registration: {vehicle.registration_compliance_status ?? "missing"} · Insurance: {vehicle.insurance_compliance_status ?? "missing"}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </td>
                   <td className={`p-4 font-semibold ${statusClass(driver.service_status)}`}>{driver.service_status}</td>
