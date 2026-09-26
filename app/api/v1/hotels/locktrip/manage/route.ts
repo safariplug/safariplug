@@ -1,17 +1,11 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LockTripHotelAdapter } from "@/lib/integrations/hotels/locktrip";
+import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 
 export const dynamic = "force-dynamic";
 
 function fail(status: number, message: string) {
   return NextResponse.json({ error: "locktrip_error", message }, { status });
-}
-
-async function requireSafariPlugUser() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
 }
 
 async function registeredToken(adapter: LockTripHotelAdapter) {
@@ -24,8 +18,12 @@ async function registeredToken(adapter: LockTripHotelAdapter) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireSafariPlugUser();
-  if (!user) return fail(401, "Authentication required.");
+  try {
+    await requireAdmin();
+  } catch (error) {
+    if (error instanceof AdminAuthError) return fail(error.status, error.message);
+    return fail(500, "Unable to verify admin access.");
+  }
 
   let body: Record<string, unknown>;
   try {
