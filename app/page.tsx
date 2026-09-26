@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import LuxuryImage from "@/components/LuxuryImage";
 import SmartFind from "@/components/SmartFind";
 
@@ -26,7 +26,7 @@ const platformAreas = [
 export default async function HomePage() {
   const now = new Date().toISOString();
   const validity = `end_at.gte.${now},and(end_at.is.null,start_at.gte.${now})`;
-  const { data: upcomingEvents } = await supabase.from("events").select("id,title,category,venue_name,image_url,start_at").eq("status", "approved").or(validity).order("start_at", { ascending: true }).limit(3);
+  const { data: upcomingEvents } = await supabaseAdmin.from("events").select("id,title,category,venue_name,image_url,start_at").eq("status", "approved").or(validity).order("start_at", { ascending: true }).limit(3);
 
   return (
     <main className="min-h-screen bg-[#070708] text-[#f4f0e8] selection:bg-[#c9a86a] selection:text-[#070708]">
