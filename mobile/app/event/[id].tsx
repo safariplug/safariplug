@@ -6,9 +6,10 @@ import {
   StyleSheet,
   Text,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { fetchEvent } from "../../src/api/catalog";
-import { ApiError } from "../../src/api/client";
+import { API_BASE_URL, ApiError } from "../../src/api/client";
+import { supabase } from "../../src/auth";
 import { EventImage } from "../../src/components/EventImage";
 import { PriceLabel } from "../../src/components/PriceLabel";
 import { EmptyBlock, ErrorBlock, LoadingBlock } from "../../src/components/StatusBlocks";
@@ -17,11 +18,14 @@ import { colors } from "../../src/theme";
 import { formatEventWhen, venueLine } from "../../src/utils/format";
 
 export default function EventDetailScreen() {
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; tripId?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const tripId = Array.isArray(params.tripId) ? params.tripId[0] : params.tripId;
   const [event, setEvent] = useState<CatalogEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [tripMessage, setTripMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +70,32 @@ export default function EventDetailScreen() {
   const venue = venueLine(event);
   const bookingUrl = event.booking_url;
 
+  async function addToTrip() {
+    if (!tripId || adding) return;
+    setAdding(true);
+    setTripMessage("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) throw new Error("Sign in to add this event to your trip.");
+      const response = await fetch(API_BASE_URL + "/api/trip-planner/" + encodeURIComponent(tripId) + "/items", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json",
+          authorization: "Bearer " + data.session.access_token,
+        },
+        body: JSON.stringify({ event_id: event.id, item_kind: "event" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || "Unable to add this event to the trip.");
+      setTripMessage(body?.added === false ? "This event is already on your trip." : "Event added to your trip.");
+    } catch (error) {
+      setTripMessage(error instanceof Error ? error.message : "Unable to add this event to the trip.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <EventImage uri={event.image_url} style={styles.hero} />
@@ -85,6 +115,17 @@ export default function EventDetailScreen() {
       ) : (
         <EmptyBlock title="No description" body="This listing has no description yet." />
       )}
+      {tripId ? (
+        <>
+          <Pressable style={styles.tripCta} onPress={() => void addToTrip()} disabled={adding}>
+            <Text style={styles.tripCtaLabel}>{adding ? "Adding to trip…" : "Add to this trip"}</Text>
+          </Pressable>
+          {tripMessage ? <Text style={styles.tripMessage}>{tripMessage}</Text> : null}
+          <Pressable style={styles.tripLink} onPress={() => router.push({ pathname: "/trip/[tripId]", params: { tripId } })}>
+            <Text style={styles.tripLinkLabel}>Open trip →</Text>
+          </Pressable>
+        </>
+      ) : null}
       {bookingUrl ? (
         <Pressable
           style={styles.cta}
@@ -125,5 +166,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
   },
+  tripCta: { marginTop: 28, backgroundColor: colors.gold, borderRadius: 999, paddingVertical: 16, alignItems: "center" },
+  tripCtaLabel: { color: colors.bg, fontWeight: "800", fontSize: 15 },
+  tripMessage: { color: colors.textMuted, marginTop: 10, textAlign: "center" },
+  tripLink: { marginTop: 10, alignItems: "center" },
+  tripLinkLabel: { color: colors.goldSoft, fontWeight: "800" },
   ctaLabel: { color: colors.bg, fontWeight: "800", fontSize: 15 },
 });
