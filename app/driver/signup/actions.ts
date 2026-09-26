@@ -112,6 +112,11 @@ export async function submitDriverApplication(formData: FormData) {
     driverId = driver.id;
 
     const licensePath = await uploadDocument(license, driver.id, "driving-license"); uploadedPaths.push(licensePath);
+    const { error: licenseLinkError } = await supabaseAdmin.from("driver_profiles").update({
+      driving_license_path: licensePath,
+      driving_license_uploaded_at: new Date().toISOString(),
+    }).eq("id", driver.id);
+    if (licenseLinkError) throw new Error(`Unable to link driving license to driver profile: ${licenseLinkError.message}`);
     const insurancePath = await uploadDocument(insurance, driver.id, "insurance"); uploadedPaths.push(insurancePath);
     const registrationPath = await uploadDocument(registration, driver.id, "vehicle-registration"); uploadedPaths.push(registrationPath);
 
