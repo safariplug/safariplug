@@ -26,6 +26,7 @@ function errorResponse(status: number, message: string) {
 async function requireUser() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) return null;
   return user;
 }
 
