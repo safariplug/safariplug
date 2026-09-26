@@ -20,6 +20,12 @@ function objectId(value: unknown): string | null {
   return typeof id === "string" && id ? id : null;
 }
 
+function objectString(value: unknown, key: string): string | null {
+  if (!value || typeof value !== "object") return null;
+  const result = (value as Record<string, unknown>)[key];
+  return typeof result === "string" && result ? result : null;
+}
+
 export async function POST(request: Request) {
   const payload = await request.text();
   const signature = request.headers.get("stripe-signature") ?? "";
@@ -44,9 +50,18 @@ export async function POST(request: Request) {
   const objectReference = objectId(object);
 
   let status: "succeeded" | "failed" | "cancelled" | "processing" | null = null;
-  if (["checkout.session.completed", "payment_intent.succeeded"].includes(eventType)) status = "succeeded";
-  else if (["checkout.session.async_payment_failed", "payment_intent.payment_failed"].includes(eventType)) status = "failed";
-  else if (eventType === "checkout.session.expired") status = "cancelled";
+  if (["checkout.session.async_payment_succeeded", "payment_intent.succeeded"].includes(eventType)) {
+    status = "succeeded";
+  } else if (eventType === "checkout.session.completed") {
+    const paymentStatus = objectString(object, "payment_status");
+    status = paymentStatus === "paid" || paymentStatus === "no_payment_required" ? "succeeded" : "processing";
+  } else if (["checkout.session.async_payment_failed", "payment_intent.payment_failed"].includes(eventType)) {
+    status = "failed";
+  } else if (["checkout.session.expired", "payment_intent.canceled"].includes(eventType)) {
+    status = "cancelled";
+  } else if (eventType === "payment_intent.processing") {
+    status = "processing";
+  }
 
   if (!status) return NextResponse.json({ received: true, ignored: true });
   if (!appointmentId || !idempotencyKey || !objectReference) {
