@@ -135,6 +135,14 @@ export default async function AIScoutPage() {
     .order("created_at", { ascending: false })
     .limit(10);
 
+  const { data: lastScheduled } = await supabaseAdmin
+    .from("ai_scout_runs")
+    .select("id,location,category,status,queued_at,completed_at,events_found,discoveries_found,sent_for_review")
+    .like("notes", "Queued by autonomous Monday/Wednesday/Friday AI Scout schedule.%")
+    .order("queued_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const queueJobs = (queue || []) as ScoutQueueJob[];
   const hasActiveMission = queueJobs.some((job) => job.status === "queued" || job.status === "running");
 
@@ -163,6 +171,26 @@ export default async function AIScoutPage() {
               <p className="text-3xl font-bold">{approved ?? 0}</p>
             </div>
           </div>
+
+          <section className="mt-10 rounded-xl border border-emerald-200 bg-emerald-50 p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[.18em] text-emerald-700">Autonomous schedule</p>
+                <h2 className="mt-1 text-xl font-semibold text-emerald-950">Monday · Wednesday · Friday at 06:00 Nairobi time</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-900/70">Supabase queues one rotating Africa-wide Scout mission on each scheduled day. The existing background worker processes the queue independently of your browser, so n8n is not required for AI Scout scheduling.</p>
+              </div>
+              <span className="rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800">ACTIVE</span>
+            </div>
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[.16em] text-gray-400">Latest autonomous mission</p>
+              {lastScheduled ? (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <div><p className="font-semibold">{lastScheduled.location} · {lastScheduled.category}</p><p className="mt-1 text-sm text-gray-500">{lastScheduled.queued_at ? new Date(lastScheduled.queued_at).toLocaleString("en-US", { timeZone: "Africa/Nairobi", timeZoneName: "short" }) : "Queued time unavailable"} · {String(lastScheduled.status).replaceAll("_"," ")}</p></div>
+                  <div className="text-sm text-gray-600">Candidates <strong>{lastScheduled.discoveries_found ?? 0}</strong> · Review <strong>{lastScheduled.sent_for_review ?? lastScheduled.events_found ?? 0}</strong></div>
+                </div>
+              ) : <p className="mt-2 text-sm text-gray-500">No autonomous mission has run yet. The next scheduled day will create the first mission automatically.</p>}
+            </div>
+          </section>
 
           <section className="mt-10 rounded-xl border p-6">
             <h2 className="text-xl font-semibold">Scout Mission Control</h2>
