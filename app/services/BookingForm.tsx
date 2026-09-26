@@ -6,11 +6,18 @@ type Staff = { id: string; display_name: string; bio?: string | null; personal_p
 type Offering = { id: string; name: string; description?: string | null; duration_minutes: number; price: number; currency: string };
 type Slot = { staffId: string; staffName: string; staffPhotoUrl?: string | null; startsAt: string; endsAt: string; label: string };
 
-type BookingFormProps = { profileId: string; offerings: Offering[]; staff: Staff[]; timezone?: string; tripId?: string };
+type BookingFormProps = { profileId: string; offerings: Offering[]; staff: Staff[]; timezone?: string; tripId?: string; customerFeePercent?: number; customerFeeMinimum?: number; customerFeeMaximum?: number };
 
-export default function BookingForm({ profileId, offerings, staff, timezone = "Africa/Nairobi", tripId }: BookingFormProps) {
+export default function BookingForm({ profileId, offerings, staff, timezone = "Africa/Nairobi", tripId, customerFeePercent = 0, customerFeeMinimum = 0, customerFeeMaximum = 0 }: BookingFormProps) {
   const [offeringId, setOfferingId] = useState(offerings[0]?.id ?? "");
   const offering = useMemo(() => offerings.find(x => x.id === offeringId) ?? offerings[0], [offerings, offeringId]);
+  const pricing = useMemo(() => {
+    const base = Math.max(Number(offering?.price || 0), 0);
+    let fee = Math.max(Math.round((base * Number(customerFeePercent || 0) / 100) * 100) / 100, Number(customerFeeMinimum || 0));
+    if (Number(customerFeeMaximum || 0) > 0) fee = Math.min(fee, Number(customerFeeMaximum || 0));
+    fee = Math.min(fee, base);
+    return { base, fee, total: Math.round((base + fee) * 100) / 100 };
+  }, [offering?.price, customerFeePercent, customerFeeMinimum, customerFeeMaximum]);
   const [date, setDate] = useState("");
   const [slot, setSlot] = useState<Slot | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -82,7 +89,7 @@ export default function BookingForm({ profileId, offerings, staff, timezone = "A
       <label className="block text-sm font-medium">Phone<input name="phone" placeholder="+254 …" className="mt-2 w-full rounded-xl border border-black/10 bg-black/[.02] px-4 py-3 outline-none focus:border-black/30"/></label>
       <label className="block text-sm font-medium">Anything we should know?<textarea name="notes" rows={3} placeholder="Optional notes" className="mt-2 w-full resize-none rounded-xl border border-black/10 bg-black/[.02] px-4 py-3 outline-none focus:border-black/30"/></label>
     </div>
-    {offering && <div className="mt-5 flex items-center justify-between rounded-xl bg-black/[.03] px-4 py-3 text-sm"><span>{offering.name} · {offering.duration_minutes} min</span><strong>{offering.currency} {Number(offering.price).toLocaleString()}</strong></div>}
+    {offering && <div className="mt-5 rounded-xl bg-black/[.03] px-4 py-3 text-sm"><div className="flex items-center justify-between"><span>{offering.name} · {offering.duration_minutes} min</span><strong>{offering.currency} {pricing.base.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div>{pricing.fee>0&&<><div className="mt-2 flex items-center justify-between text-xs text-black/50"><span>SafariPlug booking fee</span><span>{offering.currency} {pricing.fee.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div><div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 font-semibold"><span>Total due</span><span>{offering.currency} {pricing.total.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div></>}</div>}
     <button disabled={busy || !slot} className="mt-5 w-full rounded-xl bg-black px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Securing your appointment…" : slot ? "Confirm appointment" : "Choose a time"}</button>
     {message && <div className={`mt-3 rounded-xl px-4 py-3 text-sm ${success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}><p>{message}</p>{success && customerLinked && <div className="mt-2 flex flex-wrap gap-4 font-semibold"><a href="/account/appointments" className="underline underline-offset-2">View My Bookings →</a>{attachedToTrip && <a href={`/account/trips/${encodeURIComponent(tripId!)}`} className="underline underline-offset-2">View This Journey →</a>}</div>}{success && tripId && tripAttachmentError && <p className="mt-2 text-xs leading-5 text-amber-800">Your appointment was created, but SafariPlug could not add it to this journey. The booking is still available in My Bookings.</p>}</div>}
     <p className="mt-4 text-center text-[11px] leading-5 text-black/40">Availability is checked again when you confirm. Personal-service bookings also require an approved SafariPlug traveler identity + live face verification.</p>
