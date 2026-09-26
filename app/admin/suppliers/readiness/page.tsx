@@ -49,7 +49,8 @@ export default function SupplierReadinessQueuePage() {
     let reason = "No urgent action.";
     let owner: Row["owner"] = "supplier";
 
-    if (status === "submitted") { priority = 0; owner = "staff"; reason = `Awaiting human review${reviewAge ? ` for ${reviewAge} day${reviewAge === 1 ? "" : "s"}` : ""}.`; }
+    if (supplier.review_requested_at && ["draft", "onboarding", "in_progress"].includes(status)) { priority = 0; owner = "staff"; reason = `Early profile review requested${reviewAge ? ` ${reviewAge} day${reviewAge === 1 ? "" : "s"} ago` : ""}; supplier can keep completing activation setup.`; }
+    else if (status === "submitted") { priority = 0; owner = "staff"; reason = `Awaiting final human review${reviewAge ? ` for ${reviewAge} day${reviewAge === 1 ? "" : "s"}` : ""}.`; }
     else if (status === "changes_requested") { priority = reviewAge >= 7 ? 5 : 15; owner = "supplier"; reason = `${supplier.review_items?.length || 0} requested fix${supplier.review_items?.length === 1 ? "" : "es"} outstanding${reviewAge ? ` for ${reviewAge} days` : ""}.`; }
     else if (["approved", "live"].includes(status)) { priority = 90; owner = "active"; reason = "Approved or live supplier."; }
     else if (status === "rejected") { priority = 99; owner = "closed"; reason = "Closed supplier record."; }
