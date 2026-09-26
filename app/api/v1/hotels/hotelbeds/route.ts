@@ -24,7 +24,13 @@ function errorResponse(status: number, message: string) {
   return NextResponse.json({ error: "hotelbeds_error", message }, { status });
 }
 
-async function requireUser() {
+async function requireUser(request: Request) {
+  const header = request.headers.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (token) {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (!error && data.user && !data.user.is_anonymous && (data.user.email_confirmed_at || data.user.phone_confirmed_at)) return data.user;
+  }
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) return null;
@@ -87,7 +93,7 @@ async function attachHotelToTrip(params: {
 }
 
 export async function POST(request: Request) {
-  const user = await requireUser();
+  const user = await requireUser(request);
   if (!user) return errorResponse(401, "Authentication required.");
   let body: Record<string, unknown> = {};
   try { body = await request.json() as Record<string, unknown>; } catch { return errorResponse(400, "Invalid JSON body."); }
