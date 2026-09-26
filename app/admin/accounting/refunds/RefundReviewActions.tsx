@@ -52,7 +52,9 @@ export default function RefundReviewActions({
   return <div className="mt-5 rounded-xl border border-zinc-800 bg-black p-4">
     <p className="font-semibold text-zinc-100">Finance review</p>
     <p className="mt-2 text-xs leading-5 text-zinc-500">
-      Record the human finance decision only. This does not issue money or change payment status.
+      {product==="service"
+        ? "For paid service cancellations: Refund required keeps the case open; No refund due cancels the appointment without changing payment truth; Refund handled externally records the payment as refunded and cancels the appointment. No money is moved by this screen."
+        : "Record the human finance decision only. This does not issue money or change payment status."}
     </p>
     <textarea
       value={notes}
@@ -80,7 +82,7 @@ export default function RefundReviewActions({
       </div>
       :<div className="mt-3 flex flex-wrap gap-2">
         {(!review||review.status==="pending")?<button disabled={busy} onClick={()=>void act("start_review")} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold">Start review</button>:null}
-        <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","refund_required")} className="rounded-xl border border-amber-500/40 px-3 py-2 text-xs font-bold text-amber-300">Refund required</button>
+        <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","refund_required")} className="rounded-xl border border-amber-500/40 px-3 py-2 text-xs font-bold text-amber-300">{product==="service"?"Refund required · keep open":"Refund required"}</button>
         <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","no_refund_due")} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold text-zinc-300">No refund due</button>
         <button disabled={busy||!notes.trim()} onClick={()=>void act("resolve","refunded_externally")} className="rounded-xl border border-emerald-700/50 px-3 py-2 text-xs font-bold text-emerald-300">Refund handled externally</button>
       </div>}
