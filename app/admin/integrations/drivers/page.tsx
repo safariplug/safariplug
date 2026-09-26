@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { describeDriverProviders } from "@/lib/integrations/drivers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { updateDriverStatus } from "./actions";
+import { currentCompliance, currentVerifiedDriverIds } from "@/lib/services/driver-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -24,18 +25,20 @@ export default async function DriverMarketplacePage() {
 
   if (driverResult.error) throw new Error(`Failed to load drivers: ${driverResult.error.message}`);
 
-  const drivers = (driverResult.data ?? []).map((driver) => {
+  const rawDrivers = driverResult.data ?? [];
+  const currentVerified = await currentVerifiedDriverIds(rawDrivers);
+  const drivers = rawDrivers.map((driver) => {
     const vehicles = Array.isArray(driver.vehicles) ? driver.vehicles : [];
     const eligibleVehicle = vehicles.some(
       (vehicle) =>
         vehicle.status === "active" &&
-        vehicle.registration_compliance_status === "compliant" &&
-        vehicle.insurance_compliance_status === "compliant",
+        currentCompliance(vehicle.registration_compliance_status) &&
+        currentCompliance(vehicle.insurance_compliance_status),
     );
     const activationReady =
       driver.verification_state === "verified" &&
-      Boolean(driver.identity_liveness_verified_at) &&
-      driver.driving_license_compliance_status === "compliant" &&
+      currentVerified.has(driver.id) &&
+      currentCompliance(driver.driving_license_compliance_status) &&
       Boolean(driver.personal_photo_url) &&
       eligibleVehicle;
     return { ...driver, vehicleCount: vehicles.length, eligibleVehicle, activationReady };
@@ -61,7 +64,7 @@ export default async function DriverMarketplacePage() {
           <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-amber-400">Driver operations</p>
           <h1 className="mt-2 text-3xl font-extrabold">Verification, compliance & activation</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            This is the operational control surface for drivers. A driver can only be activated after verified identity + live liveness, a public personal photo, compliant license, and an active vehicle with compliant registration and insurance. The booking gates enforce the same trust requirements server-side.
+            This is the operational control surface for drivers. A driver can only be activated after current approved SafariPlug verification (staff review or a configured external identity/liveness provider), a public personal photo, current license compliance, and an active vehicle with current registration and insurance. The booking gates enforce the same trust requirements server-side.
           </p>
         </header>
 
@@ -125,7 +128,7 @@ export default async function DriverMarketplacePage() {
                             type="submit"
                             disabled={!driver.activationReady}
                             className="rounded-lg border border-emerald-500/30 px-3 py-2 text-xs font-semibold text-emerald-300 enabled:hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600"
-                            title={!driver.activationReady ? "Approved external identity/liveness, public personal photo, license compliance, and a compliant active vehicle are required." : "Activate driver"}
+                            title={!driver.activationReady ? "Current approved SafariPlug verification, public personal photo, license compliance, and a compliant active vehicle are required." : "Activate driver"}
                           >
                             Activate
                           </button>
