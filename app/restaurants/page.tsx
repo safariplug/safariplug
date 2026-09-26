@@ -30,7 +30,7 @@ export default async function RestaurantsPage({ searchParams }: { searchParams: 
     .from("businesses")
     .select("id,name,slug,description,city_id,logo_url,cover_image_url,restaurant_settings!inner(ordering_enabled,pickup_enabled,restaurant_delivery_enabled,safari_driver_enabled,customer_driver_enabled,minimum_order_amount)")
     .eq("business_type", "Restaurant")
-    .eq("status", "active")
+    .in("status", ["active", "ACTIVE"])
     .eq("restaurant_settings.ordering_enabled", true)
     .order("name");
 

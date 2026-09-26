@@ -5,11 +5,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ bus
   const { businessId } = await params;
   if (!businessId) return NextResponse.json({ error: "businessId is required" }, { status: 400 });
 
-  const [{ data: settings }, { data: categories, error: categoriesError }] = await Promise.all([
+  const [{ data: business }, { data: settings }, { data: categories, error: categoriesError }] = await Promise.all([
+    supabaseAdmin.from("businesses").select("id,status,business_type").eq("id", businessId).eq("business_type", "Restaurant").in("status", ["active", "ACTIVE"]).maybeSingle(),
     supabaseAdmin.from("restaurant_settings").select("ordering_enabled,pickup_enabled,safari_driver_enabled,customer_driver_enabled,restaurant_delivery_enabled,restaurant_delivery_fee,free_delivery_threshold,minimum_order_amount,preparation_time_minutes,ordering_notice_minutes,timezone").eq("business_id", businessId).maybeSingle(),
     supabaseAdmin.from("restaurant_menu_categories").select("id,name,description,sort_order,active,restaurant_menu_items(id,name,description,image_url,price,currency,preparation_time_minutes,sort_order,available,active,restaurant_menu_item_options(id,name,required,sort_order,active,restaurant_menu_item_option_values(id,name,price_delta,sort_order,active)))").eq("business_id", businessId).eq("active", true).order("sort_order")
   ]);
 
+  if (!business || !settings?.ordering_enabled) return NextResponse.json({ error: "Restaurant ordering is not currently available." }, { status: 404 });
   if (categoriesError) return NextResponse.json({ error: categoriesError.message }, { status: 500 });
   const normalized = (categories ?? []).map((category: any) => ({
     ...category,
