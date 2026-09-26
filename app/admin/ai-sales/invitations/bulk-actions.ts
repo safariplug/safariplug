@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { partnerInvitationEmailIdempotencyKey } from "@/lib/email/partner-invitation-idempotency";
+import { deterministicPartnerInvitationDraft } from "@/lib/email/partner-invitation-draft";
 
 const PATH = "/admin/ai-sales/invitations";
 const BATCH_LIMIT = 50;
@@ -54,6 +55,14 @@ function parseGeneratedDrafts(raw: string): GeneratedDraft[] {
   return Array.isArray(parsed.drafts) ? parsed.drafts : [];
 }
 
+function aiCreditsUnavailable(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error || "").toLowerCase();
+  return message.includes("no credits remaining") ||
+    message.includes("insufficient_quota") ||
+    message.includes("billing") ||
+    message.includes("add credits");
+}
+
 async function generateDraftChunk(openai: OpenAI, rows: DraftRow[], site: string): Promise<GeneratedDraft[]> {
   const jobs = rows.map((row) => ({
     id: row.id,
@@ -87,11 +96,9 @@ async function generateDraftChunk(openai: OpenAI, rows: DraftRow[], site: string
 
 export async function generateAllPartnerInvitationDrafts() {
   await requireAdmin();
-  let finalUrl = resultUrl("error", "Unable to generate bulk AI drafts.");
+  let finalUrl = resultUrl("error", "Unable to prepare invitation drafts.");
 
   try {
-    if (!process.env.OPENAI_API_KEY) throw new Error("OpenAI drafting is not configured on the server.");
-
     const { data: rows, error } = await supabaseAdmin
       .from("partner_invitations")
       .select("id,business_name,partner_type,contact_email,invitation_token")
@@ -104,36 +111,60 @@ export async function generateAllPartnerInvitationDrafts() {
 
     const drafts = ((rows || []) as DraftRow[]).filter((row) => isUsableEmail(row.contact_email));
     if (!drafts.length) {
-      finalUrl = resultUrl("bulk", "No email invitation drafts need AI generation.");
+      finalUrl = resultUrl("bulk", "No email invitation drafts need preparation.");
     } else {
       const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "");
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const groups = chunks(drafts, AI_CHUNK_SIZE);
-      const generated: GeneratedDraft[] = [];
+      const prepared = new Map<string, GeneratedDraft>();
+      for (const row of drafts) {
+        const fallback = deterministicPartnerInvitationDraft({
+          businessName: row.business_name,
+          partnerType: row.partner_type,
+          signupLink: `${site}/partners/join/${row.invitation_token}`,
+        });
+        prepared.set(row.id, { id: row.id, subject: fallback.subject, message: fallback.message });
+      }
+
+      const aiEnhancedIds = new Set<string>();
       let failedChunks = 0;
 
-      for (let index = 0; index < groups.length; index += AI_CONCURRENCY) {
-        const wave = groups.slice(index, index + AI_CONCURRENCY);
-        const results = await Promise.allSettled(
-          wave.map((group) => generateDraftChunk(openai, group, site)),
-        );
+      if (process.env.OPENAI_API_KEY) {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const groups = chunks(drafts, AI_CHUNK_SIZE);
 
-        for (const result of results) {
-          if (result.status === "fulfilled") {
-            generated.push(...result.value);
-          } else {
-            failedChunks++;
-            console.error("Bulk AI invitation chunk failed", result.reason);
+        let stopAiForRun = false;
+        for (let index = 0; index < groups.length && !stopAiForRun; index += AI_CONCURRENCY) {
+          const wave = groups.slice(index, index + AI_CONCURRENCY);
+          const results = await Promise.allSettled(
+            wave.map((group) => generateDraftChunk(openai, group, site)),
+          );
+
+          for (const result of results) {
+            if (result.status === "fulfilled") {
+              for (const generated of result.value) {
+                if (!prepared.has(generated.id) || !generated.subject?.trim() || !generated.message?.trim()) continue;
+                prepared.set(generated.id, {
+                  id: generated.id,
+                  subject: generated.subject.trim(),
+                  message: generated.message.trim(),
+                });
+                aiEnhancedIds.add(generated.id);
+              }
+            } else {
+              failedChunks++;
+              console.error("Bulk AI invitation chunk failed; deterministic drafts will be used", result.reason);
+              if (aiCreditsUnavailable(result.reason)) stopAiForRun = true;
+            }
           }
         }
       }
 
-      const byId = new Map(generated.map((draft) => [draft.id, draft]));
       let updated = 0;
       let skipped = 0;
+      let aiEnhanced = 0;
+      let deterministic = 0;
 
       for (const row of drafts) {
-        const draft = byId.get(row.id);
+        const draft = prepared.get(row.id);
         if (!draft?.subject?.trim() || !draft?.message?.trim()) {
           skipped++;
           continue;
@@ -153,10 +184,12 @@ export async function generateAllPartnerInvitationDrafts() {
           .maybeSingle();
 
         if (updateError) {
-          console.error("Bulk AI draft update failed", row.id, updateError);
+          console.error("Bulk invitation draft update failed", row.id, updateError);
           skipped++;
         } else if (changed) {
           updated++;
+          if (aiEnhancedIds.has(row.id)) aiEnhanced++;
+          else deterministic++;
         } else {
           skipped++;
         }
@@ -164,20 +197,18 @@ export async function generateAllPartnerInvitationDrafts() {
 
       revalidatePath(PATH);
 
-      if (!updated && failedChunks) {
-        finalUrl = resultUrl("error", `AI generation failed for all ${drafts.length} drafts. No invitation status was changed. Try again or use an individual Generate AI draft button.`);
-      } else {
-        const details = [
-          `Generated ${updated} AI draft${updated === 1 ? "" : "s"}.`,
-          skipped ? `${skipped} remain as drafts and can be retried.` : "",
-          failedChunks ? `${failedChunks} AI batch${failedChunks === 1 ? "" : "es"} failed but successful batches were saved.` : "",
-          "Review and approve before sending.",
-        ].filter(Boolean).join(" ");
-        finalUrl = resultUrl("bulk", details);
-      }
+      const details = [
+        `Prepared ${updated} review-ready draft${updated === 1 ? "" : "s"}.`,
+        aiEnhanced ? `${aiEnhanced} AI-enhanced.` : "",
+        deterministic ? `${deterministic} used the zero-cost deterministic fallback.` : "",
+        skipped ? `${skipped} remain as drafts and can be retried safely.` : "",
+        failedChunks ? `${failedChunks} AI batch${failedChunks === 1 ? "" : "es"} failed, but fallback drafts were still prepared.` : "",
+        "Review and approve before sending.",
+      ].filter(Boolean).join(" ");
+      finalUrl = resultUrl("bulk", details);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to generate bulk AI drafts.";
+    const message = error instanceof Error ? error.message : "Unable to prepare invitation drafts.";
     finalUrl = resultUrl("error", message);
   }
 
