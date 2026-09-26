@@ -69,7 +69,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const ctx = await supplierContext();
   if (!ctx) return NextResponse.json({ error: "Supplier authentication required." }, { status: 401 });
-  if (["submitted", "approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: ctx.account.onboarding_status === "submitted" ? "This profile is locked while SafariPlug reviews your submission." : "This profile is locked after approval." }, { status: 409 });
+  if (["submitted", "approved", "live", "rejected"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: ctx.account.onboarding_status === "submitted" ? "This profile is locked while SafariPlug reviews your submission." : ctx.account.onboarding_status === "rejected" ? "This supplier application is closed and cannot be edited or resubmitted." : "This profile is locked after approval." }, { status: 409 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const businessUpdate: Record<string, unknown> = {};
   for (const key of ["name","description","address","latitude","longitude","phone","whatsapp","website_url","instagram_url","facebook_url","tiktok_url","logo_url","cover_image_url","supplier_contact_name","supplier_gallery_urls"]) if (body && key in body) businessUpdate[key] = body[key];
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
   const ctx = await supplierContext();
   if (!ctx) return NextResponse.json({ error: "Supplier authentication required." }, { status: 401 });
   const body = await request.json().catch(() => null) as { action?: string; offering?: Record<string, unknown>; displayName?: string; bio?: string; staffId?: string; dayOfWeek?: number; startTime?: string; endTime?: string } | null;
-  if (["submitted", "approved", "live"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: ctx.account.onboarding_status === "submitted" ? "This profile is locked while SafariPlug reviews your submission." : "This profile is locked after approval." }, { status: 409 });
+  if (["submitted", "approved", "live", "rejected"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: ctx.account.onboarding_status === "submitted" ? "This profile is locked while SafariPlug reviews your submission." : ctx.account.onboarding_status === "rejected" ? "This supplier application is closed and cannot be edited or resubmitted." : "This profile is locked after approval." }, { status: 409 });
 
   if (body?.action === "submit") {
     const readiness = await getSupplierActivationReadiness(ctx.account.id);
@@ -173,6 +173,8 @@ export async function POST(request: Request) {
       const message = error.message || "Unable to submit supplier onboarding.";
       if (message.includes("80%")) return NextResponse.json({ error: "Please complete at least 80% of your supplier profile before submitting." }, { status: 422 });
       if (message.includes("Approved suppliers")) return NextResponse.json({ error: "This profile is locked after approval." }, { status: 409 });
+      if (message.includes("Rejected supplier applications")) return NextResponse.json({ error: "This supplier application is closed and cannot be resubmitted." }, { status: 409 });
+      if (message.includes("already awaiting review")) return NextResponse.json({ error: "This supplier is already waiting for SafariPlug review." }, { status: 409 });
       return NextResponse.json({ error: message }, { status: 500 });
     }
     return NextResponse.json({ success: true, onboarding_status: "submitted", completion_percent: completion ?? 0 });
