@@ -206,7 +206,55 @@ export async function POST(request: Request) {
 
   const label = failureLabel(event.type);
   const providerMessage = event.data?.bounce?.message?.trim() || "";
+  const bounceType = event.data?.bounce?.type?.trim().toLowerCase() || "";
+  const retryableBounce =
+    event.type === "email.bounced" &&
+    (bounceType === "transient" || bounceType === "undetermined");
   const email = cleanEmail(invitation.contact_email) || recipient;
+
+  if (retryableBounce) {
+    if (invitation.prospect_id) {
+      await supabaseAdmin.from("crm_activities").insert({
+        prospect_id: invitation.prospect_id,
+        partner_id: invitation.partner_id || null,
+        contact_id: invitation.contact_id || null,
+        activity_type: "email",
+        summary: "Partner invitation had a retryable delivery issue",
+        details: [
+          marker,
+          `Invitation ${invitation.id} was reported as a ${bounceType || "retryable"} bounce by Resend.`,
+          providerMessage ? `Provider detail: ${providerMessage}` : "",
+          "The contact was retained because the provider did not classify the address as permanently invalid.",
+        ].filter(Boolean).join(" "),
+      });
+
+      const { data: existingFollowup } = await supabaseAdmin
+        .from("crm_followups")
+        .select("id")
+        .eq("prospect_id", invitation.prospect_id)
+        .eq("status", "open")
+        .ilike("title", "%invitation%")
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingFollowup) {
+        await supabaseAdmin.from("crm_followups").insert({
+          prospect_id: invitation.prospect_id,
+          title: "Retry/verify partner invitation delivery",
+          due_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: "normal",
+          notes: "Resend classified the latest bounce as transient or undetermined. Verify the address or retry later; do not suppress it as permanently bad.",
+        });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      reconciled: true,
+      invitationId: invitation.id,
+      status: "retryable_bounce",
+    });
+  }
 
   await supabaseAdmin
     .from("partner_invitations")
