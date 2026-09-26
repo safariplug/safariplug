@@ -394,11 +394,124 @@ export async function POST(request: Request) {
         payment,
       });
     }
-    if (action === "payment_status") { const preparedBookingId = String(body.preparedBookingId || ""); if (!preparedBookingId) return errorResponse(400, "preparedBookingId is required."); const supabase = await createSupabaseServerClient(); const { data: ledger, error } = await supabaseAdmin.from("hotel_booking_pricing_ledger").select("*").eq("customer_user_id", user.id).eq("prepared_booking_id", preparedBookingId).maybeSingle(); if (error) throw new Error(error.message); if (!ledger) return errorResponse(404, "Hotel booking not found."); if (ledger.payment_provider !== "mpesa" || !ledger.payment_reference) return errorResponse(409, "This hotel booking does not have an M-Pesa payment reference."); const mpesa = getPaymentAdapter("mpesa"); if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet."); const status = await mpesa.getPaymentStatus(ledger.payment_reference); const updates: Record<string, unknown> = { payment_status: status === "succeeded" ? "paid" : status === "failed" ? "failed" : "pending", metadata: { ...(ledger.metadata || {}), lastMpesaStatus: status } }; if (status === "succeeded") updates.paid_at = new Date().toISOString(); const { data: updatedLedger, error: updateError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update(updates).eq("id", ledger.id).select("*").single(); if (updateError) throw new Error(updateError.message); return NextResponse.json({ provider: "mpesa", status, ledger: publicHotelCheckoutLedger(updatedLedger) }); }
+    if (action === "payment_status") {
+      const preparedBookingId = String(body.preparedBookingId || "");
+      if (!preparedBookingId) return errorResponse(400, "preparedBookingId is required.");
+      const { data: ledger, error } = await supabaseAdmin
+        .from("hotel_booking_pricing_ledger")
+        .select("*")
+        .eq("customer_user_id", user.id)
+        .eq("prepared_booking_id", preparedBookingId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!ledger) return errorResponse(404, "Hotel booking not found.");
+      if (ledger.payment_provider !== "mpesa" || !ledger.payment_reference) return errorResponse(409, "This hotel booking does not have an M-Pesa payment reference.");
+      if (ledger.payment_status === "paid") {
+        return NextResponse.json({ provider: "mpesa", status: "succeeded", paymentReused: true, ledger: publicHotelCheckoutLedger(ledger) });
+      }
+
+      const mpesa = getPaymentAdapter("mpesa");
+      if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
+
+      const status = await mpesa.getPaymentStatus(ledger.payment_reference);
+      const metadata = ledger.metadata && typeof ledger.metadata === "object" && !Array.isArray(ledger.metadata)
+        ? ledger.metadata as Record<string, unknown>
+        : {};
+      const callbackVerificationRejected = Boolean(metadata.mpesaCallbackRejected);
+
+      if (callbackVerificationRejected) {
+        const { data: heldLedger, error: heldError } = await supabaseAdmin
+          .from("hotel_booking_pricing_ledger")
+          .update({
+            payment_status: "pending",
+            booking_status: "payment_pending",
+            metadata: {
+              ...metadata,
+              lastMpesaStatus: status,
+              reconciliation: {
+                status: "mpesa_callback_verification_failed",
+                reason: "Callback evidence did not pass SafariPlug amount/receipt verification. Status polling cannot override that evidence.",
+                recordedAt: new Date().toISOString(),
+              },
+            },
+          })
+          .eq("id", ledger.id)
+          .select("*")
+          .single();
+        if (heldError) throw new Error(heldError.message);
+        return NextResponse.json({
+          provider: "mpesa",
+          status: "reconciliation_required",
+          reconciliation: "manual_required",
+          message: "SafariPlug received conflicting M-Pesa evidence for this hotel payment. Supplier confirmation is blocked until finance verifies the payment.",
+          ledger: publicHotelCheckoutLedger(heldLedger),
+        });
+      }
+
+      const updates: Record<string, unknown> = {
+        payment_status: status === "succeeded" ? "paid" : status === "failed" ? "failed" : "pending",
+        metadata: { ...metadata, lastMpesaStatus: status },
+      };
+      if (status === "succeeded") updates.paid_at = new Date().toISOString();
+      const { data: updatedLedger, error: updateError } = await supabaseAdmin
+        .from("hotel_booking_pricing_ledger")
+        .update(updates)
+        .eq("id", ledger.id)
+        .select("*")
+        .single();
+      if (updateError) throw new Error(updateError.message);
+      return NextResponse.json({ provider: "mpesa", status, ledger: publicHotelCheckoutLedger(updatedLedger) });
+    }
     if (action === "status") {
       const preparedBookingId = String(body.preparedBookingId || ""); if (!preparedBookingId) return errorResponse(400, "preparedBookingId is required."); const supabase = await createSupabaseServerClient(); const { data: ledger, error: ledgerError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").select("*").eq("customer_user_id", user.id).eq("prepared_booking_id", preparedBookingId).maybeSingle(); if (ledgerError) throw new Error(ledgerError.message); if (!ledger) return errorResponse(404, "Hotel booking not found.");
       let workingLedger = ledger;
-      if (workingLedger.payment_provider === "mpesa" && workingLedger.payment_reference && workingLedger.payment_status !== "paid") { const mpesa = getPaymentAdapter("mpesa"); if (mpesa) { const mpesaStatus = await mpesa.getPaymentStatus(workingLedger.payment_reference); if (mpesaStatus === "succeeded") { const { data: refreshed } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update({ payment_status: "paid", paid_at: new Date().toISOString(), metadata: { ...(workingLedger.metadata || {}), lastMpesaStatus: mpesaStatus } }).eq("id", workingLedger.id).select("*").single(); if (refreshed) workingLedger = refreshed; } } }
+      const initialMetadata = workingLedger.metadata && typeof workingLedger.metadata === "object" && !Array.isArray(workingLedger.metadata)
+        ? workingLedger.metadata as Record<string, unknown>
+        : {};
+      if (workingLedger.payment_provider === "mpesa" && workingLedger.payment_reference && workingLedger.payment_status !== "paid") {
+        const mpesa = getPaymentAdapter("mpesa");
+        if (mpesa) {
+          const mpesaStatus = await mpesa.getPaymentStatus(workingLedger.payment_reference);
+          if (initialMetadata.mpesaCallbackRejected) {
+            const { data: heldLedger, error: heldError } = await supabaseAdmin
+              .from("hotel_booking_pricing_ledger")
+              .update({
+                payment_status: "pending",
+                booking_status: "payment_pending",
+                metadata: {
+                  ...initialMetadata,
+                  lastMpesaStatus: mpesaStatus,
+                  reconciliation: {
+                    status: "mpesa_callback_verification_failed",
+                    reason: "Callback evidence did not pass SafariPlug amount/receipt verification. Status polling cannot override that evidence.",
+                    recordedAt: new Date().toISOString(),
+                  },
+                },
+              })
+              .eq("id", workingLedger.id)
+              .select("*")
+              .single();
+            if (heldError) throw new Error(heldError.message);
+            return NextResponse.json({
+              provider: "mpesa",
+              status: "payment_reconciliation_required",
+              reconciliation: "manual_required",
+              supplierStatus: "blocked_until_payment_verified",
+              message: "SafariPlug received conflicting M-Pesa evidence. Supplier confirmation is blocked until finance verifies the customer payment.",
+              ledger: publicHotelCheckoutLedger(heldLedger),
+            });
+          }
+          if (mpesaStatus === "succeeded") {
+            const { data: refreshed } = await supabaseAdmin
+              .from("hotel_booking_pricing_ledger")
+              .update({ payment_status: "paid", paid_at: new Date().toISOString(), metadata: { ...initialMetadata, lastMpesaStatus: mpesaStatus } })
+              .eq("id", workingLedger.id)
+              .select("*")
+              .single();
+            if (refreshed) workingLedger = refreshed;
+          }
+        }
+      }
       if (workingLedger.payment_status !== "paid") return NextResponse.json({ provider: "mpesa", status: "payment_pending", ledger: publicHotelCheckoutLedger(workingLedger), supplierStatus: "awaiting_customer_payment" });
       if (!getConfiguredCredentials()) return NextResponse.json({ provider: "locktrip", status: "payment_pending", reconciliation: "awaiting_registered_provider_account", message: "Customer payment is recorded, but supplier confirmation requires SafariPlug's registered LockTrip account.", ledger: publicHotelCheckoutLedger(workingLedger) });
       const token = await getRegisteredLockTripToken();
@@ -407,8 +520,27 @@ export async function POST(request: Request) {
       const confirmed = providerStatus === "DONE" && paymentStatus === "PAID", cancelled = providerStatus === "CANCELLED", failed = cancelled || providerStatus === "FAILED";
       if (confirmed || failed) {
         const updates: Record<string, unknown> = { metadata: { ...metadata, lastProviderStatus: details } };
-        if (confirmed) { updates.payment_status = "paid"; updates.booking_status = "confirmed"; updates.supplier_settlement_status = "settled"; updates.provider_booking_reference = details.bookingReferenceId || null; updates.paid_at = details.confirmedAt || workingLedger.paid_at || new Date().toISOString(); updates.confirmed_at = details.confirmedAt || new Date().toISOString(); }
-        else { updates.booking_status = cancelled ? "cancelled" : "failed"; updates.supplier_settlement_status = "failed"; }
+        if (confirmed) {
+          updates.payment_status = "paid";
+          updates.booking_status = "confirmed";
+          updates.supplier_settlement_status = "settled";
+          updates.provider_booking_reference = details.bookingReferenceId || null;
+          updates.paid_at = details.confirmedAt || workingLedger.paid_at || new Date().toISOString();
+          updates.confirmed_at = details.confirmedAt || new Date().toISOString();
+        } else {
+          updates.booking_status = cancelled ? "cancelled" : "failed";
+          updates.supplier_settlement_status = "failed";
+          updates.metadata = {
+            ...metadata,
+            lastProviderStatus: details,
+            refundStatus: "manual_required",
+            reconciliation: {
+              status: cancelled ? "supplier_cancelled_after_customer_payment" : "supplier_failed_after_customer_payment",
+              reason: "Customer payment is recorded as paid but LockTrip did not produce a confirmed stay.",
+              recordedAt: new Date().toISOString(),
+            },
+          };
+        }
         const { data: updatedLedger, error: updateError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update(updates).eq("id", workingLedger.id).eq("customer_user_id", user.id).select("*").single(); if (updateError) throw new Error(updateError.message);
         const storedTripId = typeof metadata.tripId === "string" ? metadata.tripId : null, tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : storedTripId; let itineraryItem = null; if (confirmed && tripId) itineraryItem = await attachConfirmedHotelToTrip({ supabase, userId: user.id, tripId, ledgerId: workingLedger.id, hotelName: details.hotel?.name || "Hotel stay", checkIn: details.checkIn || null, checkOut: details.checkOut || null, providerReference: details.bookingReferenceId || null, cityId: null });
         if (confirmed) {
@@ -438,7 +570,26 @@ export async function POST(request: Request) {
           return NextResponse.json({ provider: "locktrip", status: "payment_pending", supplierStatus: "confirmation_indeterminate", message: confirmation.message || "LockTrip did not confirm the credit-line request. The booking will be re-checked before any retry.", providerBooking: details, ledger: publicHotelCheckoutLedger(pendingLedger) });
         }
         if (confirmation.accepted === false) {
-          const { data: refusedLedger, error: refusedError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update({ booking_status: "payment_pending", supplier_settlement_status: "failed", metadata: { ...confirmationMetadata, confirmRefusedAt: new Date().toISOString() } }).eq("id", workingLedger.id).eq("customer_user_id", user.id).select("*").single(); if (refusedError) throw new Error(refusedError.message);
+          const { data: refusedLedger, error: refusedError } = await supabaseAdmin
+            .from("hotel_booking_pricing_ledger")
+            .update({
+              booking_status: "payment_pending",
+              supplier_settlement_status: "failed",
+              metadata: {
+                ...confirmationMetadata,
+                confirmRefusedAt: new Date().toISOString(),
+                refundStatus: "manual_required",
+                reconciliation: {
+                  status: "supplier_confirmation_refused_after_customer_payment",
+                  reason: "Customer payment is recorded as paid but LockTrip refused supplier confirmation.",
+                  recordedAt: new Date().toISOString(),
+                },
+              },
+            })
+            .eq("id", workingLedger.id)
+            .eq("customer_user_id", user.id)
+            .select("*")
+            .single(); if (refusedError) throw new Error(refusedError.message);
           return NextResponse.json({ provider: "locktrip", status: "payment_pending", supplierStatus: "credit_line_refused", message: confirmation.message || "LockTrip refused supplier confirmation. Customer payment remains recorded; no automatic retry will be attempted.", providerBooking: details, ledger: publicHotelCheckoutLedger(refusedLedger) });
         }
         if (confirmation.accepted === true) {
@@ -446,10 +597,35 @@ export async function POST(request: Request) {
           workingLedger = acceptedLedger || workingLedger;
         }
       }
-      const refreshedDetails = await adapter.getBookingDetails(token, preparedBookingId); const refreshedStatus = String(refreshedDetails.status || "").toUpperCase(), refreshedPaymentStatus = String(refreshedDetails.paymentStatus || "").toUpperCase(); const refreshedConfirmed = refreshedStatus === "DONE" && refreshedPaymentStatus === "PAID";
+      const refreshedDetails = await adapter.getBookingDetails(token, preparedBookingId);
+      const refreshedStatus = String(refreshedDetails.status || "").toUpperCase();
+      const refreshedPaymentStatus = String(refreshedDetails.paymentStatus || "").toUpperCase();
+      const refreshedConfirmed = refreshedStatus === "DONE" && refreshedPaymentStatus === "PAID";
+      const refreshedCancelled = refreshedStatus === "CANCELLED";
+      const refreshedFailed = refreshedCancelled || refreshedStatus === "FAILED";
       const latestMetadata = workingLedger.metadata && typeof workingLedger.metadata === "object" && !Array.isArray(workingLedger.metadata) ? workingLedger.metadata as Record<string, unknown> : metadata;
       const finalUpdates: Record<string, unknown> = { metadata: { ...latestMetadata, lastProviderStatus: refreshedDetails } };
-      if (refreshedConfirmed) { finalUpdates.payment_status = "paid"; finalUpdates.booking_status = "confirmed"; finalUpdates.supplier_settlement_status = "settled"; finalUpdates.provider_booking_reference = refreshedDetails.bookingReferenceId || null; finalUpdates.paid_at = refreshedDetails.confirmedAt || workingLedger.paid_at || new Date().toISOString(); finalUpdates.confirmed_at = refreshedDetails.confirmedAt || new Date().toISOString(); }
+      if (refreshedConfirmed) {
+        finalUpdates.payment_status = "paid";
+        finalUpdates.booking_status = "confirmed";
+        finalUpdates.supplier_settlement_status = "settled";
+        finalUpdates.provider_booking_reference = refreshedDetails.bookingReferenceId || null;
+        finalUpdates.paid_at = refreshedDetails.confirmedAt || workingLedger.paid_at || new Date().toISOString();
+        finalUpdates.confirmed_at = refreshedDetails.confirmedAt || new Date().toISOString();
+      } else if (refreshedFailed) {
+        finalUpdates.booking_status = refreshedCancelled ? "cancelled" : "failed";
+        finalUpdates.supplier_settlement_status = "failed";
+        finalUpdates.metadata = {
+          ...latestMetadata,
+          lastProviderStatus: refreshedDetails,
+          refundStatus: "manual_required",
+          reconciliation: {
+            status: refreshedCancelled ? "supplier_cancelled_after_customer_payment" : "supplier_failed_after_customer_payment",
+            reason: "Customer payment is recorded as paid but the supplier booking failed after confirmation was attempted.",
+            recordedAt: new Date().toISOString(),
+          },
+        };
+      }
       const { data: finalLedger, error: finalError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update(finalUpdates).eq("id", workingLedger.id).eq("customer_user_id", user.id).select("*").single(); if (finalError) throw new Error(finalError.message);
       const storedTripId = typeof latestMetadata.tripId === "string" ? latestMetadata.tripId : null, tripId = typeof body.tripId === "string" && body.tripId ? body.tripId : storedTripId; let itineraryItem = null; if (refreshedConfirmed && tripId) itineraryItem = await attachConfirmedHotelToTrip({ supabase, userId: user.id, tripId, ledgerId: workingLedger.id, hotelName: refreshedDetails.hotel?.name || "Hotel stay", checkIn: refreshedDetails.checkIn || null, checkOut: refreshedDetails.checkOut || null, providerReference: refreshedDetails.bookingReferenceId || null, cityId: null });
       if (refreshedConfirmed) {
@@ -465,7 +641,25 @@ export async function POST(request: Request) {
           checkOut: refreshedDetails.checkOut || null,
         });
       }
-      return NextResponse.json({ provider: "locktrip", status: refreshedConfirmed ? "confirmed" : "payment_pending", supplierStatus: refreshedConfirmed ? "settled" : alreadyAccepted ? "confirmation_accepted_awaiting_supplier" : alreadyIndeterminate ? "confirmation_pending_recheck" : alreadyRefused ? "credit_line_refused" : "confirmation_pending", providerBooking: refreshedDetails, ledger: publicHotelCheckoutLedger(finalLedger), itineraryItem });
+      return NextResponse.json({
+        provider: "locktrip",
+        status: refreshedConfirmed ? "confirmed" : refreshedFailed ? (refreshedCancelled ? "cancelled" : "failed") : "payment_pending",
+        supplierStatus: refreshedConfirmed
+          ? "settled"
+          : refreshedFailed
+            ? "refund_review_required"
+            : alreadyAccepted
+              ? "confirmation_accepted_awaiting_supplier"
+              : alreadyIndeterminate
+                ? "confirmation_pending_recheck"
+                : alreadyRefused
+                  ? "credit_line_refused"
+                  : "confirmation_pending",
+        reconciliation: refreshedFailed ? "manual_required" : undefined,
+        providerBooking: refreshedDetails,
+        ledger: publicHotelCheckoutLedger(finalLedger),
+        itineraryItem,
+      });
     }
     return errorResponse(400, "Unsupported LockTrip action.");
   } catch (error) { return errorResponse(502, error instanceof Error ? error.message : "LockTrip request failed."); }
