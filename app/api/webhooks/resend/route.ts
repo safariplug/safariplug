@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -6,6 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const RESEND_WEBHOOK_ID = process.env.RESEND_WEBHOOK_ID?.trim() || "c82dbffb-7441-4711-9093-b9ac56264302";
+const RESEND_WEBHOOK_TOKEN_SHA256 = "6a9846b2d5eca217f66814791a376fbcea0e05a54ba7c4c0e0b14910693fa03a";
 let cachedWebhookSecret = "";
 
 async function getWebhookSecret(apiKey: string) {
@@ -73,6 +75,14 @@ function cleanEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
+function hasValidWebhookToken(request: Request) {
+  const token = new URL(request.url).searchParams.get("token")?.trim() || "";
+  if (!token) return false;
+  const expected = Buffer.from(RESEND_WEBHOOK_TOKEN_SHA256, "hex");
+  const actual = createHash("sha256").update(token).digest();
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
 function failureLabel(type: ResendEvent["type"]) {
   if (type === "email.bounced") return "bounced";
   if (type === "email.complained") return "complained";
@@ -86,33 +96,43 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Resend API access is not configured." }, { status: 503 });
   }
 
-  let secret = "";
-  try {
-    secret = await getWebhookSecret(apiKey);
-  } catch (error) {
-    console.error("Unable to load Resend webhook verification secret", error);
-    return NextResponse.json({ ok: false, error: "Resend webhook verification is not configured." }, { status: 503 });
-  }
-
   const raw = await request.text();
   const svixId = request.headers.get("svix-id") || "";
   const svixTimestamp = request.headers.get("svix-timestamp") || "";
   const svixSignature = request.headers.get("svix-signature") || "";
 
-  let event: ResendEvent;
+  let secret = "";
   try {
-    const resend = new Resend(apiKey);
-    event = resend.webhooks.verify({
-      payload: raw,
-      headers: {
-        id: svixId,
-        timestamp: svixTimestamp,
-        signature: svixSignature,
-      },
-      webhookSecret: secret,
-    }) as ResendEvent;
-  } catch {
-    return NextResponse.json({ ok: false, error: "Invalid webhook signature." }, { status: 400 });
+    secret = await getWebhookSecret(apiKey);
+  } catch (error) {
+    console.error("Unable to load Resend webhook verification secret", error);
+  }
+
+  let event: ResendEvent;
+  if (secret) {
+    try {
+      const resend = new Resend(apiKey);
+      event = resend.webhooks.verify({
+        payload: raw,
+        headers: {
+          id: svixId,
+          timestamp: svixTimestamp,
+          signature: svixSignature,
+        },
+        webhookSecret: secret,
+      }) as ResendEvent;
+    } catch {
+      return NextResponse.json({ ok: false, error: "Invalid webhook signature." }, { status: 400 });
+    }
+  } else {
+    if (!hasValidWebhookToken(request)) {
+      return NextResponse.json({ ok: false, error: "Resend webhook verification is not configured." }, { status: 503 });
+    }
+    try {
+      event = JSON.parse(raw) as ResendEvent;
+    } catch {
+      return NextResponse.json({ ok: false, error: "Invalid webhook payload." }, { status: 400 });
+    }
   }
 
   const supported = ["email.bounced", "email.complained", "email.suppressed", "email.failed", "email.opened", "email.clicked"];
