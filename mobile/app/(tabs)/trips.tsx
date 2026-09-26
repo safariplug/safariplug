@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { apiGet } from "../../src/api/client";
@@ -31,7 +31,7 @@ export default function TripsScreen() {
   return <SafeAreaView style={styles.safe} edges={["top"]}><ScrollView contentContainerStyle={styles.page}>
     <Text style={styles.kicker}>My trips</Text><Text style={styles.title}>Build the journey</Text>
     <Text style={styles.lede}>Put your hotel, airport transfer, food, experiences, appointments, drivers and events into one journey.</Text>
-    <Pressable style={styles.planButton} onPress={() => void Linking.openURL("https://safariplug.com/plan")}><Text style={styles.planButtonText}>Plan a new trip →</Text></Pressable>
+    <Pressable style={styles.planButton} onPress={() => router.push("/create-trip" as never)}><Text style={styles.planButtonText}>Plan a new trip →</Text></Pressable>
     {trips.map((trip) => <Pressable key={trip.id} style={styles.tripCard} onPress={() => router.push({ pathname: "/trip/[tripId]", params: { tripId: trip.id } })}>
       <Text style={styles.tripKicker}>Journey</Text><Text style={styles.tripTitle}>{trip.title || "Untitled trip"}</Text>
       <Text style={styles.tripMeta}>{trip.start_on || "Flexible start"} · {trip.end_on || "Flexible end"}</Text>
