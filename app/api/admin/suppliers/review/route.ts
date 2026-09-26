@@ -51,19 +51,31 @@ export async function POST(request: Request) {
     } | null;
     const supplierId = String(body?.supplierId || "");
     const action = String(body?.action || "");
-    if (!supplierId || !["approve", "request_changes", "reject"].includes(action)) {
+    if (!supplierId || !["approve", "request_changes", "reject", "profile_reviewed"].includes(action)) {
       return NextResponse.json({ error: "Supplier and valid review action are required." }, { status: 400 });
     }
 
     const { data: account, error: accountError } = await supabaseAdmin
       .from("supplier_accounts")
-      .select("id,user_id,business_id,prospect_id,partner_id,onboarding_status")
+      .select("id,user_id,business_id,prospect_id,partner_id,onboarding_status,review_requested_at")
       .eq("id", supplierId)
       .maybeSingle();
     if (accountError) return NextResponse.json({ error: accountError.message }, { status: 500 });
     if (!account) return NextResponse.json({ error: "Supplier not found." }, { status: 404 });
-    if (!["submitted", "changes_requested"].includes(account.onboarding_status)) {
-      return NextResponse.json({ error: "This supplier is not awaiting review." }, { status: 409 });
+    const earlyReviewRequested = Boolean(
+      account.review_requested_at &&
+      ["draft", "onboarding", "in_progress"].includes(account.onboarding_status)
+    );
+    const finalReviewState = ["submitted", "changes_requested"].includes(account.onboarding_status);
+
+    if (action === "profile_reviewed" && !earlyReviewRequested) {
+      return NextResponse.json({ error: "This supplier does not have an early profile review waiting." }, { status: 409 });
+    }
+    if (action === "request_changes" && !finalReviewState && !earlyReviewRequested) {
+      return NextResponse.json({ error: "This supplier is not awaiting staff review." }, { status: 409 });
+    }
+    if (["approve", "reject"].includes(action) && !finalReviewState) {
+      return NextResponse.json({ error: "This supplier is not awaiting final review." }, { status: 409 });
     }
 
     if (action === "approve" && account.onboarding_status !== "submitted") {
@@ -71,6 +83,32 @@ export async function POST(request: Request) {
         error: "This supplier must complete the requested changes and resubmit before approval.",
         onboarding_status: account.onboarding_status,
       }, { status: 409 });
+    }
+
+    if (action === "profile_reviewed") {
+      const now = new Date().toISOString();
+      const { error } = await supabaseAdmin
+        .from("supplier_accounts")
+        .update({
+          review_requested_at: null,
+          review_items: [],
+          review_note: null,
+          updated_at: now,
+        })
+        .eq("id", supplierId);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      if (account.prospect_id || account.partner_id) {
+        await supabaseAdmin.from("crm_activities").insert({
+          prospect_id: account.prospect_id || null,
+          partner_id: account.partner_id || null,
+          activity_type: "review",
+          summary: "Supplier profile early review completed",
+          details: `Supplier account ${account.id} received an early staff profile review while activation setup continued.`,
+        });
+      }
+
+      return NextResponse.json({ success: true, onboarding_status: account.onboarding_status, profile_reviewed: true });
     }
 
     if (action === "approve") {
