@@ -11,7 +11,9 @@ export type SupplierReadinessKey =
   | "availability"
   | "staff_verification"
   | "verification"
-  | "payout_details";
+  | "payout_details"
+  | "restaurant_menu"
+  | "restaurant_ordering";
 
 export type SupplierReadinessIssue = {
   key: SupplierReadinessKey;
@@ -113,7 +115,16 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
   }).filter((member: any) => member.status === "active");
   const staffIds = staff.map((member: any) => String(member.id));
 
-  const [{ data: availability }, { data: providerVerification }, { data: payout }, { data: staffCases }] = await Promise.all([
+  const isRestaurant = business.business_type === "Restaurant";
+
+  const [
+    { data: availability },
+    { data: providerVerification },
+    { data: payout },
+    { data: staffCases },
+    { data: restaurantSettings },
+    { data: restaurantMenuItems },
+  ] = await Promise.all([
     staffIds.length
       ? supabaseAdmin.from("service_staff_availability").select("staff_id,is_active").in("staff_id", staffIds).eq("is_active", true)
       : Promise.resolve({ data: [] as { staff_id: string; is_active: boolean }[] }),
@@ -143,6 +154,19 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
           .in("subject_id", staffIds)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as { subject_id: string; status: string; expires_at: string | null }[] }),
+    isRestaurant
+      ? supabaseAdmin
+          .from("restaurant_settings")
+          .select("ordering_enabled,pickup_enabled,safari_driver_enabled,customer_driver_enabled,restaurant_delivery_enabled")
+          .eq("business_id", supplier.business_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    isRestaurant
+      ? supabaseAdmin
+          .from("restaurant_menu_items")
+          .select("id,active,available")
+          .eq("business_id", supplier.business_id)
+      : Promise.resolve({ data: [] as { id: string; active: boolean; available: boolean }[] }),
   ]);
 
   const completionPercent = Number(completion.data ?? supplier.completion_percent ?? 0);
@@ -205,6 +229,18 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
     ["pending", "in_review"].includes(String(providerVerification.status))
   );
   const payoutWaitingOnPlatform = Boolean(payout?.status === "pending");
+  const restaurantMenuReady = !isRestaurant || Boolean(
+    (restaurantMenuItems ?? []).some((item: any) => item.active === true && item.available === true)
+  );
+  const restaurantOrderingReady = !isRestaurant || Boolean(
+    restaurantSettings?.ordering_enabled &&
+    (
+      restaurantSettings.pickup_enabled ||
+      restaurantSettings.safari_driver_enabled ||
+      restaurantSettings.customer_driver_enabled ||
+      restaurantSettings.restaurant_delivery_enabled
+    )
+  );
 
   const issues: SupplierReadinessIssue[] = [];
   if (!businessDetailsReady || completionPercent < 80) {
@@ -215,6 +251,23 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
   }
   if (!businessImagesReady) {
     issues.push(issue("business_images", "Add a business logo, cover image, or gallery image", "/supplier/onboarding#business-images"));
+  }
+
+  if (isRestaurant) {
+    if (!restaurantMenuReady) {
+      issues.push(issue(
+        "restaurant_menu",
+        "Add at least one active, available menu item",
+        "/business/restaurants/menu",
+      ));
+    }
+    if (!restaurantOrderingReady) {
+      issues.push(issue(
+        "restaurant_ordering",
+        "Enable restaurant ordering and at least one pickup or delivery method",
+        "/business/restaurants/menu",
+      ));
+    }
   }
 
   if (appointmentProvider) {
@@ -268,6 +321,8 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
       verificationSystem: !appointmentProvider || verificationSystemReady || providerVerification?.provider === "human_review",
       providerVerification: !appointmentProvider || providerVerificationReady,
       payout: !appointmentProvider || payoutReady,
+      restaurantMenu: restaurantMenuReady,
+      restaurantOrdering: restaurantOrderingReady,
     },
   };
 }
