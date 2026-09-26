@@ -55,6 +55,14 @@ function parseGeneratedDrafts(raw: string): GeneratedDraft[] {
   return Array.isArray(parsed.drafts) ? parsed.drafts : [];
 }
 
+function aiCreditsUnavailable(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error || "").toLowerCase();
+  return message.includes("no credits remaining") ||
+    message.includes("insufficient_quota") ||
+    message.includes("billing") ||
+    message.includes("add credits");
+}
+
 async function generateDraftChunk(openai: OpenAI, rows: DraftRow[], site: string): Promise<GeneratedDraft[]> {
   const jobs = rows.map((row) => ({
     id: row.id,
@@ -123,7 +131,8 @@ export async function generateAllPartnerInvitationDrafts() {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
         const groups = chunks(drafts, AI_CHUNK_SIZE);
 
-        for (let index = 0; index < groups.length; index += AI_CONCURRENCY) {
+        let stopAiForRun = false;
+        for (let index = 0; index < groups.length && !stopAiForRun; index += AI_CONCURRENCY) {
           const wave = groups.slice(index, index + AI_CONCURRENCY);
           const results = await Promise.allSettled(
             wave.map((group) => generateDraftChunk(openai, group, site)),
@@ -143,6 +152,7 @@ export async function generateAllPartnerInvitationDrafts() {
             } else {
               failedChunks++;
               console.error("Bulk AI invitation chunk failed; deterministic drafts will be used", result.reason);
+              if (aiCreditsUnavailable(result.reason)) stopAiForRun = true;
             }
           }
         }
