@@ -138,10 +138,10 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
     staffIds.length
       ? supabaseAdmin
           .from("verification_cases")
-          .select("subject_id,status,expires_at,provider")
+          .select("subject_id,status,expires_at,provider,created_at")
           .eq("subject_type", "service_staff")
           .in("subject_id", staffIds)
-          .eq("status", "approved")
+          .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as { subject_id: string; status: string; expires_at: string | null }[] }),
   ]);
 
@@ -168,17 +168,26 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
   const availabilityByStaff = new Set((availability ?? []).map((row: any) => String(row.staff_id)));
   const availabilityReady = teamReady && staff.every((member: any) => availabilityByStaff.has(String(member.id)));
 
-  const approvedStaffCases = new Map(
-    (staffCases ?? [])
-      .filter((row: any) => isFutureOrOpen(row.expires_at))
-      .map((row: any) => [String(row.subject_id), String(row.provider || "")])
-  );
+  const latestStaffCases = new Map<string, any>();
+  for (const row of staffCases ?? []) {
+    const key = String((row as any).subject_id);
+    if (!latestStaffCases.has(key)) latestStaffCases.set(key, row);
+  }
   const staffVerificationReady = teamReady && staff.every((member: any) => {
-    const provider = approvedStaffCases.get(String(member.id));
-    if (!provider) return false;
+    const current = latestStaffCases.get(String(member.id));
+    if (!current || current.status !== "approved" || !isFutureOrOpen(current.expires_at)) return false;
     if (!member.user_id || member.verification_state !== "verified") return false;
-    if (provider === "human_review") return true;
+    if (current.provider === "human_review") return true;
     return Boolean(member.identity_liveness_verified_at);
+  });
+  const staffVerificationWaitingOnPlatform = teamReady && staff.every((member: any) => {
+    if (staffVerificationReady) return true;
+    const current = latestStaffCases.get(String(member.id));
+    return Boolean(
+      current &&
+      current.provider === "human_review" &&
+      ["pending", "in_review"].includes(String(current.status))
+    );
   });
 
   const providerVerificationReady = Boolean(
@@ -190,6 +199,12 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
     adapter.contractImplemented() && adapter.credentialsPresent()
   );
   const payoutReady = Boolean(payout?.status === "verified" && payout?.verified_at);
+  const providerVerificationWaitingOnPlatform = Boolean(
+    providerVerification &&
+    providerVerification.provider === "human_review" &&
+    ["pending", "in_review"].includes(String(providerVerification.status))
+  );
+  const payoutWaitingOnPlatform = Boolean(payout?.status === "pending");
 
   const issues: SupplierReadinessIssue[] = [];
   if (!businessDetailsReady || completionPercent < 80) {
@@ -211,19 +226,30 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
       "staff_verification",
       verificationSystemReady
         ? "Complete specialist identity + live face verification"
-        : "Complete SafariPlug staff review for every active specialist",
+        : staffVerificationWaitingOnPlatform
+          ? "SafariPlug staff review is waiting for every active specialist"
+          : "Request SafariPlug staff review for every active specialist",
       "/business/services/identity",
-      "supplier",
+      staffVerificationWaitingOnPlatform ? "platform" : "supplier",
     ));
     if (!providerVerificationReady) issues.push(issue(
       "verification",
       verificationSystemReady
         ? "Complete provider identity + liveness verification"
-        : "Complete SafariPlug staff review for the provider account",
+        : providerVerificationWaitingOnPlatform
+          ? "SafariPlug staff review is waiting for the provider account"
+          : "Request SafariPlug staff review for the provider account",
       "/business/verification",
-      "supplier",
+      providerVerificationWaitingOnPlatform ? "platform" : "supplier",
     ));
-    if (!payoutReady) issues.push(issue("payout_details", "Configure and verify the M-Pesa payout destination", "/business/payouts"));
+    if (!payoutReady) issues.push(issue(
+      "payout_details",
+      payoutWaitingOnPlatform
+        ? "SafariPlug finance must verify the M-Pesa payout destination"
+        : "Configure the M-Pesa payout destination",
+      "/business/payouts",
+      payoutWaitingOnPlatform ? "platform" : "supplier",
+    ));
   }
 
   return {
