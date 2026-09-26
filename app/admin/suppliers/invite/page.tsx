@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { createManualSupplierInvite } from "./actions";
+import { SUPPORTED_SUPPLIER_INVITATION_TYPES } from "@/lib/suppliers/invitation-config";
 
 export default async function ManualSupplierInvitePage() {
   await requireAdmin();
@@ -22,7 +23,7 @@ export default async function ManualSupplierInvitePage() {
         <section className="mt-7 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-5">
           <p className="text-sm font-semibold text-amber-200">Nothing is sent automatically</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            Email is the only required field. SafariPlug creates provisional linked CRM records when the business or contact name is not yet known. You will still review the invitation, approve it, and explicitly send it from the governed outreach workspace.
+            Email is the only required contact field. Choose the supplier category so SafariPlug knows which onboarding route to use. Business and contact names can remain unknown; SafariPlug creates provisional linked CRM records until the supplier completes onboarding. You will still review the invitation, approve it, and explicitly send it from the governed outreach workspace.
           </p>
         </section>
 
@@ -31,7 +32,13 @@ export default async function ManualSupplierInvitePage() {
             <Field label="Email" name="contact_email" type="email" required placeholder="supplier@example.com" />
             <Field label="Business / supplier name" name="business_name" placeholder="Optional if unknown" />
             <Field label="Contact name" name="contact_name" placeholder="Optional if unknown" />
-            <Field label="Supplier category" name="category" placeholder="Optional — defaults to Other" />
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold">Supplier category *</span>
+              <select name="category" required defaultValue="" className="w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none focus:border-amber-400">
+                <option value="" disabled>Select the supplier category</option>
+                {SUPPORTED_SUPPLIER_INVITATION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </label>
             <Field label="City / location" name="city" placeholder="e.g. Nairobi" />
             <Field label="Website" name="website" type="url" placeholder="https://..." />
           </div>
