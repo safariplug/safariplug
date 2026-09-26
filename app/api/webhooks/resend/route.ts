@@ -76,7 +76,9 @@ function cleanEmail(value: unknown) {
 }
 
 function hasValidWebhookToken(request: Request) {
-  const token = new URL(request.url).searchParams.get("token")?.trim() || "";
+  const url = new URL(request.url);
+  const pathToken = decodeURIComponent(url.pathname.split("/").filter(Boolean).at(-1) || "");
+  const token = (url.searchParams.get("token")?.trim() || (pathToken !== "resend" ? pathToken : "")).trim();
   if (!token) return false;
   const expected = Buffer.from(RESEND_WEBHOOK_TOKEN_SHA256, "hex");
   const actual = createHash("sha256").update(token).digest();
