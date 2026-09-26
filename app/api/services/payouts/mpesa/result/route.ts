@@ -37,6 +37,10 @@ export async function POST(request: Request) {
         originatorConversationId,
         resultCode,
       });
+      await supabaseAdmin.from("admin_telemetry_logs").insert({
+        action_type:"service_provider_payout_callback_unmatched",
+        metadata:{kind:"result",conversationId:conversationId||null,originatorConversationId:originatorConversationId||null,resultCode,resultDescription:String(result?.ResultDesc||""),receivedAt:new Date().toISOString()}
+      }).then(({error})=>{if(error)console.error("Failed to persist unmatched payout callback telemetry",error);});
       return callbackError(409, "Payout callback could not be matched");
     }
 
@@ -87,7 +91,13 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (updateError) throw updateError;
-    if (updated) return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    if (updated) {
+      await supabaseAdmin.from("admin_telemetry_logs").insert({
+        action_type:"service_provider_payout_callback_applied",
+        metadata:{kind:"result",payoutId:payout.id,status,conversationId:conversationId||null,originatorConversationId:originatorConversationId||null,resultCode,transactionReceipt:receipt??null}
+      }).then(({error})=>{if(error)console.error("Failed to persist payout callback telemetry",error);});
+      return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    }
 
     const { data: current, error: currentError } = await supabaseAdmin
       .from("service_provider_payouts")
