@@ -2,14 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import BookingForm from "../BookingForm";
+import { isServiceProviderVerified } from "@/lib/services/provider-bookability";
 
 export const dynamic = "force-dynamic";
 
 export default async function ServicePage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ tripId?: string }> }) {
   const { slug } = await params; const { tripId } = await searchParams;
-  const { data:s } = await supabaseAdmin.from("service_profiles").select("id,timezone,booking_notice_minutes,cancellation_policy,businesses!inner(id,name,slug,description,address,phone,whatsapp,website_url,logo_url,cover_image_url,status),service_categories(name),service_offerings(id,name,description,duration_minutes,price,currency,status,requires_confirmation)").eq("status","active").eq("booking_status","open").eq("businesses.slug",slug).eq("businesses.status","active").eq("service_offerings.status","active").maybeSingle();
+  const { data:s } = await supabaseAdmin.from("service_profiles").select("id,timezone,booking_notice_minutes,cancellation_policy,businesses!inner(id,name,slug,description,address,phone,whatsapp,website_url,logo_url,cover_image_url,status,owner_id),service_categories(name),service_offerings(id,name,description,duration_minutes,price,currency,status,requires_confirmation)").eq("status","active").eq("booking_status","open").eq("businesses.slug",slug).eq("businesses.status","active").eq("service_offerings.status","active").maybeSingle();
   if(!s) notFound();
   const profile=s as any; const offerings=(profile.service_offerings??[]) as any[]; const business=profile.businesses;
+  if(!(await isServiceProviderVerified(business?.owner_id))) notFound();
   const { data:staffRows }=await supabaseAdmin.from("service_staff").select("id,display_name,bio,personal_photo_url,verification_state,identity_liveness_verified_at,user_id").eq("service_profile_id",profile.id).eq("status","active").eq("verification_state","verified").not("user_id","is",null).not("personal_photo_url","is",null);
   const staffIds=(staffRows??[]).map((row:any)=>String(row.id));
   const { data:staffCases }=staffIds.length?await supabaseAdmin.from("verification_cases").select("subject_id,provider,status,expires_at").eq("subject_type","service_staff").in("subject_id",staffIds).eq("status","approved"): {data:[]};
