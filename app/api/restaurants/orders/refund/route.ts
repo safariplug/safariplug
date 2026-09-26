@@ -15,9 +15,12 @@ export async function POST(request: Request) {
   try { businessId = await supplierBusinessId(currentUser.id); }
   catch (error) { console.error("Restaurant refund supplier lookup failed", error); return NextResponse.json({ error: "Refund preflight failed", retryAllowed: false }, { status: 500 }); }
   if (!businessId) return NextResponse.json({ error: "Supplier access denied" }, { status: 403 });
-  const { data: order, error: orderError } = await supabaseAdmin.from("food_orders").select("id,business_id,payment_status,payment_reference,refund_reference,customer_total,currency,refunded_amount").eq("id", orderId).maybeSingle();
+  const { data: order, error: orderError } = await supabaseAdmin.from("food_orders").select("id,business_id,customer_user_id,status,payment_status,payment_reference,refund_reference,customer_total,currency,refunded_amount").eq("id", orderId).maybeSingle();
   if (orderError) { console.error("Restaurant refund order lookup failed", orderError); return NextResponse.json({ error: "Refund preflight failed", retryAllowed: false }, { status: 500 }); }
-  if (!order || order.business_id !== businessId) return NextResponse.json({ error: "Order access denied" }, { status: 403 });
+  if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  const isSupplier = order.business_id === businessId;
+  const isCustomerCancellation = order.customer_user_id === currentUser.id && order.status === "pending";
+  if (!isSupplier && !isCustomerCancellation) return NextResponse.json({ error: "Order access denied" }, { status: 403 });
   if (order.payment_status === "refunded") return NextResponse.json({ refund: { status: "succeeded", amount: order.refunded_amount, reference: order.refund_reference ?? order.payment_reference } });
   if (order.payment_status !== "paid") return NextResponse.json({ error: "Only paid restaurant orders can be refunded" }, { status: 409 });
   if (String(order.currency).toUpperCase() !== "KES") return NextResponse.json({ error: "M-Pesa refunds require KES orders" }, { status: 409 });
