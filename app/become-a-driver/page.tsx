@@ -13,7 +13,7 @@ export default function BecomeADriverPage() {
         </div>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-zinc-800 p-5"><p className="font-bold">Apply</p><p className="mt-2 text-sm leading-6 text-zinc-500">Create an account and submit your service, vehicle and availability details.</p></div>
-          <div className="rounded-2xl border border-zinc-800 p-5"><p className="font-bold">Verify</p><p className="mt-2 text-sm leading-6 text-zinc-500">Complete the required identity, license and live face/liveness checks.</p></div>
+          <div className="rounded-2xl border border-zinc-800 p-5"><p className="font-bold">Verify</p><p className="mt-2 text-sm leading-6 text-zinc-500">Complete SafariPlug's required identity and document review. At launch, staff review can be used without a paid external verification provider.</p></div>
           <div className="rounded-2xl border border-zinc-800 p-5"><p className="font-bold">Drive</p><p className="mt-2 text-sm leading-6 text-zinc-500">Once approved and active, become eligible for matching transfer assignments.</p></div>
         </div>
         <p className="mt-8 text-xs leading-5 text-zinc-600">Submitting an application never creates a bookable driver. SafariPlug does not accept identity documents through this public form.</p>
