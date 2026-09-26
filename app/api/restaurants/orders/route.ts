@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if(fulfillmentMethod==="customer_driver"&&!driverId)return NextResponse.json({error:"Choose a driver"},{status:400});
   if(["pickup","restaurant_delivery"].includes(fulfillmentMethod)&&driverId)return NextResponse.json({error:"A driver cannot be selected for this delivery method"},{status:400});
   if(tripId){const {data:trip}=await supabaseAdmin.from("trips").select("id").eq("id",tripId).eq("traveler_id",user.id).maybeSingle();if(!trip)return NextResponse.json({error:"Trip not found"},{status:404});}
-  const [{data:settings},{data:business}]=await Promise.all([supabaseAdmin.from("restaurant_settings").select("*").eq("business_id",businessId).maybeSingle(),supabaseAdmin.from("businesses").select("id,name,city_id,latitude,longitude").eq("id",businessId).maybeSingle()]);
+  const [{data:settings},{data:business}]=await Promise.all([supabaseAdmin.from("restaurant_settings").select("*").eq("business_id",businessId).maybeSingle(),supabaseAdmin.from("businesses").select("id,name,city_id,latitude,longitude,status,business_type").eq("id",businessId).eq("business_type","Restaurant").in("status",["active","ACTIVE"]).maybeSingle()]);
   if(!settings?.ordering_enabled||!business)return NextResponse.json({error:"Online ordering is not currently available"},{status:409});
   if(fulfillmentMethod==="pickup"&&!settings.pickup_enabled)return NextResponse.json({error:"Pickup is unavailable"},{status:409});
   if(fulfillmentMethod==="safari_driver"&&!settings.safari_driver_enabled)return NextResponse.json({error:"SafariPlug delivery is unavailable"},{status:409});
