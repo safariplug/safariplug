@@ -14,10 +14,7 @@ const FILTERS = ["All", "Stays", "Experiences", "Events", "Food", "Transfers", "
 type Filter = (typeof FILTERS)[number];
 
 const COMING: Partial<Record<Filter, { title: string; body: string }>> = {
-  Stays: {
-    title: "Hotel booking is coming soon",
-    body: "SafariPlug is connecting trusted accommodation partners across Africa. Search will not invent rooms or rates.",
-  },
+
   Food: {
     title: "Dining inventory is not live",
     body: "Restaurants and culinary experiences will appear from the catalog when they exist.",
@@ -108,7 +105,7 @@ export default function SearchScreen() {
           </Pressable>
         ))}
       </View>
-      {coming && filter !== "All" ? (
+      {filter === "Stays" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/hotels" as never)} style={styles.place}><Text style={styles.placeName}>Search live hotels</Text><Text style={styles.placeMeta}>Bookable supplier rooms, Hotelbeds rate review and M-Pesa checkout.</Text></Pressable></View>) : coming && filter !== "All" ? (
         <View style={{ paddingHorizontal: 20 }}>
           <ComingSoonCard title={coming.title} body={coming.body} />
         </View>
