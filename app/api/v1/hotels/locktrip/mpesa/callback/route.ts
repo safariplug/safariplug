@@ -48,7 +48,9 @@ export async function POST(request: Request) {
       transactionDate: metadataMap.TransactionDate || null,
       receivedAt: new Date().toISOString(),
     };
-    const { mpesaCallbackRejected: _previousRejectedCallback, reconciliation: _previousReconciliation, ...verifiedMetadata } = metadata;
+    const verifiedMetadata: Record<string, unknown> = { ...metadata };
+    delete verifiedMetadata.mpesaCallbackRejected;
+    delete verifiedMetadata.reconciliation;
     const update: Record<string, unknown> = verifiedSuccess
       ? {
           payment_status: "paid",
