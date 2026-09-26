@@ -9,7 +9,7 @@ import { colors } from "../src/theme";
 type Guest={name:string;surname:string};
 type Preflight={bookingToken?:string;rate?:{roomName?:string|null;boardName?:string|null;cancellation?:string|null;notices?:string[]};pricing?:{customerRetailAmount?:number;customerCurrency?:string}};
 export default function HotelBookScreen(){
- const p=useLocalSearchParams<{hotelName?:string;bookingToken?:string;checkIn?:string;checkOut?:string;guests?:string;total?:string}>();
+ const p=useLocalSearchParams<{hotelName?:string;bookingToken?:string;checkIn?:string;checkOut?:string;guests?:string;total?:string;tripId?:string}>();
  const guestCount=Math.max(1,Math.min(20,Number(p.guests||1)));
  const[guests,setGuests]=useState<Guest[]>(()=>Array.from({length:guestCount},()=>({name:"",surname:""})));
  const[phone,setPhone]=useState("");
@@ -45,12 +45,12 @@ export default function HotelBookScreen(){
   try{
    const r=await fetch(API_BASE_URL+"/api/v1/hotels/hotelbeds",{method:"POST",headers:await headers(),body:JSON.stringify({
     action:"prepare",idempotencyKey:"mobile-hotel-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),bookingToken:preflight.bookingToken,currency:"KES",customerPhone:phone.trim(),termsAccepted:true,
-    paxes:guests.map(g=>({type:"AD",name:g.name.trim(),surname:g.surname.trim(),roomId:1}))
+    tripId:p.tripId||undefined,paxes:guests.map(g=>({type:"AD",name:g.name.trim(),surname:g.surname.trim(),roomId:1}))
    })});
    const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b?.message||"Unable to start Hotelbeds payment.");
    if(!b?.bookingId)throw new Error("SafariPlug did not return a hotel booking session.");
    Alert.alert("M-Pesa request sent","Complete payment on your phone. SafariPlug will confirm the hotel only after payment succeeds.");
-   router.replace({pathname:"/travel-booking/[product]/[bookingId]",params:{product:"hotel",bookingId:String(b.bookingId),label:hotelName,bookingStatus:String(b.status||"payment_pending"),paymentStatus:"pending",currency:finalCurrency,amount:String(finalAmount),providerReference:""}} as never);
+   router.replace({pathname:"/travel-booking/[product]/[bookingId]",params:{product:"hotel",bookingId:String(b.bookingId),label:hotelName,bookingStatus:String(b.status||"payment_pending"),paymentStatus:"pending",currency:finalCurrency,amount:String(finalAmount),providerReference:"",...(p.tripId?{tripId:String(p.tripId)}:{})}} as never);
   }catch(e){setError(e instanceof Error?e.message:"Unable to start payment.");setPaying(false);}
  }
 
