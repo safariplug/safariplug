@@ -35,6 +35,10 @@ export async function POST(request: Request) {
         conversationId,
         originatorConversationId,
       });
+      await supabaseAdmin.from("admin_telemetry_logs").insert({
+        action_type:"service_provider_payout_callback_unmatched",
+        metadata:{kind:"timeout",conversationId:conversationId||null,originatorConversationId:originatorConversationId||null,receivedAt:new Date().toISOString()}
+      }).then(({error})=>{if(error)console.error("Failed to persist unmatched payout timeout telemetry",error);});
       return callbackError(409,"Payout timeout could not be matched");
     }
 
@@ -78,6 +82,10 @@ export async function POST(request: Request) {
 
     if(updateError) throw updateError;
     if(updated){
+      await supabaseAdmin.from("admin_telemetry_logs").insert({
+        action_type:"service_provider_payout_timeout_reconciliation",
+        metadata:{payoutId:payout.id,conversationId:conversationId||null,originatorConversationId:originatorConversationId||null,recordedAt:now}
+      }).then(({error})=>{if(error)console.error("Failed to persist payout timeout telemetry",error);});
       console.warn("M-Pesa B2C queue timeout requires reconciliation",{
         payoutId:payout.id,
         conversationId:conversationId||null,
