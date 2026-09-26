@@ -57,12 +57,12 @@ export default function SupplierOnboardingPage() {
     const response = await fetch("/api/supplier/onboarding", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "offering", offering: { name, description: template?.description, price, duration_minutes: duration, currency: "KES" } }) }); const data = await response.json();
     setMessage(response.ok ? `${name} saved as a draft.` : data.error || "Unable to save service."); void load();
   }
-  async function addStaffByName(name: string) {
+  async function addStaffByName(name: string, linkCurrentUser = false) {
     const displayName = name.trim();
     if (!displayName) return;
-    const response = await fetch("/api/supplier/onboarding", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "staff", displayName }) });
+    const response = await fetch("/api/supplier/onboarding", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "staff", displayName, linkCurrentUser }) });
     const data = await response.json();
-    setMessage(response.ok ? (data.reused ? `${displayName} is already on your team.` : `${displayName} added to your team.`) : data.error || "Unable to add team member.");
+    setMessage(response.ok ? (data.linkedCurrentUser ? `${displayName} is linked to your SafariPlug account as the provider.` : data.reused ? `${displayName} is already on your team.` : `${displayName} added to your team.`) : data.error || "Unable to add team member.");
     if (response.ok && data.staff) setSchedule((s) => ({ ...s, staffId: data.staff.id }));
     void load();
   }
@@ -75,7 +75,7 @@ export default function SupplierOnboardingPage() {
   async function addSelfAsProvider() {
     const displayName = state.account?.contact_name?.trim() || "";
     if (!displayName) return setMessage("Add the supplier contact name first.");
-    await addStaffByName(displayName);
+    await addStaffByName(displayName, true);
   }
   async function addSchedule() {
     if (!schedule.staffId) return setMessage("Add a team member first."); const response = await fetch("/api/supplier/onboarding", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "availability", ...schedule }) }); const data = await response.json();
