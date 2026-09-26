@@ -93,6 +93,19 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!idem?.appointment_id) {
+      await supabaseAdmin.from("admin_telemetry_logs").insert({
+        action_type: "service_payment_callback_unmatched",
+        metadata: {
+          provider: "mpesa",
+          checkoutRequestId,
+          resultCode,
+          receipt: receipt || null,
+          amount: amountValue == null ? null : Number(amountValue),
+          receivedAt: new Date().toISOString(),
+        },
+      }).then(({ error }) => {
+        if (error) console.error("Failed to persist unmatched M-Pesa service callback telemetry", error);
+      });
       // Unknown/late callbacks are acknowledged without mutating customer data.
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
@@ -112,13 +125,27 @@ export async function POST(request: Request) {
     if (resultCode === 0) {
       const callbackAmount = Number(amountValue);
       const expectedAmount = Number(appointment.customer_total_amount);
-      if (!Number.isFinite(callbackAmount) || !Number.isFinite(expectedAmount) || callbackAmount !== expectedAmount || String(appointment.currency).toUpperCase() !== "KES") {
+      if (!Number.isFinite(callbackAmount) || !Number.isFinite(expectedAmount) || Math.round(callbackAmount) !== Math.round(expectedAmount) || String(appointment.currency).toUpperCase() !== "KES") {
         console.error("M-Pesa service payment amount mismatch", {
           appointmentId: appointment.id,
           checkoutRequestId,
           callbackAmount,
           expectedAmount,
           currency: appointment.currency,
+        });
+        await supabaseAdmin.from("admin_telemetry_logs").insert({
+          action_type: "service_payment_amount_mismatch",
+          metadata: {
+            provider: "mpesa",
+            appointmentId: appointment.id,
+            checkoutRequestId,
+            callbackAmount: Number.isFinite(callbackAmount) ? callbackAmount : null,
+            expectedAmount: Number.isFinite(expectedAmount) ? expectedAmount : null,
+            currency: appointment.currency,
+            receivedAt: new Date().toISOString(),
+          },
+        }).then(({ error }) => {
+          if (error) console.error("Failed to persist M-Pesa service amount mismatch telemetry", error);
         });
         return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
       }
