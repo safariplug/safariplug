@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { SupplierScoutForm } from "./supplier-scout-form";
 import { startOutreachForAllApproved } from "./bulk-outreach";
+import { approveSelectedSalesProspects } from "./bulk-review";
+import { salesProspectQualityIssues } from "@/lib/services/sales-prospect-quality";
 
 type SearchParams = {
   stage?: string;
@@ -11,6 +13,7 @@ type SearchParams = {
   contact?: string;
   sort?: string;
   outreach?: string;
+  bulk_review?: string;
 };
 
 type Prospect = {
@@ -26,6 +29,8 @@ type Prospect = {
   website: string | null;
   instagram: string | null;
   facebook: string | null;
+  source_url: string | null;
+  source_name: string | null;
   created_at: string;
 };
 
@@ -46,6 +51,7 @@ export default async function AISalesPage({
   const contact = contactFilters.has(params.contact || "") ? String(params.contact) : (stage === "pending_review" ? "email" : "all");
   const sort = sortModes.has(params.sort || "") ? String(params.sort) : "score";
   const outreachMessage = String(params.outreach || "");
+  const bulkReviewMessage = String(params.bulk_review || "");
 
   const [
     { count: total },
@@ -64,7 +70,7 @@ export default async function AISalesPage({
     supabaseAdmin.from("partner_invitations").select("prospect_id").not("prospect_id", "is", null).limit(500),
     supabaseAdmin
       .from("ai_sales_prospects")
-      .select("id,business_name,category,city,opportunity_score,status,review_status,contact_email,phone,website,instagram,facebook,created_at")
+      .select("id,business_name,category,city,opportunity_score,status,review_status,contact_email,phone,website,instagram,facebook,source_url,source_name,created_at")
       .order("created_at", { ascending: false })
       .limit(500),
   ]);
@@ -93,6 +99,9 @@ export default async function AISalesPage({
   });
 
   const visible = filtered.slice(0, 100);
+  const qualityReadyVisibleIds = visible
+    .filter((p) => p.review_status === "pending_review" && Boolean(p.contact_email) && salesProspectQualityIssues(p).length === 0)
+    .map((p) => p.id);
   const reviewReady = allProspects.filter((p) => p.review_status === "pending_review" && Boolean(p.contact_email)).length;
   const approvedUninvited = allProspects.filter((p) => p.review_status === "approved" && p.status !== "rejected" && !invitedProspectIds.has(p.id));
   const outreachReady = approvedUninvited.filter((p) => Boolean(p.contact_email)).length;
@@ -166,6 +175,17 @@ export default async function AISalesPage({
               </div>
             ) : null}
             {outreachMessage ? <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">{outreachMessage}</div> : null}
+            {bulkReviewMessage ? <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">{bulkReviewMessage}</div> : null}
+            {stage === "pending_review" && contact === "email" && qualityReadyVisibleIds.length > 0 ? (
+              <form id="bulk-prospect-approval" action={approveSelectedSalesProspects} className="mb-5 flex flex-col justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 p-4 md:flex-row md:items-center">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-blue-700/70">Batch human review</p>
+                  <p className="mt-1 font-semibold text-blue-950">Select quality-ready email prospects below, then approve the checked batch.</p>
+                  <p className="mt-1 text-sm text-blue-900/65">SafariPlug re-runs the quality gate server-side, creates governed outreach drafts, and sends nothing.</p>
+                </div>
+                <button className="shrink-0 rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Approve selected for outreach</button>
+              </form>
+            ) : null}
             {stage === "approved" && outreachReady > 0 ? (
               <div className="mb-5 flex flex-col justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 md:flex-row md:items-center">
                 <div>
@@ -245,11 +265,14 @@ export default async function AISalesPage({
                 const outreachStarted = invitedProspectIds.has(p.id);
                 const emailOutreachReady = Boolean(p.contact_email);
                 const phoneNeedsReview = Boolean(!p.contact_email && p.phone);
+                const qualityIssues = salesProspectQualityIssues(p);
+                const batchEligible = p.review_status === "pending_review" && emailOutreachReady && qualityIssues.length === 0;
                 return (
                   <div key={p.id} className="rounded-xl border p-5">
                     <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
+                          {batchEligible ? <input form="bulk-prospect-approval" type="checkbox" name="prospect_id" value={p.id} aria-label={`Select ${p.business_name} for bulk approval`} className="h-4 w-4 rounded border-gray-300" /> : null}
                           <h3 className="text-lg font-bold">{p.business_name}</h3>
                           <span className={"rounded-full px-2 py-1 text-[10px] font-bold uppercase " + (approved ? "bg-emerald-100 text-emerald-800" : p.review_status === "rejected" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800")}>
                             {p.review_status.replaceAll("_", " ")}
