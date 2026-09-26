@@ -8,7 +8,7 @@ export async function GET() {
     .from("businesses")
     .select("id,name,slug,description,city_id,restaurant_settings!inner(ordering_enabled,pickup_enabled)")
     .eq("business_type", "Restaurant")
-    .eq("status", "active")
+    .in("status", ["active", "ACTIVE"])
     .eq("restaurant_settings.ordering_enabled", true)
     .eq("restaurant_settings.pickup_enabled", true)
     .order("name");
