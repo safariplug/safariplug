@@ -27,10 +27,13 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
   const withTrip = (href: string) => tripId ? `${href}${href.includes("?") ? "&" : "?"}tripId=${encodeURIComponent(tripId)}` : href;
   const term = q?.trim().toLowerCase() ?? "";
   const { data: categories } = await supabaseAdmin.from("service_categories").select("id,name,slug,description").eq("status", "active").order("name");
-  let query = supabaseAdmin.from("service_profiles").select("id,businesses!inner(name,slug,description,city_id,logo_url,cover_image_url),service_categories!inner(name,slug),service_offerings(id,name,duration_minutes,price,currency)").eq("status", "active").eq("booking_status", "open").eq("businesses.status", "active").eq("service_categories.status", "active").eq("service_offerings.status", "active");
+  let query = supabaseAdmin.from("service_profiles").select("id,businesses!inner(name,slug,description,city_id,logo_url,cover_image_url,owner_id),service_categories!inner(name,slug),service_offerings(id,name,duration_minutes,price,currency)").eq("status", "active").eq("booking_status", "open").eq("businesses.status", "active").eq("service_categories.status", "active").eq("service_offerings.status", "active");
   if (category) query = query.eq("service_categories.slug", category);
   const { data: rawServices } = await query;
-  const services = (rawServices ?? []).filter((s: any) => !term || [s.businesses?.name, s.businesses?.description, s.service_categories?.name, ...(s.service_offerings ?? []).map((x:any)=>x.name)].filter(Boolean).join(" ").toLowerCase().includes(term));
+  const owners=[...new Set((rawServices??[]).map((s:any)=>String(s.businesses?.owner_id||"")).filter(Boolean))];
+  const readinessEntries=await Promise.all(owners.map(async(ownerId)=>{const {data,error}=await supabaseAdmin.rpc("service_provider_verification_ready",{p_user_id:ownerId});return [ownerId,!error&&data===true] as const;}));
+  const readyOwners=new Set(readinessEntries.filter(([,ready])=>ready).map(([ownerId])=>ownerId));
+  const services = (rawServices ?? []).filter((s:any)=>readyOwners.has(String(s.businesses?.owner_id||""))).filter((s: any) => !term || [s.businesses?.name, s.businesses?.description, s.service_categories?.name, ...(s.service_offerings ?? []).map((x:any)=>x.name)].filter(Boolean).join(" ").toLowerCase().includes(term));
   const activeCategory = (categories ?? []).find((c: any) => c.slug === category);
 
   return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
