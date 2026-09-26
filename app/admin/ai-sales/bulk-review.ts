@@ -34,6 +34,33 @@ function resultUrl(message: string) {
   return `${PATH}?stage=pending_review&contact=email&bulk_review=${encodeURIComponent(message)}#prospect-feed`;
 }
 
+export async function approveNextQualityReadySalesProspects() {
+  await requireAdmin();
+
+  const { data: prospects, error } = await supabaseAdmin
+    .from("ai_sales_prospects")
+    .select("*")
+    .eq("review_status", "pending_review")
+    .eq("status", "pending_review")
+    .not("contact_email", "is", null)
+    .order("opportunity_score", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(250);
+
+  if (error) throw new Error(error.message);
+
+  const ids = (prospects || [])
+    .filter((prospect) => Boolean(prospect.contact_email && salesProspectQualityIssues(prospect).length === 0))
+    .slice(0, BATCH_LIMIT)
+    .map((prospect) => prospect.id);
+
+  if (!ids.length) redirect(resultUrl("No quality-ready email prospects are waiting for approval."));
+
+  const formData = new FormData();
+  for (const id of ids) formData.append("prospect_id", id);
+  return approveSelectedSalesProspects(formData);
+}
+
 export async function approveSelectedSalesProspects(formData: FormData) {
   const admin = await requireAdmin();
   const ids = Array.from(new Set(
