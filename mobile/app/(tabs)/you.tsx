@@ -11,6 +11,7 @@ const ROWS: { label: string; hint: string; href?: string }[] = [
   { label: "Service Bookings", hint: "Appointments, confirmations and payment state", href: "/(tabs)/appointments" },
   { label: "Find Hotels", hint: "Search live stays and book with M-Pesa", href: "/hotels" },
   { label: "Live Activities", hint: "Tours, tickets and Hotelbeds activities", href: "/live-activities" },
+  { label: "Live Transfers", hint: "Airport, hotel and point-to-point rides", href: "/live-transfers" },
   { label: "Travel Bookings", hint: "Hotels, transfers, activities and refund reviews", href: "/travel-bookings" },
   { label: "Driver Requests", hint: "Specific drivers, quotes, payment and status", href: "/driver-requests" },
   { label: "Saved", hint: "Saved experiences", href: "/(tabs)/saved" },
