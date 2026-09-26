@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getPaymentAdapter } from "./registry";
 import { recordAndApplyPaymentWebhook } from "./webhook";
 import type { PaymentProvider } from "./types";
+import { isServiceAppointmentPayableStatus } from "./service-eligibility";
 
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const PAYMENT_CLAIM_MS = 10 * 60_000;
@@ -127,7 +128,7 @@ export async function createServicePaymentIntent(params: {
     .maybeSingle();
   if (error) throw new Error("Unable to load appointment");
   if (!appointment || appointment.customer_user_id !== params.customerUserId) throw new Error("appointment_not_found");
-  if (!["pending", "confirmed"].includes(appointment.status)) throw new Error("appointment_not_payable");
+  if (!isServiceAppointmentPayableStatus(appointment.status)) throw new Error("appointment_not_payable");
   if (["paid", "partially_refunded", "refunded", "disputed"].includes(String(appointment.payment_status))) {
     throw new Error("appointment_payment_settled");
   }
@@ -291,7 +292,7 @@ export async function createServicePaymentIntent(params: {
       payment_reference: intent.providerReference,
     }).eq("id", appointment.id)
       .eq("customer_user_id", params.customerUserId)
-      .in("status", ["pending", "confirmed"])
+      .eq("status", "confirmed")
       .neq("payment_status", "paid");
     if (appointmentUpdateError) throw new Error("Unable to persist appointment payment state");
   }
