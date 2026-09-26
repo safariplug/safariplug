@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import { supabase } from "../src/auth";
 import { API_BASE_URL } from "../src/config";
 import { ErrorBlock, LoadingBlock } from "../src/components/StatusBlocks";
@@ -83,6 +83,24 @@ export default function TravelBookingsScreen(){
         </View>
         <Text style={styles.reference}>Supplier ref: {item.providerReference||"pending"}</Text>
         {item.refundReview?<View style={styles.review}><Text style={styles.reviewTitle}>{item.refundReview.status==="resolved"?"Refund review resolved":"Refund review in progress"}</Text><Text style={styles.reviewText}>{item.refundReview.resolution?String(item.refundReview.resolution).replaceAll("_"," "):"SafariPlug finance is reviewing this cancelled paid booking."}</Text></View>:null}
+        <Pressable
+          onPress={()=>router.push({
+            pathname:"/travel-booking/[product]/[bookingId]",
+            params:{
+              product:item.product,
+              bookingId:item.bookingId,
+              label:item.label,
+              bookingStatus:item.bookingStatus,
+              paymentStatus:item.paymentStatus,
+              currency:item.currency,
+              amount:String(item.amount),
+              providerReference:item.providerReference||"",
+            },
+          } as never)}
+          style={styles.openButton}
+        >
+          <Text style={styles.openButtonText}>Manage booking</Text>
+        </Pressable>
       </View>)}
     </ScrollView>
   </SafeAreaView>;
@@ -107,4 +125,6 @@ const styles=StyleSheet.create({
   review:{borderRadius:14,borderWidth:1,borderColor:colors.gold,padding:12,backgroundColor:colors.forest},
   reviewTitle:{color:colors.goldSoft,fontWeight:"900"},
   reviewText:{color:colors.textMuted,fontSize:12,lineHeight:18,marginTop:3},
+  openButton:{marginTop:4,borderRadius:14,backgroundColor:colors.gold,paddingVertical:13,alignItems:"center"},
+  openButtonText:{color:colors.bg,fontWeight:"900"},
 });
