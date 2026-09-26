@@ -1,16 +1,11 @@
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
 import EventCard from "@/components/EventCard";
 import EventFilters from "@/app/events/components/EventFilters";
 import EventSearch from "@/app/events/components/EventSearch";
 import { EVENT_CATEGORIES } from "@/lib/constants/events";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -59,7 +54,7 @@ export default async function EventsPage({
   const monthEnd = new Date(monthStart);
   monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
 
-  let eventsQuery = supabase
+  let eventsQuery = supabaseAdmin
     .from("events")
     .select("id, title, description, category, venue_name, price, currency, image_url, start_at, is_featured, status, cities ( name, country )")
     .eq("status", "approved")
