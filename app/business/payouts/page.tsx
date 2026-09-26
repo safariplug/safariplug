@@ -59,7 +59,7 @@ export default async function ProviderPayoutsPage() {
       .maybeSingle(),
     supabaseAdmin
       .from("businesses")
-      .select("id")
+      .select("id,phone")
       .eq("owner_id",user.id)
       .limit(20),
   ]);
@@ -138,7 +138,7 @@ export default async function ProviderPayoutsPage() {
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="text-sm font-semibold">M-Pesa payout destination</p><p className="mt-1 text-xs text-black/45">Only a SafariPlug-verified destination can receive provider payouts.</p></div><span className="rounded-full bg-black/5 px-3 py-1.5 text-[11px] font-semibold">{account?.status||"not configured"}</span></div>
           <p className="mt-4 text-lg font-semibold">{account?.phone||"Not configured"}</p>
           <p className="mt-1 text-xs text-black/45">{account?.status==="verified"?"Verified for M-Pesa payouts":account?"Awaiting SafariPlug verification":"Add a Kenyan M-Pesa number below"}</p>
-          <PayoutDestinationForm phone={account?.phone} status={account?.status}/>
+          <PayoutDestinationForm phone={account?.phone || businesses?.[0]?.phone || ""} status={account?.status}/>
         </section>
       </div>
 
