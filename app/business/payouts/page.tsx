@@ -105,7 +105,7 @@ export default async function ProviderPayoutsPage() {
     <header className="border-b border-black/8 bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5 sm:px-10">
         <div><Link href="/" className="text-sm font-semibold">SafariPlug</Link><p className="mt-1 text-[10px] uppercase tracking-[.25em] text-black/35">Partner finance</p></div>
-        <div className="flex gap-2"><Link href="/business/services" className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">Workspace</Link><Link href="/services" className="rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white">View marketplace</Link></div>
+        <div className="flex flex-wrap gap-2"><Link href="/business/services" className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">Workspace</Link><Link href="/business/notifications" className="rounded-xl border border-black/10 px-4 py-2 text-xs font-semibold">Notifications</Link><Link href="/services" className="rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white">View marketplace</Link></div>
       </div>
     </header>
 
