@@ -16,20 +16,31 @@ function formatBookingTime(value: string, timezone: string) {
 async function notifySupplier(params: { serviceProfileId: string; offeringId: string; customerName: string; customerEmail?: string | null; customerPhone?: string | null; startsAt: string }) {
   const { data: profile } = await supabaseAdmin.from("service_profiles").select("id,notification_email,notification_whatsapp,timezone,business_id").eq("id", params.serviceProfileId).maybeSingle();
   if (!profile) return { push: 0, email: false, whatsapp: false, whatsappFallbackUrl: null };
-  const [{ data: business }, { data: offering }, { data: supplier }] = await Promise.all([
-    supabaseAdmin.from("businesses").select("name,phone,whatsapp,email").eq("id", profile.business_id).maybeSingle(),
+  const [{ data: business }, { data: offering }, { data: supplierAccounts }] = await Promise.all([
+    supabaseAdmin.from("businesses").select("name,phone,whatsapp,email,owner_id").eq("id", profile.business_id).maybeSingle(),
     supabaseAdmin.from("service_offerings").select("name").eq("id", params.offeringId).maybeSingle(),
-    supabaseAdmin.from("supplier_accounts").select("user_id").eq("business_id", profile.business_id).maybeSingle(),
+    supabaseAdmin.from("supplier_accounts").select("user_id").eq("business_id", profile.business_id).limit(50),
   ]);
   const businessName = business?.name || "Your SafariPlug business";
   const serviceName = offering?.name || "Service";
   const when = formatBookingTime(params.startsAt, profile.timezone || "UTC");
   const message = [`New SafariPlug booking — ${businessName}`, `Service: ${serviceName}`, `When: ${when}`, `Customer: ${params.customerName}`, params.customerPhone ? `Phone: ${params.customerPhone}` : null, params.customerEmail ? `Email: ${params.customerEmail}` : null, "Open SafariPlug to manage this booking."].filter(Boolean).join("\n");
   let push = 0;
-  if (supplier?.user_id) {
-    const { data: tokens } = await supabaseAdmin.from("push_notification_tokens").select("expo_push_token").eq("user_id", supplier.user_id).eq("enabled", true);
+  const recipientUserIds = [...new Set([
+    ...(supplierAccounts ?? []).map((row) => row.user_id),
+    business?.owner_id,
+  ].filter((value): value is string => Boolean(value)))];
+  if (recipientUserIds.length) {
+    const { data: tokens } = await supabaseAdmin
+      .from("push_notification_tokens")
+      .select("expo_push_token")
+      .in("user_id", recipientUserIds)
+      .eq("enabled", true);
     if (tokens?.length) {
-      const result = await sendExpoPushNotifications(tokens.map((row) => row.expo_push_token), { title: `New booking · ${serviceName}`, body: `${params.customerName} booked ${when}. Tap to manage it.`, data: { type: "service_booking", serviceProfileId: params.serviceProfileId } });
+      const result = await sendExpoPushNotifications(
+        [...new Set(tokens.map((row) => row.expo_push_token).filter(Boolean))],
+        { title: `New booking · ${serviceName}`, body: `${params.customerName} booked ${when}. Tap to manage it.`, data: { type: "service_booking", serviceProfileId: params.serviceProfileId } },
+      );
       push = result.sent;
     }
   }
