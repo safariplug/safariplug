@@ -29,6 +29,8 @@ type Prospect = {
   website: string | null;
   instagram: string | null;
   facebook: string | null;
+  source_url: string | null;
+  source_name: string | null;
   created_at: string;
 };
 
@@ -68,7 +70,7 @@ export default async function AISalesPage({
     supabaseAdmin.from("partner_invitations").select("prospect_id").not("prospect_id", "is", null).limit(500),
     supabaseAdmin
       .from("ai_sales_prospects")
-      .select("id,business_name,category,city,opportunity_score,status,review_status,contact_email,phone,website,instagram,facebook,created_at")
+      .select("id,business_name,category,city,opportunity_score,status,review_status,contact_email,phone,website,instagram,facebook,source_url,source_name,created_at")
       .order("created_at", { ascending: false })
       .limit(500),
   ]);
