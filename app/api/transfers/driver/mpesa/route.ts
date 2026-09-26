@@ -5,10 +5,22 @@ import { initiateMpesaStkPush } from "@/lib/payments/mpesa";
 
 export const dynamic = "force-dynamic";
 
+async function getUser(request: Request) {
+  const header=request.headers.get("authorization")||"";
+  const token=header.startsWith("Bearer ")?header.slice(7).trim():"";
+  if(token){
+    const {data,error}=await supabaseAdmin.auth.getUser(token);
+    if(!error&&data.user&&!data.user.is_anonymous&&(data.user.email_confirmed_at||data.user.phone_confirmed_at))return data.user;
+  }
+  const client=await createSupabaseServerClient();
+  const {data:{user}}=await client.auth.getUser();
+  if(!user||user.is_anonymous||!(user.email_confirmed_at||user.phone_confirmed_at))return null;
+  return user;
+}
+
 export async function POST(request: Request) {
-  const client = await createSupabaseServerClient();
-  const { data: { user } } = await client.auth.getUser();
-  if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) {
+  const user = await getUser(request);
+  if (!user) {
     return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
   }
 
