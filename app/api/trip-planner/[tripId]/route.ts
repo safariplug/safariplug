@@ -6,10 +6,22 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ tripId: string }> };
 
-export async function GET(_request: Request, { params }: Params) {
+async function getUser(request: Request) {
+  const header = request.headers.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (token) {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (!error && data.user && !data.user.is_anonymous && (data.user.email_confirmed_at || data.user.phone_confirmed_at)) return data.user;
+  }
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || user.is_anonymous) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) return null;
+  return user;
+}
+
+export async function GET(request: Request, { params }: Params) {
+  const user = await getUser(request);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
   const { tripId } = await params;
   const { data: trip, error: tripError } = await supabaseAdmin
