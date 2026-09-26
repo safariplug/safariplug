@@ -66,6 +66,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "This supplier is not awaiting review." }, { status: 409 });
     }
 
+    if (action === "approve" && account.onboarding_status !== "submitted") {
+      return NextResponse.json({
+        error: "This supplier must complete the requested changes and resubmit before approval.",
+        onboarding_status: account.onboarding_status,
+      }, { status: 409 });
+    }
+
     if (action === "approve") {
       const readiness = await getSupplierActivationReadiness(supplierId);
       if (!readiness.ready) {
