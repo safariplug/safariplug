@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { API_BASE_URL } from "../src/config";
 import { colors } from "../src/theme";
 
@@ -14,6 +14,8 @@ type Hotel={
 function iso(offset:number){const d=new Date();d.setDate(d.getDate()+offset);return d.toISOString().slice(0,10);}
 
 export default function HotelSearchScreen(){
+ const params=useLocalSearchParams<{tripId?:string}>();
+ const tripId=Array.isArray(params.tripId)?params.tripId[0]:params.tripId;
  const[destination,setDestination]=useState("");
  const[checkIn,setCheckIn]=useState(iso(7));
  const[checkOut,setCheckOut]=useState(iso(9));
@@ -59,7 +61,7 @@ export default function HotelSearchScreen(){
      {h.total?<Text style={styles.price}>{h.total.currency+" "+Number(h.total.amount).toLocaleString()}</Text>:null}
      {h.supplier_context?.board_name?<Text style={styles.body}>{h.supplier_context.board_name}</Text>:null}
      {h.cancellation?<Text style={styles.body}>{h.cancellation}</Text>:null}
-     {canBook?<Pressable onPress={()=>router.push({pathname:"/hotel-book",params:{hotelName:h.property_name,bookingToken:token,checkIn,checkOut,guests,total:String(h.total?.amount||0)}} as never)} style={styles.primary}><Text style={styles.primaryText}>Review & book</Text></Pressable>:<Text style={styles.muted}>This result is visible, but native checkout is not available for this supplier yet.</Text>}
+     {canBook?<Pressable onPress={()=>router.push({pathname:"/hotel-book",params:{hotelName:h.property_name,bookingToken:token,checkIn,checkOut,guests,total:String(h.total?.amount||0),...(tripId?{tripId}: {})}} as never)} style={styles.primary}><Text style={styles.primaryText}>Review & book</Text></Pressable>:<Text style={styles.muted}>This result is visible, but native checkout is not available for this supplier yet.</Text>}
     </View>;
    })}
   </ScrollView>
