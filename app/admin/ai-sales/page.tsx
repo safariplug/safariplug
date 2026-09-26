@@ -5,6 +5,7 @@ import { SupplierScoutForm } from "./supplier-scout-form";
 import { startOutreachForAllApproved } from "./bulk-outreach";
 import { approveSelectedSalesProspects } from "./bulk-review";
 import { salesProspectQualityIssues } from "@/lib/services/sales-prospect-quality";
+import { BulkReviewSelectionControls } from "./bulk-review-selection-controls";
 
 type SearchParams = {
   stage?: string;
@@ -183,7 +184,10 @@ export default async function AISalesPage({
                   <p className="mt-1 font-semibold text-blue-950">Select quality-ready email prospects below, then approve the checked batch.</p>
                   <p className="mt-1 text-sm text-blue-900/65">SafariPlug re-runs the quality gate server-side, creates governed outreach drafts, and sends nothing.</p>
                 </div>
-                <button className="shrink-0 rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Approve selected for outreach</button>
+                <div className="flex shrink-0 flex-col gap-2">
+                  <BulkReviewSelectionControls />
+                  <button className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Approve selected for outreach</button>
+                </div>
               </form>
             ) : null}
             {stage === "approved" && outreachReady > 0 ? (
