@@ -20,15 +20,7 @@ export async function POST() {
     );
   }
 
-  if (!sumsubConfigured()) {
-    return NextResponse.json(
-      {
-        error:
-          "Driver identity/liveness verification is not configured yet. SafariPlug will not simulate approval.",
-      },
-      { status: 503 }
-    );
-  }
+  const automated = sumsubConfigured();
 
   const { data: driver, error: driverError } = await supabaseAdmin
     .from("driver_profiles")
@@ -64,6 +56,72 @@ export async function POST() {
       { error: "Driver identity/liveness verification is already approved." },
       { status: 409 }
     );
+  }
+
+  if (!automated) {
+    if (current && ["pending", "in_review", "not_started"].includes(current.status) && current.provider !== "human_review") {
+      const converted = await supabaseAdmin
+        .from("verification_cases")
+        .update({
+          provider: "human_review",
+          verification_level: "enhanced",
+          external_id: null,
+          notes: "Converted to SafariPlug staff review because automated driver identity/liveness verification is not enabled.",
+        })
+        .eq("id", current.id)
+        .select("id,status,verification_level,provider,external_id,notes,expires_at")
+        .single();
+      if (converted.error || !converted.data) {
+        return NextResponse.json({ error: "Unable to convert driver verification to SafariPlug staff review." }, { status: 500 });
+      }
+      current = converted.data;
+    }
+
+    if (!current || ["rejected", "revoked", "expired"].includes(current.status)) {
+      const created = await supabaseAdmin
+        .from("verification_cases")
+        .insert({
+          subject_type: "driver",
+          subject_id: driver.id,
+          status: "pending",
+          verification_level: "enhanced",
+          provider: "human_review",
+          notes: "SafariPlug staff identity review requested by the authenticated driver. Document compliance remains a separate approval gate.",
+        })
+        .select("id,status,verification_level,provider,external_id,notes,expires_at")
+        .single();
+      if (created.error || !created.data) {
+        return NextResponse.json({ error: created.error?.message || "Unable to create driver verification case." }, { status: 500 });
+      }
+      current = created.data;
+    }
+
+    const { data: identityEvidence } = await supabaseAdmin
+      .from("verification_evidence")
+      .select("id")
+      .eq("case_id", current.id)
+      .eq("evidence_type", "identity")
+      .maybeSingle();
+
+    if (!identityEvidence) {
+      const { error: evidenceError } = await supabaseAdmin.from("verification_evidence").insert({
+        case_id: current.id,
+        evidence_type: "identity",
+        status: "submitted",
+        provider: "human_review",
+        submitted_at: new Date().toISOString(),
+        metadata: { verification_method: "staff_review_request", requested_from: "driver_portal" },
+      });
+      if (evidenceError) {
+        return NextResponse.json({ error: "Unable to queue driver identity review." }, { status: 500 });
+      }
+    }
+
+    return NextResponse.json({
+      manualReview: true,
+      caseId: current.id,
+      message: "SafariPlug staff identity review requested. No paid external verification provider is required.",
+    });
   }
 
   if (!current) {

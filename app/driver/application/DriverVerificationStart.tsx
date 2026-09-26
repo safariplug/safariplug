@@ -51,6 +51,12 @@ export default function DriverVerificationStart({
         throw new Error(body?.error || "Unable to prepare driver verification.");
       }
 
+      if (body?.manualReview) {
+        setMessage(body?.message || "SafariPlug staff review has been requested.");
+        window.setTimeout(() => window.location.reload(), 1200);
+        return;
+      }
+
       const sdk = await loadSdk();
       if (!sdk) throw new Error("Verification provider SDK is unavailable.");
 
@@ -117,7 +123,7 @@ export default function DriverVerificationStart({
           onClick={() => void start()}
           className="rounded-xl bg-[#c9a86a] px-5 py-3 text-sm font-black text-black disabled:opacity-40"
         >
-          {busy ? "Preparing secure check…" : "Complete live identity verification"}
+          {busy ? "Preparing verification…" : "Request identity verification"}
         </button>
         {message && !open ? (
           <p className="max-w-xl text-xs leading-5 text-zinc-500">{message}</p>

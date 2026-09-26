@@ -37,6 +37,7 @@ async function syncHumanReviewSubjectState(
   subjectType: string,
   subjectId: string,
   state: "verified" | "rejected" | "unverified",
+  caseId: string,
 ) {
   if (subjectType === "service_staff") {
     const { error } = await supabaseAdmin
@@ -47,6 +48,16 @@ async function syncHumanReviewSubjectState(
         updated_at: new Date().toISOString(),
       })
       .eq("id", subjectId);
+    if (error) throw error;
+    return;
+  }
+
+  if (subjectType === "driver") {
+    const { error } = await supabaseAdmin.rpc("apply_driver_verification_state", {
+      p_driver_id: subjectId,
+      p_state: state,
+      p_case_id: caseId,
+    });
     if (error) throw error;
   }
 }
@@ -205,11 +216,11 @@ async function mutate(
 
   if (current.provider === "human_review") {
     if (result.data.status === "approved") {
-      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "verified");
+      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "verified", result.data.id);
     } else if (result.data.status === "rejected") {
-      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "rejected");
+      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "rejected", result.data.id);
     } else if (result.data.status === "revoked") {
-      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "unverified");
+      await syncHumanReviewSubjectState(result.data.subject_type, result.data.subject_id, "unverified", result.data.id);
     }
   }
 
