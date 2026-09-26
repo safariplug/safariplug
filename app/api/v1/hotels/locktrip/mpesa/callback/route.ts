@@ -11,9 +11,22 @@ export async function POST(request: Request) {
     const callback = payload?.Body?.stkCallback;
     const checkoutRequestId = String(callback?.CheckoutRequestID || "");
     const resultCode = Number(callback?.ResultCode);
-    if (!checkoutRequestId) return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    if (!checkoutRequestId) {
+      await supabaseAdmin.from("admin_telemetry_logs").insert({
+        action_type: "hotel_mpesa_callback_unmatched",
+        metadata: { reason: "missing_checkout_request_id", resultCode: Number.isFinite(resultCode) ? resultCode : null, receivedAt: new Date().toISOString() },
+      }).then(({ error }) => { if (error) console.error("Hotel M-Pesa unmatched callback telemetry failed", error); });
+      return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    }
     const { data: ledger } = await supabaseAdmin.from("hotel_booking_pricing_ledger").select("id,metadata,payment_status,booking_status,customer_retail_amount,customer_currency").eq("payment_provider", "mpesa").eq("payment_reference", checkoutRequestId).maybeSingle();
-    if (!ledger || ledger.payment_status === "paid") return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    if (!ledger) {
+      await supabaseAdmin.from("admin_telemetry_logs").insert({
+        action_type: "hotel_mpesa_callback_unmatched",
+        metadata: { checkoutRequestId, resultCode: Number.isFinite(resultCode) ? resultCode : null, receivedAt: new Date().toISOString() },
+      }).then(({ error }) => { if (error) console.error("Hotel M-Pesa unmatched callback telemetry failed", error); });
+      return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    }
+    if (ledger.payment_status === "paid") return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     const metadata = ledger.metadata && typeof ledger.metadata === "object" && !Array.isArray(ledger.metadata) ? ledger.metadata : {};
     const items: CallbackItem[] = Array.isArray(callback?.CallbackMetadata?.Item) ? callback.CallbackMetadata.Item : [];
     const metadataMap: Record<string, unknown> = Object.fromEntries(items.map((item) => [String(item.Name || ""), item.Value ?? null]).filter(([key]) => Boolean(key)));
@@ -46,7 +59,15 @@ export async function POST(request: Request) {
         ? {
             payment_status: "pending",
             booking_status: "payment_pending",
-            metadata: { ...metadata, mpesaCallbackRejected: callbackRecord },
+            metadata: {
+              ...metadata,
+              mpesaCallbackRejected: callbackRecord,
+              reconciliation: {
+                status: "mpesa_callback_verification_failed",
+                reason: amountMatches ? "missing_receipt" : "amount_mismatch",
+                recordedAt: new Date().toISOString(),
+              },
+            },
           }
         : {
             payment_status: "failed",
@@ -54,7 +75,14 @@ export async function POST(request: Request) {
             paid_at: null,
             metadata: { ...metadata, mpesaCallback: callbackRecord },
           };
-    await supabaseAdmin.from("hotel_booking_pricing_ledger").update(update).eq("id", ledger.id).eq("payment_provider", "mpesa").eq("payment_reference", checkoutRequestId);
+    const { error: updateError } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update(update).eq("id", ledger.id).eq("payment_provider", "mpesa").eq("payment_reference", checkoutRequestId);
+    if (updateError) console.error("Hotel M-Pesa callback ledger update failed", updateError);
+    if (success && !verifiedSuccess) {
+      await supabaseAdmin.from("admin_telemetry_logs").insert({
+        action_type: "hotel_mpesa_callback_verification_failed",
+        metadata: { ledgerId: ledger.id, checkoutRequestId, callback: callbackRecord },
+      }).then(({ error }) => { if (error) console.error("Hotel M-Pesa callback verification telemetry failed", error); });
+    }
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
   } catch (error) {
     console.error("Hotel M-Pesa callback error", error);
