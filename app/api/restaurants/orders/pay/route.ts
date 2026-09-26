@@ -7,6 +7,19 @@ export const dynamic = "force-dynamic";
 
 const CLAIM_MS = 10 * 60 * 1000;
 
+async function getUser(request: Request) {
+  const header=request.headers.get("authorization")||"";
+  const token=header.startsWith("Bearer ")?header.slice(7).trim():"";
+  if(token){
+    const {data,error}=await supabaseAdmin.auth.getUser(token);
+    if(!error&&data.user&&!data.user.is_anonymous&&(data.user.email_confirmed_at||data.user.phone_confirmed_at))return data.user;
+  }
+  const supabase=await createSupabaseServerClient();
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user||user.is_anonymous||!(user.email_confirmed_at||user.phone_confirmed_at))return null;
+  return user;
+}
+
 function isMpesaSubmissionUncertain(error: unknown) {
   const message = error instanceof Error ? error.message : "";
   return message === "mpesa_submission_uncertain" || message === "mpesa_stk_response_uncertain";
@@ -14,9 +27,8 @@ function isMpesaSubmissionUncertain(error: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.is_anonymous || !(user.email_confirmed_at || user.phone_confirmed_at)) {
+    const user = await getUser(request);
+    if (!user) {
       return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
     }
 
