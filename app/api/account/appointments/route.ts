@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       const { data: offering } = await supabaseAdmin.from("service_offerings").select("duration_minutes,status").eq("id", appointment.offering_id).maybeSingle();
       if (!profile || profile.status !== "active" || profile.booking_status !== "open" || !offering || offering.status !== "active") return NextResponse.json({ error: "This service is not currently accepting reschedules." }, { status: 409 });
       const { data: business } = await supabaseAdmin.from("businesses").select("status").eq("id", profile.business_id).maybeSingle();
-      if (!business || business.status !== "active") return NextResponse.json({ error: "This service is not currently accepting reschedules." }, { status: 409 });
+      if (!business || !["active", "ACTIVE"].includes(String(business.status || ""))) return NextResponse.json({ error: "This service is not currently accepting reschedules." }, { status: 409 });
       const min = Date.now() + Number(profile.booking_notice_minutes || 0) * 60000;
       const max = Date.now() + Number(profile.max_booking_days || 90) * 86400000;
       if (startsAt.getTime() < min) return NextResponse.json({ error: "That time is inside the provider's booking notice window." }, { status: 409 });
