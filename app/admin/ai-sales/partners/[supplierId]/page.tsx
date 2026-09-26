@@ -4,6 +4,7 @@ import { getAdminRole, isFinanceAdminRole, requireAdmin } from "@/lib/auth/requi
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { SupplierFollowupPanel } from "./followup-panel";
 import { PayoutReviewControls } from "./payout-review-controls";
+import { CaseActions } from "@/app/admin/integrations/verification/actions-client";
 import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
 
 export const dynamic = "force-dynamic";
@@ -88,7 +89,7 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
       : Promise.resolve({ data: [] as Staff[] }),
     supabaseAdmin
       .from("verification_cases")
-      .select("id,status,subject_type,created_at,updated_at")
+      .select("id,status,subject_type,provider,created_at,updated_at")
       .eq("subject_type", "provider")
       .eq("subject_id", supplier.user_id)
       .order("created_at", { ascending: false })
@@ -254,6 +255,21 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             <Field label="Submitted" value={date(supplier.submitted_at)} />
             <Field label="Approved" value={date(supplier.approved_at)} />
             <Field label="Verification" value={latestVerification?.status || "Not started"} />
+            {latestVerification ? (
+              <div className="mt-4 rounded-xl border border-zinc-800 bg-black/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Provider verification review</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-400">
+                  Use the same governed verification actions as the Trust Operations center. External-provider decisions cannot be manually overridden.
+                </p>
+                <CaseActions
+                  id={latestVerification.id}
+                  status={latestVerification.status}
+                  provider={latestVerification.provider || "human_review"}
+                />
+              </div>
+            ) : (
+              <p className="mt-4 text-xs text-amber-300">Provider has not requested SafariPlug verification yet.</p>
+            )}
             <Field label="Active availability" value={String(activeAvailabilityCount || 0)} />
             <Field label="Payout status" value={payoutAccount?.status || "Not set up"} />
             <Field label="Payout phone" value={payoutAccount?.phone || null} />
