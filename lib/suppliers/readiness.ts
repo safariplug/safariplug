@@ -147,7 +147,13 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
 
   const completionPercent = Number(completion.data ?? supplier.completion_percent ?? 0);
   const hasContact = Boolean(business.phone || business.email || business.whatsapp);
-  const businessDetailsReady = Boolean(business.name && business.description && business.address && hasContact);
+  const missingBusinessBasics = [
+    !business.name ? "business name" : null,
+    !business.description ? "business description" : null,
+    !business.address ? "business address" : null,
+    !hasContact ? "phone, email, or WhatsApp" : null,
+  ].filter((value): value is string => Boolean(value));
+  const businessDetailsReady = missingBusinessBasics.length === 0;
   const businessImagesReady = Boolean(
     business.logo_url ||
     business.cover_image_url ||
@@ -187,7 +193,10 @@ export async function getSupplierActivationReadiness(supplierId: string): Promis
 
   const issues: SupplierReadinessIssue[] = [];
   if (!businessDetailsReady || completionPercent < 80) {
-    issues.push(issue("business_details", "Complete required business details and reach at least 80% profile completion", "/supplier/onboarding#business-details"));
+    const missingLabel = missingBusinessBasics.length
+      ? `Add ${missingBusinessBasics.join(missingBusinessBasics.length === 2 ? " and " : ", ")}`
+      : "Reach at least 80% profile completion";
+    issues.push(issue("business_details", missingLabel, "/supplier/onboarding#business-details"));
   }
   if (!businessImagesReady) {
     issues.push(issue("business_images", "Add a business logo, cover image, or gallery image", "/supplier/onboarding#business-images"));
