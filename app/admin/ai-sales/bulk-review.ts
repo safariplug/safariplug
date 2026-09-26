@@ -54,6 +54,7 @@ export async function approveSelectedSalesProspects(formData: FormData) {
   let approved = 0;
   let skipped = 0;
   let failed = 0;
+  let draftWarnings = 0;
 
   for (const prospect of prospects || []) {
     try {
@@ -106,6 +107,8 @@ export async function approveSelectedSalesProspects(formData: FormData) {
         continue;
       }
 
+      approved++;
+
       const { error: activityInsertError } = await supabaseAdmin.from("crm_activities").insert({
         prospect_id: prospect.id,
         partner_id: partnerId,
@@ -113,7 +116,10 @@ export async function approveSelectedSalesProspects(formData: FormData) {
         summary: "Prospect approved for governed outreach",
         details: `Bulk human approval by admin ${admin.id}. Approval qualifies the prospect for outreach; nothing was sent.`,
       });
-      if (activityInsertError) throw new Error(activityInsertError.message);
+      if (activityInsertError) {
+        console.error("Bulk prospect approval activity log failed", prospect.id, activityInsertError);
+        draftWarnings++;
+      }
 
       const { data: existingInvite, error: inviteLookupError } = await supabaseAdmin
         .from("partner_invitations")
@@ -121,7 +127,11 @@ export async function approveSelectedSalesProspects(formData: FormData) {
         .eq("prospect_id", prospect.id)
         .limit(1)
         .maybeSingle();
-      if (inviteLookupError) throw new Error(inviteLookupError.message);
+      if (inviteLookupError) {
+        console.error("Bulk prospect invitation lookup failed after approval", prospect.id, inviteLookupError);
+        draftWarnings++;
+        continue;
+      }
 
       if (!existingInvite) {
         const { error: inviteError } = await supabaseAdmin.from("partner_invitations").insert({
@@ -136,7 +146,11 @@ export async function approveSelectedSalesProspects(formData: FormData) {
           created_by: admin.id,
           status: "draft",
         });
-        if (inviteError) throw new Error(inviteError.message);
+        if (inviteError) {
+          console.error("Bulk prospect outreach draft creation failed after approval", prospect.id, inviteError);
+          draftWarnings++;
+          continue;
+        }
 
         const { error: draftActivityError } = await supabaseAdmin.from("crm_activities").insert({
           prospect_id: prospect.id,
@@ -145,10 +159,11 @@ export async function approveSelectedSalesProspects(formData: FormData) {
           summary: "Governed outreach draft created automatically",
           details: "Bulk human prospect approval opened the outreach workflow. Nothing was sent.",
         });
-        if (draftActivityError) throw new Error(draftActivityError.message);
+        if (draftActivityError) {
+          console.error("Bulk prospect draft activity log failed", prospect.id, draftActivityError);
+          draftWarnings++;
+        }
       }
-
-      approved++;
     } catch (approvalError) {
       console.error("Bulk prospect approval failed", prospect.id, approvalError);
       failed++;
@@ -163,7 +178,8 @@ export async function approveSelectedSalesProspects(formData: FormData) {
   redirect(resultUrl(
     `Approved ${approved} selected prospect${approved === 1 ? "" : "s"} for governed outreach.` +
     `${skipped ? ` ${skipped} were skipped because their state or quality gate changed.` : ""}` +
-    `${failed ? ` ${failed} failed and remain available for review.` : ""}` +
+    `${failed ? ` ${failed} failed before approval and can be reviewed again.` : ""}` +
+    `${draftWarnings ? ` ${draftWarnings} approved record${draftWarnings === 1 ? "" : "s"} need CRM/draft follow-up.` : ""}` +
     " Drafts were created only; nothing was sent."
   ));
 }
