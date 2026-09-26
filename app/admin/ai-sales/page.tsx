@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { SupplierScoutForm } from "./supplier-scout-form";
 import { startOutreachForAllApproved } from "./bulk-outreach";
-import { approveSelectedSalesProspects } from "./bulk-review";
+import { approveNextQualityReadySalesProspects, approveSelectedSalesProspects } from "./bulk-review";
 import { salesProspectQualityIssues } from "@/lib/services/sales-prospect-quality";
 
 type SearchParams = {
@@ -99,8 +99,14 @@ export default async function AISalesPage({
   });
 
   const visible = filtered.slice(0, 100);
+  const qualityReadyPending = allProspects.filter((p) =>
+    p.review_status === "pending_review" &&
+    p.status === "pending_review" &&
+    Boolean(p.contact_email) &&
+    salesProspectQualityIssues(p).length === 0
+  ).length;
   const qualityReadyVisibleIds = visible
-    .filter((p) => p.review_status === "pending_review" && Boolean(p.contact_email) && salesProspectQualityIssues(p).length === 0)
+    .filter((p) => p.review_status === "pending_review" && p.status === "pending_review" && Boolean(p.contact_email) && salesProspectQualityIssues(p).length === 0)
     .map((p) => p.id);
   const reviewReady = allProspects.filter((p) => p.review_status === "pending_review" && Boolean(p.contact_email)).length;
   const approvedUninvited = allProspects.filter((p) => p.review_status === "approved" && p.status !== "rejected" && !invitedProspectIds.has(p.id));
@@ -177,14 +183,21 @@ export default async function AISalesPage({
             {outreachMessage ? <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">{outreachMessage}</div> : null}
             {bulkReviewMessage ? <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">{bulkReviewMessage}</div> : null}
             {stage === "pending_review" && contact === "email" && qualityReadyVisibleIds.length > 0 ? (
-              <form id="bulk-prospect-approval" action={approveSelectedSalesProspects} className="mb-5 flex flex-col justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 p-4 md:flex-row md:items-center">
+              <div className="mb-5 flex flex-col justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 p-4 md:flex-row md:items-center">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[.16em] text-blue-700/70">Batch human review</p>
-                  <p className="mt-1 font-semibold text-blue-950">Select quality-ready email prospects below, then approve the checked batch.</p>
-                  <p className="mt-1 text-sm text-blue-900/65">SafariPlug re-runs the quality gate server-side, creates governed outreach drafts, and sends nothing.</p>
+                  <p className="mt-1 font-semibold text-blue-950">{qualityReadyPending} quality-ready email prospect{qualityReadyPending === 1 ? "" : "s"} are waiting for review.</p>
+                  <p className="mt-1 text-sm text-blue-900/65">Approve checked prospects, or explicitly approve the next highest-priority batch. SafariPlug re-runs the quality gate server-side, creates governed outreach drafts, and sends nothing.</p>
                 </div>
-                <button className="shrink-0 rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Approve selected for outreach</button>
-              </form>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <form id="bulk-prospect-approval" action={approveSelectedSalesProspects}>
+                    <button className="rounded-xl border border-blue-300 bg-white px-5 py-3 text-sm font-semibold text-blue-950">Approve selected</button>
+                  </form>
+                  <form action={approveNextQualityReadySalesProspects}>
+                    <button className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white">Approve next {Math.min(50, qualityReadyPending)}</button>
+                  </form>
+                </div>
+              </div>
             ) : null}
             {stage === "approved" && outreachReady > 0 ? (
               <div className="mb-5 flex flex-col justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 md:flex-row md:items-center">
