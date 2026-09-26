@@ -9,7 +9,7 @@ import { colors } from "../src/theme";
 type Preflight={selectionToken:string;pricing?:{customerRetailAmount?:number;customerCurrency?:string};route?:{from?:{type?:string;code?:string};to?:{type?:string;code?:string};outbound?:string;adults?:number;children?:number;infants?:number};service?:{transferType?:string|null;vehicleName?:string|null};cancellationPolicies?:Array<{amount?:number|null;from?:string|null;currencyId?:string|null}>};
 
 export default function TransferBookScreen(){
- const params=useLocalSearchParams<{selectionToken?:string}>(); const token=String(params.selectionToken||"");
+ const params=useLocalSearchParams<{selectionToken?:string;tripId?:string}>(); const token=String(params.selectionToken||"");
  const[preflight,setPreflight]=useState<Preflight|null>(null); const[loading,setLoading]=useState(true); const[busy,setBusy]=useState(false); const[accepted,setAccepted]=useState(false); const[error,setError]=useState("");
  const[holder,setHolder]=useState({name:"",surname:"",email:"",phone:""}); const[flightCode,setFlightCode]=useState(""); const[flightCompany,setFlightCompany]=useState(""); const[flightDirection,setFlightDirection]=useState<"ARRIVAL"|"DEPARTURE">("ARRIVAL");
 
@@ -23,11 +23,11 @@ export default function TransferBookScreen(){
   setBusy(true);setError("");
   try{
    const transferDetails=(flightCode.trim()||flightCompany.trim())?[{type:"FLIGHT",direction:flightDirection,code:flightCode.trim(),companyName:flightCompany.trim()}]:undefined;
-   const r=await fetch(API_BASE_URL+"/api/v1/transfers/hotelbeds/checkout",{method:"POST",headers:await headers(),body:JSON.stringify({action:"prepare",idempotencyKey:"mobile-transfer-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),selectionToken:preflight.selectionToken,currency:"KES",termsAccepted:true,customerPhone:holder.phone.trim(),holder:{name:holder.name.trim(),surname:holder.surname.trim(),email:holder.email.trim(),phone:holder.phone.trim()},transferDetails})});
+   const r=await fetch(API_BASE_URL+"/api/v1/transfers/hotelbeds/checkout",{method:"POST",headers:await headers(),body:JSON.stringify({action:"prepare",idempotencyKey:"mobile-transfer-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),selectionToken:preflight.selectionToken,currency:"KES",tripId:params.tripId||undefined,termsAccepted:true,customerPhone:holder.phone.trim(),holder:{name:holder.name.trim(),surname:holder.surname.trim(),email:holder.email.trim(),phone:holder.phone.trim()},transferDetails})});
    const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b?.message||b?.error||"Unable to start transfer payment.");if(!b?.bookingId)throw new Error("SafariPlug did not return a transfer booking session.");
    Alert.alert("M-Pesa request sent","Complete payment on your phone. SafariPlug will confirm the transfer only after payment succeeds.");
    const route=preflight.route; const label=[route?.from?.code,route?.to?.code].filter(Boolean).join(" → ")||"Transfer booking";
-   router.replace({pathname:"/travel-booking/[product]/[bookingId]",params:{product:"transfer",bookingId:String(b.bookingId),label,bookingStatus:String(b.status||"payment_pending"),paymentStatus:"pending",currency:String(preflight.pricing?.customerCurrency||"KES"),amount:String(preflight.pricing?.customerRetailAmount||0),providerReference:""}} as never);
+   router.replace({pathname:"/travel-booking/[product]/[bookingId]",params:{product:"transfer",bookingId:String(b.bookingId),label,bookingStatus:String(b.status||"payment_pending"),paymentStatus:"pending",currency:String(preflight.pricing?.customerCurrency||"KES"),amount:String(preflight.pricing?.customerRetailAmount||0),providerReference:"",...(params.tripId?{tripId:String(params.tripId)}:{})}} as never);
   }catch(e){setError(e instanceof Error?e.message:"Unable to start transfer payment.");setBusy(false);}
  }
 
