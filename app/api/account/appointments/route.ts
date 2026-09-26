@@ -120,6 +120,11 @@ export async function POST(request: Request) {
         if (message.includes("appointment_not_found")) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
         return NextResponse.json({ error: "Unable to reschedule this appointment." }, { status: 409 });
       }
+      await supabaseAdmin
+        .from("service_appointment_notifications")
+        .delete()
+        .eq("appointment_id", id)
+        .in("type", ["service_appointment_reminder_24h", "service_appointment_reminder_2h"]);
       return NextResponse.json({ appointment: data });
     }
     return NextResponse.json({ error: "Unknown action." }, { status: 400 });
