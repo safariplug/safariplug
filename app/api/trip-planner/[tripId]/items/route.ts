@@ -6,17 +6,27 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ tripId: string }> };
 
-async function owner(tripId: string) {
-  const client = await createSupabaseServerClient();
-  const { data: { user } } = await client.auth.getUser();
-  if (!user || user.is_anonymous) return { user: null, trip: null };
+async function owner(request: Request, tripId: string) {
+  const header = request.headers.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  let user = null;
+  if (token) {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (!error && data.user && !data.user.is_anonymous && (data.user.email_confirmed_at || data.user.phone_confirmed_at)) user = data.user;
+  }
+  if (!user) {
+    const client = await createSupabaseServerClient();
+    const { data } = await client.auth.getUser();
+    if (data.user && !data.user.is_anonymous && (data.user.email_confirmed_at || data.user.phone_confirmed_at)) user = data.user;
+  }
+  if (!user) return { user: null, trip: null };
   const { data: trip } = await supabaseAdmin.from("trips").select("id").eq("id", tripId).eq("traveler_id", user.id).maybeSingle();
   return { user, trip };
 }
 
 export async function POST(request: Request, { params }: Params) {
   const { tripId } = await params;
-  const { user, trip } = await owner(tripId);
+  const { user, trip } = await owner(request, tripId);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   if (!trip) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   const body = await request.json().catch(() => ({}));
@@ -98,7 +108,7 @@ export async function POST(request: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   const { tripId } = await params;
-  const { user, trip } = await owner(tripId);
+  const { user, trip } = await owner(request, tripId);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   if (!trip) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   const body = await request.json().catch(() => ({}));
@@ -113,7 +123,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
 export async function DELETE(request: Request, { params }: Params) {
   const { tripId } = await params;
-  const { user, trip } = await owner(tripId);
+  const { user, trip } = await owner(request, tripId);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   if (!trip) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   const itemId = new URL(request.url).searchParams.get("item_id");

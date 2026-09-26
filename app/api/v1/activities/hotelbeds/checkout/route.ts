@@ -25,6 +25,34 @@ import { publicActivityCheckoutLedger } from "@/lib/integrations/hotelbeds/activ
 import { queueTravelCancellationRefundReview } from "@/lib/services/travel-refund-review";
 
 export const dynamic = "force-dynamic";
+
+async function attachConfirmedTravelToTrip(params: {
+  tripId: string | null;
+  userId: string;
+  itemKind: "activity" | "transfer";
+  title: string;
+  startAt: string | null;
+  endAt: string | null;
+  notes: string;
+}) {
+  if (!params.tripId) return null;
+  const { data: trip } = await supabaseAdmin.from("trips").select("id").eq("id", params.tripId).eq("traveler_id", params.userId).maybeSingle();
+  if (!trip) return null;
+  const { data: existing } = await supabaseAdmin.from("trip_items").select("id").eq("trip_id", params.tripId).eq("item_kind", params.itemKind).eq("notes", params.notes).maybeSingle();
+  if (existing) return existing;
+  const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", params.tripId);
+  const { data, error } = await supabaseAdmin.from("trip_items").insert({
+    trip_id: params.tripId,
+    item_kind: params.itemKind,
+    title: params.title,
+    start_at: params.startAt,
+    end_at: params.endAt,
+    notes: params.notes,
+    position: count ?? 0,
+  }).select("id,item_kind,title,start_at,end_at").single();
+  if (error) throw new Error("Travel booking confirmed, but itinerary attachment failed: " + error.message);
+  return data;
+}
 export const maxDuration = 60;
 
 const DEFAULT_MARKUP_PERCENT = 10;
@@ -239,6 +267,7 @@ export async function POST(request: Request) {
             bookingRequest,
             clientReference,
             termsAcceptedAt: new Date().toISOString(),
+            tripId: typeof body.tripId === "string" && body.tripId ? body.tripId : null,
             activity: {
               code: selection.activityCode,
               name: selection.activityName,
@@ -766,6 +795,17 @@ export async function POST(request: Request) {
 
       if (updateError) throw new Error(updateError.message);
 
+      const activityMeta = metadataRecord(currentMetadata.activity);
+      const itineraryItem = await attachConfirmedTravelToTrip({
+        tripId: typeof currentMetadata.tripId === "string" ? currentMetadata.tripId : null,
+        userId: user.id,
+        itemKind: "activity",
+        title: String(activityMeta.name || "Hotelbeds activity"),
+        startAt: typeof activityMeta.from === "string" ? activityMeta.from : null,
+        endAt: typeof activityMeta.to === "string" ? activityMeta.to : null,
+        notes: "Hotelbeds activity reference: " + reference,
+      });
+
       return NextResponse.json({
         provider: "hotelbeds",
         product: "activities",
@@ -773,6 +813,7 @@ export async function POST(request: Request) {
         bookingCreated: true,
         bookingReference: reference,
         providerBooking,
+        itineraryItem,
         ledger: publicActivityCheckoutLedger(updated),
       });
     } catch (error) {

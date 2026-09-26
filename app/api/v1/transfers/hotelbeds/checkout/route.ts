@@ -22,6 +22,34 @@ import { queueTravelCancellationRefundReview } from "@/lib/services/travel-refun
 
 export const dynamic = "force-dynamic";
 
+async function attachConfirmedTravelToTrip(params: {
+  tripId: string | null;
+  userId: string;
+  itemKind: "activity" | "transfer";
+  title: string;
+  startAt: string | null;
+  endAt: string | null;
+  notes: string;
+}) {
+  if (!params.tripId) return null;
+  const { data: trip } = await supabaseAdmin.from("trips").select("id").eq("id", params.tripId).eq("traveler_id", params.userId).maybeSingle();
+  if (!trip) return null;
+  const { data: existing } = await supabaseAdmin.from("trip_items").select("id").eq("trip_id", params.tripId).eq("item_kind", params.itemKind).eq("notes", params.notes).maybeSingle();
+  if (existing) return existing;
+  const { count } = await supabaseAdmin.from("trip_items").select("id", { count: "exact", head: true }).eq("trip_id", params.tripId);
+  const { data, error } = await supabaseAdmin.from("trip_items").insert({
+    trip_id: params.tripId,
+    item_kind: params.itemKind,
+    title: params.title,
+    start_at: params.startAt,
+    end_at: params.endAt,
+    notes: params.notes,
+    position: count ?? 0,
+  }).select("id,item_kind,title,start_at,end_at").single();
+  if (error) throw new Error("Travel booking confirmed, but itinerary attachment failed: " + error.message);
+  return data;
+}
+
 const DEFAULT_MARKUP_PERCENT = 10;
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.safariplug.com").replace(/\/$/, "");
 
@@ -219,6 +247,7 @@ export async function POST(request: Request) {
             holder,
             bookingRequest,
             termsAcceptedAt: new Date().toISOString(),
+            tripId: typeof body.tripId === "string" && body.tripId ? body.tripId : null,
             route: {
               from: { type: selection.fromType, code: selection.fromCode },
               to: { type: selection.toType, code: selection.toCode },
@@ -612,6 +641,19 @@ export async function POST(request: Request) {
 
       if (updateError) throw new Error(updateError.message);
 
+      const routeMeta = metadataRecord(currentMetadata.route);
+      const fromMeta = metadataRecord(routeMeta.from);
+      const toMeta = metadataRecord(routeMeta.to);
+      const itineraryItem = await attachConfirmedTravelToTrip({
+        tripId: typeof currentMetadata.tripId === "string" ? currentMetadata.tripId : null,
+        userId: user.id,
+        itemKind: "transfer",
+        title: [String(fromMeta.code || ""), String(toMeta.code || "")].filter(Boolean).join(" → ") || "Hotelbeds transfer",
+        startAt: typeof routeMeta.outbound === "string" ? routeMeta.outbound : null,
+        endAt: typeof routeMeta.inbound === "string" ? routeMeta.inbound : null,
+        notes: "Hotelbeds transfer reference: " + reference,
+      });
+
       return NextResponse.json({
         provider: "hotelbeds",
         product: "transfers",
@@ -619,6 +661,7 @@ export async function POST(request: Request) {
         bookingCreated: true,
         bookingReference: reference,
         providerBooking,
+        itineraryItem,
         ledger: publicTransferCheckoutLedger(updated),
       });
     } catch (error) {

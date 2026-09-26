@@ -47,9 +47,12 @@ export default function TripDetailScreen() {
       </View>) : <Text style={styles.empty}>Nothing has been added yet.</Text>}
       <Text style={styles.section}>Add to this trip</Text>
       <View style={styles.actions}>
+        <Pressable style={styles.action} onPress={() => router.push({ pathname: "/hotels", params: { tripId: trip.id } } as never)}><Text style={styles.actionTitle}>Add a hotel</Text><Text style={styles.actionBody}>Search live rooms and attach a confirmed stay to this journey.</Text></Pressable>
+        <Pressable style={styles.action} onPress={() => router.push({ pathname: "/live-transfers", params: { tripId: trip.id } } as never)}><Text style={styles.actionTitle}>Add a transfer</Text><Text style={styles.actionBody}>Search Hotelbeds airport, hotel and point-to-point transfers for this journey.</Text></Pressable>
+        <Pressable style={styles.action} onPress={() => router.push({ pathname: "/live-activities", params: { tripId: trip.id } } as never)}><Text style={styles.actionTitle}>Add a live activity</Text><Text style={styles.actionBody}>Search supplier tours, tickets and activities and keep the booking on this journey.</Text></Pressable>
         <Pressable style={styles.action} onPress={() => router.push({ pathname: "/category/[kind]", params: { kind: "food", tripId: trip.id } })}><Text style={styles.actionTitle}>Order food</Text><Text style={styles.actionBody}>Browse live restaurant menus and add an order to this journey.</Text></Pressable>
         <Pressable style={styles.action} onPress={() => router.push({ pathname: "/category/[kind]", params: { kind: "wellness", tripId: trip.id } })}><Text style={styles.actionTitle}>Book a service</Text><Text style={styles.actionBody}>Find available wellness, beauty and personal services for this journey.</Text></Pressable>
-        <Pressable style={styles.action} onPress={() => router.push({ pathname: "/category/[kind]", params: { kind: "adventure", tripId: trip.id } })}><Text style={styles.actionTitle}>Add an activity</Text><Text style={styles.actionBody}>Explore bookable adventure and watersport providers.</Text></Pressable>
+        <Pressable style={styles.action} onPress={() => router.push({ pathname: "/category/[kind]", params: { kind: "adventure", tripId: trip.id } })}><Text style={styles.actionTitle}>Book a local activity</Text><Text style={styles.actionBody}>Explore bookable adventure and watersport providers.</Text></Pressable>
       </View>
       <Pressable style={styles.cta} onPress={() => router.push("/(tabs)/explore")}><Text style={styles.ctaText}>Discover more →</Text></Pressable>
     </> : <Text style={styles.empty}>{message}</Text>}

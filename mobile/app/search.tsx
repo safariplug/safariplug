@@ -13,14 +13,7 @@ import { colors } from "../src/theme";
 const FILTERS = ["All", "Stays", "Experiences", "Events", "Food", "Transfers", "Activities", "Places"] as const;
 type Filter = (typeof FILTERS)[number];
 
-const COMING: Partial<Record<Filter, { title: string; body: string }>> = {
-
-  Food: {
-    title: "Dining inventory is not live",
-    body: "Restaurants and culinary experiences will appear from the catalog when they exist.",
-  },
-
-};
+const COMING: Partial<Record<Filter, { title: string; body: string }>> = {};
 
 export default function SearchScreen() {
   const [draft, setDraft] = useState("");
@@ -102,7 +95,7 @@ export default function SearchScreen() {
           </Pressable>
         ))}
       </View>
-      {filter === "Stays" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/hotels" as never)} style={styles.place}><Text style={styles.placeName}>Search live hotels</Text><Text style={styles.placeMeta}>Bookable supplier rooms, Hotelbeds rate review and M-Pesa checkout.</Text></Pressable></View>) : filter === "Activities" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/live-activities" as never)} style={styles.place}><Text style={styles.placeName}>Search live tours & activities</Text><Text style={styles.placeMeta}>Hotelbeds supplier inventory, live options and M-Pesa checkout.</Text></Pressable></View>) : filter === "Transfers" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/live-transfers" as never)} style={styles.place}><Text style={styles.placeName}>Search live transfers</Text><Text style={styles.placeMeta}>Hotelbeds routes, availability, rate review and M-Pesa checkout.</Text></Pressable></View>) : coming && filter !== "All" ? (
+      {filter === "Stays" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/hotels" as never)} style={styles.place}><Text style={styles.placeName}>Search live hotels</Text><Text style={styles.placeMeta}>Bookable supplier rooms, Hotelbeds rate review and M-Pesa checkout.</Text></Pressable></View>) : filter === "Activities" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/live-activities" as never)} style={styles.place}><Text style={styles.placeName}>Search live tours & activities</Text><Text style={styles.placeMeta}>Hotelbeds supplier inventory, live options and M-Pesa checkout.</Text></Pressable></View>) : filter === "Transfers" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/live-transfers" as never)} style={styles.place}><Text style={styles.placeName}>Search live transfers</Text><Text style={styles.placeMeta}>Hotelbeds routes, availability, rate review and M-Pesa checkout.</Text></Pressable></View>) : filter === "Food" ? (<View style={{ paddingHorizontal: 20 }}><Pressable onPress={() => router.push("/category/food" as never)} style={styles.place}><Text style={styles.placeName}>Browse restaurants</Text><Text style={styles.placeMeta}>Live menus, pickup, restaurant delivery and SafariPlug driver delivery.</Text></Pressable></View>) : coming && filter !== "All" ? (
         <View style={{ paddingHorizontal: 20 }}>
           <ComingSoonCard title={coming.title} body={coming.body} />
         </View>
