@@ -203,7 +203,7 @@ export async function POST(request: Request) {
     }).eq("id", supplierId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const { error: businessError } = await supabaseAdmin.from("businesses").update({ status: "inactive" }).eq("id", account.business_id);
+    const { error: businessError } = await supabaseAdmin.from("businesses").update({ status: "INACTIVE" }).eq("id", account.business_id);
     if (businessError) return NextResponse.json({ error: businessError.message }, { status: 500 });
 
     let declinedInvitationQuery = supabaseAdmin
