@@ -334,6 +334,46 @@ export async function POST(request: Request) {
         "The prospect email was cleared when it matched the failed recipient and open invitation follow-ups were closed.",
       ].filter(Boolean).join(" "),
     });
+
+    const { data: prospect } = await supabaseAdmin
+      .from("ai_sales_prospects")
+      .select("phone,website,instagram,facebook")
+      .eq("id", invitation.prospect_id)
+      .maybeSingle();
+
+    const hasAlternateContact = Boolean(
+      prospect?.phone?.trim() ||
+      prospect?.website?.trim() ||
+      prospect?.instagram?.trim() ||
+      prospect?.facebook?.trim()
+    );
+
+    if (hasAlternateContact) {
+      const { data: existingAlternateFollowup } = await supabaseAdmin
+        .from("crm_followups")
+        .select("id")
+        .eq("prospect_id", invitation.prospect_id)
+        .eq("status", "open")
+        .ilike("title", "%alternate contact%")
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingAlternateFollowup) {
+        await supabaseAdmin.from("crm_followups").insert({
+          prospect_id: invitation.prospect_id,
+          title: "Verify alternate contact after bounced invitation",
+          due_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          priority: "high",
+          notes: [
+            "The supplier invitation email was permanently rejected.",
+            prospect?.phone?.trim() ? `Phone on record: ${prospect.phone.trim()}` : "",
+            prospect?.website?.trim() ? "A website is available for contact research." : "",
+            prospect?.instagram?.trim() || prospect?.facebook?.trim() ? "A social profile is available for contact research." : "",
+            "Do not retry the failed email address unless it is independently reconfirmed.",
+          ].filter(Boolean).join(" "),
+        });
+      }
+    }
   }
 
   return NextResponse.json({ ok: true, reconciled: true, invitationId: invitation.id, status: label });
