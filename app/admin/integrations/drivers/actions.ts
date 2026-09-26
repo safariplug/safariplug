@@ -70,8 +70,20 @@ export async function updateDriverStatus(formData: FormData) {
   }
 
   await updateDriverAdmin(driverId, { service_status: serviceStatus });
+
+  if (serviceStatus === "active") {
+    const { error: rateError } = await supabaseAdmin
+      .from("driver_transfer_rates")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("driver_id", driverId)
+      .eq("status", "draft");
+    if (rateError) throw new Error(`Driver activated, but draft transfer rates could not be published: ${rateError.message}`);
+  }
+
   revalidatePath("/admin/integrations/drivers");
   revalidatePath("/driver/application");
+  revalidatePath("/driver/transfers");
+  revalidatePath("/drivers");
 }
 
 export async function createVehicle(formData: FormData) {
