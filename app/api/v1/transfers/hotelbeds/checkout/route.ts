@@ -436,19 +436,6 @@ export async function POST(request: Request) {
         ledger.provider_booking_reference,
         String(body.language || "en").slice(0, 5)
       );
-      const routeMeta = metadataRecord(currentMetadata.route);
-      const fromMeta = metadataRecord(routeMeta.from);
-      const toMeta = metadataRecord(routeMeta.to);
-      const itineraryItem = await attachConfirmedTravelToTrip({
-        tripId: typeof currentMetadata.tripId === "string" ? currentMetadata.tripId : null,
-        userId: user.id,
-        itemKind: "transfer",
-        title: [String(fromMeta.code || ""), String(toMeta.code || "")].filter(Boolean).join(" → ") || "Hotelbeds transfer",
-        startAt: typeof routeMeta.outbound === "string" ? routeMeta.outbound : null,
-        endAt: typeof routeMeta.inbound === "string" ? routeMeta.inbound : null,
-        notes: "Hotelbeds transfer reference: " + reference,
-      });
-
       return NextResponse.json({
         provider: "hotelbeds",
         product: "transfers",
@@ -653,6 +640,19 @@ export async function POST(request: Request) {
         .single();
 
       if (updateError) throw new Error(updateError.message);
+
+      const routeMeta = metadataRecord(currentMetadata.route);
+      const fromMeta = metadataRecord(routeMeta.from);
+      const toMeta = metadataRecord(routeMeta.to);
+      const itineraryItem = await attachConfirmedTravelToTrip({
+        tripId: typeof currentMetadata.tripId === "string" ? currentMetadata.tripId : null,
+        userId: user.id,
+        itemKind: "transfer",
+        title: [String(fromMeta.code || ""), String(toMeta.code || "")].filter(Boolean).join(" → ") || "Hotelbeds transfer",
+        startAt: typeof routeMeta.outbound === "string" ? routeMeta.outbound : null,
+        endAt: typeof routeMeta.inbound === "string" ? routeMeta.inbound : null,
+        notes: "Hotelbeds transfer reference: " + reference,
+      });
 
       return NextResponse.json({
         provider: "hotelbeds",
