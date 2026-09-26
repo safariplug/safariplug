@@ -3,10 +3,10 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { currentCompliance, driverVerificationCurrent } from "@/lib/services/driver-verification";
 
-const ORDER_TRANSITIONS: Record<string, string[]> = { pending:["accepted","rejected","cancelled"], accepted:["preparing","cancelled"], preparing:["ready","cancelled"], ready:["driver_assigned","picked_up","cancelled"], driver_assigned:["picked_up","cancelled"], picked_up:["on_the_way","delivered"], on_the_way:["delivered"], delivered:[], cancelled:[], rejected:[] };
+const ORDER_TRANSITIONS: Record<string, string[]> = { pending:["accepted","rejected","cancelled"], accepted:["preparing","cancelled"], preparing:["ready","cancelled"], ready:["driver_assigned","picked_up","delivered","cancelled"], driver_assigned:["picked_up","cancelled"], picked_up:["on_the_way","delivered"], on_the_way:["delivered"], delivered:[], cancelled:[], rejected:[] };
 const DRIVER_TRANSITIONS: Record<string, string[]> = { assigned:["accepted","declined","cancelled"], accepted:["arrived_at_restaurant","cancelled"], arrived_at_restaurant:["picked_up","cancelled"], picked_up:["on_the_way","delivered","cancelled"], on_the_way:["delivered","cancelled"], declined:[], cancelled:[], delivered:[] };
 const ACTIVE_ASSIGNMENT_STATUSES=["assigned","accepted","arrived_at_restaurant","picked_up","on_the_way"];
-const SUPPLIER_ORDER_STATUSES=["accepted","preparing","ready","cancelled","rejected"];
+const SUPPLIER_ORDER_STATUSES=["accepted","preparing","ready","delivered","cancelled","rejected"];
 const DRIVER_ORDER_STATUSES=["picked_up","on_the_way","delivered"];
 
 async function user() { const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser(); return user&&!user.is_anonymous?user:null; }
@@ -80,6 +80,7 @@ export async function PATCH(request:Request) {
   if(isCustomer&&!isSupplier&&!isDriver){if(status!=="cancelled")return NextResponse.json({error:"Customers can only cancel an order"},{status:403});if(order.status!=="pending")return NextResponse.json({error:"Customers can only cancel an order while it is pending"},{status:409});}
   if(isDriver&&!isSupplier&&!DRIVER_ORDER_STATUSES.includes(status))return NextResponse.json({error:"Driver cannot make this order transition"},{status:403});
   if(isSupplier&&!isCustomer&&!isDriver&&!SUPPLIER_ORDER_STATUSES.includes(status))return NextResponse.json({error:"Restaurant cannot make this order transition"},{status:403});
+  if(isSupplier&&!isCustomer&&!isDriver&&status==="delivered"&&(order.status!=="ready"||order.fulfillment_method!=="pickup"))return NextResponse.json({error:"Restaurants can complete an order directly only when a pickup order is ready for collection"},{status:409});
   if(!(ORDER_TRANSITIONS[order.status]??[]).includes(status))return NextResponse.json({error:`Cannot move order from ${order.status} to ${status}`},{status:409});
   if(["picked_up","on_the_way","delivered"].includes(status)&&order.payment_status!=="paid")return NextResponse.json({error:"Order payment must be completed before pickup or delivery."},{status:409});
   const now=new Date().toISOString();const update:Record<string,unknown>={status,updated_at:now};if(status==='accepted'){update.accepted_at=now;update.accepted_by=currentUser.id;}if(status==='ready')update.ready_at=now;if(status==='picked_up')update.picked_up_at=now;if(status==='delivered')update.delivered_at=now;if(status==='cancelled'||status==='rejected'){update.cancelled_at=now;update.cancellation_reason=note??null;}
