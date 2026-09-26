@@ -32,6 +32,17 @@ export default async function AccountHotelsPage() {
 
   if (error) throw new Error(error.message);
   const rows = (data || []) as Row[];
+  const rowIds = rows.map((row) => row.id);
+  const { data: refundReviews } = rowIds.length
+    ? await supabaseAdmin
+        .from("travel_refund_reviews")
+        .select("ledger_id,status,resolution")
+        .eq("product", "hotel")
+        .in("ledger_id", rowIds)
+    : { data: [] as { ledger_id: string; status: string; resolution: string | null }[] };
+  const refundReviewByLedger = new Map(
+    (refundReviews || []).map((review) => [String(review.ledger_id), review])
+  );
 
   return (
     <main className="min-h-screen bg-[#f7f7f4] px-6 py-12 text-[#111]">
@@ -58,6 +69,13 @@ export default async function AccountHotelsPage() {
 
             return (
               <article key={row.id} className="rounded-2xl border border-black/8 bg-white p-5 shadow-sm">
+                {refundReviewByLedger.get(row.id) ? (
+                  <div className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
+                    {refundReviewByLedger.get(row.id)?.status === "resolved"
+                      ? `Refund review resolved${refundReviewByLedger.get(row.id)?.resolution ? ` · ${String(refundReviewByLedger.get(row.id)?.resolution).replaceAll("_", " ")}` : ""}`
+                      : "Refund review in progress · SafariPlug finance is reviewing this cancelled paid booking."}
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="font-semibold">{hotelName}</p>
