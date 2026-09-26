@@ -9,6 +9,7 @@ const ROWS: { label: string; hint: string; href?: string }[] = [
   { label: "My Trips", hint: "Itineraries when you are signed in", href: "/(tabs)/trips" },
   { label: "Restaurant Orders", hint: "Food orders and live delivery status", href: "/(tabs)/orders" },
   { label: "Service Bookings", hint: "Appointments, confirmations and payment state", href: "/(tabs)/appointments" },
+  { label: "Travel Bookings", hint: "Hotels, transfers, activities and refund reviews", href: "/travel-bookings" },
   { label: "Saved", hint: "Saved experiences", href: "/(tabs)/saved" },
   { label: "Currency", hint: "Display KES — not a live FX engine" },
   { label: "Language", hint: "English" },
