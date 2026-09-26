@@ -67,7 +67,15 @@ export async function POST(request: Request) {
     const tripId = typeof b.tripId === "string" && b.tripId.trim() ? b.tripId.trim() : null;
     if (tripId && !customerUserId) return NextResponse.json({ error: "Sign in to attach a booking to a journey." }, { status: 401 });
     const { data: appointment, error } = await supabaseAdmin.rpc("create_service_appointment", { p_service_profile_id: b.serviceProfileId, p_offering_id: b.offeringId, p_staff_id: b.staffId, p_customer_user_id: customerUserId, p_customer_name: b.customerName, p_customer_email: b.customerEmail ?? null, p_customer_phone: b.customerPhone ?? null, p_starts_at: b.startsAt, p_customer_notes: b.customerNotes ?? null });
-    if (error) return NextResponse.json({ error: error.message }, { status: error.message.includes("slot_unavailable") ? 409 : 400 });
+    if (error) {
+      const message = error.message.includes("provider_verification_not_current")
+        ? "This provider's SafariPlug verification is no longer current. Please choose another verified provider or try again after verification is restored."
+        : error.message.includes("staff_verification_not_current")
+          ? "This specialist's SafariPlug verification is no longer current. Please choose another verified specialist."
+          : error.message;
+      const status = error.message.includes("slot_unavailable") || error.message.includes("provider_verification_not_current") || error.message.includes("staff_verification_not_current") ? 409 : 400;
+      return NextResponse.json({ error: message }, { status });
+    }
     let attachedToTrip = false;
     let tripAttachmentError: string | null = null;
     if (tripId && customerUserId && appointment?.id) {

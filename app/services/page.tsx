@@ -28,7 +28,7 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
   const withTrip = (href: string) => tripId ? `${href}${href.includes("?") ? "&" : "?"}tripId=${encodeURIComponent(tripId)}` : href;
   const term = q?.trim().toLowerCase() ?? "";
   const { data: categories } = await supabaseAdmin.from("service_categories").select("id,name,slug,description").eq("status", "active").order("name");
-  let query = supabaseAdmin.from("service_profiles").select("id,businesses!inner(name,slug,description,city_id,logo_url,cover_image_url,owner_id),service_categories!inner(name,slug),service_offerings(id,name,duration_minutes,price,currency)").eq("status", "active").eq("booking_status", "open").eq("businesses.status", "active").eq("service_categories.status", "active").eq("service_offerings.status", "active");
+  let query = supabaseAdmin.from("service_profiles").select("id,businesses!inner(name,slug,description,city_id,logo_url,cover_image_url,owner_id),service_categories!inner(name,slug),service_offerings(id,name,duration_minutes,price,currency)").eq("status", "active").eq("booking_status", "open").in("businesses.status", ["active", "ACTIVE"]).eq("service_categories.status", "active").eq("service_offerings.status", "active");
   if (category) query = query.eq("service_categories.slug", category);
   const { data: rawServices } = await query;
   const verifiedOwners = await verifiedServiceProviderUserIds((rawServices ?? []).map((s:any)=>s.businesses?.owner_id));

@@ -10,7 +10,7 @@ export async function GET() {
     .select("id,timezone,businesses!inner(id,name,slug,description,city_id,owner_id),service_categories!inner(name,slug),service_offerings!inner(id,name,description,duration_minutes,price,currency,requires_confirmation,status)")
     .eq("status", "active")
     .eq("booking_status", "open")
-    .eq("businesses.status", "active")
+    .in("businesses.status", ["active", "ACTIVE"])
     .eq("service_categories.status", "active")
     .eq("service_offerings.status", "active")
     .order("id");

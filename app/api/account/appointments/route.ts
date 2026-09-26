@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       const { data: offering } = await supabaseAdmin.from("service_offerings").select("duration_minutes,status").eq("id", appointment.offering_id).maybeSingle();
       if (!profile || profile.status !== "active" || profile.booking_status !== "open" || !offering || offering.status !== "active") return NextResponse.json({ error: "This service is not currently accepting reschedules." }, { status: 409 });
       const { data: business } = await supabaseAdmin.from("businesses").select("status").eq("id", profile.business_id).maybeSingle();
-      if (!business || business.status !== "active") return NextResponse.json({ error: "This service is not currently accepting reschedules." }, { status: 409 });
+      if (!business || !["active", "ACTIVE"].includes(String(business.status || ""))) return NextResponse.json({ error: "This service is not currently accepting reschedules." }, { status: 409 });
       const min = Date.now() + Number(profile.booking_notice_minutes || 0) * 60000;
       const max = Date.now() + Number(profile.max_booking_days || 90) * 86400000;
       if (startsAt.getTime() < min) return NextResponse.json({ error: "That time is inside the provider's booking notice window." }, { status: 409 });
@@ -121,6 +121,8 @@ export async function POST(request: Request) {
         if (message.includes("staff_unavailable")) return NextResponse.json({ error: "That time is no longer available." }, { status: 409 });
         if (message.includes("booking_notice_violation")) return NextResponse.json({ error: "That time is inside the provider's booking notice window." }, { status: 409 });
         if (message.includes("booking_window_violation")) return NextResponse.json({ error: "That time is outside the provider's booking window." }, { status: 409 });
+        if (message.includes("provider_verification_not_current")) return NextResponse.json({ error: "This provider's SafariPlug verification is no longer current, so the appointment cannot be moved to a new time yet." }, { status: 409 });
+        if (message.includes("staff_verification_not_current")) return NextResponse.json({ error: "This specialist's SafariPlug verification is no longer current, so the appointment cannot be moved to a new time yet." }, { status: 409 });
         if (message.includes("appointment_not_reschedulable")) return NextResponse.json({ error: "Only pending or confirmed appointments can be rescheduled." }, { status: 409 });
         if (message.includes("appointment_not_found")) return NextResponse.json({ error: "Appointment not found." }, { status: 404 });
         return NextResponse.json({ error: "Unable to reschedule this appointment." }, { status: 409 });
