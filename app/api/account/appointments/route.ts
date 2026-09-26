@@ -16,13 +16,13 @@ async function getUser() {
 export async function GET() {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "A confirmed SafariPlug account is required." }, { status: 401 });
-  const { data, error } = await supabaseAdmin.from("service_appointments").select("id,public_id,trip_id,starts_at,ends_at,status,customer_name,customer_email,customer_phone,customer_notes,provider_notes,price,currency,payment_status,cancellation_reason,created_at,service_profiles(id,timezone,cancellation_policy,businesses(name,slug,address,phone,whatsapp)),service_offerings(id,name,description,duration_minutes),service_staff(id,display_name)").eq("customer_user_id", user.id).order("starts_at", { ascending: true }).limit(100);
+  const { data, error } = await supabaseAdmin.from("service_appointments").select("id,public_id,trip_id,starts_at,ends_at,status,customer_name,customer_email,customer_phone,customer_notes,provider_notes,price,customer_total_amount,currency,payment_status,cancellation_reason,created_at,service_profiles(id,timezone,cancellation_policy,businesses(name,slug,address,phone,whatsapp)),service_offerings(id,name,description,duration_minutes),service_staff(id,display_name)").eq("customer_user_id", user.id).order("starts_at", { ascending: true }).limit(100);
   if (error) return NextResponse.json({ error: "Unable to load appointments." }, { status: 500 });
   const ids = (data ?? []).map((x: any) => x.id);
   const { data: events } = ids.length ? await supabaseAdmin.from("service_appointment_status_events").select("appointment_id,from_status,to_status,actor_type,note,created_at").in("appointment_id", ids).order("created_at", { ascending: true }) : { data: [] };
   const { data: ledgers } = ids.length ? await supabaseAdmin.from("service_payment_ledger").select("id,appointment_id").in("appointment_id", ids) : { data: [] };
   const ledgerIds = (ledgers ?? []).map((row: any) => row.id);
-  const { data: reviews } = ledgerIds.length ? await supabaseAdmin.from("travel_refund_reviews").select("id,ledger_id,status,resolution,reason,notes,updated_at").eq("product","service").in("ledger_id",ledgerIds) : { data: [] };
+  const { data: reviews } = ledgerIds.length ? await supabaseAdmin.from("travel_refund_reviews").select("id,ledger_id,status,resolution,reason,updated_at").eq("product","service").in("ledger_id",ledgerIds) : { data: [] };
   const appointmentByLedger = new Map((ledgers ?? []).map((row: any) => [String(row.id), String(row.appointment_id)]));
   const refundReviews = (reviews ?? []).map((review: any) => ({ ...review, appointment_id: appointmentByLedger.get(String(review.ledger_id)) || null }));
   return NextResponse.json({ appointments: data ?? [], events: events ?? [], refundReviews });
@@ -92,6 +92,11 @@ export async function POST(request: Request) {
     if (action === "reschedule") {
       await assertTravelerVerified(user.id);
       if (!["pending", "confirmed"].includes(appointment.status)) return NextResponse.json({ error: "Only pending or confirmed appointments can be rescheduled." }, { status: 409 });
+      const { data: paymentLedger } = await supabaseAdmin.from("service_payment_ledger").select("id").eq("appointment_id", appointment.id).maybeSingle();
+      if (paymentLedger) {
+        const { data: openReview } = await supabaseAdmin.from("travel_refund_reviews").select("id").eq("product","service").eq("ledger_id",paymentLedger.id).in("status",["pending","in_review"]).limit(1).maybeSingle();
+        if (openReview) return NextResponse.json({ error: "A cancellation or refund review is already in progress. This appointment cannot be rescheduled until SafariPlug finance completes it." }, { status: 409 });
+      }
       const startsAt = new Date(String(body.startsAt || ""));
       if (Number.isNaN(startsAt.getTime())) return NextResponse.json({ error: "Choose a valid appointment time." }, { status: 400 });
       const { data: profile } = await supabaseAdmin.from("service_profiles").select("status,booking_status,booking_notice_minutes,max_booking_days,business_id").eq("id", appointment.service_profile_id).maybeSingle();
