@@ -737,17 +737,6 @@ export async function POST(request: Request) {
     }
 
     if (workingLedger.booking_status === "confirmed") {
-      const activityMeta = metadataRecord(currentMetadata.activity);
-      const itineraryItem = await attachConfirmedTravelToTrip({
-        tripId: typeof currentMetadata.tripId === "string" ? currentMetadata.tripId : null,
-        userId: user.id,
-        itemKind: "activity",
-        title: String(activityMeta.name || "Hotelbeds activity"),
-        startAt: typeof activityMeta.from === "string" ? activityMeta.from : null,
-        endAt: typeof activityMeta.to === "string" ? activityMeta.to : null,
-        notes: "Hotelbeds activity reference: " + reference,
-      });
-
       return NextResponse.json({
         provider: "hotelbeds",
         product: "activities",
@@ -805,6 +794,17 @@ export async function POST(request: Request) {
         .single();
 
       if (updateError) throw new Error(updateError.message);
+
+      const activityMeta = metadataRecord(currentMetadata.activity);
+      const itineraryItem = await attachConfirmedTravelToTrip({
+        tripId: typeof currentMetadata.tripId === "string" ? currentMetadata.tripId : null,
+        userId: user.id,
+        itemKind: "activity",
+        title: String(activityMeta.name || "Hotelbeds activity"),
+        startAt: typeof activityMeta.from === "string" ? activityMeta.from : null,
+        endAt: typeof activityMeta.to === "string" ? activityMeta.to : null,
+        notes: "Hotelbeds activity reference: " + reference,
+      });
 
       return NextResponse.json({
         provider: "hotelbeds",
