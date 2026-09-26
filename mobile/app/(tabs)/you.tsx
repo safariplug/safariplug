@@ -9,6 +9,7 @@ const ROWS: { label: string; hint: string; href?: string }[] = [
   { label: "My Trips", hint: "Itineraries when you are signed in", href: "/(tabs)/trips" },
   { label: "Restaurant Orders", hint: "Food orders and live delivery status", href: "/(tabs)/orders" },
   { label: "Service Bookings", hint: "Appointments, confirmations and payment state", href: "/(tabs)/appointments" },
+  { label: "Find Hotels", hint: "Search live stays and book with M-Pesa", href: "/hotels" },
   { label: "Travel Bookings", hint: "Hotels, transfers, activities and refund reviews", href: "/travel-bookings" },
   { label: "Driver Requests", hint: "Specific drivers, quotes, payment and status", href: "/driver-requests" },
   { label: "Saved", hint: "Saved experiences", href: "/(tabs)/saved" },
