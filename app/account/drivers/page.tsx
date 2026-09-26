@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import TravelerNav from "@/components/TravelerNav";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import TransferMpesaPayment from "./TransferMpesaPayment";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,15 @@ type DriverRequest = {
   quoted_amount: number | null;
   currency: string;
   status: string;
+  payment_status: string;
+  payment_reference: string | null;
+  paid_at: string | null;
   created_at: string;
 };
 
 const STATUS_COPY: Record<string, { label: string; detail: string }> = {
   requested: { label: "Awaiting driver", detail: "The driver has not accepted this request yet." },
-  accepted: { label: "Driver accepted", detail: "The driver accepted the request. This request itself does not record a payment or completed ride." },
+  accepted: { label: "Driver accepted", detail: "The driver accepted the quoted transfer. Payment is required before the ride can be completed." },
   declined: { label: "Declined", detail: "The driver could not take this request." },
   cancelled: { label: "Cancelled", detail: "You cancelled this request before driver acceptance." },
   completed: { label: "Completed", detail: "SafariPlug recorded this driver transfer as completed." },
@@ -42,7 +46,7 @@ export default async function DriverRequestsPage({
 
   const { data: rows, error } = await supabaseAdmin
     .from("driver_transfer_requests")
-    .select("id,driver_id,trip_id,pickup_label,destination_label,requested_at,passenger_count,notes,quoted_amount,currency,status,created_at")
+    .select("id,driver_id,trip_id,pickup_label,destination_label,requested_at,passenger_count,notes,quoted_amount,currency,status,payment_status,payment_reference,paid_at,created_at")
     .eq("traveler_id", user.id)
     .order("requested_at", { ascending: false });
 
@@ -118,6 +122,11 @@ export default async function DriverRequestsPage({
                 <p className="mt-2 text-sm text-black/50">{formatDate(request.requested_at)} · {request.passenger_count} passenger{request.passenger_count === 1 ? "" : "s"}</p>
                 <p className="mt-3 text-xs leading-5 text-black/45">{status.detail}</p>
                 {request.notes && <p className="mt-3 max-w-2xl rounded-xl bg-black/[.035] p-3 text-xs leading-5 text-black/55">{request.notes}</p>}
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[.12em] text-black/40">Payment: {request.payment_status || "unpaid"}</p>
+                {request.status === "accepted" && request.quoted_amount != null && request.payment_status !== "paid" ? (
+                  <TransferMpesaPayment requestId={request.id} defaultPhone={String(user.phone || user.user_metadata?.phone || "")} />
+                ) : null}
+                {request.payment_status === "paid" ? <p className="mt-3 text-sm font-semibold text-emerald-700">Payment received{request.paid_at ? " · " + formatDate(request.paid_at) : ""}</p> : null}
               </div>
               <div className="shrink-0 sm:text-right">
                 {request.quoted_amount != null ? <><p className="text-xs text-black/40">Recorded quote</p><p className="mt-1 text-lg font-semibold">{request.currency} {Number(request.quoted_amount).toLocaleString()}</p></> : <p className="text-xs text-black/40">Custom quote requested</p>}
