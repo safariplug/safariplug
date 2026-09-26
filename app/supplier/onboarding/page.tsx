@@ -22,6 +22,8 @@ const REVIEW_FIXES: Record<string, { label: string; href: string }> = {
   staff_verification: { label: "Specialist SafariPlug review", href: "/business/services/identity" },
   verification: { label: "Provider verification", href: "/business/verification" },
   payout_details: { label: "Payout details", href: "/business/payouts" },
+  restaurant_menu: { label: "Restaurant menu", href: "/business/restaurants/menu" },
+  restaurant_ordering: { label: "Restaurant ordering", href: "/business/restaurants/menu" },
   other: { label: "Other requested update", href: "/supplier/onboarding" },
 };
 
@@ -144,10 +146,17 @@ export default function SupplierOnboardingPage() {
         { key: "providerVerification", label: "Provider SafariPlug review", href: "/business/verification" },
         { key: "payout", label: "M-Pesa payout destination", href: "/business/payouts" },
       ]
-    : [
-        { key: "businessDetails", label: "Business details", href: "#business-details" },
-        { key: "businessImages", label: "Business images", href: "#business-images" },
-      ];
+    : isRestaurant
+      ? [
+          { key: "businessDetails", label: "Business details", href: "#business-details" },
+          { key: "businessImages", label: "Business images", href: "#business-images" },
+          { key: "restaurantMenu", label: "Restaurant menu", href: "/business/restaurants/menu" },
+          { key: "restaurantOrdering", label: "Pickup / delivery setup", href: "/business/restaurants/menu" },
+        ]
+      : [
+          { key: "businessDetails", label: "Business details", href: "#business-details" },
+          { key: "businessImages", label: "Business images", href: "#business-images" },
+        ];
   const firstIncompleteRoadmapIndex = activationRoadmap.findIndex((step) => !checks[step.key]);
 
   const setupTitle = isRestaurant ? "Restaurant setup" : isHotel ? "Hotel setup" : isEventOrganizer ? "Event & experience setup" : "Service setup";
@@ -173,7 +182,7 @@ export default function SupplierOnboardingPage() {
       </div>
       <div className="mt-4 border-t border-amber-200/70 pt-4">
         <p className="text-xs font-semibold text-black/45">{setupTitle}</p>
-        <p className="mt-1 text-xs leading-5 text-black/45">{setupBody}</p>
+        <p className="mt-1 text-xs leading-5 text-black/45">{setupBody}</p>{isRestaurant ? <a href="/business/restaurants/menu" className="mt-3 inline-flex rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-black hover:bg-black hover:text-white">Open restaurant menu & ordering →</a> : null}
       </div>
     </section>
     <section className="mt-8 rounded-2xl border border-black/10 p-5"><h2 className="text-xl font-semibold">Create your password</h2><p className="mt-1 text-sm text-black/50">SafariPlug never sees or stores your password. It is managed securely by your account.</p><div className="mt-4 grid gap-3 md:grid-cols-2"><input type="password" placeholder="New password (8+ characters)" value={password} onChange={(event) => setPassword(event.target.value)} className="rounded-xl border border-black/15 px-3 py-2.5"/><input type="password" placeholder="Confirm password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="rounded-xl border border-black/15 px-3 py-2.5"/></div><button onClick={createPassword} className="mt-3 rounded-full bg-black px-5 py-2.5 text-sm text-white">Save password</button></section>
