@@ -4,12 +4,24 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { currentCompliance, driverVerificationCurrent } from "@/lib/services/driver-verification";
 
 const METHODS = new Set(["pickup", "safari_driver", "customer_driver", "restaurant_delivery"]);
+async function getUser(request: Request) {
+  const header=request.headers.get("authorization")||"";
+  const token=header.startsWith("Bearer ")?header.slice(7).trim():"";
+  if(token){
+    const {data,error}=await supabaseAdmin.auth.getUser(token);
+    if(!error&&data.user&&!data.user.is_anonymous&&(data.user.email_confirmed_at||data.user.phone_confirmed_at))return data.user;
+  }
+  const supabase=await createSupabaseServerClient();
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user||user.is_anonymous||!(user.email_confirmed_at||user.phone_confirmed_at))return null;
+  return user;
+}
 function distanceKm(a:number,b:number,c:number,d:number){const r=6371,x=(c-a)*Math.PI/180,y=(d-b)*Math.PI/180,q=Math.sin(x/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(y/2)**2;return r*2*Math.atan2(Math.sqrt(q),Math.sqrt(1-q));}
 function driverAreaMatches(driver:any, business:any, latitude:number, longitude:number) { if (driver.service_city_id && business.city_id && driver.service_city_id === business.city_id) return true; const serviceLat = Number(driver.service_lat), serviceLng = Number(driver.service_lng), radius = Number(driver.service_radius_km); return Number.isFinite(serviceLat) && Number.isFinite(serviceLng) && Number.isFinite(radius) && radius > 0 && distanceKm(serviceLat, serviceLng, latitude, longitude) <= radius; }
 
 export async function POST(request: Request) {
-  const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser();
-  if(!user||user.is_anonymous||!(user.email_confirmed_at||user.phone_confirmed_at))return NextResponse.json({error:"A confirmed SafariPlug account is required to place a food order"},{status:401});
+  const user=await getUser(request);
+  if(!user)return NextResponse.json({error:"A confirmed SafariPlug account is required to place a food order"},{status:401});
   const body=await request.json(); const {businessId,fulfillmentMethod,customerName,customerPhone,customerEmail,deliveryAddress,deliveryLatitude,deliveryLongitude,customerNotes,items,driverId,tripId}=body;
   if(!businessId||!METHODS.has(fulfillmentMethod)||!customerName||!customerPhone||!Array.isArray(items)||!items.length)return NextResponse.json({error:"Restaurant, delivery method, contact details and at least one item are required"},{status:400});
   if(["safari_driver","customer_driver","restaurant_delivery"].includes(fulfillmentMethod)&&!deliveryAddress)return NextResponse.json({error:"Delivery address is required"},{status:400});

@@ -4,17 +4,21 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isMpesaReversalSubmissionUncertain, reverseMpesaTransaction } from "@/lib/payments/mpesa-reversal";
 
 export const dynamic = "force-dynamic";
-async function user() { const supabase = await createSupabaseServerClient(); const { data: { user } } = await supabase.auth.getUser(); return user && !user.is_anonymous ? user : null; }
+async function user(request:Request) {
+  const header=request.headers.get("authorization")||""; const token=header.startsWith("Bearer ")?header.slice(7).trim():"";
+  if(token){const {data,error}=await supabaseAdmin.auth.getUser(token);if(!error&&data.user&&!data.user.is_anonymous&&(data.user.email_confirmed_at||data.user.phone_confirmed_at))return data.user;}
+  const supabase=await createSupabaseServerClient(); const { data: { user } } = await supabase.auth.getUser();
+  return user&&!user.is_anonymous&&(user.email_confirmed_at||user.phone_confirmed_at)?user:null;
+}
 async function supplierBusinessId(userId: string) { const { data, error } = await supabaseAdmin.from("supplier_accounts").select("business_id").eq("user_id", userId).maybeSingle(); if (error) throw error; return data?.business_id ?? null; }
 export async function POST(request: Request) {
-  const currentUser = await user(); if (!currentUser) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const currentUser = await user(request); if (!currentUser) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   const body = await request.json(); const orderId = String(body?.orderId || "").trim(); const idempotencyKey = String(body?.idempotencyKey || "").trim();
   if (!orderId || !idempotencyKey) return NextResponse.json({ error: "orderId and idempotencyKey are required" }, { status: 400 });
   if (idempotencyKey.length > 200) return NextResponse.json({ error: "idempotencyKey is too long" }, { status: 400 });
   let businessId: string | null;
   try { businessId = await supplierBusinessId(currentUser.id); }
   catch (error) { console.error("Restaurant refund supplier lookup failed", error); return NextResponse.json({ error: "Refund preflight failed", retryAllowed: false }, { status: 500 }); }
-  if (!businessId) return NextResponse.json({ error: "Supplier access denied" }, { status: 403 });
   const { data: order, error: orderError } = await supabaseAdmin.from("food_orders").select("id,business_id,customer_user_id,status,payment_status,payment_reference,refund_reference,customer_total,currency,refunded_amount").eq("id", orderId).maybeSingle();
   if (orderError) { console.error("Restaurant refund order lookup failed", orderError); return NextResponse.json({ error: "Refund preflight failed", retryAllowed: false }, { status: 500 }); }
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
