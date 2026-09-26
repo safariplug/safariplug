@@ -254,12 +254,16 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
     if (existingStaffError) return NextResponse.json({ error: existingStaffError.message }, { status: 500 });
-    const staffRow = existingStaff || (await supabaseAdmin
-      .from("service_staff")
-      .insert({ service_profile_id: profile.id, display_name: normalizedDisplayName, bio: typeof body.bio === "string" ? body.bio.trim().slice(0, 2000) : null, status: "active" })
-      .select("id,display_name,bio,status,personal_photo_url")
-      .single()).data;
-    if (!staffRow) return NextResponse.json({ error: "Unable to add team member." }, { status: 500 });
+    let staffRow = existingStaff;
+    if (!staffRow) {
+      const { data: createdStaff, error: staffError } = await supabaseAdmin
+        .from("service_staff")
+        .insert({ service_profile_id: profile.id, display_name: normalizedDisplayName, bio: typeof body.bio === "string" ? body.bio.trim().slice(0, 2000) : null, status: "active" })
+        .select("id,display_name,bio,status,personal_photo_url")
+        .single();
+      if (staffError || !createdStaff) return NextResponse.json({ error: staffError?.message || "Unable to add team member." }, { status: 500 });
+      staffRow = createdStaff;
+    }
     const { data: offerings } = await supabaseAdmin.from("service_offerings").select("id").eq("service_profile_id", profile.id);
     if (offerings?.length) {
       const { error: assignmentError } = await supabaseAdmin.from("service_staff_offerings").upsert(offerings.map((offering) => ({ staff_id: staffRow.id, offering_id: offering.id })), { onConflict: "staff_id,offering_id" });
