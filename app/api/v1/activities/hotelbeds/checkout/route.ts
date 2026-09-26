@@ -60,7 +60,7 @@ function metadataRecord(value: unknown) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireUser();
+  const user = await requireUser(request);
   if (!user) return errorResponse(401, "Authentication required.");
 
   let body: Record<string, unknown> = {};
