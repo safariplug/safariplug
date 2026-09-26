@@ -202,10 +202,13 @@ export async function POST(request: Request) {
     }
     if (action === "appointment_status") {
       const target=String(body.status||""); if(!["confirmed","checked_in","in_progress","completed","cancelled","no_show"].includes(target))return NextResponse.json({error:"Invalid appointment status."},{status:400});
-      const {data:appointment}=await supabaseAdmin.from("service_appointments").select("id,service_profile_id,payment_status").eq("id",body.appointmentId).eq("service_profile_id",profile.id).maybeSingle();
+      const reason=String(body.reason||"").trim();
+      if(["cancelled","no_show"].includes(target)&&reason.length<5)return NextResponse.json({error:"Add a short reason so SafariPlug has a clear appointment record."},{status:400});
+      const {data:appointment}=await supabaseAdmin.from("service_appointments").select("id,service_profile_id,payment_status,starts_at").eq("id",body.appointmentId).eq("service_profile_id",profile.id).maybeSingle();
       if(!appointment)return NextResponse.json({error:"Appointment not found."},{status:404});
-      if(target === "cancelled" && ["paid", "partially_refunded"].includes(appointment.payment_status)){const review=await queuePaidServiceCancellationReview({appointmentId:appointment.id,actor:"provider",reason:String(body.reason||"Provider requested cancellation")});return NextResponse.json({reviewPending:true,review,message:review.status==="resolved"?"A finance decision already exists for this paid cancellation request.":"Cancellation request sent to SafariPlug finance for refund review. The appointment remains active until review is completed."},{status:202});}
-      const {data,error}=await supabaseAdmin.rpc("transition_service_appointment_status",{p_appointment_id:appointment.id,p_to_status:target,p_actor_type:"provider",p_actor_user_id:user.id,p_note:body.reason||null});
+      if(target==="no_show"&&new Date(appointment.starts_at).getTime()>Date.now())return NextResponse.json({error:"A customer can only be marked no-show after the appointment start time."},{status:409});
+      if(target === "cancelled" && ["paid", "partially_refunded"].includes(appointment.payment_status)){const review=await queuePaidServiceCancellationReview({appointmentId:appointment.id,actor:"provider",reason});return NextResponse.json({reviewPending:true,review,message:review.status==="resolved"?"A finance decision already exists for this paid cancellation request.":"Cancellation request sent to SafariPlug finance for refund review. The appointment remains active until review is completed."},{status:202});}
+      const {data,error}=await supabaseAdmin.rpc("transition_service_appointment_status",{p_appointment_id:appointment.id,p_to_status:target,p_actor_type:"provider",p_actor_user_id:user.id,p_note:reason||null});
       if(error){const status=error.message.startsWith("invalid_status_transition")?409:error.message.includes("settled_payment_requires_refund_review")?409:error.message.includes("appointment_not_found")?404:400;return NextResponse.json({error:error.message.includes("settled_payment_requires_refund_review")?"This appointment has a settled payment and requires a refund review before cancellation.":error.message},{status});}
       return NextResponse.json({appointment:data});
     }
