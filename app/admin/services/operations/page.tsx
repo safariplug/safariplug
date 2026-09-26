@@ -33,6 +33,9 @@ export default async function ServiceOperationsPage(){
     reviewResult,
     payoutResult,
     verificationResult,
+    paymentEventResult,
+    paymentAttemptResult,
+    paymentTelemetryResult,
   ]=await Promise.all([
     supabaseAdmin
       .from("service_appointments")
@@ -65,6 +68,25 @@ export default async function ServiceOperationsPage(){
       .in("status",TRUST_PENDING)
       .order("updated_at",{ascending:false})
       .limit(500),
+    supabaseAdmin
+      .from("service_payment_events")
+      .select("id,appointment_id,provider,event_type,provider_reference,status,error_message,created_at,processed_at")
+      .eq("status","failed")
+      .order("created_at",{ascending:false})
+      .limit(250),
+    supabaseAdmin
+      .from("service_payment_idempotency")
+      .select("id,appointment_id,provider,provider_reference,processing_until,provider_submission_state,attempt_active,created_at")
+      .eq("attempt_active",true)
+      .in("provider_submission_state",["uncertain","submitted"])
+      .order("created_at",{ascending:false})
+      .limit(250),
+    supabaseAdmin
+      .from("admin_telemetry_logs")
+      .select("id,action_type,metadata,created_at")
+      .in("action_type",["service_payment_callback_unmatched","service_payment_amount_mismatch"])
+      .order("created_at",{ascending:false})
+      .limit(100),
   ]);
 
   const appointments=appointmentResult.data??[];
@@ -81,6 +103,8 @@ export default async function ServiceOperationsPage(){
     ...overdue.map((row:any)=>String(row.id)),
     ...(payoutResult.data??[]).map((row:any)=>String(row.appointment_id)),
     ...(reviewResult.data??[]).map((row:any)=>appointmentByLedger.get(String(row.ledger_id))).filter(Boolean) as string[],
+    ...(paymentEventResult.data??[]).map((row:any)=>String(row.appointment_id)).filter(Boolean),
+    ...(paymentAttemptResult.data??[]).map((row:any)=>String(row.appointment_id)).filter(Boolean),
   ]);
 
   let contextAppointments:any[]=[];
@@ -103,9 +127,17 @@ export default async function ServiceOperationsPage(){
   const verification=verificationResult.data??[];
   const providerTrust=verification.filter((row:any)=>row.subject_type==="provider");
   const specialistTrust=verification.filter((row:any)=>row.subject_type==="service_staff");
+  const failedPaymentEvents=paymentEventResult.data??[];
+  const paymentAttempts=(paymentAttemptResult.data??[]).filter((row:any)=>
+    row.provider_submission_state==="uncertain" ||
+    (row.provider_submission_state==="submitted" && row.processing_until && new Date(row.processing_until).getTime()<Date.now())
+  );
+  const callbackExceptions=paymentTelemetryResult.data??[];
+  const unsettledActive=appointments.filter((row:any)=>["unpaid","pending","failed"].includes(String(row.payment_status||"unpaid")));
 
-  const queryErrors=[appointmentResult.error,ledgerResult.error,reviewResult.error,payoutResult.error,verificationResult.error].filter(Boolean);
-  const attention=overdue.length+reviews.length+payouts.filter((row:any)=>row.status!=="processing").length+staleProcessing.length+verification.length;
+  const queryErrors=[appointmentResult.error,ledgerResult.error,reviewResult.error,payoutResult.error,verificationResult.error,paymentEventResult.error,paymentAttemptResult.error,paymentTelemetryResult.error].filter(Boolean);
+  const paymentAttention=failedPaymentEvents.length+paymentAttempts.length+callbackExceptions.length;
+  const attention=overdue.length+reviews.length+payouts.filter((row:any)=>row.status!=="processing").length+staleProcessing.length+verification.length+paymentAttention;
 
   return <main className="min-h-screen bg-[#050505] px-5 py-10 text-white md:px-10">
     <div className="mx-auto max-w-7xl">
@@ -131,9 +163,11 @@ export default async function ServiceOperationsPage(){
 
       {queryErrors.length>0&&<section className="mt-5 rounded-2xl border border-red-900/60 bg-red-950/20 p-4"><p className="font-semibold text-red-300">Service operations data is partially unavailable</p><p className="mt-1 text-sm text-red-300/70">One or more operational queries failed. Open the underlying workspace before taking financial or trust action.</p></section>}
 
-      <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-10">
         <Metric label="Overdue active" value={overdue.length} alert={overdue.length>0}/>
         <Metric label="Starting ≤24h" value={startingSoon.length}/>
+        <Metric label="Unsettled active" value={unsettledActive.length} alert={unsettledActive.length>0}/>
+        <Metric label="Payment exceptions" value={paymentAttention} alert={paymentAttention>0}/>
         <Metric label="Refund reviews" value={reviews.length} alert={reviews.length>0}/>
         <Metric label="Held / failed payouts" value={payouts.filter((row:any)=>["held","failed"].includes(row.status)).length} alert={payouts.some((row:any)=>["held","failed"].includes(row.status))}/>
         <Metric label="Stale processing" value={staleProcessing.length} alert={staleProcessing.length>0}/>
@@ -145,6 +179,13 @@ export default async function ServiceOperationsPage(){
         <Panel title="Overdue appointment operations" subtitle="Active appointments whose scheduled end time has passed." href="/admin/accounting/reconciliation">
           {overdue.slice(0,20).map((row:any)=><AppointmentCard key={row.id} row={row}/>)}
           {!overdue.length&&<Empty text="No active service appointments are overdue."/>}
+        </Panel>
+
+        <Panel title="Payment & callback exceptions" subtitle="Failed payment events, uncertain submissions and unmatched or amount-mismatched M-Pesa callbacks." href="/admin/accounting/reconciliation">
+          {failedPaymentEvents.slice(0,8).map((row:any)=>{const appointment=appointmentById.get(String(row.appointment_id));return <div key={"event-"+row.id} className="border-t border-zinc-900 py-4 first:border-t-0"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{appointment?.service_profiles?.businesses?.name||"Service payment"}</p><p className="mt-1 text-xs text-zinc-500">{appointment?.public_id||String(row.appointment_id).slice(0,8)} · {row.provider} · {row.event_type}</p></div><span className={"rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase "+tone("danger")}>failed event</span></div><p className="mt-2 text-sm leading-6 text-zinc-400">{row.error_message||"Payment event failed to apply and needs reconciliation."}</p><p className="mt-2 text-xs text-zinc-600">Recorded {ageLabel(row.created_at)} ago</p></div>})}
+          {paymentAttempts.slice(0,8).map((row:any)=>{const appointment=appointmentById.get(String(row.appointment_id));return <div key={"attempt-"+row.id} className="border-t border-zinc-900 py-4 first:border-t-0"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{appointment?.service_profiles?.businesses?.name||"Service payment"}</p><p className="mt-1 text-xs text-zinc-500">{appointment?.public_id||String(row.appointment_id).slice(0,8)} · {row.provider}</p></div><span className={"rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase "+tone("warn")}>{row.provider_submission_state}</span></div><p className="mt-2 text-sm leading-6 text-zinc-400">SafariPlug will not issue another charge until this provider submission is reconciled.</p><p className="mt-2 text-xs text-zinc-600">Attempt created {ageLabel(row.created_at)} ago</p></div>})}
+          {callbackExceptions.slice(0,8).map((row:any)=><div key={"telemetry-"+row.id} className="border-t border-zinc-900 py-4 first:border-t-0"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">M-Pesa callback exception</p><p className="mt-1 text-xs text-zinc-500">{row.action_type.replaceAll("_"," ")}</p></div><span className={"rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase "+tone("warn")}>reconcile</span></div><p className="mt-2 font-mono text-xs leading-5 text-zinc-500">{JSON.stringify(row.metadata)}</p><p className="mt-2 text-xs text-zinc-600">Recorded {ageLabel(row.created_at)} ago</p></div>)}
+          {!paymentAttention&&<Empty text="No service payment or M-Pesa callback exceptions need attention."/>}
         </Panel>
 
         <Panel title="Paid cancellation / refund review" subtitle="Customer or provider cancellation requests that still require finance handling." href="/admin/accounting/refunds">
