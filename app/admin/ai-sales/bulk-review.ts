@@ -90,6 +90,7 @@ export async function approveSelectedSalesProspects(formData: FormData) {
         partnerId = newPartner.id;
       }
 
+      if (!partnerId) throw new Error("Stable partner ID could not be resolved.");
       await persistStablePartnerLink(prospect.id, partnerId);
 
       const now = new Date().toISOString();
