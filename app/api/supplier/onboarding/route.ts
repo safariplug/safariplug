@@ -151,7 +151,7 @@ export async function PATCH(request: Request) {
 export async function POST(request: Request) {
   const ctx = await supplierContext();
   if (!ctx) return NextResponse.json({ error: "Supplier authentication required." }, { status: 401 });
-  const body = await request.json().catch(() => null) as { action?: string; offering?: Record<string, unknown>; displayName?: string; bio?: string; staffId?: string; dayOfWeek?: number; startTime?: string; endTime?: string } | null;
+  const body = await request.json().catch(() => null) as { action?: string; offering?: Record<string, unknown>; displayName?: string; bio?: string; staffId?: string; dayOfWeek?: number; startTime?: string; endTime?: string; linkCurrentUser?: boolean } | null;
   if (["submitted", "approved", "live", "rejected"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: ctx.account.onboarding_status === "submitted" ? "This profile is locked while SafariPlug reviews your submission." : ctx.account.onboarding_status === "rejected" ? "This supplier application is closed and cannot be edited or resubmitted." : "This profile is locked after approval." }, { status: 409 });
 
   if (body?.action === "request_review") {
@@ -245,14 +245,73 @@ export async function POST(request: Request) {
     if (!displayName) return NextResponse.json({ error: "Team member name is required." }, { status: 400 });
     const { data: profile } = await supabaseAdmin.from("service_profiles").select("id").eq("business_id", ctx.account.business_id).single();
     if (!profile) return NextResponse.json({ error: "Service profile not found." }, { status: 404 });
-    const { data, error } = await supabaseAdmin.from("service_staff").insert({ service_profile_id: profile.id, display_name: displayName.slice(0, 120), bio: typeof body.bio === "string" ? body.bio.trim().slice(0, 2000) : null, status: "active" }).select("id,display_name,bio,status").single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const normalizedDisplayName = displayName.slice(0, 120);
+    const linkCurrentUser = body.linkCurrentUser === true;
+    let existingStaff = null as { id: string; display_name: string; bio: string | null; status: string; personal_photo_url: string | null; user_id: string | null; service_profile_id: string } | null;
+
+    if (linkCurrentUser) {
+      const { data: linkedStaff, error: linkedStaffError } = await supabaseAdmin
+        .from("service_staff")
+        .select("id,display_name,bio,status,personal_photo_url,user_id,service_profile_id")
+        .eq("user_id", ctx.user.id)
+        .maybeSingle();
+      if (linkedStaffError) return NextResponse.json({ error: linkedStaffError.message }, { status: 500 });
+      if (linkedStaff && linkedStaff.service_profile_id !== profile.id) {
+        return NextResponse.json({ error: "This SafariPlug account is already linked to another service specialist." }, { status: 409 });
+      }
+      existingStaff = linkedStaff;
+    }
+
+    if (!existingStaff) {
+      const { data: namedStaff, error: existingStaffError } = await supabaseAdmin
+        .from("service_staff")
+        .select("id,display_name,bio,status,personal_photo_url,user_id,service_profile_id")
+        .eq("service_profile_id", profile.id)
+        .ilike("display_name", normalizedDisplayName)
+        .limit(1)
+        .maybeSingle();
+      if (existingStaffError) return NextResponse.json({ error: existingStaffError.message }, { status: 500 });
+      existingStaff = namedStaff;
+    }
+
+    if (existingStaff && linkCurrentUser && !existingStaff.user_id) {
+      const { data: linkedStaff, error: linkError } = await supabaseAdmin
+        .from("service_staff")
+        .update({ user_id: ctx.user.id, verification_state: "unverified", identity_liveness_verified_at: null })
+        .eq("id", existingStaff.id)
+        .is("user_id", null)
+        .select("id,display_name,bio,status,personal_photo_url,user_id,service_profile_id")
+        .maybeSingle();
+      if (linkError) return NextResponse.json({ error: linkError.message }, { status: 500 });
+      if (!linkedStaff) return NextResponse.json({ error: "This specialist profile is already linked to another account." }, { status: 409 });
+      existingStaff = linkedStaff;
+    } else if (existingStaff && linkCurrentUser && existingStaff.user_id !== ctx.user.id) {
+      return NextResponse.json({ error: "This specialist profile is already linked to another account." }, { status: 409 });
+    }
+
+    let staffRow = existingStaff;
+    if (!staffRow) {
+      const { data: createdStaff, error: staffError } = await supabaseAdmin
+        .from("service_staff")
+        .insert({
+          service_profile_id: profile.id,
+          display_name: normalizedDisplayName,
+          bio: typeof body.bio === "string" ? body.bio.trim().slice(0, 2000) : null,
+          status: "active",
+          user_id: linkCurrentUser ? ctx.user.id : null,
+          verification_state: "unverified",
+        })
+        .select("id,display_name,bio,status,personal_photo_url,user_id,service_profile_id")
+        .single();
+      if (staffError || !createdStaff) return NextResponse.json({ error: staffError?.message || "Unable to add team member." }, { status: 500 });
+      staffRow = createdStaff;
+    }
     const { data: offerings } = await supabaseAdmin.from("service_offerings").select("id").eq("service_profile_id", profile.id);
     if (offerings?.length) {
-      const { error: assignmentError } = await supabaseAdmin.from("service_staff_offerings").upsert(offerings.map((offering) => ({ staff_id: data.id, offering_id: offering.id })), { onConflict: "staff_id,offering_id" });
+      const { error: assignmentError } = await supabaseAdmin.from("service_staff_offerings").upsert(offerings.map((offering) => ({ staff_id: staffRow.id, offering_id: offering.id })), { onConflict: "staff_id,offering_id" });
       if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 500 });
     }
-    return NextResponse.json({ success: true, staff: data });
+    return NextResponse.json({ success: true, staff: staffRow, reused: Boolean(existingStaff), linkedCurrentUser: linkCurrentUser && staffRow.user_id === ctx.user.id });
   }
 
   if (body?.action === "availability") {
