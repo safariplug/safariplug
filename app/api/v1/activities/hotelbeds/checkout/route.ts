@@ -22,6 +22,7 @@ import { getPaymentAdapter } from "@/lib/payments/registry";
 import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 import { normalizeActivityCheckoutIntentKey, activityPreconfirmDefinitelyRejected, activityPaymentSafeToRetry } from "@/lib/integrations/hotelbeds/activity-payment-safety";
 import { publicActivityCheckoutLedger } from "@/lib/integrations/hotelbeds/activity-public-ledger";
+import { queueTravelCancellationRefundReview } from "@/lib/services/travel-refund-review";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -604,12 +605,25 @@ export async function POST(request: Request) {
             cancellationPreview: preview,
             cancellationResponse: cancelled,
             cancelledAt: new Date().toISOString(),
-            refundStatus: "not_automated",
+            refundStatus: "review_pending",
           },
         })
         .eq("id", ledger.id)
         .select("*")
         .single();
+
+      let refundReview = null;
+      try {
+        refundReview = await queueTravelCancellationRefundReview({
+          product: "activity",
+          ledgerId: ledger.id,
+          provider: "hotelbeds",
+          paymentStatus: ledger.payment_status,
+          reason: "Customer cancelled a confirmed Hotelbeds activity booking after payment.",
+        });
+      } catch (refundError) {
+        console.error("Unable to queue activity cancellation refund review", refundError);
+      }
 
       return NextResponse.json({
         provider: "hotelbeds",
@@ -618,8 +632,10 @@ export async function POST(request: Request) {
         preview,
         providerBooking: cancelled,
         ledger: publicActivityCheckoutLedger(updated || ledger),
-        refund:
-          "Supplier cancellation does not automatically issue an M-Pesa refund. Any customer refund due is handled separately.",
+        refundReview,
+        refund: refundReview
+          ? "Refund review queued with SafariPlug finance."
+          : "No automatic refund was issued; SafariPlug finance review may be required.",
       });
     }
 
