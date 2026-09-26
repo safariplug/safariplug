@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const expectedAmount = Number(ledger.customer_retail_amount);
     const receipt = String(metadataMap.MpesaReceiptNumber || "").trim();
     const amountMatches = Number.isFinite(callbackAmount) && Number.isFinite(expectedAmount)
-      && Math.abs(callbackAmount - expectedAmount) <= 0.01;
+      && Math.round(callbackAmount) === Math.round(expectedAmount);
     const success = resultCode === 0;
     const verifiedSuccess = success && amountMatches && Boolean(receipt);
     const callbackRecord = {
