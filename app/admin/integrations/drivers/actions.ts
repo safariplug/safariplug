@@ -89,7 +89,24 @@ export async function createVehicle(formData: FormData) {
 
 export async function activateVehicle(formData: FormData) {
   await requireAdmin();
-  await updateVehicleAdmin(text(formData, "vehicle_id"), { status: "active" });
+  const vehicleId = text(formData, "vehicle_id");
+  if (!vehicleId) throw new Error("Vehicle ID is required.");
+
+  const { data: vehicle, error } = await supabaseAdmin
+    .from("vehicles")
+    .select("id,registration_compliance_status,insurance_compliance_status")
+    .eq("id", vehicleId)
+    .maybeSingle();
+
+  if (error || !vehicle) throw new Error("Vehicle could not be loaded.");
+  if (!currentCompliance(vehicle.registration_compliance_status)) {
+    throw new Error("Vehicle registration must be valid or expiring soon before activation.");
+  }
+  if (!currentCompliance(vehicle.insurance_compliance_status)) {
+    throw new Error("Vehicle insurance must be valid or expiring soon before activation.");
+  }
+
+  await updateVehicleAdmin(vehicleId, { status: "active" });
   revalidatePath("/admin/integrations/drivers");
 }
 
