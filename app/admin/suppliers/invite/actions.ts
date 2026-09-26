@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { resolveSupplierInvitationConfig } from "@/lib/suppliers/invitation-config";
 
 function clean(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
@@ -12,7 +13,7 @@ function clean(value: FormDataEntryValue | null) {
 export async function createManualSupplierInvite(formData: FormData) {
   const admin = await requireAdmin();
   const enteredBusinessName = clean(formData.get("business_name"));
-  const category = clean(formData.get("category")) || "Other";
+  const category = clean(formData.get("category"));
   const city = clean(formData.get("city"));
   const website = clean(formData.get("website"));
   const enteredContactName = clean(formData.get("contact_name"));
@@ -21,6 +22,9 @@ export async function createManualSupplierInvite(formData: FormData) {
   const notes = clean(formData.get("notes"));
 
   if (!contactEmail) throw new Error("Email address is required for a manual supplier invite.");
+  if (!category || !resolveSupplierInvitationConfig(category)) {
+    throw new Error("Choose a supported SafariPlug supplier category before creating the invitation.");
+  }
 
   const businessName = enteredBusinessName || "Invited supplier";
   const contactName = enteredContactName || "Supplier contact";
