@@ -154,6 +154,44 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { action?: string; offering?: Record<string, unknown>; displayName?: string; bio?: string; staffId?: string; dayOfWeek?: number; startTime?: string; endTime?: string } | null;
   if (["submitted", "approved", "live", "rejected"].includes(ctx.account.onboarding_status)) return NextResponse.json({ error: ctx.account.onboarding_status === "submitted" ? "This profile is locked while SafariPlug reviews your submission." : ctx.account.onboarding_status === "rejected" ? "This supplier application is closed and cannot be edited or resubmitted." : "This profile is locked after approval." }, { status: 409 });
 
+  if (body?.action === "request_review") {
+    const completion = await supabaseAdmin.rpc("supplier_completion", { p_business_id: ctx.account.business_id });
+    if (completion.error) return NextResponse.json({ error: completion.error.message }, { status: 500 });
+    const completionPercent = Number(completion.data ?? ctx.account.completion_percent ?? 0);
+    if (completionPercent < 80) {
+      return NextResponse.json({
+        error: "Complete at least 80% of your business profile before requesting an early SafariPlug review.",
+        completion_percent: completionPercent,
+      }, { status: 422 });
+    }
+    if (ctx.account.review_requested_at) {
+      return NextResponse.json({
+        success: true,
+        review_requested_at: ctx.account.review_requested_at,
+        completion_percent: completionPercent,
+        message: "SafariPlug profile review is already requested. You can keep completing the remaining activation steps.",
+      });
+    }
+    const now = new Date().toISOString();
+    const { error } = await supabaseAdmin
+      .from("supplier_accounts")
+      .update({
+        onboarding_status: ctx.account.onboarding_status === "draft" ? "onboarding" : ctx.account.onboarding_status,
+        review_requested_at: now,
+        completion_percent: completionPercent,
+        updated_at: now,
+      })
+      .eq("id", ctx.account.id)
+      .eq("user_id", ctx.user.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      review_requested_at: now,
+      completion_percent: completionPercent,
+      message: "SafariPlug profile review requested. Keep completing verification, payout and operational setup while staff reviews your profile.",
+    });
+  }
+
   if (body?.action === "submit") {
     const readiness = await getSupplierActivationReadiness(ctx.account.id);
     if (!readiness.ready) {
