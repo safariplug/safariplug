@@ -57,6 +57,7 @@ export async function POST(request:Request){
     if(action==="reopen"){
       if(!existing)return NextResponse.json({error:"Only an existing resolved review can be reopened."},{status:404});
       if(existing.status!=="resolved")return NextResponse.json({error:"Only a resolved finance review can be reopened for correction."},{status:409});
+      if(product==="service"&&["no_refund_due","refunded_externally"].includes(String(existing.resolution||"")))return NextResponse.json({error:"This service finance decision already finalized appointment or payment state. Use governed reconciliation instead of reopening the review."},{status:409});
       if(!notes)return NextResponse.json({error:"A correction reason is required before reopening a resolved review."},{status:400});
       const reopenedAt=new Date().toISOString();
       const {error}=await supabaseAdmin.from("travel_refund_reviews").update({
