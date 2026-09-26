@@ -70,7 +70,7 @@ export default async function DriverRequestsPage({
     const amount = Number(formData.get("quoted_amount"));
     const currency = String(formData.get("currency") || "KES").trim().toUpperCase();
     if (!requestId || !Number.isFinite(amount) || amount <= 0) throw new Error("Enter a valid positive quote.");
-    if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Use a valid 3-letter currency code.");
+    if (currency !== "KES") throw new Error("Driver marketplace transfer quotes currently support KES only.");
 
     const { data: ownedDriver } = await supabaseAdmin
       .from("driver_profiles")
@@ -202,7 +202,7 @@ function RequestCard({ request, respond, quoteRequest }: { request: DriverReques
       <div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-[#c9a86a]">Awaiting your response</p><h3 className="mt-2 text-xl font-bold">{request.pickup_label} → {request.destination_label}</h3><p className="mt-2 text-sm text-zinc-400">{formatDate(request.requested_at)} · {request.passenger_count} passenger{request.passenger_count === 1 ? "" : "s"}</p>{request.notes && <p className="mt-3 rounded-xl bg-black/40 p-3 text-xs leading-5 text-zinc-500">{request.notes}</p>}</div>
       <div className="shrink-0 sm:text-right">{request.quoted_amount != null ? <><p className="text-xs text-zinc-600">Recorded quote</p><p className="mt-1 text-lg font-bold">{request.currency} {Number(request.quoted_amount).toLocaleString()}</p></> : <p className="text-xs text-zinc-600">Custom quote requested</p>}</div>
     </div>
-    {request.quoted_amount == null ? <form action={quoteRequest} className="mt-5 flex flex-wrap gap-2 border-t border-zinc-800 pt-5"><input type="hidden" name="request_id" value={request.id}/><input required name="quoted_amount" type="number" min="1" step="0.01" placeholder="Custom quote" className="rounded-xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white"/><input name="currency" defaultValue="KES" maxLength={3} className="w-24 rounded-xl border border-zinc-700 bg-black px-4 py-3 text-sm uppercase text-white"/><button className="rounded-xl bg-amber-200 px-5 py-3 text-sm font-black text-black">Save quote</button></form> : null}
+    {request.quoted_amount == null ? <form action={quoteRequest} className="mt-5 flex flex-wrap gap-2 border-t border-zinc-800 pt-5"><input type="hidden" name="request_id" value={request.id}/><input required name="quoted_amount" type="number" min="1" step="0.01" placeholder="Custom quote" className="rounded-xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white"/><input name="currency" value="KES" readOnly className="w-24 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm uppercase text-white"/><button className="rounded-xl bg-amber-200 px-5 py-3 text-sm font-black text-black">Save quote</button></form> : null}
     <div className="mt-5 flex flex-wrap gap-3 border-t border-zinc-800 pt-5">
       <form action={respond}><input type="hidden" name="request_id" value={request.id}/><input type="hidden" name="decision" value="accepted"/><button disabled={request.quoted_amount == null} className="rounded-xl bg-[#c9a86a] px-5 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-40">Accept request</button></form>
       <form action={respond}><input type="hidden" name="request_id" value={request.id}/><input type="hidden" name="decision" value="declined"/><button className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-bold text-zinc-300">Decline</button></form>
