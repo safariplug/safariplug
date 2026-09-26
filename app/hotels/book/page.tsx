@@ -53,6 +53,7 @@ function HotelBookPageContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!hotelId || !initialSearchKey || !regionId || !checkIn || !checkOut) {
@@ -106,6 +107,43 @@ function HotelBookPageContent() {
     void load();
     return () => { cancelled = true; };
   }, [hotelId, initialSearchKey, regionId, checkIn, checkOut, guestCount, currency]);
+
+  async function refreshRoomInventory() {
+    if (!hotelId || !regionId || !checkIn || !checkOut) return false;
+    setRefreshing(true);
+    setError("");
+    try {
+      const response = await fetch("/api/v1/hotels/locktrip/public", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "rooms", hotelId, searchKey: searchKey || initialSearchKey, regionId, checkIn, checkOut, rooms: [{ adults: guestCount, childrenAges: [] }], currency }),
+        cache: "no-store",
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.message || "Unable to refresh live room packages.");
+      const rows = Array.isArray(body?.data?.packages) ? body.data.packages as RoomPackage[] : [];
+      const activeSearchKey = String(body?.searchKey || body?.data?.searchKey || searchKey || initialSearchKey);
+      setSearchKey(activeSearchKey);
+      setPackages(rows);
+      setSelected(current => {
+        if (!rows.length) return null;
+        const stillLive = current ? rows.find(row => row.quoteId === current.quoteId) : null;
+        return stillLive || rows[0];
+      });
+      const cacheKey = "safariplug:hotel-room-preflight:" + hotelId + ":" + checkIn + ":" + checkOut + ":" + guestCount;
+      if (rows.length) {
+        window.sessionStorage.setItem(cacheKey, JSON.stringify({ createdAt: Date.now(), hotelId, checkIn, checkOut, guests: guestCount, searchKey: activeSearchKey, packages: rows }));
+      } else {
+        window.sessionStorage.removeItem(cacheKey);
+      }
+      return rows.length > 0;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to refresh live room packages.");
+      return false;
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     if (!selected?.quoteId) { setPolicy(null); return; }
@@ -183,7 +221,16 @@ function HotelBookPageContent() {
       }
       window.location.href = `/hotels/booking-result?bookingId=${encodeURIComponent(String(bookingId))}${tripId ? `&tripId=${encodeURIComponent(tripId)}` : ""}`;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to start hotel payment.");
+      const message = err instanceof Error ? err.message : "Unable to start hotel payment.";
+      setError(message);
+      const lower = message.toLowerCase();
+      const likelyStaleQuote = lower.includes("quote") || lower.includes("search key") || lower.includes("room") || lower.includes("package") || lower.includes("availability");
+      if (likelyStaleQuote) {
+        const refreshed = await refreshRoomInventory();
+        if (refreshed) {
+          setError("Live room inventory changed before payment. SafariPlug refreshed the available rooms—please review the current room and price, then continue.");
+        }
+      }
       setSubmitting(false);
     }
   }
@@ -197,8 +244,8 @@ function HotelBookPageContent() {
           <h1 className="mt-2 text-4xl font-semibold tracking-tight">{hotelName}</h1>
           <p className="mt-3 text-sm text-black/50">{checkIn} → {checkOut} · {guestCount} adult{guestCount === 1 ? "" : "s"} · 1 room</p>
           {loading ? <div className="mt-8 rounded-3xl bg-white p-8">Loading live room packages…</div> : null}
-          {!loading && packages.length === 0 ? <div className="mt-8 rounded-3xl bg-white p-8">No bookable room packages are currently available. Please search again.</div> : null}
-          <div className="mt-8 space-y-4">{packages.map(pkg => <button key={pkg.quoteId} type="button" onClick={() => setSelected(pkg)} className={`w-full rounded-3xl border p-5 text-left ${selected?.quoteId === pkg.quoteId ? "border-black bg-white shadow-sm" : "border-black/10 bg-white/70"}`}>
+          {!loading && packages.length === 0 ? <div className="mt-8 rounded-3xl bg-white p-8"><p className="font-semibold">No bookable room package is confirmed yet.</p><p className="mt-2 text-sm leading-6 text-black/50">Supplier room inventory can change quickly. Refresh this hotel once before starting a new search.</p><div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void refreshRoomInventory()} disabled={refreshing} className="rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{refreshing ? "Refreshing live rooms…" : "Refresh live rooms"}</button><Link href={tripId ? `/hotels?tripId=${encodeURIComponent(tripId)}` : "/hotels"} className="rounded-xl border border-black/10 px-4 py-3 text-sm font-semibold">Search other stays</Link></div></div> : null}
+          <div className="mt-8 space-y-4">{packages.length > 0 ? <div className="mb-2 flex items-center justify-between gap-3"><p className="text-xs text-black/40">{packages.length} current room package{packages.length === 1 ? "" : "s"}</p><button type="button" onClick={() => void refreshRoomInventory()} disabled={refreshing} className="text-xs font-semibold text-black/55 underline decoration-black/20 underline-offset-4 disabled:opacity-50">{refreshing ? "Refreshing…" : "Refresh rooms"}</button></div> : null}{packages.map(pkg => <button key={pkg.quoteId} type="button" onClick={() => setSelected(pkg)} className={`w-full rounded-3xl border p-5 text-left ${selected?.quoteId === pkg.quoteId ? "border-black bg-white shadow-sm" : "border-black/10 bg-white/70"}`}>
             <div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-semibold">{pkg.roomName || "Available room"}</h2><p className="mt-1 text-sm text-black/50">{pkg.mealType || "Room package"}</p></div><p className="text-xl font-semibold">{pkg.customerCurrency || currency} {Number(pkg.price).toLocaleString(undefined,{maximumFractionDigits:2})}</p></div>
             {pkg.amenities?.length ? <p className="mt-3 text-xs leading-5 text-black/45">{pkg.amenities.slice(0,6).join(" · ")}</p> : null}
             <p className="mt-3 text-xs font-semibold text-black/55">{pkg.isRefundable ? "Refundable option" : "Cancellation restrictions may apply"}</p>
