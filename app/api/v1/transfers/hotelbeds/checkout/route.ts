@@ -18,6 +18,7 @@ import { getPaymentAdapter } from "@/lib/payments/registry";
 import { assertTravelerVerified, travelerVerificationErrorResponse } from "@/lib/services/traveler-verification";
 import { normalizeTransferCheckoutIntentKey, transferPaymentSafeToRetry } from "@/lib/integrations/hotelbeds/transfer-payment-safety";
 import { publicTransferCheckoutLedger } from "@/lib/integrations/hotelbeds/transfer-public-ledger";
+import { queueTravelCancellationRefundReview } from "@/lib/services/travel-refund-review";
 
 export const dynamic = "force-dynamic";
 
@@ -453,12 +454,25 @@ export async function POST(request: Request) {
             cancellationPreview: preview,
             cancellationResponse: cancelled,
             cancelledAt: new Date().toISOString(),
-            refundStatus: "not_automated",
+            refundStatus: "review_pending",
           },
         })
         .eq("id", ledger.id)
         .select("*")
         .single();
+
+      let refundReview = null;
+      try {
+        refundReview = await queueTravelCancellationRefundReview({
+          product: "transfer",
+          ledgerId: ledger.id,
+          provider: "hotelbeds",
+          paymentStatus: ledger.payment_status,
+          reason: "Customer cancelled a confirmed Hotelbeds transfer booking after payment.",
+        });
+      } catch (refundError) {
+        console.error("Unable to queue transfer cancellation refund review", refundError);
+      }
 
       return NextResponse.json({
         provider: "hotelbeds",
@@ -467,8 +481,10 @@ export async function POST(request: Request) {
         preview,
         providerBooking: cancelled,
         ledger: publicTransferCheckoutLedger(updated || ledger),
-        refund:
-          "Supplier cancellation does not automatically issue an M-Pesa refund. Any customer refund due is handled separately.",
+        refundReview,
+        refund: refundReview
+          ? "Refund review queued with SafariPlug finance."
+          : "No automatic refund was issued; SafariPlug finance review may be required.",
       });
     }
 

@@ -10,6 +10,7 @@ import { assertHotelbedsPreflightAccepted, mergeHotelbedsNotices } from "@/lib/i
 import { convertCurrency } from "@/lib/currency/exchange-rates";
 import { getPaymentAdapter } from "@/lib/payments/registry";
 import { publicHotelCheckoutLedger } from "@/lib/integrations/hotels/hotel-public-ledger";
+import { queueTravelCancellationRefundReview } from "@/lib/services/travel-refund-review";
 import { hotelPaymentSafeToRetry, normalizeHotelCheckoutIntentKey, publicHotelCheckoutIntentStatus } from "@/lib/integrations/hotels/hotel-payment-safety";
 import { emitConfirmedHotelBooking, emitHotelBookingStart } from "@/lib/growth/hotel-events";
 
@@ -475,9 +476,21 @@ export async function POST(request: Request) {
       const cancelled = await adapter.cancelBooking(ledger.provider_booking_reference, "CANCELLATION");
       const { data: updatedLedger } = await supabaseAdmin.from("hotel_booking_pricing_ledger").update({
         booking_status: "cancelled",
-        metadata: { ...metadata, cancellationPreview: preview, cancellationResponse: cancelled, cancelledAt: new Date().toISOString(), refundStatus: "not_automated" },
+        metadata: { ...metadata, cancellationPreview: preview, cancellationResponse: cancelled, cancelledAt: new Date().toISOString(), refundStatus: "review_pending" },
       }).eq("id", ledger.id).select("*").single();
-      return NextResponse.json({ provider: "hotelbeds", status: "cancelled", preview, providerBooking: cancelled, ledger: publicHotelCheckoutLedger(updatedLedger), refund: "Any customer refund due is handled separately; supplier cancellation does not automatically issue an M-Pesa refund." });
+      let refundReview = null;
+      try {
+        refundReview = await queueTravelCancellationRefundReview({
+          product: "hotel",
+          ledgerId: ledger.id,
+          provider: "hotelbeds",
+          paymentStatus: ledger.payment_status,
+          reason: "Customer cancelled a confirmed Hotelbeds hotel booking after payment.",
+        });
+      } catch (refundError) {
+        console.error("Unable to queue hotel cancellation refund review", refundError);
+      }
+      return NextResponse.json({ provider: "hotelbeds", status: "cancelled", preview, providerBooking: cancelled, ledger: publicHotelCheckoutLedger(updatedLedger), refundReview, refund: refundReview ? "Refund review queued with SafariPlug finance." : "No automatic refund was issued; SafariPlug finance review may be required." });
     }
 
     if (action !== "status") return errorResponse(400, "Unsupported Hotelbeds action.");
