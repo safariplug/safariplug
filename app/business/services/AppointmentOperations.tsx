@@ -39,7 +39,7 @@ function payoutLabel(payout:any){
   return labels[payout.status]||String(payout.status||"").replaceAll("_"," ");
 }
 
-export default function AppointmentOperations({appointments,timeZone}:{appointments:Appointment[];timeZone?:string|null}){
+export default function AppointmentOperations({appointments,timeZone,profileId}:{appointments:Appointment[];timeZone?:string|null;profileId:string}){
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
 
@@ -53,7 +53,7 @@ export default function AppointmentOperations({appointments,timeZone}:{appointme
     }
     setBusy(true); setMessage("");
     try{
-      const r=await fetch("/api/business/services/manage",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"appointment_status",appointmentId:appointment.id,status:action.status,reason,serviceProfileId:appointment.service_profile_id})});
+      const r=await fetch("/api/business/services/manage",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"appointment_status",appointmentId:appointment.id,status:action.status,reason,serviceProfileId:profileId})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||"Unable to update appointment");
       setMessage(j.message||"Appointment updated.");
