@@ -406,6 +406,9 @@ export async function POST(request: Request) {
       if (error) throw new Error(error.message);
       if (!ledger) return errorResponse(404, "Hotel booking not found.");
       if (ledger.payment_provider !== "mpesa" || !ledger.payment_reference) return errorResponse(409, "This hotel booking does not have an M-Pesa payment reference.");
+      if (ledger.payment_status === "paid") {
+        return NextResponse.json({ provider: "mpesa", status: "succeeded", paymentReused: true, ledger: publicHotelCheckoutLedger(ledger) });
+      }
 
       const mpesa = getPaymentAdapter("mpesa");
       if (!mpesa) return errorResponse(503, "M-Pesa is not configured yet.");
