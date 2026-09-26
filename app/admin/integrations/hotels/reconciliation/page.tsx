@@ -22,13 +22,41 @@ type LedgerRow = {
   metadata: Record<string, unknown> | null;
 };
 
-function needsReconciliation(row: LedgerRow) {
+function reconciliationReason(row: LedgerRow) {
   const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
-  return (
-    row.payment_status === "paid" &&
-    row.booking_status === "payment_pending" &&
-    Boolean(metadata.confirmAttemptIndeterminateAt)
-  );
+  if (metadata.mpesaCallbackRejected) {
+    return {
+      kind: "payment_evidence_conflict",
+      label: "M-Pesa callback verification conflict",
+      detail: "M-Pesa returned success evidence that did not pass SafariPlug amount/receipt verification. Status polling cannot override this case.",
+    };
+  }
+  if (row.payment_status === "paid" && row.booking_status === "payment_pending" && metadata.confirmAttemptIndeterminateAt) {
+    return {
+      kind: "confirmation_indeterminate",
+      label: "Supplier confirmation indeterminate",
+      detail: "Customer payment is recorded, but SafariPlug could not prove whether LockTrip accepted the supplier confirmation.",
+    };
+  }
+  if (row.payment_status === "paid" && row.booking_status === "payment_pending" && metadata.confirmRefusedAt) {
+    return {
+      kind: "confirmation_refused",
+      label: "Supplier confirmation refused",
+      detail: "Customer payment is recorded, but LockTrip refused supplier confirmation. Refund review is required.",
+    };
+  }
+  if (row.payment_status === "paid" && ["failed","cancelled"].includes(row.booking_status)) {
+    return {
+      kind: "paid_without_confirmed_stay",
+      label: row.booking_status === "cancelled" ? "Paid booking cancelled by supplier" : "Paid booking failed with supplier",
+      detail: "Customer payment is recorded, but there is no confirmed supplier stay. Refund review is required.",
+    };
+  }
+  return null;
+}
+
+function needsReconciliation(row: LedgerRow) {
+  return Boolean(reconciliationReason(row));
 }
 
 export default async function HotelReconciliationPage() {
@@ -37,8 +65,6 @@ export default async function HotelReconciliationPage() {
   const { data, error } = await supabaseAdmin
     .from("hotel_booking_pricing_ledger")
     .select("id,provider,prepared_booking_id,provider_booking_reference,customer_currency,customer_retail_amount,retail_amount,payment_status,booking_status,supplier_settlement_status,paid_at,created_at,metadata")
-    .eq("payment_status", "paid")
-    .eq("booking_status", "payment_pending")
     .order("created_at", { ascending: false })
     .limit(500);
 
@@ -58,16 +84,16 @@ export default async function HotelReconciliationPage() {
           </p>
           <h1 className="mt-2 text-3xl font-extrabold">Hotel confirmation reconciliation</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            Paid hotel bookings appear here only when SafariPlug could not prove the supplier confirmation result.
+            Hotel payment and supplier-booking conflicts appear here when SafariPlug cannot safely trust automatic state transitions.
             This workspace never re-submits a supplier confirmation. Hotelbeds cases may verify one known supplier reference;
-            LockTrip cases may perform one read-only lookup of the existing prepared booking.
+            LockTrip cases may perform one read-only lookup of an existing prepared booking, while M-Pesa callback verification conflicts remain blocked for finance review.
           </p>
         </header>
 
         <section className="grid gap-4 md:grid-cols-3">
-          <Card label="Needs review" value={String(rows.length)} note="Paid + supplier confirmation indeterminate" />
+          <Card label="Needs review" value={String(rows.length)} note="Payment evidence or supplier confirmation conflict" />
           <Card label="Automatic booking retry" value="Disabled" note="Prevents duplicate hotel reservations" />
-          <Card label="Refund handling" value="Manual" note="No automatic M-Pesa refund" />
+          <Card label="Refund handling" value="Manual" note="Paid failed/refused stays route to finance review" />
         </section>
 
         {!rows.length ? (
@@ -78,6 +104,7 @@ export default async function HotelReconciliationPage() {
           <div className="space-y-4">
             {rows.map((row) => {
               const metadata = row.metadata || {};
+              const issue = reconciliationReason(row);
               const hotelName =
                 typeof metadata.hotelName === "string" && metadata.hotelName.trim()
                   ? metadata.hotelName
@@ -87,9 +114,10 @@ export default async function HotelReconciliationPage() {
                   ? metadata.confirmAttemptIndeterminateAt
                   : null;
               const errorMessage =
-                typeof metadata.confirmAttemptError === "string"
+                issue?.detail ||
+                (typeof metadata.confirmAttemptError === "string"
                   ? metadata.confirmAttemptError
-                  : "Hotelbeds confirmation result was indeterminate.";
+                  : "Hotel reconciliation requires staff review.");
               const amount = Number(row.customer_retail_amount ?? row.retail_amount ?? 0);
               const currency = row.customer_currency || "KES";
 
@@ -103,6 +131,7 @@ export default async function HotelReconciliationPage() {
                       <p className="mt-1 font-mono text-xs text-zinc-400">
                         Supplier ref: {row.provider_booking_reference || "unknown"}
                       </p>
+                      {issue ? <span className="mt-2 inline-flex rounded-full border border-amber-700/50 bg-amber-950/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-300">{issue.label}</span> : null}
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-amber-400">
@@ -112,7 +141,8 @@ export default async function HotelReconciliationPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="mt-5 grid gap-3 md:grid-cols-4">
+                    <Meta label="Payment status" value={row.payment_status} />
                     <Meta label="Booking status" value={row.booking_status} />
                     <Meta label="Supplier settlement" value={row.supplier_settlement_status} />
                     <Meta label="Attempted" value={attemptedAt ? new Date(attemptedAt).toLocaleString() : "Unknown"} />
@@ -122,7 +152,13 @@ export default async function HotelReconciliationPage() {
                     {errorMessage}
                   </div>
 
-                  {row.provider === "hotelbeds" ? (
+                  {issue?.kind === "payment_evidence_conflict" ? (
+                    <div className="mt-5 rounded-xl border border-amber-900/40 bg-amber-950/20 p-4">
+                      <p className="font-semibold text-amber-200">Finance verification required before supplier action</p>
+                      <p className="mt-2 text-xs leading-5 text-zinc-400">SafariPlug will not convert this payment to paid or confirm the hotel from a status poll because the callback amount/receipt evidence failed verification.</p>
+                      <Link href="/admin/accounting/refunds" className="mt-3 inline-flex text-xs font-semibold text-amber-300">Open Finance refund/reconciliation center →</Link>
+                    </div>
+                  ) : row.provider === "hotelbeds" ? (
                     <ReconciliationActions
                       ledgerId={row.id}
                       preparedBookingId={row.prepared_booking_id}
