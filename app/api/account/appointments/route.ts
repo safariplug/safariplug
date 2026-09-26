@@ -20,7 +20,12 @@ export async function GET() {
   if (error) return NextResponse.json({ error: "Unable to load appointments." }, { status: 500 });
   const ids = (data ?? []).map((x: any) => x.id);
   const { data: events } = ids.length ? await supabaseAdmin.from("service_appointment_status_events").select("appointment_id,from_status,to_status,actor_type,note,created_at").in("appointment_id", ids).order("created_at", { ascending: true }) : { data: [] };
-  return NextResponse.json({ appointments: data ?? [], events: events ?? [] });
+  const { data: ledgers } = ids.length ? await supabaseAdmin.from("service_payment_ledger").select("id,appointment_id").in("appointment_id", ids) : { data: [] };
+  const ledgerIds = (ledgers ?? []).map((row: any) => row.id);
+  const { data: reviews } = ledgerIds.length ? await supabaseAdmin.from("travel_refund_reviews").select("id,ledger_id,status,resolution,reason,notes,updated_at").eq("product","service").in("ledger_id",ledgerIds) : { data: [] };
+  const appointmentByLedger = new Map((ledgers ?? []).map((row: any) => [String(row.id), String(row.appointment_id)]));
+  const refundReviews = (reviews ?? []).map((review: any) => ({ ...review, appointment_id: appointmentByLedger.get(String(review.ledger_id)) || null }));
+  return NextResponse.json({ appointments: data ?? [], events: events ?? [], refundReviews });
 }
 
 async function slotIsAvailable(profileId: string, offeringId: string, startsAt: Date, staffId: string) {

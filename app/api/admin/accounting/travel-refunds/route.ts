@@ -57,6 +57,7 @@ export async function POST(request:Request){
     if(action==="reopen"){
       if(!existing)return NextResponse.json({error:"Only an existing resolved review can be reopened."},{status:404});
       if(existing.status!=="resolved")return NextResponse.json({error:"Only a resolved finance review can be reopened for correction."},{status:409});
+      if(product==="service"&&["no_refund_due","refunded_externally"].includes(String(existing.resolution||"")))return NextResponse.json({error:"This service finance decision already finalized appointment or payment state. Use governed reconciliation instead of reopening the review."},{status:409});
       if(!notes)return NextResponse.json({error:"A correction reason is required before reopening a resolved review."},{status:400});
       const reopenedAt=new Date().toISOString();
       const {error}=await supabaseAdmin.from("travel_refund_reviews").update({
@@ -83,6 +84,63 @@ export async function POST(request:Request){
       const resolution=String(body.resolution||"");
       if(!resolutions.has(resolution))return NextResponse.json({error:"A valid resolution is required."},{status:400});
       if(!notes)return NextResponse.json({error:"Finance notes are required before resolving a refund review."},{status:400});
+
+      if(product==="service"){
+        let reviewId=existing?.id as string|undefined;
+        if(!reviewId){
+          const {data:created,error:createError}=await supabaseAdmin.from("travel_refund_reviews").insert({
+            product,
+            ledger_id:ledgerId,
+            provider,
+            reason,
+            status:"pending",
+            notes:null,
+            assigned_to:admin.id,
+          }).select("id").single();
+          if(createError)throw new Error(createError.message);
+          reviewId=created.id;
+        }
+
+        const {data:review,error:serviceResolutionError}=await supabaseAdmin.rpc("resolve_service_refund_review",{
+          p_review_id:reviewId,
+          p_admin_user_id:admin.id,
+          p_resolution:resolution,
+          p_notes:notes,
+        });
+        if(serviceResolutionError)throw new Error(serviceResolutionError.message);
+
+        if(resolution==="refund_required"){
+          return NextResponse.json({
+            ok:true,
+            review,
+            moneyMoved:false,
+            paymentStatusChanged:false,
+            appointmentStatusChanged:false,
+            message:"Refund required recorded. The case stays open until the refund is actually completed.",
+          });
+        }
+
+        if(resolution==="refunded_externally"){
+          return NextResponse.json({
+            ok:true,
+            review,
+            moneyMoved:false,
+            paymentStatusChanged:true,
+            appointmentStatusChanged:true,
+            message:"External refund confirmed. Payment truth was marked refunded and the appointment was cancelled.",
+          });
+        }
+
+        return NextResponse.json({
+          ok:true,
+          review,
+          moneyMoved:false,
+          paymentStatusChanged:false,
+          appointmentStatusChanged:true,
+          message:"No refund due recorded. The paid appointment was cancelled and payment truth was left unchanged.",
+        });
+      }
+
       const resolvedAt=new Date().toISOString();
 
       if(existing){
