@@ -13,14 +13,36 @@ async function getWebhookSecret(apiKey: string) {
   if (configured) return configured;
   if (cachedWebhookSecret) return cachedWebhookSecret;
 
-  const response = await fetch(`https://api.resend.com/webhooks/${RESEND_WEBHOOK_ID}`, {
+  const detailResponse = await fetch(`https://api.resend.com/webhooks/${RESEND_WEBHOOK_ID}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`Unable to load Resend webhook secret (${response.status}).`);
-  const body = await response.json() as { signing_secret?: unknown };
-  const secret = typeof body.signing_secret === "string" ? body.signing_secret.trim() : "";
+  if (detailResponse.ok) {
+    const detail = await detailResponse.json() as { signing_secret?: unknown };
+    const detailSecret = typeof detail.signing_secret === "string" ? detail.signing_secret.trim() : "";
+    if (detailSecret) {
+      cachedWebhookSecret = detailSecret;
+      return detailSecret;
+    }
+  }
+
+  // Resend's webhook-management API exposes the signing secret on list
+  // responses even when the retrieve endpoint omits it.
+  const listResponse = await fetch("https://api.resend.com/webhooks", {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: "no-store",
+  });
+  if (!listResponse.ok) throw new Error(`Unable to load Resend webhook secret (${listResponse.status}).`);
+
+  const body = await listResponse.json() as {
+    data?: Array<{ id?: unknown; signing_secret?: unknown }>;
+  };
+  const matched = Array.isArray(body.data)
+    ? body.data.find((item) => String(item.id || "") === RESEND_WEBHOOK_ID)
+    : null;
+  const secret = typeof matched?.signing_secret === "string" ? matched.signing_secret.trim() : "";
   if (!secret) throw new Error("Resend webhook signing secret is unavailable.");
+
   cachedWebhookSecret = secret;
   return secret;
 }
