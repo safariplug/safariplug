@@ -87,8 +87,19 @@ export async function getViatorDestinations() {
   return viatorRequest<ViatorDestination[]>("/destinations");
 }
 
+export async function getViatorDestinationsWithMeta() {
+  return viatorRequestWithMeta<ViatorDestination[]>("/destinations");
+}
+
 export async function getViatorProduct(productCode: string) {
   return viatorRequest<Record<string, unknown>>(
+    "/products/" + encodeURIComponent(productCode.trim()),
+    { language: "en-US" }
+  );
+}
+
+export async function getViatorProductWithMeta(productCode: string) {
+  return viatorRequestWithMeta<Record<string, unknown>>(
     "/products/" + encodeURIComponent(productCode.trim()),
     { language: "en-US" }
   );
