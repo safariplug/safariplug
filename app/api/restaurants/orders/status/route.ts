@@ -61,7 +61,7 @@ export async function GET(request:Request) {
 }
 
 export async function PATCH(request:Request) {
- const currentUser=await user();if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
+ const currentUser=await user(request);if(!currentUser)return NextResponse.json({error:"Sign in required"},{status:401});
  const body=await request.json();const {orderId,status,note,assignmentStatus,rating,customerNote,assignDriverId,assignmentSource}=body;if(!orderId)return NextResponse.json({error:"orderId is required"},{status:400});
  const {data:order,error:orderError}=await supabaseAdmin.from("food_orders").select("*").eq("id",orderId).maybeSingle();if(orderError)return NextResponse.json({error:orderError.message},{status:500});if(!order)return NextResponse.json({error:"Order not found"},{status:404});
  const owned=await supplierBusinessId(currentUser.id);const isSupplier=owned===order.business_id;const isCustomer=order.customer_user_id===currentUser.id;const currentDriverId=await driverProfileId(currentUser.id);const {data:assignment}=currentDriverId?await supabaseAdmin.from("food_delivery_assignments").select("*").eq("order_id",orderId).eq("driver_id",currentDriverId).order("created_at",{ascending:false}).limit(1).maybeSingle():{data:null};const isDriver=Boolean(assignment);
