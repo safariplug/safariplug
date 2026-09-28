@@ -17,10 +17,16 @@ function baseUrl() {
   return viatorEnvironment() === "production" ? PRODUCTION_BASE : SANDBOX_BASE;
 }
 
-export async function viatorRequest<T>(
+export type ViatorResponseMeta = {
+  trackingId: string | null;
+  rateLimitLimit: string | null;
+  rateLimitRemaining: string | null;
+};
+
+export async function viatorRequestWithMeta<T>(
   path: string,
   options: { method?: "GET" | "POST"; body?: unknown; language?: string } = {}
-): Promise<T> {
+): Promise<{ data: T; meta: ViatorResponseMeta }> {
   const key = process.env.VIATOR_API_KEY;
   if (!key) throw new Error("Viator API credentials are not configured.");
 
@@ -49,7 +55,21 @@ export async function viatorRequest<T>(
     error.trackingId = response.headers.get("x-unique-id") || body?.trackingId || undefined;
     throw error;
   }
-  return body as T;
+  return {
+    data: body as T,
+    meta: {
+      trackingId: response.headers.get("x-unique-id"),
+      rateLimitLimit: response.headers.get("ratelimit-limit"),
+      rateLimitRemaining: response.headers.get("ratelimit-remaining"),
+    },
+  };
+}
+
+export async function viatorRequest<T>(
+  path: string,
+  options: { method?: "GET" | "POST"; body?: unknown; language?: string } = {}
+): Promise<T> {
+  return (await viatorRequestWithMeta<T>(path, options)).data;
 }
 
 export type ViatorDestination = {
