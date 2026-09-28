@@ -21,7 +21,8 @@ export default function ActivitiesPage() {
             Search connected Hotelbeds inventory, review the exact modality and cancellation terms, then continue through SafariPlug checkout.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href="#activity-search" className="rounded-full bg-[#e7c98d] px-6 py-3.5 text-sm font-black text-[#070708]">Search activities →</a>
+            <a href="#activity-search" className="rounded-full bg-[#e7c98d] px-6 py-3.5 text-sm font-black text-[#070708]">Search Hotelbeds activities →</a>
+            <Link href="/activities/viator" className="rounded-full border border-white/15 px-6 py-3.5 text-sm font-bold text-white/80">Explore Viator →</Link>
             <Link href="/experiences" className="rounded-full border border-white/15 px-6 py-3.5 text-sm font-bold text-white/80">Browse SafariPlug experiences</Link>
           </div>
         </div>
