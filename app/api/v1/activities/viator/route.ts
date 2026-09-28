@@ -6,6 +6,7 @@ import {
   viatorConfigured,
   viatorEnvironment,
 } from "@/lib/integrations/viator/client";
+import { publicViatorProduct } from "@/lib/integrations/viator/public-product";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
       const code = String(url.searchParams.get("code") || "").trim();
       if (!code) return fail(400, "Viator product code is required.");
       const { data: product, meta } = await getViatorProductWithMeta(code);
-      return NextResponse.json({ provider: "viator", action, product, requestMeta: meta });
+      return NextResponse.json({ provider: "viator", action, product: publicViatorProduct(product), requestMeta: meta });
     }
 
     return fail(400, "Unsupported Viator action.");
