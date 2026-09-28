@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  getViatorDestinations,
-  getViatorProduct,
+  getViatorDestinationsWithMeta,
+  getViatorProductWithMeta,
   viatorBookingEnabled,
   viatorConfigured,
   viatorEnvironment,
@@ -37,19 +37,19 @@ export async function GET(request: Request) {
 
   try {
     if (action === "destinations") {
-      const rows = await getViatorDestinations();
+      const { data: rows, meta } = await getViatorDestinationsWithMeta();
       const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
       const filtered = q
         ? rows.filter((row) => row.name?.toLowerCase().includes(q)).slice(0, 50)
         : rows.slice(0, 50);
-      return NextResponse.json({ provider: "viator", action, results: filtered });
+      return NextResponse.json({ provider: "viator", action, results: filtered, requestMeta: meta });
     }
 
     if (action === "product") {
       const code = String(url.searchParams.get("code") || "").trim();
       if (!code) return fail(400, "Viator product code is required.");
-      const product = await getViatorProduct(code);
-      return NextResponse.json({ provider: "viator", action, product });
+      const { data: product, meta } = await getViatorProductWithMeta(code);
+      return NextResponse.json({ provider: "viator", action, product, requestMeta: meta });
     }
 
     return fail(400, "Unsupported Viator action.");
