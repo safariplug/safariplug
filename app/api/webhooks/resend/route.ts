@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { earlierDueAt, partnerEngagementFollowup } from "@/lib/services/partner-engagement-followup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -214,6 +215,46 @@ export async function POST(request: Request) {
           "Later signup, onboarding, and activation stages are not downgraded by engagement events.",
         ].join(" "),
       });
+
+      // Treat verified engagement as a conversion signal, but never auto-send a reminder.
+      // We only create/pull forward a human CRM follow-up while the invitation is still pre-enrollment.
+      if (["sent", "opened"].includes(invitation.status)) {
+        const policy = partnerEngagementFollowup(event.type === "email.clicked" ? "clicked" : "opened");
+        const { data: existingFollowup, error: followupLookupError } = await supabaseAdmin
+          .from("crm_followups")
+          .select("id,due_at,title")
+          .eq("prospect_id", invitation.prospect_id)
+          .eq("status", "open")
+          .ilike("title", "%invitation%")
+          .order("due_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (followupLookupError) {
+          console.error("Partner engagement recorded but follow-up lookup failed", followupLookupError);
+        } else if (existingFollowup) {
+          const { error: followupUpdateError } = await supabaseAdmin
+            .from("crm_followups")
+            .update({
+              title: policy.title,
+              due_at: earlierDueAt(existingFollowup.due_at, policy.dueAt),
+              priority: policy.priority,
+              notes: `${policy.note} Invitation ${invitation.id}.`,
+              updated_at: now,
+            })
+            .eq("id", existingFollowup.id);
+          if (followupUpdateError) console.error("Partner engagement follow-up update failed", followupUpdateError);
+        } else {
+          const { error: followupInsertError } = await supabaseAdmin.from("crm_followups").insert({
+            prospect_id: invitation.prospect_id,
+            title: policy.title,
+            due_at: policy.dueAt,
+            priority: policy.priority,
+            notes: `${policy.note} Invitation ${invitation.id}.`,
+          });
+          if (followupInsertError) console.error("Partner engagement follow-up creation failed", followupInsertError);
+        }
+      }
     }
 
     return NextResponse.json({
