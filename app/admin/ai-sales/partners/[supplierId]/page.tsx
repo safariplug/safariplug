@@ -6,6 +6,7 @@ import { SupplierFollowupPanel } from "./followup-panel";
 import { PayoutReviewControls } from "./payout-review-controls";
 import { CaseActions } from "@/app/admin/integrations/verification/actions-client";
 import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
+import { supplierPerformanceScore } from "@/lib/services/supplier-performance-scorecard";
 
 export const dynamic = "force-dynamic";
 
@@ -127,6 +128,36 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
     supabaseAdmin.from("service_provider_payout_accounts").select("status,phone,verified_at,updated_at").eq("provider_user_id", supplier.user_id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const readiness = await getSupplierActivationReadiness(supplier.id);
+  const performanceSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const [
+    { data: performanceAppointments, error: performanceAppointmentsError },
+    { data: payoutIssues, error: payoutIssuesError },
+    { data: qualityFollowups, error: qualityFollowupsError },
+    { data: recoveryActivities, error: recoveryActivitiesError },
+  ] = await Promise.all([
+    profileIds.length ? supabaseAdmin.from("service_appointments").select("id,service_profile_id,status,payment_status,price,currency,created_at,updated_at").in("service_profile_id", profileIds).gte("created_at", performanceSince).order("created_at", { ascending: false }).limit(1000) : Promise.resolve({ data: [] as any[], error: null }),
+    supabaseAdmin.from("service_provider_payouts").select("id,status,failure_reason,provider_net_amount,currency,updated_at").eq("provider_user_id", supplier.user_id).in("status", ["held", "failed", "processing"]).gte("updated_at", performanceSince).order("updated_at", { ascending: false }).limit(50),
+    supplier.prospect_id ? supabaseAdmin.from("crm_followups").select("id,title,due_at,status,priority,notes,completed_at,updated_at").eq("prospect_id", supplier.prospect_id).ilike("title", "[Supplier quality]%").order("updated_at", { ascending: false }).limit(20) : Promise.resolve({ data: [] as any[], error: null }),
+    supplier.prospect_id ? supabaseAdmin.from("crm_activities").select("id,summary,details,occurred_at").eq("prospect_id", supplier.prospect_id).ilike("summary", "Supplier quality%").order("occurred_at", { ascending: false }).limit(20) : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
+  const appointmentRows = performanceAppointments || [];
+  const bookingVolume30d = appointmentRows.length;
+  const completed30d = appointmentRows.filter((row: any) => row.status === "completed").length;
+  const cancelled30d = appointmentRows.filter((row: any) => row.status === "cancelled").length;
+  const noShow30d = appointmentRows.filter((row: any) => row.status === "no_show").length;
+  const openQualityTasks = (qualityFollowups || []).filter((row: any) => row.status === "open");
+  const recentPayoutIssues = payoutIssues || [];
+  const bookingStatusOpen = ps.length > 0 && ps.every((profile) => profile.status === "active" && profile.booking_status === "open");
+  const performance = supplierPerformanceScore({
+    bookingStatusOpen,
+    activeAvailabilityCount: Number(activeAvailabilityCount || 0),
+    payoutAccountVerified: Boolean(payoutAccount?.status === "verified" && payoutAccount?.verified_at),
+    payoutIssueCount: recentPayoutIssues.length,
+    completed: completed30d,
+    cancelled: cancelled30d,
+    noShow: noShow30d,
+    openQualityIssues: openQualityTasks.length,
+  });
   const latestVerification = verification?.[0];
   const followupRows = followups || [];
   const latestFollowup = followupRows[0];
@@ -142,7 +173,14 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
     followupState,
     latestFollowup?.next_followup_due_at,
   );
-  const warnings = [profilesError ? "Service profile details could not be fully loaded." : null, followupsError ? "Follow-up history could not be loaded." : null].filter(Boolean);
+  const warnings = [
+    profilesError ? "Service profile details could not be fully loaded." : null,
+    followupsError ? "Follow-up history could not be loaded." : null,
+    performanceAppointmentsError ? "Performance appointment history could not be fully loaded." : null,
+    payoutIssuesError ? "Recent payout exception history could not be fully loaded." : null,
+    qualityFollowupsError ? "Quality recovery tasks could not be fully loaded." : null,
+    recoveryActivitiesError ? "Quality recovery history could not be fully loaded." : null,
+  ].filter(Boolean);
   const loadWarning = warnings.length ? warnings.join(" ") : null;
 
   return (
@@ -197,6 +235,28 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             </div>)}
           </div> : <p className="mt-4 text-sm text-emerald-300">All activation requirements are satisfied. Staff approval is still required before activation.</p>}
         </section>
+
+        {["approved","live"].includes(String(supplier.onboarding_status || "")) && <section className="mt-7 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+            <div><p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Partner performance · last 30 days</p><h2 className="mt-2 text-2xl font-semibold">Supplier scorecard</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-400">Operational health from recorded bookings, current bookability, availability, payout exceptions and quality-recovery work. This score is an internal triage signal, not a public rating.</p></div>
+            <div className="rounded-2xl border border-zinc-800 bg-black/30 px-5 py-4 text-right"><p className="text-[10px] uppercase tracking-[.16em] text-zinc-500">Performance score</p><p className={"mt-1 text-4xl font-bold " + (performance.score >= 85 ? "text-emerald-300" : performance.score >= 70 ? "text-lime-300" : performance.score >= 50 ? "text-amber-300" : "text-red-300")}>{performance.score}</p><p className="mt-1 text-xs capitalize text-zinc-400">{performance.band}</p></div>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+            <Metric label="Bookings 30d" value={String(bookingVolume30d)} />
+            <Metric label="Completed" value={String(completed30d)} />
+            <Metric label="Completion rate" value={performance.completionRate == null ? "No outcomes" : String(performance.completionRate) + "%"} />
+            <Metric label="Cancel / no-show" value={performance.failureRate == null ? "No outcomes" : String(performance.failureRate) + "%"} />
+            <Metric label="Availability" value={activeAvailabilityCount ? String(activeAvailabilityCount) + " active" : "None"} />
+            <Metric label="Bookability" value={bookingStatusOpen ? "Open" : "Needs review"} />
+            <Metric label="Payout issues" value={String(recentPayoutIssues.length)} />
+            <Metric label="Open quality tasks" value={String(openQualityTasks.length)} />
+          </div>
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-zinc-900 bg-black/20 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wide text-zinc-500">Quality & recovery</p><h3 className="mt-1 font-semibold">Open recovery work</h3></div><Link href="/admin/services/operations" className="text-xs font-semibold text-amber-400">Service Operations →</Link></div><div className="mt-3 space-y-2">{openQualityTasks.length ? openQualityTasks.slice(0,6).map((task: any) => <div key={task.id} className="rounded-lg border border-zinc-800 p-3"><div className="flex items-start justify-between gap-3"><p className="text-sm font-medium">{String(task.title || "").replace("[Supplier quality] ", "")}</p><span className={"rounded-full border px-2 py-0.5 text-[10px] uppercase " + (task.priority === "high" ? "border-red-800 text-red-300" : "border-amber-800 text-amber-300")}>{task.priority || "normal"}</span></div><p className="mt-1 text-xs text-zinc-500">Due {date(task.due_at)}</p></div>) : <p className="text-sm text-emerald-300">No open supplier-quality recovery tasks.</p>}</div></div>
+            <div className="rounded-xl border border-zinc-900 bg-black/20 p-4"><p className="text-xs uppercase tracking-wide text-zinc-500">Recent recovery history</p><div className="mt-3 space-y-2">{(recoveryActivities || []).length ? (recoveryActivities || []).slice(0,6).map((item: any) => <div key={item.id} className="rounded-lg border border-zinc-800 p-3"><p className="text-sm font-medium">{item.summary}</p><p className="mt-1 text-xs text-zinc-500">{date(item.occurred_at)}</p></div>) : <p className="text-sm text-zinc-500">No supplier-quality recovery events recorded yet.</p>}</div></div>
+          </div>
+          {recentPayoutIssues.length > 0 && <div className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wide text-amber-300/70">Payout attention</p><p className="mt-1 text-sm text-amber-200">{recentPayoutIssues.length} payout exception{recentPayoutIssues.length === 1 ? "" : "s"} recorded in the last 30 days.</p></div><Link href="/admin/payouts" className="text-xs font-semibold text-amber-300">Open payouts →</Link></div></div>}
+        </section>}
 
         <SupplierFollowupPanel
           supplierId={supplier.id}
