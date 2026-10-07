@@ -34,7 +34,6 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   await supabaseAdmin.from("traveler_reviews").update({
-    moderation_status: "reported",
     reported_at: new Date().toISOString(),
     report_reason: reason,
   }).eq("id", reviewId).eq("moderation_status", "approved");
