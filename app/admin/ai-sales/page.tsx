@@ -6,7 +6,7 @@ import { startOutreachForAllApproved } from "./bulk-outreach";
 import { approveSelectedSalesProspects } from "./bulk-review";
 import { salesProspectQualityIssues } from "@/lib/services/sales-prospect-quality";
 import { BulkReviewSelectionControls } from "./bulk-review-selection-controls";
-import { citySupplySummary, supplyGapPriority, supplyMarketReadiness } from "@/lib/services/supply-market-readiness";
+import { citySupplySummary, supplyAcquisitionPriority, supplyGapPriority, supplyMarketReadiness } from "@/lib/services/supply-market-readiness";
 
 type SearchParams = {
   stage?: string;
@@ -107,6 +107,8 @@ export default async function AISalesPage({
   });
   const supplyCities = citySupplySummary(supplyRows);
   const topSupplyGaps = supplyGapPriority(supplyRows).slice(0, 8);
+  const topAcquisitionGaps = supplyAcquisitionPriority(supplyRows).slice(0, 8);
+  const pipelineCoveredMarkets = supplyCities.filter((market) => market.status === "pipeline_covered").length;
 
   const hasAnyContact = (p: Prospect) => Boolean(p.contact_email || p.phone || p.website || p.instagram || p.facebook);
   let filtered = allProspects.filter((p) => {
@@ -201,13 +203,14 @@ export default async function AISalesPage({
             </div>
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               {supplyCities.slice(0,9).map((market) => <div key={market.city} className="rounded-xl border border-white/10 bg-white/[.04] p-4">
-                <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{market.city}</p><p className="mt-1 text-xs text-white/40">{market.pipeline} pipeline prospect{market.pipeline===1?"":"s"} · {market.totalGap} launch-target gap</p></div><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold uppercase "+(market.status==="launch_ready"?"bg-emerald-500/20 text-emerald-300":market.status==="building"?"bg-amber-500/20 text-amber-300":"bg-red-500/20 text-red-300")}>{market.status.replaceAll("_"," ")}</span></div>
+                <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{market.city}</p><p className="mt-1 text-xs text-white/40">{market.pipeline} pipeline prospect{market.pipeline===1?"":"s"} · {market.uncoveredGap} uncovered gap</p></div><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold uppercase "+(market.status==="launch_ready"?"bg-emerald-500/20 text-emerald-300":market.status==="pipeline_covered"?"bg-blue-500/20 text-blue-300":market.status==="building"?"bg-amber-500/20 text-amber-300":"bg-red-500/20 text-red-300")}>{market.status.replaceAll("_"," ")}</span></div>
                 <div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-amber-300" style={{width:`${market.readiness}%`}} /></div><strong className="text-sm">{market.readiness}%</strong></div>
               </div>)}
             </div>
             <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-white/35">Highest supply gaps</p><p className="mt-1 text-sm text-white/55">Supplier Scout should fill these first.</p></div><Link href="#scout" className="text-xs font-semibold text-amber-300">Open Scout →</Link></div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{topSupplyGaps.map((gap)=><Link key={`${gap.city}:${gap.category}`} href={`/admin/ai-sales?stage=all&city=${encodeURIComponent(gap.city)}&category=${encodeURIComponent(gap.category)}#prospect-feed`} className="rounded-lg border border-white/10 p-3 hover:border-amber-300/40"><p className="text-sm font-semibold">{gap.city}</p><p className="mt-1 text-xs text-white/50">{gap.category}</p><p className="mt-2 text-[11px] text-amber-300">{gap.livePartners}/{gap.target} activated · {gap.pipeline} pipeline</p></Link>)}</div>
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-white/35">Autonomous acquisition priorities</p><p className="mt-1 text-sm text-white/55">Scout now ignores gaps already covered by enough active prospects and concentrates discovery on uncovered launch targets.</p></div><div className="flex items-center gap-3"><span className="text-xs text-blue-300">{pipelineCoveredMarkets} market{pipelineCoveredMarkets===1?"":"s"} pipeline-covered</span><Link href="#scout" className="text-xs font-semibold text-amber-300">Open Scout →</Link></div></div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{topAcquisitionGaps.map((gap)=><Link key={`${gap.city}:${gap.category}`} href={`/admin/ai-sales?stage=all&city=${encodeURIComponent(gap.city)}&category=${encodeURIComponent(gap.category)}#prospect-feed`} className="rounded-lg border border-white/10 p-3 hover:border-amber-300/40"><p className="text-sm font-semibold">{gap.city}</p><p className="mt-1 text-xs text-white/50">{gap.category}</p><p className="mt-2 text-[11px] text-amber-300">{gap.livePartners}/{gap.target} activated · {gap.pipelineCoveredGap} gap covered by pipeline · {gap.uncoveredGap} still uncovered</p></Link>)}</div>
+              {!topAcquisitionGaps.length&&topSupplyGaps.length>0?<p className="mt-3 text-sm text-blue-200">All current launch gaps have enough pipeline coverage. Supplier Scout can avoid unnecessary discovery while activation work catches up.</p>:null}
             </div>
           </section>
 
