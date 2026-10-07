@@ -33,6 +33,12 @@ type DraftRow = {
   partner_type: string;
   contact_email: string | null;
   invitation_token: string;
+  prospect_id: string | null;
+  city?: string | null;
+  description?: string | null;
+  website?: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
 };
 
 type GeneratedDraft = {
@@ -70,6 +76,11 @@ async function generateDraftChunk(openai: OpenAI, rows: DraftRow[], site: string
     partner_type: row.partner_type,
     signup_link: `${site}/partners/join/${row.invitation_token}`,
     provisional_name: row.business_name === "Invited supplier",
+    city: row.city || null,
+    website: row.website || null,
+    public_research_summary: row.description || null,
+    research_source_name: row.source_name || null,
+    research_source_url: row.source_url || null,
   }));
 
   const response = await openai.responses.create({
@@ -78,7 +89,7 @@ async function generateDraftChunk(openai: OpenAI, rows: DraftRow[], site: string
       {
         role: "system",
         content:
-          "You are SafariPlug's governed supplier outreach assistant. Draft concise factual recruitment emails. Never invent contact names, business facts, relationships, earnings, booking volume, verification, or guarantees. If provisional_name is true, do not use the placeholder business name in the subject or body. Explain that SafariPlug helps travelers discover and book trusted African travel, hospitality, and local services; partners control their profile, offerings, rates, and availability; signup does not automatically verify or activate them. Return JSON only.",
+          "You are SafariPlug's governed supplier outreach assistant. Draft concise, genuinely tailored recruitment emails using ONLY the supplied evidence. Open with a specific reason for outreach supported by the evidence; if evidence is thin, tailor only by supplier category and city. Do not mention scraping, AI, lead scoring, or that the business was researched. Never invent contact names, achievements, property features, relationships, earnings, booking volume, awards, ratings, verification, or guarantees. If provisional_name is true, do not use the placeholder business name in the subject or body. Explain that SafariPlug helps travelers discover and book trusted African travel, hospitality, and local services in one trip journey; partners control their profile, offerings, rates, and availability; signup does not automatically verify or activate them. Keep each message under 170 words. Return JSON only.",
       },
       {
         role: "user",
@@ -101,7 +112,7 @@ export async function generateAllPartnerInvitationDrafts() {
   try {
     const { data: rows, error } = await supabaseAdmin
       .from("partner_invitations")
-      .select("id,business_name,partner_type,contact_email,invitation_token")
+      .select("id,business_name,partner_type,contact_email,invitation_token,prospect_id")
       .eq("status", "draft")
       .not("contact_email", "is", null)
       .order("created_at", { ascending: true })
@@ -109,7 +120,27 @@ export async function generateAllPartnerInvitationDrafts() {
 
     if (error) throw new Error(error.message);
 
-    const drafts = ((rows || []) as DraftRow[]).filter((row) => isUsableEmail(row.contact_email));
+    const baseDrafts = ((rows || []) as DraftRow[]).filter((row) => isUsableEmail(row.contact_email));
+    const prospectIds = [...new Set(baseDrafts.map((row) => row.prospect_id).filter(Boolean))] as string[];
+    const { data: prospects, error: prospectError } = prospectIds.length
+      ? await supabaseAdmin
+          .from("ai_sales_prospects")
+          .select("id,city,description,website,source_name,source_url")
+          .in("id", prospectIds)
+      : { data: [], error: null };
+    if (prospectError) throw new Error(prospectError.message);
+    const prospectById = new Map((prospects || []).map((prospect) => [prospect.id, prospect]));
+    const drafts = baseDrafts.map((row) => {
+      const prospect = row.prospect_id ? prospectById.get(row.prospect_id) : null;
+      return {
+        ...row,
+        city: prospect?.city || null,
+        description: prospect?.description || null,
+        website: prospect?.website || null,
+        source_name: prospect?.source_name || null,
+        source_url: prospect?.source_url || null,
+      };
+    });
     if (!drafts.length) {
       finalUrl = resultUrl("bulk", "No email invitation drafts need preparation.");
     } else {
@@ -119,6 +150,7 @@ export async function generateAllPartnerInvitationDrafts() {
         const fallback = deterministicPartnerInvitationDraft({
           businessName: row.business_name,
           partnerType: row.partner_type,
+          city: row.city,
           signupLink: `${site}/partners/join/${row.invitation_token}`,
         });
         prepared.set(row.id, { id: row.id, subject: fallback.subject, message: fallback.message });

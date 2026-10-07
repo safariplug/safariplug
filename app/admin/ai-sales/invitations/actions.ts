@@ -8,17 +8,49 @@ export async function draftPartnerInvitation(fd:FormData){
   const prospectId=clean(fd.get("prospect_id"));
   const scopedPath=prospectId?`${PATH}?prospect_id=${encodeURIComponent(prospectId)}`:PATH;
   try{
-    const {data:i,error}=await supabaseAdmin.from("partner_invitations").select("id,business_name,partner_type,contact_email,whatsapp_phone,invitation_token").eq("id",id).single();
+    const {data:i,error}=await supabaseAdmin.from("partner_invitations").select("id,business_name,partner_type,contact_email,whatsapp_phone,invitation_token,prospect_id").eq("id",id).single();
     if(error||!i)throw new Error(error?.message||"Invitation not found");
-    const join=`${(process.env.NEXT_PUBLIC_SITE_URL||"https://www.safariplug.com").replace(/\/$/,"")}/partners/join/${i.invitation_token}`;
-    let draft=deterministicPartnerInvitationDraft({businessName:i.business_name,partnerType:i.partner_type,signupLink:join});
+    const {data:prospect}=i.prospect_id
+      ? await supabaseAdmin.from("ai_sales_prospects").select("city,description,website,source_name,source_url").eq("id",i.prospect_id).maybeSingle()
+      : {data:null};
+    const site=(process.env.NEXT_PUBLIC_SITE_URL||"https://www.safariplug.com").replace(/\/$/,"");
+    const join=`${site}/partners/join/${i.invitation_token}`;
+    let draft=deterministicPartnerInvitationDraft({
+      businessName:i.business_name,
+      partnerType:i.partner_type,
+      signupLink:join,
+      city:prospect?.city,
+    });
 
     if(process.env.OPENAI_API_KEY){
       try{
         const openai=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
+        const evidence=[
+          `business: ${i.business_name}`,
+          `partner type: ${i.partner_type}`,
+          `city: ${prospect?.city||"unknown"}`,
+          `website: ${prospect?.website||"unknown"}`,
+          `public research summary: ${prospect?.description||"none recorded"}`,
+          `research source: ${prospect?.source_name||"unknown"} ${prospect?.source_url||""}`,
+          `channel: ${i.contact_email?"email":"WhatsApp"}`,
+        ].join("\n");
         const response=await openai.responses.create({
           model:process.env.OPENAI_SALES_SCOUT_MODEL||"gpt-5-mini",
-          input:`You are SafariPlug's governed partnership outreach assistant. Draft a concise, factual recruitment invitation using ONLY these known facts: business=${i.business_name}; partner type=${i.partner_type}; channel=${i.contact_email?"email":"WhatsApp"}. Explain SafariPlug helps travelers discover and book trusted African travel, hospitality and local services. Explain the partner controls profile, offerings, rates and availability. Signup does not automatically verify or activate them; onboarding/compliance still applies. Include this exact signup link: ${join}. If the business value is exactly "Invited supplier", that is an internal placeholder because the business name is unknown: do not address them by that phrase and keep the invitation generic. Never invent a contact name, business achievement, relationship, rate, booking volume, earnings, verification or guarantee. Keep claims factual and professional. Return exactly: SUBJECT: <subject> then MESSAGE: <plain-text message>.`
+          input:`You are SafariPlug's governed partnership outreach assistant. Draft a concise, genuinely tailored recruitment invitation using ONLY the evidence below.
+
+${evidence}
+
+Rules:
+- Open with a specific reason SafariPlug is reaching out that is supported by the evidence; if evidence is thin, tailor only by category and city.
+- Do not mention scraping, AI, lead scoring, or that the business was researched.
+- Explain SafariPlug helps travelers discover and book trusted African travel, hospitality and local services in one trip journey.
+- Explain the partner controls profile, offerings, rates and availability.
+- Signup does not automatically verify or activate them; onboarding/compliance still applies.
+- Include this exact signup link: ${join}
+- If business is exactly "Invited supplier", it is an internal placeholder: do not use it in the subject or body.
+- Never invent a contact name, business achievement, relationship, rate, booking volume, earnings, verification, guarantee, award, guest score, or property feature.
+- Keep the message under 170 words, plain text, specific, warm and professional.
+Return exactly: SUBJECT: <subject> then MESSAGE: <plain-text message>.`
         });
         const generated=response.output_text.trim();
         const match=generated.match(/SUBJECT:\s*(.+?)\s*MESSAGE:\s*([\s\S]+)/i);
