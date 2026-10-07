@@ -6,6 +6,7 @@ import { startOutreachForAllApproved } from "./bulk-outreach";
 import { approveSelectedSalesProspects } from "./bulk-review";
 import { salesProspectQualityIssues } from "@/lib/services/sales-prospect-quality";
 import { BulkReviewSelectionControls } from "./bulk-review-selection-controls";
+import { citySupplySummary, supplyGapPriority, supplyMarketReadiness } from "@/lib/services/supply-market-readiness";
 
 type SearchParams = {
   stage?: string;
@@ -63,6 +64,7 @@ export default async function AISalesPage({
     invitationLinks,
     prospectQuery,
     scoutJobsQuery,
+    supplierAccountsQuery,
   ] = await Promise.all([
     supabaseAdmin.from("ai_sales_prospects").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("ai_sales_prospects").select("*", { count: "exact", head: true }).eq("review_status", "pending_review"),
@@ -80,12 +82,31 @@ export default async function AISalesPage({
       .select("id,city,category,status,created_at,queued_at,completed_at,last_error,qualified_count,contact_ready_count,inserted_count")
       .order("created_at", { ascending: false })
       .limit(20),
+    supabaseAdmin
+      .from("supplier_accounts")
+      .select("id,prospect_id,onboarding_status")
+      .in("onboarding_status", ["approved","live"])
+      .not("prospect_id","is",null)
+      .limit(1000),
   ]);
 
   const allProspects = (prospectQuery.data || []) as Prospect[];
   const invitedProspectIds = new Set((invitationLinks.data || []).map((row) => row.prospect_id).filter(Boolean) as string[]);
   const cities = [...new Set(allProspects.map((p) => p.city).filter((value): value is string => Boolean(value)))].sort();
   const categories = [...new Set(allProspects.map((p) => p.category).filter((value): value is string => Boolean(value)))].sort();
+  const prospectById = new Map(allProspects.map((prospect) => [prospect.id, prospect]));
+  const activatedPartners = (supplierAccountsQuery.data || []).flatMap((supplier: any) => {
+    const prospect = prospectById.get(String(supplier.prospect_id || ""));
+    return prospect ? [{ city: prospect.city, category: prospect.category }] : [];
+  });
+  const prioritySupplyCities = ["Nairobi","Mombasa","Diani","Kilifi","Malindi","Watamu","Lamu","Zanzibar","Kampala"];
+  const supplyRows = supplyMarketReadiness({
+    cities: prioritySupplyCities,
+    prospects: allProspects,
+    activatedPartners,
+  });
+  const supplyCities = citySupplySummary(supplyRows);
+  const topSupplyGaps = supplyGapPriority(supplyRows).slice(0, 8);
 
   const hasAnyContact = (p: Prospect) => Boolean(p.contact_email || p.phone || p.website || p.instagram || p.facebook);
   let filtered = allProspects.filter((p) => {
@@ -168,6 +189,27 @@ export default async function AISalesPage({
               </div>
             ))}
           </div>
+
+          <section className="mt-8 rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[.16em] text-amber-300/70">Supply Command Center</p>
+                <h2 className="mt-1 text-2xl font-semibold">Destination launch readiness</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">Tracks direct SafariPlug partner density across the trip-critical categories. This is a supply-acquisition signal, not a claim that external hotel/activity inventory is unavailable.</p>
+              </div>
+              <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/60">{activatedPartners.length} activated direct partner{activatedPartners.length===1?"":"s"} linked to Scout prospects</span>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {supplyCities.slice(0,9).map((market) => <div key={market.city} className="rounded-xl border border-white/10 bg-white/[.04] p-4">
+                <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{market.city}</p><p className="mt-1 text-xs text-white/40">{market.pipeline} pipeline prospect{market.pipeline===1?"":"s"} · {market.totalGap} launch-target gap</p></div><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold uppercase "+(market.status==="launch_ready"?"bg-emerald-500/20 text-emerald-300":market.status==="building"?"bg-amber-500/20 text-amber-300":"bg-red-500/20 text-red-300")}>{market.status.replaceAll("_"," ")}</span></div>
+                <div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-amber-300" style={{width:`${market.readiness}%`}} /></div><strong className="text-sm">{market.readiness}%</strong></div>
+              </div>)}
+            </div>
+            <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-white/35">Highest supply gaps</p><p className="mt-1 text-sm text-white/55">Supplier Scout should fill these first.</p></div><Link href="#scout" className="text-xs font-semibold text-amber-300">Open Scout →</Link></div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{topSupplyGaps.map((gap)=><Link key={`${gap.city}:${gap.category}`} href={`/admin/ai-sales?stage=all&city=${encodeURIComponent(gap.city)}&category=${encodeURIComponent(gap.category)}#prospect-feed`} className="rounded-lg border border-white/10 p-3 hover:border-amber-300/40"><p className="text-sm font-semibold">{gap.city}</p><p className="mt-1 text-xs text-white/50">{gap.category}</p><p className="mt-2 text-[11px] text-amber-300">{gap.livePartners}/{gap.target} activated · {gap.pipeline} pipeline</p></Link>)}</div>
+            </div>
+          </section>
 
           <section className={`mt-8 rounded-xl border p-5 ${supplierScoutHealthy ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
