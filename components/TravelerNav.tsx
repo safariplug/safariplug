@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 const desktopLinks = [
-  { href: "/events", label: "Discover" },
-  { href: "/concierge", label: "AI Concierge" },
-  { href: "/account/saved", label: "Saved" },
-  { href: "/account/trips", label: "My Trips" },
-  { href: "/account/appointments", label: "My Bookings" },
+  { href: "/experiences", label: "Experiences" },
+  { href: "/hotels", label: "Hotels" },
+  { href: "/transfers", label: "Transfers" },
+  { href: "/services", label: "Services" },
+  { href: "/restaurants", label: "Food" },
+  { href: "/events", label: "Events" },
+  { href: "/account/trips", label: "Trips" },
+  { href: "/concierge", label: "Ask AI" },
   { href: "/account", label: "Account" },
 ];
 
