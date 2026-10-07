@@ -181,7 +181,7 @@ export default async function EventPage({
               <p className="mt-3 text-sm leading-6 text-white/50">
                 SafariPlug is displaying this listing for discovery. SafariPlug is not the organizer unless the listing explicitly says so.
               </p>
-              {event.source_url && <a href={event.source_url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex text-sm font-bold text-amber-400 hover:underline">View original event source →</a>}
+              {event.source_url && <a href={event.source_url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex text-sm font-bold text-amber-400 hover:underline">View original event source →</a>}<div className="mt-4"><Link href={`/partner/signup?business_type=Event%20Organizer&event=${encodeURIComponent(event.id)}`} className="text-sm font-semibold text-white/60 hover:text-white">Are you the organizer? Claim or manage this listing →</Link></div>
             </article>
           </div>
 
