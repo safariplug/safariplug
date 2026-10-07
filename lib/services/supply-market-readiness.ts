@@ -23,6 +23,8 @@ export type SupplyMarketRow = {
   pipeline: number;
   target: number;
   gap: number;
+  pipelineCoveredGap: number;
+  uncoveredGap: number;
   readiness: number;
 };
 
@@ -43,8 +45,10 @@ export function supplyMarketReadiness(input: {
         row.status !== "rejected"
       ).length;
       const gap = Math.max(0, target - livePartners);
+      const pipelineCoveredGap = Math.min(gap, pipeline);
+      const uncoveredGap = Math.max(0, gap - pipelineCoveredGap);
       const readiness = Math.min(100, Math.round((livePartners / target) * 100));
-      rows.push({ city, category, livePartners, pipeline, target, gap, readiness });
+      rows.push({ city, category, livePartners, pipeline, target, gap, pipelineCoveredGap, uncoveredGap, readiness });
     }
   }
 
@@ -63,10 +67,12 @@ export function citySupplySummary(rows: SupplyMarketRow[]) {
     const totalTarget = items.reduce((sum, item) => sum + item.target, 0);
     const totalLive = items.reduce((sum, item) => sum + Math.min(item.livePartners, item.target), 0);
     const totalGap = items.reduce((sum, item) => sum + item.gap, 0);
+    const uncoveredGap = items.reduce((sum, item) => sum + item.uncoveredGap, 0);
+    const pipelineCoveredGap = items.reduce((sum, item) => sum + item.pipelineCoveredGap, 0);
     const pipeline = items.reduce((sum, item) => sum + item.pipeline, 0);
     const readiness = totalTarget ? Math.round((totalLive / totalTarget) * 100) : 0;
-    const status = readiness >= 100 ? "launch_ready" : readiness >= 60 ? "building" : "thin";
-    return { city, readiness, status, totalGap, pipeline, items };
+    const status = readiness >= 100 ? "launch_ready" : uncoveredGap === 0 && totalGap > 0 ? "pipeline_covered" : readiness >= 60 ? "building" : "thin";
+    return { city, readiness, status, totalGap, uncoveredGap, pipelineCoveredGap, pipeline, items };
   }).sort((a,b)=>b.readiness-a.readiness||a.city.localeCompare(b.city));
 }
 
@@ -74,8 +80,14 @@ export function supplyGapPriority(rows: SupplyMarketRow[]) {
   return [...rows]
     .filter((row) => row.gap > 0)
     .sort((a,b) => {
+      const uncoveredRatioA = a.uncoveredGap / a.target;
+      const uncoveredRatioB = b.uncoveredGap / b.target;
       const gapRatioA = a.gap / a.target;
       const gapRatioB = b.gap / b.target;
-      return gapRatioB - gapRatioA || b.gap - a.gap || a.city.localeCompare(b.city) || a.category.localeCompare(b.category);
+      return uncoveredRatioB - uncoveredRatioA || b.uncoveredGap - a.uncoveredGap || gapRatioB - gapRatioA || b.gap - a.gap || a.city.localeCompare(b.city) || a.category.localeCompare(b.category);
     });
+}
+
+export function supplyAcquisitionPriority(rows: SupplyMarketRow[]) {
+  return supplyGapPriority(rows).filter((row) => row.uncoveredGap > 0);
 }
