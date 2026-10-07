@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { generateMarketingDraft } from "./actions/generate";
+import { generateSupplierMarketingDraft } from "./actions/generate-supplier";
 import { listMarketingDrafts } from "./actions/list";
 import { approveMarketingDraft, rejectMarketingDraft } from "./actions/approve";
 import LuxuryImage from "@/components/LuxuryImage";
@@ -13,6 +14,7 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 type EventItem = { id: string; title: string; category: string | null; venue_name: string | null; price: number | null; currency: string | null; start_at: string; status: string; is_featured: boolean | null; image_url: string | null };
 type MarketingDraft = { id: number; event_id: string | null; event_name: string; city: string | null; platform: string; draft_content: string; image_url: string | null; video_url: string | null; external_url: string | null; status: string; publish_status: string | null; approved_at: string | null; metricool_status: string | null; publish_error: string | null };
 type Platform = "instagram" | "whatsapp" | "newsletter" | "journal";
+type SupplierCandidate = { id:string; contact_name:string; businesses:{name:string|null}|null; performance?:{score:number;band:string;bookings30d:number;activeAvailability:number;recommendations?:{key:string;title:string;detail:string;priority:string}[]}};
 
 const platformMeta: Record<Platform, { label: string; description: string; icon: string }> = {
   instagram: { label: "Instagram", description: "Posts & Reels", icon: "◎" },
@@ -23,10 +25,12 @@ const platformMeta: Record<Platform, { label: string; description: string; icon:
 
 export default function MarketingStudioPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [supplierCandidates, setSupplierCandidates] = useState<SupplierCandidate[]>([]);
   const [drafts, setDrafts] = useState<MarketingDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [draftsLoading, setDraftsLoading] = useState(true);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [generatingSupplierId, setGeneratingSupplierId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<number | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>("instagram");
   const [activeDraft, setActiveDraft] = useState<{ title: string; copy: string } | null>(null);
@@ -44,7 +48,21 @@ export default function MarketingStudioPage() {
       const { data, error } = await supabase.from("ai_discovered_events").select("id, title, category, venue_name, price, currency, start_at, status, is_featured, image_url").order("start_at", { ascending: true });
       if (error) setErrorMsg(error.message); else setEvents((data || []) as EventItem[]); setLoading(false);
     }
-    fetchEvents(); refreshDrafts();
+    async function fetchSupplierCandidates() {
+      try {
+        const response = await fetch("/api/admin/partner-crm", { cache: "no-store" });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) return;
+        const promote = payload?.portfolio?.promote || [];
+        const demandBuild = payload?.portfolio?.demandBuild || [];
+        const unique = new Map<string, SupplierCandidate>();
+        [...promote, ...demandBuild].forEach((supplier: SupplierCandidate) => unique.set(supplier.id, supplier));
+        setSupplierCandidates([...unique.values()]);
+      } catch {
+        // Marketing Studio remains usable even if partner intelligence is temporarily unavailable.
+      }
+    }
+    fetchEvents(); fetchSupplierCandidates(); refreshDrafts();
   }, []);
 
   const handleGenerate = async (eventId: string, eventTitle: string) => {
@@ -55,6 +73,25 @@ export default function MarketingStudioPage() {
       else setErrorMsg(result.error || "Failed to generate draft.");
     } catch (error) { setErrorMsg(error instanceof Error ? error.message : "An unexpected error occurred."); }
     finally { setGeneratingId(null); }
+  };
+
+  const handleGenerateSupplier = async (supplierId: string, supplierName: string) => {
+    if (selectedPlatform === "journal") {
+      setErrorMsg("Supplier merchandising currently supports Instagram, WhatsApp and Newsletter. Use approved experiences for Journal content.");
+      return;
+    }
+    setGeneratingSupplierId(supplierId); setErrorMsg(null);
+    try {
+      const result = await generateSupplierMarketingDraft({ supplierId, platform: selectedPlatform });
+      if (result.success && result.generatedCopy) {
+        setActiveDraft({ title: supplierName, copy: result.generatedCopy });
+        await refreshDrafts();
+      }
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Unable to create supplier campaign.");
+    } finally {
+      setGeneratingSupplierId(null);
+    }
   };
 
   const handleApprove = async (id: number) => { setActionId(id); setErrorMsg(null); try { await approveMarketingDraft(id); await refreshDrafts(); } catch (error) { setErrorMsg(error instanceof Error ? error.message : "Failed to approve draft."); } finally { setActionId(null); } };
@@ -76,7 +113,24 @@ export default function MarketingStudioPage() {
         <section className="mb-8 rounded-[24px] border border-white/[0.07] bg-[#0c0c0c] p-3 shadow-xl shadow-black/20 md:p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="px-2 md:px-3"><div className="font-mono text-[9px] uppercase tracking-[0.22em] text-zinc-600">Campaign channel</div><div className="mt-1 text-sm font-medium text-zinc-300">Choose the creative destination</div></div><div className="grid grid-cols-2 gap-2 md:w-[680px] md:grid-cols-4">{(Object.keys(platformMeta) as Platform[]).map((platform) => { const meta = platformMeta[platform]; const active = selectedPlatform === platform; return <button key={platform} onClick={() => setSelectedPlatform(platform)} className={`group rounded-2xl border px-3 py-3 text-left transition-all ${active ? "border-amber-400/40 bg-amber-400/[0.09] shadow-lg shadow-amber-500/5" : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"}`}><div className="flex items-center gap-2"><span className={`text-lg ${active ? "text-amber-300" : "text-zinc-500 group-hover:text-zinc-300"}`}>{meta.icon}</span><span className={`text-xs font-semibold ${active ? "text-white" : "text-zinc-400"}`}>{meta.label}</span></div><div className="mt-1 text-[10px] text-zinc-600">{meta.description}</div></button>; })}</div></div>{selectedPlatform === "journal" && <div className="mt-3 rounded-xl border border-amber-300/10 bg-amber-300/[0.03] px-4 py-3 text-xs leading-5 text-zinc-400">Journal articles become public SEO pages only after you approve them. Amani creates the SEO title, meta description, excerpt and article body.</div>}{errorMsg && <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 font-mono text-xs text-red-300">{errorMsg}</div>}</section>
         <section className="mb-12"><div className="mb-5 flex items-end justify-between gap-4"><div><div className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-300/70">01 / Human approval</div><h2 className="mt-1 text-2xl font-semibold tracking-tight">Campaign Review Queue</h2><p className="mt-1 text-xs text-zinc-600">Review the story, creative and destination before anything moves forward.</p></div><span className="hidden rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-3 py-1.5 font-mono text-[9px] font-bold uppercase tracking-widest text-amber-300 md:block">{reviewDrafts.length} awaiting review</span></div>{draftsLoading ? <LoadingBlock label="Loading campaign intelligence…" /> : reviewDrafts.length === 0 ? <EmptyBlock title="Review queue is clear" text="New Amani campaigns will appear here for human approval." /> : <div className="space-y-4">{reviewDrafts.map((draft) => <DraftReviewCard key={draft.id} draft={draft} busy={actionId === draft.id} onApprove={handleApprove} onReject={handleReject} />)}</div>}</section>
         {approvedDrafts.length > 0 && <section className="mb-12 rounded-[24px] border border-emerald-400/10 bg-emerald-400/[0.025] p-5 md:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="font-mono text-[9px] uppercase tracking-[0.22em] text-emerald-300/70">02 / Approved</div><h2 className="mt-1 text-lg font-semibold">Publish-ready campaigns</h2></div><span className="rounded-full bg-emerald-400/10 px-3 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-emerald-300">{approvedDrafts.length} ready</span></div><div className="mt-4 grid gap-2 md:grid-cols-2">{approvedDrafts.map((draft) => <div key={draft.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3"><div className="min-w-0"><div className="truncate text-sm font-medium text-zinc-200">{draft.event_name}</div><div className="mt-1 font-mono text-[9px] uppercase tracking-widest text-zinc-600">{draft.platform} · campaign #{draft.id}</div></div><span className="shrink-0 font-mono text-[9px] font-bold uppercase tracking-widest text-emerald-300">Ready</span></div>)}</div></section>}
-        <section><div className="mb-5 flex items-end justify-between gap-4"><div><div className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-300/70">03 / Creative source</div><h2 className="mt-1 text-2xl font-semibold tracking-tight">Approved Experiences</h2><p className="mt-1 text-xs text-zinc-600">Select an experience and let Amani build the next campaign.</p></div><span className="font-mono text-[9px] uppercase tracking-widest text-zinc-600">{approved.length} available</span></div>{loading ? <LoadingBlock label="Loading approved experiences…" /> : approved.length === 0 ? <EmptyBlock title="No approved experiences" text="Authorize experiences in the curation dashboard before generating campaigns." linkHref="/admin/ai-events" linkText="Open Curation Dashboard →" /> : <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">{approved.map((event) => <EventCard key={event.id} event={event} selectedPlatform={selectedPlatform} generating={generatingId === event.id} onGenerate={handleGenerate} />)}</div>}</section>
+        <section className="mb-12">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div><div className="font-mono text-[9px] uppercase tracking-[0.25em] text-emerald-300/70">03 / Supplier merchandising</div><h2 className="mt-1 text-2xl font-semibold tracking-tight">Commercially eligible suppliers</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-zinc-600">Only suppliers that Partner Intelligence currently marks for promotion or demand-building appear here. Operational recovery takes precedence over marketing.</p></div>
+            <Link href="/admin/ai-sales/partners" className="text-xs font-semibold text-amber-300">Open Partner Intelligence →</Link>
+          </div>
+          {supplierCandidates.length === 0 ? <EmptyBlock title="No supplier campaigns recommended" text="Partner Intelligence will surface approved/live suppliers here when the current operational evidence supports promotion or demand generation." /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{supplierCandidates.slice(0,12).map((supplier) => {
+            const recommendation = supplier.performance?.recommendations?.find((item) => item.key === "promote_supplier" || item.key === "build_demand");
+            const name = supplier.businesses?.name || supplier.contact_name || "Supplier";
+            return <article key={supplier.id} className="rounded-[22px] border border-emerald-400/10 bg-[#0c0c0c] p-5">
+              <div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[9px] uppercase tracking-[0.18em] text-emerald-300/70">{recommendation?.key === "promote_supplier" ? "Promotion candidate" : "Demand-building candidate"}</p><h3 className="mt-1 text-lg font-semibold">{name}</h3></div><div className="text-right"><p className="text-2xl font-semibold text-emerald-300">{supplier.performance?.score ?? "—"}</p><p className="text-[9px] uppercase text-zinc-600">{supplier.performance?.band || "unknown"}</p></div></div>
+              <p className="mt-3 text-sm leading-6 text-zinc-400">{recommendation?.detail || "Partner Intelligence supports a governed merchandising review for this supplier."}</p>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-zinc-500"><div className="rounded-xl border border-white/[0.05] p-3"><span className="block text-[9px] uppercase tracking-wide text-zinc-600">Bookings 30d</span><strong className="mt-1 block text-zinc-300">{supplier.performance?.bookings30d ?? 0}</strong></div><div className="rounded-xl border border-white/[0.05] p-3"><span className="block text-[9px] uppercase tracking-wide text-zinc-600">Availability</span><strong className="mt-1 block text-zinc-300">{supplier.performance?.activeAvailability ?? 0}</strong></div></div>
+              <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-4"><Link href={`/admin/ai-sales/partners/${supplier.id}`} className="text-xs text-zinc-500 hover:text-white">Review Partner 360 →</Link><button onClick={() => handleGenerateSupplier(supplier.id, name)} disabled={generatingSupplierId === supplier.id || selectedPlatform === "journal"} className="rounded-xl bg-emerald-300 px-4 py-2.5 text-[11px] font-bold text-black disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500">{generatingSupplierId === supplier.id ? "Creating…" : selectedPlatform === "journal" ? "Journal unavailable" : `Create ${selectedPlatform}`}</button></div>
+            </article>;
+          })}</div>}
+        </section>
+
+        <section><div className="mb-5 flex items-end justify-between gap-4"><div><div className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-300/70">04 / Creative source</div><h2 className="mt-1 text-2xl font-semibold tracking-tight">Approved Experiences</h2><p className="mt-1 text-xs text-zinc-600">Select an experience and let Amani build the next campaign.</p></div><span className="font-mono text-[9px] uppercase tracking-widest text-zinc-600">{approved.length} available</span></div>{loading ? <LoadingBlock label="Loading approved experiences…" /> : approved.length === 0 ? <EmptyBlock title="No approved experiences" text="Authorize experiences in the curation dashboard before generating campaigns." linkHref="/admin/ai-events" linkText="Open Curation Dashboard →" /> : <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">{approved.map((event) => <EventCard key={event.id} event={event} selectedPlatform={selectedPlatform} generating={generatingId === event.id} onGenerate={handleGenerate} />)}</div>}</section>
         {activeDraft && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"><div className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/10 bg-[#0c0c0c] shadow-2xl shadow-black/60"><div className="flex items-start justify-between border-b border-white/[0.07] p-6 md:p-7"><div><div className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-300">Amani output / {selectedPlatform}</div><h3 className="mt-2 text-2xl font-semibold">{activeDraft.title}</h3></div><button onClick={() => setActiveDraft(null)} className="rounded-xl border border-white/10 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-zinc-500 hover:text-white">Close</button></div><div className="max-h-[55vh] overflow-y-auto whitespace-pre-wrap px-6 py-6 font-mono text-xs leading-6 text-zinc-300 md:px-7">{activeDraft.copy}</div><div className="flex items-center justify-between gap-3 border-t border-white/[0.07] p-5"><span className="font-mono text-[9px] uppercase tracking-widest text-emerald-300">Saved to approval queue</span><button onClick={() => navigator.clipboard.writeText(activeDraft.copy)} className="rounded-xl bg-amber-300 px-5 py-2.5 text-xs font-bold text-black transition hover:bg-amber-200">Copy output</button></div></div></div>}
       </div>
     </main>
