@@ -2,6 +2,11 @@ import Link from "next/link";import {requireAdmin} from "@/lib/auth/require-admi
 type SupplierHandoff={id:string;user_id:string;onboarding_status:string;completion_percent:number};
 export default async function Page({searchParams}:{searchParams:Promise<{prospect_id?:string;error?:string;sent?:string;bulk?:string}>}){await requireAdmin();const {prospect_id,error:sendError,sent,bulk}=await searchParams;const context=prospect_id?await resolveOutreachContext(prospect_id):null;const contextApproved=Boolean(context?.reviewStatus==="approved"&&context?.prospectStatus!=="rejected");let query=supabaseAdmin.from("partner_invitations").select("*").order("created_at",{ascending:false}).limit(500);if(prospect_id)query=query.eq("prospect_id",prospect_id);const {data:rows,error}=await query;
 const all=rows||[];
+const prospectIds=[...new Set(all.map((row:any)=>row.prospect_id).filter(Boolean))] as string[];
+const {data:prospectRows}=prospectIds.length
+  ? await supabaseAdmin.from("ai_sales_prospects").select("id,city,category,website,source_name,source_url,description").in("id",prospectIds)
+  : {data:[] as any[]};
+const prospectById=new Map((prospectRows||[]).map((prospect:any)=>[prospect.id,prospect]));
 const onboardedUserIds=[...new Set(all.map((row:any)=>row.onboarded_user_id).filter(Boolean))] as string[];
 const {data:supplierRows}=onboardedUserIds.length
   ? await supabaseAdmin.from("supplier_accounts").select("id,user_id,onboarding_status,completion_percent").in("user_id",onboardedUserIds)
