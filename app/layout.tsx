@@ -6,6 +6,7 @@ import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
 import { PWAPremiumFeedback } from "@/components/pwa/PWAPremiumFeedback";
 import { PWAServiceWorker } from "@/components/pwa/PWAServiceWorker";
 import { PWAStandaloneNav } from "@/components/pwa/PWAStandaloneNav";
+import PublicFooter from "@/components/PublicFooter";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,11 +22,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.safariplug.com"),
   title: {
-    default: "SafariPlug — Discover What's Happening Across Africa",
+    default: "SafariPlug — One place for your whole trip across Africa",
     template: "%s | SafariPlug",
   },
   description:
-    "SafariPlug Intelligence discovers events, experiences, hidden gems and places worth knowing across Africa.",
+    "Plan and book stays, experiences, transfers, services, food, events and trips across Africa from one starting point.",
   applicationName: "SafariPlug",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -53,14 +54,14 @@ export const metadata: Metadata = {
     siteName: "SafariPlug",
     title: "SafariPlug — Discover What's Happening Across Africa",
     description:
-      "AI-powered discovery of events, experiences and places worth knowing across Africa.",
+      "Plan and book stays, experiences, transfers, services, food, events and trips across Africa.",
     url: "/",
   },
   twitter: {
     card: "summary_large_image",
     title: "SafariPlug — Discover What's Happening Across Africa",
     description:
-      "AI-powered discovery of events, experiences and places worth knowing across Africa.",
+      "Plan and book stays, experiences, transfers, services, food, events and trips across Africa.",
   },
 };
 
@@ -79,6 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full bg-black text-white antialiased">
         <ToastProvider>{children}</ToastProvider>
+        <PublicFooter />
         <PWAAppMode />
         <PWAPremiumFeedback />
         <PWAStandaloneNav />
