@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { TRAVEL_REVIEW_DIMENSIONS, travelReviewEligible, type TravelReviewProduct } from "@/lib/reviews/travel-review-eligibility";
+import { travelReviewProductIdentity } from "@/lib/reviews/review-intelligence";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,7 @@ export async function POST(request:Request){
   });
   if(!eligibility.eligible)return NextResponse.json({error:eligibility.reason},{status:409});
 
+  const identity=travelReviewProductIdentity(product,(ledger.metadata||{}) as Record<string,unknown>);
   const title=typeof body?.title==="string"?body.title.trim().slice(0,120):"";
   const reviewBody=typeof body?.body==="string"?body.body.trim().slice(0,4000):"";
   const {data:review,error}=await supabaseAdmin.from("traveler_reviews").upsert({
@@ -70,6 +72,9 @@ export async function POST(request:Request){
     product_type:product,
     source_id:sourceId,
     business_id:null,
+    product_ref:identity.productRef,
+    product_name:identity.productName,
+    provider:identity.provider,
     rating,
     dimensions,
     title:title||null,
@@ -80,7 +85,7 @@ export async function POST(request:Request){
     moderated_by:null,
     moderated_at:null,
   },{onConflict:"traveler_id,product_type,source_id"})
-  .select("id,product_type,source_id,rating,dimensions,title,body,verified_booking,moderation_status,created_at,updated_at")
+  .select("id,product_type,source_id,product_ref,product_name,provider,rating,dimensions,title,body,verified_booking,moderation_status,created_at,updated_at")
   .single();
   if(error)return NextResponse.json({error:error.message},{status:500});
   return NextResponse.json({review},{status:201});
