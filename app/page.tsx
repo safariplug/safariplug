@@ -6,6 +6,7 @@ import SmartFind from "@/components/SmartFind";
 export const dynamic = "force-dynamic";
 
 const quickFind = [
+  ["Destinations", "Explore by place", "/destinations", "⌖"],
   ["Experiences", "Things to do", "/experiences", "✦"],
   ["Transfers", "Rides & pickups", "/transfers", "↗"],
   ["Hotels", "Places to stay", "/hotels", "▦"],
