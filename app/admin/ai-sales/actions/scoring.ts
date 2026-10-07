@@ -14,6 +14,7 @@ const CATEGORY_WEIGHTS: Record<string, number> = {
   Hotels: 25,
   Experiences: 20,
   "Tour Operators": 18,
+  "Airport Transfer Operators": 18,
   "Tours & Local Guides": 18,
   "Beach Clubs": 18,
   "Diving & Marine": 16,
