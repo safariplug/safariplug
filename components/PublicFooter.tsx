@@ -20,9 +20,12 @@ export default function PublicFooter() {
             One starting point for stays, experiences, transfers, services, food, events and trips across Africa.
           </p>
           <div className="mt-5 space-y-1 text-sm text-white/55">
-            <p>Nairobi, Kenya</p>
-            <p>P.O. Box 284-00515, Nairobi, Kenya</p>
-            <a href="mailto:info@safariplug.com" className="inline-block font-medium text-[#e7c98d] hover:text-white">info@safariplug.com</a>
+            <a href="mailto:info@safariplug.com" className="block font-medium text-[#e7c98d] hover:text-white">info@safariplug.com</a>
+            <a href="tel:+254768240096" className="block font-medium text-[#e7c98d] hover:text-white">+254 768 240 096</a>
+          </div>
+          <div className="mt-6 border-t border-white/10 pt-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-white/30">Hospitality partner</p>
+            <a href="https://aurelianhospitalitygroup.com" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-medium text-white/65 hover:text-white">Aurelian Hospitality Group ↗</a>
           </div>
         </div>
 
