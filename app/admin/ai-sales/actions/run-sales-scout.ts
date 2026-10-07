@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
 import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 import { scoreProspect } from "./scoring";
-import { supplyGapPriority, supplyMarketReadiness } from "@/lib/services/supply-market-readiness";
+import { supplyAcquisitionPriority, supplyGapPriority, supplyMarketReadiness } from "@/lib/services/supply-market-readiness";
 
 export type SalesScoutFormState = { status: "idle" | "success" | "error"; message: string };
 
@@ -121,7 +121,7 @@ export async function runScheduledSalesScout() {
       queued: 0,
       skipped: 0,
       jobs: [] as string[],
-      selected: [] as Array<{ city: string; category: string; score: number; supplyGap?: number; activated?: number; target?: number }>,
+      selected: [] as Array<{ city: string; category: string; score: number; supplyGap?: number; uncoveredGap?: number; pipeline?: number; activated?: number; target?: number }>,
     };
   }
 
@@ -158,6 +158,7 @@ export async function runScheduledSalesScout() {
   const gapPriority = new Map(
     supplyGapPriority(readinessRows).map((row, index) => [`${row.city}:${row.category}`, { row, index }]),
   );
+  const acquisitionKeys = new Set(supplyAcquisitionPriority(readinessRows).map((row) => `${row.city}:${row.category}`));
 
   const pairs = SCHEDULED_PRIORITY_CITIES
     .flatMap((city) =>
@@ -170,21 +171,29 @@ export async function runScheduledSalesScout() {
           category,
           score: Math.min(100, base + gapBoost),
           supplyGap: gap?.row.gap || 0,
+          uncoveredGap: gap?.row.uncoveredGap || 0,
+          pipeline: gap?.row.pipeline || 0,
           activated: gap?.row.livePartners || 0,
           target: gap?.row.target || 0,
         };
       }),
     )
-    .filter((pair) => pair.score >= 70)
-    .sort((a, b) => b.supplyGap - a.supplyGap || b.score - a.score || a.city.localeCompare(b.city) || a.category.localeCompare(b.category));
+    .filter((pair) => pair.score >= 70 && acquisitionKeys.has(`${pair.city}:${pair.category}`))
+    .sort((a, b) => b.uncoveredGap - a.uncoveredGap || b.supplyGap - a.supplyGap || b.score - a.score || a.city.localeCompare(b.city) || a.category.localeCompare(b.category));
 
   if (!pairs.length) {
     return { paused: false, queued: 0, skipped: 0, jobs: [] as string[], selected: [] };
   }
 
-  const dayIndex = Math.floor(Date.now() / 86_400_000);
-  const start = (dayIndex * 3) % pairs.length;
-  const selected = Array.from({ length: Math.min(3, pairs.length) }, (_, i) => pairs[(start + i) % pairs.length]);
+  const selected: typeof pairs = [];
+  const cityCounts = new Map<string,number>();
+  for (const pair of pairs) {
+    if (selected.length >= 5) break;
+    const count = cityCounts.get(pair.city) || 0;
+    if (count >= 2) continue;
+    selected.push(pair);
+    cityCounts.set(pair.city,count+1);
+  }
 
   const jobs: string[] = [];
   let queued = 0;
@@ -202,6 +211,6 @@ export async function runScheduledSalesScout() {
     queued,
     skipped,
     jobs,
-    selected: selected.map(({ city, category, score, supplyGap, activated, target }) => ({ city, category, score, supplyGap, activated, target })),
+    selected: selected.map(({ city, category, score, supplyGap, uncoveredGap, pipeline, activated, target }) => ({ city, category, score, supplyGap, uncoveredGap, pipeline, activated, target })),
   };
 }
