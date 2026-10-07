@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import TravelReviewSignal from "@/components/TravelReviewSignal";
 
 type RouteRow = {
   code: string;
@@ -222,6 +223,7 @@ export default function TransferSearchClient({
                     {result.supplierCurrency} {Number(result.supplierAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </p>
                 </div>
+                {selectedRoute?<TravelReviewSignal product="transfer" provider="hotelbeds" productRef={[selectedRoute.from.code,selectedRoute.to.code,result.service?.vehicleName||result.service?.transferType||"Transfer"].join(":")}/>:null}
                 {result.cancellationPolicies?.length ? (
                   <p className="mt-4 text-xs leading-5 text-black/45">
                     Cancellation terms are available and will be shown again before payment.

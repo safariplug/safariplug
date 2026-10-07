@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import TravelReviewSignal from "@/components/TravelReviewSignal";
 
 type ActivityCard = {
   code: string;
@@ -157,6 +158,7 @@ export default function ActivitySearchClient() {
                   <p className="text-[10px] font-bold uppercase tracking-[.18em] text-black/35">Hotelbeds activity</p>
                   <h3 className="mt-2 text-xl font-semibold">{activity.name}</h3>
                   {activity.description ? <p className="mt-2 line-clamp-3 text-sm leading-6 text-black/55">{activity.description}</p> : null}
+                  <TravelReviewSignal product="activity" provider="hotelbeds" productRef={activity.code}/>
                   {activity.amountsFrom?.length ? (
                     <p className="mt-3 text-sm font-semibold">
                       From {activity.currency || ""} {Number(activity.amountsFrom[0]?.amount || 0).toLocaleString()}
