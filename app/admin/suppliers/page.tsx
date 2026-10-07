@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { supplierActivationSla } from "@/lib/suppliers/activation-sla";
 
 type Offering = { id: string; name: string; price: number; currency: string; status: string; duration_minutes: number };
 type Staff = { id: string; display_name: string | null; personal_photo_url: string | null; status: string };
@@ -21,6 +22,7 @@ type Supplier = {
   submitted_at: string | null;
   approved_at?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
   review_items?: string[] | null;
   review_note?: string | null;
   review_requested_at?: string | null;
@@ -141,6 +143,17 @@ export default function SuppliersAdminPage() {
     supplier: suppliers.filter((s) => guidance(s).owner === "supplier").length,
     staff: suppliers.filter((s) => guidance(s).owner === "staff").length,
     active: suppliers.filter((s) => guidance(s).owner === "active").length,
+    overdue: suppliers.filter((s) => {
+      const blockers=readinessBreakdown(s);
+      return supplierActivationSla({
+        onboardingStatus:s.onboarding_status,
+        submittedAt:s.submitted_at,
+        reviewRequestedAt:s.review_requested_at,
+        updatedAt:s.updated_at,
+        hasPlatformOnlyBlockers:blockers.platform.length>0&&blockers.supplier.length===0,
+        earlyReviewWaiting:Boolean(s.review_requested_at&&["draft","onboarding","in_progress"].includes(s.onboarding_status)),
+      }).key==="overdue";
+    }).length,
   }), [suppliers]);
 
   const visible = useMemo(() => suppliers
@@ -202,10 +215,11 @@ export default function SuppliersAdminPage() {
   return <main className="mx-auto max-w-7xl px-6 py-10">
     <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">Admin · Partner CRM</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Supplier onboarding</h1><p className="mt-2 max-w-2xl text-black/55">Start with the suppliers who need attention. Everything else can stay out of the way.</p></div><div className="flex flex-wrap gap-2"><Link href="/admin/suppliers/invite" className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white">+ Invite supplier manually</Link><button onClick={() => void loadReviews()} className="rounded-full border border-black/15 px-4 py-2 text-sm">Refresh</button></div></div>
 
-    <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
       <Metric label="Ready to approve" value={counts.ready} active={filter === "ready"} onClick={() => setFilter("ready")} />
       <Metric label="SafariPlug blockers" value={counts.platform} active={filter === "platform"} onClick={() => setFilter("platform")} />
       <Metric label="Waiting on supplier" value={counts.supplier} active={filter === "supplier"} onClick={() => setFilter("supplier")} />
+      <Metric label="SLA overdue" value={counts.overdue} />
       <Metric label="Approved / live" value={counts.active} active={filter === "active"} onClick={() => setFilter("active")} />
       <Metric label="All suppliers" value={counts.total} active={filter === "all"} onClick={() => setFilter("all")} />
     </section>
@@ -228,9 +242,18 @@ export default function SuppliersAdminPage() {
           const profile = first(business?.service_profiles);
           const g = guidance(supplier);
           const category = profile?.service_categories?.name || "Supplier";
+          const blockers=readinessBreakdown(supplier);
+          const sla=supplierActivationSla({
+            onboardingStatus:supplier.onboarding_status,
+            submittedAt:supplier.submitted_at,
+            reviewRequestedAt:supplier.review_requested_at,
+            updatedAt:supplier.updated_at,
+            hasPlatformOnlyBlockers:blockers.platform.length>0&&blockers.supplier.length===0,
+            earlyReviewWaiting:Boolean(supplier.review_requested_at&&["draft","onboarding","in_progress"].includes(supplier.onboarding_status)),
+          });
           return <article key={supplier.id} className="rounded-2xl border border-black/10 p-5">
             <div className="grid gap-4 lg:grid-cols-[1.2fr_.75fr_1.25fr_auto] lg:items-center">
-              <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{business?.name || "Unnamed business"}</h3><span className="rounded-full bg-black/[.05] px-2.5 py-1 text-[11px]">{stageLabel(supplier.onboarding_status)}</span></div><p className="mt-1 text-sm text-black/50">{category} · {supplier.contact_name || "No contact name"}</p><p className="mt-1 text-xs text-black/40">{business?.email || business?.phone || "No business contact channel"}</p></div>
+              <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{business?.name || "Unnamed business"}</h3><span className="rounded-full bg-black/[.05] px-2.5 py-1 text-[11px]">{stageLabel(supplier.onboarding_status)}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${sla.key==="overdue"?"bg-red-50 text-red-700":sla.key==="due_soon"?"bg-amber-50 text-amber-700":sla.owner==="staff"?"bg-blue-50 text-blue-700":"bg-black/[.04] text-black/45"}`}>{sla.label}</span></div><p className="mt-1 text-sm text-black/50">{category} · {supplier.contact_name || "No contact name"}</p><p className="mt-1 text-xs text-black/40">{business?.email || business?.phone || "No business contact channel"}</p>{sla.owner==="staff"&&sla.ageHours!==null?<p className="mt-1 text-[11px] text-black/35">{Math.floor(sla.ageHours)}h in staff queue · target {sla.targetHours}h{sla.overdueHours>0?` · ${Math.floor(sla.overdueHours)}h overdue`:""}</p>:null}</div>
               <div>{(() => { const score = activationScore(supplier); return <><p className="text-xs text-black/40">Activation readiness</p><div className="mt-1 flex items-center gap-3"><strong className="text-xl">{score.percent}%</strong><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/10"><div className="h-full bg-black" style={{ width: `${Math.min(100, Math.max(0, score.percent))}%` }} /></div></div>{score.total ? <p className="mt-1 text-[11px] text-black/40">{score.passed}/{score.total} checks passed · profile {supplier.completion_percent}%</p> : <p className="mt-1 text-[11px] text-black/40">Profile {supplier.completion_percent}%</p>}</>; })()}</div>
               <div className={`rounded-xl p-4 ${g.owner === "staff" ? "bg-amber-50 ring-1 ring-amber-200" : g.owner === "active" ? "bg-emerald-50 ring-1 ring-emerald-200" : "bg-black/[.025] ring-1 ring-black/5"}`}><p className="text-[11px] font-semibold uppercase tracking-wide text-black/40">Next · {g.owner === "staff" ? "SafariPlug staff" : g.owner === "supplier" ? "Supplier" : stageLabel(g.owner)}</p><h4 className="mt-1 font-semibold">{g.title}</h4><p className="mt-1 text-sm text-black/50">{g.detail}</p>{supplier.onboarding_status === "submitted" && supplier.activation_readiness?.issues?.length ? <div className="mt-3 space-y-1">{supplier.activation_readiness.issues.slice(0,4).map((item) => <p key={item.key} className="text-xs text-amber-900/75">• {item.label}</p>)}{supplier.activation_readiness.issues.length > 4 && <p className="text-xs text-amber-900/60">+ {supplier.activation_readiness.issues.length - 4} more in Partner 360</p>}</div> : null}{supplier.onboarding_status === "changes_requested" && supplier.review_note && <p className="mt-2 line-clamp-2 text-xs text-black/45">Note: {supplier.review_note}</p>}</div>
               <div className="flex flex-col gap-2"><Link href={`/admin/ai-sales/partners/${supplier.id}`} className="rounded-full bg-black px-4 py-2 text-center text-sm text-white">Open Partner 360</Link>{supplier.review_requested_at && ["draft","onboarding","in_progress"].includes(supplier.onboarding_status) && <><button disabled={reviewing === supplier.id} onClick={() => void review(supplier.id, "profile_reviewed")} className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:opacity-50">Mark profile reviewed</button><button disabled={reviewing === supplier.id} onClick={() => openFeedback(supplier)} className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:opacity-50">Request changes</button></>}{supplier.onboarding_status === "submitted" && <><button title={supplier.activation_readiness?.ready ? "Approve supplier" : "Complete activation requirements first"} disabled={reviewing === supplier.id || !supplier.activation_readiness?.ready} onClick={() => void review(supplier.id, "approve")} className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40">Approve</button><button disabled={reviewing === supplier.id} onClick={() => openFeedback(supplier)} className="rounded-full border border-black/15 px-4 py-2 text-sm disabled:opacity-50">Request changes</button></>}{supplier.onboarding_status === "changes_requested" && <button onClick={() => openFeedback(supplier)} className="rounded-full border border-black/15 px-4 py-2 text-sm">View requested fixes</button>}</div>
@@ -240,7 +263,7 @@ export default function SuppliersAdminPage() {
       </div>
     </section>
 
-    <section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+    <section className="mt-8 rounded-2xl border border-blue-200 bg-blue-50/60 p-5"><p className="text-xs font-semibold uppercase tracking-[.18em] text-blue-800/60">Activation service level</p><h2 className="mt-1 text-xl font-semibold">Internal 24-hour staff target</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-black/60">Submitted suppliers, platform-only blockers and early profile-review requests should receive SafariPlug staff action within 24 hours. This is an internal operating target, not a supplier-facing guarantee. Changes requested from suppliers remain supplier-owned, with a 72-hour follow-up target.</p></section><section className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
       <p className="text-xs font-semibold uppercase tracking-[.18em] text-amber-800/60">Governed recruitment</p>
       <h2 className="mt-1 text-xl font-semibold">New suppliers start in CRM</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-black/60">Create or review the organization in Organization 360, confirm a real contact, then draft and approve outreach. This keeps the prospect, invitation, supplier account and Partner 360 relationship connected from the first contact through activation.</p>

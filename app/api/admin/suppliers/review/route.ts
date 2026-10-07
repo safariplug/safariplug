@@ -21,7 +21,7 @@ export async function GET() {
     await requireAdmin();
     const { data, error } = await supabaseAdmin
       .from("supplier_accounts")
-      .select("id,business_id,contact_name,invitation_status,onboarding_status,completion_percent,submitted_at,approved_at,created_at,review_items,review_note,review_requested_at,businesses!inner(id,name,description,phone,email,city_id,status,logo_url,cover_image_url,service_profiles(id,status,booking_status,service_categories(name,slug),service_offerings(id,name,price,currency,status,duration_minutes),service_staff(id,display_name,personal_photo_url,status)))")
+      .select("id,business_id,contact_name,invitation_status,onboarding_status,completion_percent,submitted_at,approved_at,created_at,updated_at,review_items,review_note,review_requested_at,businesses!inner(id,name,description,phone,email,city_id,status,logo_url,cover_image_url,service_profiles(id,status,booking_status,service_categories(name,slug),service_offerings(id,name,price,currency,status,duration_minutes),service_staff(id,display_name,personal_photo_url,status)))")
       .in("onboarding_status", ["draft", "onboarding", "submitted", "changes_requested", "approved", "rejected", "live"])
       .order("created_at", { ascending: false });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
