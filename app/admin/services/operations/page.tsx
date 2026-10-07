@@ -33,6 +33,8 @@ export default async function ServiceOperationsPage(){
     reviewResult,
     payoutResult,
     verificationResult,
+    qualityAppointmentsResult,
+    liveProfilesResult,
   ]=await Promise.all([
     supabaseAdmin
       .from("service_appointments")
@@ -65,6 +67,17 @@ export default async function ServiceOperationsPage(){
       .in("status",TRUST_PENDING)
       .order("updated_at",{ascending:false})
       .limit(500),
+    supabaseAdmin
+      .from("service_appointments")
+      .select("id,service_profile_id,status,payment_status,created_at,updated_at,service_profiles(id,businesses(id,name,slug))")
+      .gte("created_at",new Date(Date.now()-30*24*3600000).toISOString())
+      .order("created_at",{ascending:false})
+      .limit(5000),
+    supabaseAdmin
+      .from("service_profiles")
+      .select("id,business_id,status,booking_status,updated_at,businesses(id,name,slug,status),service_offerings(id,status,price,duration_minutes),service_staff(id,status,service_staff_availability(id,is_active))")
+      .eq("status","active")
+      .limit(1000),
   ]);
 
   const appointments=appointmentResult.data??[];
@@ -105,8 +118,63 @@ export default async function ServiceOperationsPage(){
   const providerTrust=verification.filter((row:any)=>row.subject_type==="provider");
   const specialistTrust=verification.filter((row:any)=>row.subject_type==="service_staff");
 
-  const queryErrors=[appointmentResult.error,ledgerResult.error,reviewResult.error,payoutResult.error,verificationResult.error].filter(Boolean);
-  const attention=overdue.length+stalePendingPayments.length+reviews.length+payouts.filter((row:any)=>row.status!=="processing").length+staleProcessing.length+verification.length;
+  const qualityAppointments=qualityAppointmentsResult.data??[];
+  const liveProfiles=liveProfilesResult.data??[];
+  const appointmentStatsByProfile=new Map<string,{bookings:number;completed:number;cancelled:number;noShow:number;active:number}>();
+  for(const row of qualityAppointments as any[]){
+    const key=String(row.service_profile_id||"");
+    if(!key)continue;
+    const current=appointmentStatsByProfile.get(key)||{bookings:0,completed:0,cancelled:0,noShow:0,active:0};
+    current.bookings++;
+    if(row.status==="completed")current.completed++;
+    if(row.status==="cancelled")current.cancelled++;
+    if(row.status==="no_show")current.noShow++;
+    if(ACTIVE_APPOINTMENT_STATUSES.includes(row.status))current.active++;
+    appointmentStatsByProfile.set(key,current);
+  }
+
+  const supplierQuality=(liveProfiles as any[]).map((profile:any)=>{
+    const business=profile.businesses;
+    const offerings=Array.isArray(profile.service_offerings)?profile.service_offerings:profile.service_offerings?[profile.service_offerings]:[];
+    const staff=Array.isArray(profile.service_staff)?profile.service_staff:profile.service_staff?[profile.service_staff]:[];
+    const activeOfferings=offerings.filter((row:any)=>row.status==="active"&&Number(row.price||0)>0&&Number(row.duration_minutes||0)>0);
+    const activeStaff=staff.filter((row:any)=>row.status==="active");
+    const hasAvailability=activeStaff.some((member:any)=>{
+      const availability=Array.isArray(member.service_staff_availability)?member.service_staff_availability:member.service_staff_availability?[member.service_staff_availability]:[];
+      return availability.some((slot:any)=>slot.is_active===true);
+    });
+    const stats=appointmentStatsByProfile.get(String(profile.id))||{bookings:0,completed:0,cancelled:0,noShow:0,active:0};
+    const outcomeBase=stats.completed+stats.cancelled+stats.noShow;
+    const failureRate=outcomeBase?Math.round(((stats.cancelled+stats.noShow)/outcomeBase)*100):0;
+    const issues:string[]=[];
+    if(profile.booking_status!=="open")issues.push("Bookings are closed");
+    if(!activeOfferings.length)issues.push("No valid active offering");
+    if(!activeStaff.length)issues.push("No active specialist");
+    else if(!hasAvailability)issues.push("No active availability");
+    if(outcomeBase>=3&&failureRate>=25)issues.push(`High cancellation / no-show rate (${failureRate}%)`);
+    const severity=issues.some((item)=>item.startsWith("No ")||item==="Bookings are closed")?"danger":issues.length?"warn":"ok";
+    return {
+      profileId:String(profile.id),
+      businessId:String(profile.business_id),
+      businessName:business?.name||"Service provider",
+      slug:business?.slug||"",
+      bookingStatus:String(profile.booking_status||"closed"),
+      bookings30d:stats.bookings,
+      completed30d:stats.completed,
+      cancelled30d:stats.cancelled,
+      noShow30d:stats.noShow,
+      failureRate,
+      issues,
+      severity,
+    };
+  }).sort((a:any,b:any)=>b.issues.length-a.issues.length||b.failureRate-a.failureRate||b.bookings30d-a.bookings30d);
+
+  const qualityAttention=supplierQuality.filter((row:any)=>row.issues.length>0);
+  const closedInventory=supplierQuality.filter((row:any)=>row.bookingStatus!=="open");
+  const highFailure=supplierQuality.filter((row:any)=>row.failureRate>=25&&(row.completed30d+row.cancelled30d+row.noShow30d)>=3);
+
+  const queryErrors=[appointmentResult.error,ledgerResult.error,reviewResult.error,payoutResult.error,verificationResult.error,qualityAppointmentsResult.error,liveProfilesResult.error].filter(Boolean);
+  const attention=overdue.length+stalePendingPayments.length+reviews.length+payouts.filter((row:any)=>row.status!=="processing").length+staleProcessing.length+verification.length+qualityAttention.length;
 
   return <main className="min-h-screen bg-[#050505] px-5 py-10 text-white md:px-10">
     <div className="mx-auto max-w-7xl">
@@ -133,6 +201,10 @@ export default async function ServiceOperationsPage(){
       {queryErrors.length>0&&<section className="mt-5 rounded-2xl border border-red-900/60 bg-red-950/20 p-4"><p className="font-semibold text-red-300">Service operations data is partially unavailable</p><p className="mt-1 text-sm text-red-300/70">One or more operational queries failed. Open the underlying workspace before taking financial or trust action.</p></section>}
 
       <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+        <Metric label="Live service profiles" value={supplierQuality.length}/>
+        <Metric label="Quality attention" value={qualityAttention.length} alert={qualityAttention.length>0}/>
+        <Metric label="Bookings closed" value={closedInventory.length} alert={closedInventory.length>0}/>
+        <Metric label="High cancel / no-show" value={highFailure.length} alert={highFailure.length>0}/>
         <Metric label="Overdue active" value={overdue.length} alert={overdue.length>0}/>
         <Metric label="Starting ≤24h" value={startingSoon.length}/>
         <Metric label="Stale pending payment" value={stalePendingPayments.length} alert={stalePendingPayments.length>0}/>
@@ -141,6 +213,38 @@ export default async function ServiceOperationsPage(){
         <Metric label="Stale processing" value={staleProcessing.length} alert={staleProcessing.length>0}/>
         <Metric label="Provider trust" value={providerTrust.length} alert={providerTrust.length>0}/>
         <Metric label="Specialist trust" value={specialistTrust.length} alert={specialistTrust.length>0}/>
+      </section>
+
+      <section className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[.2em] text-zinc-500">Post-activation quality</p>
+            <h2 className="mt-1 text-xl font-semibold">Live supplier health</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">Derived from current bookability plus the last 30 days of service appointments. This view flags operational risk for review; it does not suspend suppliers or close inventory automatically.</p>
+          </div>
+          <Link href="/admin/ai-sales/partners" className="rounded-xl border border-zinc-800 px-4 py-2 text-xs font-semibold text-amber-400">Open Partner CRM →</Link>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <Metric label="Healthy live suppliers" value={supplierQuality.filter((row:any)=>!row.issues.length).length}/>
+          <Metric label="Inventory / staffing issue" value={qualityAttention.filter((row:any)=>row.severity==="danger").length} alert={qualityAttention.some((row:any)=>row.severity==="danger")}/>
+          <Metric label="30d quality-rate issue" value={highFailure.length} alert={highFailure.length>0}/>
+        </div>
+        <div className="mt-5 divide-y divide-zinc-900">
+          {qualityAttention.slice(0,25).map((row:any)=><div key={row.profileId} className="py-4">
+            <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{row.businessName}</p><span className={"rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase "+tone(row.severity)}>{row.severity==="danger"?"bookability risk":"quality review"}</span></div>
+                <p className="mt-1 text-xs text-zinc-500">30d: {row.bookings30d} booking{row.bookings30d===1?"":"s"} · {row.completed30d} completed · {row.cancelled30d} cancelled · {row.noShow30d} no-show</p>
+                <div className="mt-2 flex flex-wrap gap-2">{row.issues.map((issue:string)=><span key={issue} className="rounded-lg border border-zinc-800 bg-black px-2.5 py-1 text-xs text-zinc-300">{issue}</span>)}</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {row.slug&&<Link href={`/services/${row.slug}`} className="rounded-xl border border-zinc-800 px-3 py-2 text-xs text-zinc-300">View storefront ↗</Link>}
+                <Link href="/admin/ai-sales/partners" className="rounded-xl border border-amber-700/50 px-3 py-2 text-xs font-semibold text-amber-300">Review supplier →</Link>
+              </div>
+            </div>
+          </div>)}
+          {!qualityAttention.length&&<Empty text="No live service supplier quality exceptions are visible from the current 30-day data."/>}
+        </div>
       </section>
 
       <section className="mt-8 grid gap-4 xl:grid-cols-2">
