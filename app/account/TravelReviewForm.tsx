@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import ReviewMediaUploader from "./ReviewMediaUploader";
 
 type Product="hotel"|"activity"|"transfer";
-type ExistingReview={rating:number;title:string|null;body:string|null;moderation_status:string;dimensions:Record<string,number>};
+type ExistingReview={id:string;rating:number;title:string|null;body:string|null;moderation_status:string;dimensions:Record<string,number>};
 
 const DIMENSIONS:Record<Product,string[]>={
   hotel:["cleanliness","service","location","value"],
@@ -18,7 +19,7 @@ export default function TravelReviewForm({product,sourceId,eligible,existing}:{p
   const[dimensions,setDimensions]=useState<Record<string,number>>(()=>Object.fromEntries(DIMENSIONS[product].map(key=>[key,existing?.dimensions?.[key]||5])));
   const[busy,setBusy]=useState(false);
   const[message,setMessage]=useState("");
-  if(existing)return <div className="mt-4 rounded-xl bg-emerald-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold">Your verified review</p><span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold uppercase text-emerald-700">{existing.moderation_status}</span></div><p className="mt-2 text-xl">{"★".repeat(existing.rating)}<span className="text-black/10">{"★".repeat(5-existing.rating)}</span></p>{existing.title&&<p className="mt-2 font-semibold">{existing.title}</p>}{existing.body&&<p className="mt-1 text-xs leading-5 text-black/55">{existing.body}</p>}</div>;
+  if(existing)return <div className="mt-4 rounded-xl bg-emerald-50 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold">Your verified review</p><span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold uppercase text-emerald-700">{existing.moderation_status}</span></div><p className="mt-2 text-xl">{"★".repeat(existing.rating)}<span className="text-black/10">{"★".repeat(5-existing.rating)}</span></p>{existing.title&&<p className="mt-2 font-semibold">{existing.title}</p>}{existing.body&&<p className="mt-1 text-xs leading-5 text-black/55">{existing.body}</p>}<ReviewMediaUploader reviewId={existing.id}/></div>;
   if(!eligible)return null;
   async function submit(){
     setBusy(true);setMessage("");

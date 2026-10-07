@@ -36,11 +36,11 @@ export default async function AccountTransfersPage() {
   const { data: travelerReviews } = rowIds.length
     ? await supabaseAdmin
         .from("traveler_reviews")
-        .select("source_id,rating,dimensions,title,body,moderation_status")
+        .select("id,source_id,rating,dimensions,title,body,moderation_status")
         .eq("traveler_id", user.id)
         .eq("product_type", "transfer")
         .in("source_id", rowIds)
-    : { data: [] as { source_id:string; rating:number; dimensions:Record<string,number>; title:string|null; body:string|null; moderation_status:string }[] };
+    : { data: [] as { id:string; source_id:string; rating:number; dimensions:Record<string,number>; title:string|null; body:string|null; moderation_status:string }[] };
   const travelerReviewByLedger = new Map((travelerReviews || []).map((review) => [String(review.source_id), review]));
   const { data: refundReviews } = rowIds.length
     ? await supabaseAdmin
