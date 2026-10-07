@@ -15,7 +15,7 @@ const SCOUT_CATEGORIES = [
   "Barbers","Hair & Beauty","Spas & Massage","Tattoo Artists & Body Art","Nails","Lashes & Brows",
   "Fitness & Personal Training","Yoga/Pilates/Mindfulness","Diving & Marine","Surfing & Board Sports",
   "Water Sports & Kite","Tours & Local Guides","Photography & Content","Private Chefs & Cooking",
-  "Hotels","Restaurants","Nightlife","Tour Operators","Experiences","Beach Clubs",
+  "Hotels","Restaurants","Nightlife","Tour Operators","Experiences","Beach Clubs","Airport Transfer Operators",
 ] as const;
 
 // Automated discovery should first fill the inventory a traveler needs to complete a trip.
@@ -26,6 +26,7 @@ const SCHEDULED_SUPPLIER_CATEGORIES = [
   "Tour Operators",
   "Tours & Local Guides",
   "Restaurants",
+  "Airport Transfer Operators",
   "Beach Clubs",
   "Diving & Marine",
   "Water Sports & Kite",
