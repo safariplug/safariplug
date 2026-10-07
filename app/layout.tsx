@@ -52,14 +52,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "SafariPlug",
-    title: "SafariPlug — Discover What's Happening Across Africa",
+    title: "SafariPlug — One place for your whole trip across Africa",
     description:
       "Plan and book stays, experiences, transfers, services, food, events and trips across Africa.",
     url: "/",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SafariPlug — Discover What's Happening Across Africa",
+    title: "SafariPlug — One place for your whole trip across Africa",
     description:
       "Plan and book stays, experiences, transfers, services, food, events and trips across Africa.",
   },
@@ -79,6 +79,37 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
       <body className="min-h-full bg-black text-white antialiased">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "Organization",
+                  "@id": "https://www.safariplug.com/#organization",
+                  name: "SafariPlug",
+                  url: "https://www.safariplug.com",
+                  email: "info@safariplug.com",
+                  telephone: "+254768240096",
+                  partner: {
+                    "@type": "Organization",
+                    name: "Aurelian Hospitality Group",
+                    url: "https://aurelianhospitalitygroup.com",
+                  },
+                },
+                {
+                  "@type": "WebSite",
+                  "@id": "https://www.safariplug.com/#website",
+                  url: "https://www.safariplug.com",
+                  name: "SafariPlug",
+                  description: "Plan and book stays, experiences, transfers, services, food, events and trips across Africa.",
+                  publisher: { "@id": "https://www.safariplug.com/#organization" },
+                },
+              ],
+            }).replace(/</g, "\\u003c"),
+          }}
+        />
         <ToastProvider>{children}</ToastProvider>
         <PublicFooter />
         <PWAAppMode />

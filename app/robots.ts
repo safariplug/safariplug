@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/admin/", "/api/", "/account/", "/auth/", "/partner/"],
       },
     ],
-    sitemap: "https://safariplug.com/sitemap.xml",
+    sitemap: "https://www.safariplug.com/sitemap.xml",
   };
 }
