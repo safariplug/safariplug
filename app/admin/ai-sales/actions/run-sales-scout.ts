@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
 import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 import { scoreProspect } from "./scoring";
+import { supplyGapPriority, supplyMarketReadiness } from "@/lib/services/supply-market-readiness";
 
 export type SalesScoutFormState = { status: "idle" | "success" | "error"; message: string };
 
@@ -120,20 +121,62 @@ export async function runScheduledSalesScout() {
       queued: 0,
       skipped: 0,
       jobs: [] as string[],
-      selected: [] as Array<{ city: string; category: string; score: number }>,
+      selected: [] as Array<{ city: string; category: string; score: number; supplyGap?: number; activated?: number; target?: number }>,
     };
   }
 
+  const [{ data: prospectRows, error: prospectError }, { data: supplierRows, error: supplierError }] = await Promise.all([
+    supabaseAdmin
+      .from("ai_sales_prospects")
+      .select("id,city,category,status,review_status")
+      .in("city", [...SCHEDULED_PRIORITY_CITIES])
+      .limit(2000),
+    supabaseAdmin
+      .from("supplier_accounts")
+      .select("id,prospect_id,onboarding_status")
+      .in("onboarding_status", ["approved","live"])
+      .not("prospect_id","is",null)
+      .limit(2000),
+  ]);
+  if (prospectError || supplierError) throw prospectError || supplierError;
+
+  const prospectById = new Map((prospectRows || []).map((prospect: any) => [String(prospect.id), prospect]));
+  const activatedPartners = (supplierRows || []).flatMap((supplier: any) => {
+    const prospect = prospectById.get(String(supplier.prospect_id || ""));
+    return prospect ? [{ city: prospect.city as string | null, category: prospect.category as string | null }] : [];
+  });
+  const readinessRows = supplyMarketReadiness({
+    cities: [...SCHEDULED_PRIORITY_CITIES],
+    prospects: (prospectRows || []).map((prospect: any) => ({
+      city: prospect.city,
+      category: prospect.category,
+      review_status: prospect.review_status,
+      status: prospect.status,
+    })),
+    activatedPartners,
+  });
+  const gapPriority = new Map(
+    supplyGapPriority(readinessRows).map((row, index) => [`${row.city}:${row.category}`, { row, index }]),
+  );
+
   const pairs = SCHEDULED_PRIORITY_CITIES
     .flatMap((city) =>
-      SCHEDULED_SUPPLIER_CATEGORIES.map((category) => ({
-        city,
-        category,
-        score: scoreProspect({ business_name: "Scheduled discovery", city, category }).score,
-      })),
+      SCHEDULED_SUPPLIER_CATEGORIES.map((category) => {
+        const base = scoreProspect({ business_name: "Scheduled discovery", city, category }).score;
+        const gap = gapPriority.get(`${city}:${category}`);
+        const gapBoost = gap ? Math.min(25, Math.round((gap.row.gap / gap.row.target) * 25)) : 0;
+        return {
+          city,
+          category,
+          score: Math.min(100, base + gapBoost),
+          supplyGap: gap?.row.gap || 0,
+          activated: gap?.row.livePartners || 0,
+          target: gap?.row.target || 0,
+        };
+      }),
     )
     .filter((pair) => pair.score >= 70)
-    .sort((a, b) => b.score - a.score || a.city.localeCompare(b.city) || a.category.localeCompare(b.category));
+    .sort((a, b) => b.supplyGap - a.supplyGap || b.score - a.score || a.city.localeCompare(b.city) || a.category.localeCompare(b.category));
 
   if (!pairs.length) {
     return { paused: false, queued: 0, skipped: 0, jobs: [] as string[], selected: [] };
@@ -159,6 +202,6 @@ export async function runScheduledSalesScout() {
     queued,
     skipped,
     jobs,
-    selected: selected.map(({ city, category, score }) => ({ city, category, score })),
+    selected: selected.map(({ city, category, score, supplyGap, activated, target }) => ({ city, category, score, supplyGap, activated, target })),
   };
 }
