@@ -1,0 +1,35 @@
+name: SafariPlug Production Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 5 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: safariplug-production-smoke
+  cancel-in-progress: true
+
+jobs:
+  production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify SafariPlug production
+        env:
+          SAFARIPLUG_BASE_URL: https://www.safariplug.com
+          SMOKE_WAIT_ATTEMPTS: "20"
+          SMOKE_WAIT_MS: "15000"
+        run: node scripts/production-launch-smoke.mjs
