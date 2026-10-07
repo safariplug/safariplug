@@ -176,8 +176,12 @@ export default async function EventPage({
             </article>
 
             <article className="rounded-3xl border border-white/10 bg-white/[0.05] p-8 shadow-xl">
-              <h2 className="text-3xl font-black">Organizer</h2>
-              <p className="mt-4 font-bold">{event.organizer_name || "SafariPlug Partner"}</p>
+              <h2 className="text-3xl font-black">Organizer & source</h2>
+              <p className="mt-4 font-bold">{event.organizer_name || "Organizer not identified in the source data"}</p>
+              <p className="mt-3 text-sm leading-6 text-white/50">
+                SafariPlug is displaying this listing for discovery. SafariPlug is not the organizer unless the listing explicitly says so.
+              </p>
+              {event.source_url && <a href={event.source_url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex text-sm font-bold text-amber-400 hover:underline">View original event source →</a>}
             </article>
           </div>
 
