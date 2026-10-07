@@ -115,6 +115,8 @@ export default function SupplierOnboardingPage() {
   const isAppointmentProvider = !isRestaurant && !isHotel && !isEventOrganizer;
   const readiness = state.activationReadiness;
   const readinessIssues = readiness?.issues || [];
+  const supplierReadinessIssues = readinessIssues.filter((item) => item.owner !== "platform");
+  const platformReadinessIssues = readinessIssues.filter((item) => item.owner === "platform");
   const onboardingStatus = state.account?.onboarding_status || "";
   const submitted = onboardingStatus === "submitted";
   const earlyReviewRequested = Boolean(state.account?.review_requested_at) && !submitted;
@@ -196,12 +198,22 @@ export default function SupplierOnboardingPage() {
         </div>
         <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-black/60">{state.account?.completion_percent ?? 0}% profile</span>
       </div>
-      {readinessIssues.length ? <div className="mt-4 grid gap-2">
-        {readinessIssues.map((item, index) => <a key={item.key} href={item.href} className="flex items-center justify-between gap-4 rounded-xl border border-black/10 bg-white/70 p-3 text-sm transition hover:border-black/25">
+      {supplierReadinessIssues.length ? <div className="mt-4 grid gap-2">
+        {supplierReadinessIssues.map((item, index) => <a key={item.key} href={item.href} className="flex items-center justify-between gap-4 rounded-xl border border-black/10 bg-white/70 p-3 text-sm transition hover:border-black/25">
           <span><span className="mr-2 font-semibold text-black/35">{index + 1}.</span>{item.label}</span>
           <span className="shrink-0 font-semibold">Fix →</span>
         </a>)}
-      </div> : <p className="mt-4 text-sm font-medium text-emerald-800">No activation blockers remain.</p>}
+      </div> : readiness?.ready ? <p className="mt-4 text-sm font-medium text-emerald-800">No activation blockers remain.</p> : <p className="mt-4 text-sm font-medium text-emerald-800">Your supplier-owned steps are complete.</p>}
+      {platformReadinessIssues.length ? <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/80 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[.16em] text-blue-700/70">Waiting on SafariPlug</p>
+        <p className="mt-1 text-sm text-blue-950">You do not need to fix these items yourself. Our team must complete them before activation.</p>
+        <div className="mt-3 grid gap-2">
+          {platformReadinessIssues.map((item) => <div key={item.key} className="flex items-center justify-between gap-4 rounded-lg bg-white/80 p-3 text-sm">
+            <span>{item.label}</span>
+            <span className="shrink-0 font-semibold text-blue-700">SafariPlug action</span>
+          </div>)}
+        </div>
+      </div> : null}
     </section>
     <section className="mt-6 rounded-2xl border border-black/10 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
