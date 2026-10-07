@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import TravelReviewForm from "@/app/account/TravelReviewForm";
+import { travelReviewEligible } from "@/lib/reviews/travel-review-eligibility";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +33,15 @@ export default async function AccountActivitiesPage() {
   if (error) throw new Error(error.message);
   const rows = (data || []) as Row[];
   const rowIds = rows.map((row) => row.id);
+  const { data: travelerReviews } = rowIds.length
+    ? await supabaseAdmin
+        .from("traveler_reviews")
+        .select("source_id,rating,dimensions,title,body,moderation_status")
+        .eq("traveler_id", user.id)
+        .eq("product_type", "activity")
+        .in("source_id", rowIds)
+    : { data: [] as { source_id:string; rating:number; dimensions:Record<string,number>; title:string|null; body:string|null; moderation_status:string }[] };
+  const travelerReviewByLedger = new Map((travelerReviews || []).map((review) => [String(review.source_id), review]));
   const { data: refundReviews } = rowIds.length
     ? await supabaseAdmin
         .from("travel_refund_reviews")
@@ -88,6 +99,7 @@ export default async function AccountActivitiesPage() {
                 >
                   Open booking
                 </Link>
+                <TravelReviewForm product="activity" sourceId={row.id} eligible={travelReviewEligible({product:"activity",bookingStatus:row.booking_status,paymentStatus:row.payment_status,metadata}).eligible} existing={travelerReviewByLedger.get(row.id) || null}/>
               </article>
             );
           })}

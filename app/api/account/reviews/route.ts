@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   let query = supabaseAdmin
     .from("traveler_reviews")
-    .select("id,product_type,source_id,business_id,rating,dimensions,title,body,verified_booking,moderation_status,supplier_response,supplier_responded_at,created_at,updated_at")
+    .select("id,product_type,source_id,business_id,rating,dimensions,title,body,verified_booking,moderation_status,moderation_note,supplier_response,supplier_responded_at,created_at,updated_at")
     .eq("traveler_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       title: title || null,
       body: reviewBody || null,
       verified_booking: true,
-      moderation_status: "approved",
+      moderation_status: "pending",
     }, { onConflict: "traveler_id,product_type,source_id" })
     .select("id,product_type,source_id,business_id,rating,dimensions,title,body,verified_booking,moderation_status,supplier_response,supplier_responded_at,created_at,updated_at")
     .single();
