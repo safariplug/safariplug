@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
-import { supplierPerformanceScore } from "@/lib/services/supplier-performance-scorecard";
+import { supplierGrowthRecommendations, supplierPerformanceScore } from "@/lib/services/supplier-performance-scorecard";
 
 export async function GET() {
   try {
@@ -75,6 +75,19 @@ export async function GET() {
         noShow: profileStats.noShow,
         openQualityIssues: qualityIssues,
       });
+      const activeOfferingCount = profiles.flatMap((profile:any)=>Array.isArray(profile.service_offerings)?profile.service_offerings:profile.service_offerings?[profile.service_offerings]:[])
+        .filter((offering:any)=>offering.status==="active").length;
+      const recommendations = supplierGrowthRecommendations({
+        score: performance.score,
+        bookingStatusOpen: allOpen,
+        activeAvailabilityCount: activeAvailability,
+        activeOfferingCount,
+        bookings30d: profileStats.bookings,
+        completionRate: performance.completionRate,
+        failureRate: performance.failureRate,
+        payoutIssueCount: payoutIssues,
+        openQualityIssues: qualityIssues,
+      });
       const growthOpportunity = ["approved","live"].includes(String(supplier.onboarding_status||"")) && allOpen && activeAvailability>0 && profileStats.bookings===0;
       const inactiveInventory = ["approved","live"].includes(String(supplier.onboarding_status||"")) && (!allOpen || activeAvailability===0);
       return {
@@ -91,6 +104,7 @@ export async function GET() {
           openQualityIssues: qualityIssues,
           growthOpportunity,
           inactiveInventory,
+          recommendations,
         },
       };
     });
@@ -110,6 +124,9 @@ export async function GET() {
         atRisk: [...portfolio].sort((a:any,b:any)=>(a.performance?.score||0)-(b.performance?.score||0)).slice(0,5),
         inactiveInventory: portfolio.filter((supplier:any)=>supplier.performance?.inactiveInventory),
         growthOpportunities: portfolio.filter((supplier:any)=>supplier.performance?.growthOpportunity),
+        promote: portfolio.filter((supplier:any)=>supplier.performance?.recommendations?.some((item:any)=>item.key==="promote_supplier")),
+        demandBuild: portfolio.filter((supplier:any)=>supplier.performance?.recommendations?.some((item:any)=>item.key==="build_demand")),
+        recoveryPriority: portfolio.filter((supplier:any)=>supplier.performance?.recommendations?.some((item:any)=>item.priority==="high")),
       },
     });
   } catch (error) {

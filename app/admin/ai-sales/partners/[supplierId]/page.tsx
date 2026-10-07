@@ -6,7 +6,7 @@ import { SupplierFollowupPanel } from "./followup-panel";
 import { PayoutReviewControls } from "./payout-review-controls";
 import { CaseActions } from "@/app/admin/integrations/verification/actions-client";
 import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
-import { supplierPerformanceScore } from "@/lib/services/supplier-performance-scorecard";
+import { supplierGrowthRecommendations, supplierPerformanceScore } from "@/lib/services/supplier-performance-scorecard";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +158,18 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
     noShow: noShow30d,
     openQualityIssues: openQualityTasks.length,
   });
+  const activeOfferingCount = os.filter((offering) => offering.status === "active" && Number(offering.price || 0) > 0 && Number(offering.duration_minutes || 0) > 0).length;
+  const growthRecommendations = supplierGrowthRecommendations({
+    score: performance.score,
+    bookingStatusOpen,
+    activeAvailabilityCount: Number(activeAvailabilityCount || 0),
+    activeOfferingCount,
+    bookings30d: bookingVolume30d,
+    completionRate: performance.completionRate,
+    failureRate: performance.failureRate,
+    payoutIssueCount: recentPayoutIssues.length,
+    openQualityIssues: openQualityTasks.length,
+  });
   const latestVerification = verification?.[0];
   const followupRows = followups || [];
   const latestFollowup = followupRows[0];
@@ -256,6 +268,19 @@ export default async function Partner360Page({ params }: { params: Promise<{ sup
             <div className="rounded-xl border border-zinc-900 bg-black/20 p-4"><p className="text-xs uppercase tracking-wide text-zinc-500">Recent recovery history</p><div className="mt-3 space-y-2">{(recoveryActivities || []).length ? (recoveryActivities || []).slice(0,6).map((item: any) => <div key={item.id} className="rounded-lg border border-zinc-800 p-3"><p className="text-sm font-medium">{item.summary}</p><p className="mt-1 text-xs text-zinc-500">{date(item.occurred_at)}</p></div>) : <p className="text-sm text-zinc-500">No supplier-quality recovery events recorded yet.</p>}</div></div>
           </div>
           {recentPayoutIssues.length > 0 && <div className="mt-4 rounded-xl border border-amber-900/60 bg-amber-950/20 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wide text-amber-300/70">Payout attention</p><p className="mt-1 text-sm text-amber-200">{recentPayoutIssues.length} payout exception{recentPayoutIssues.length === 1 ? "" : "s"} recorded in the last 30 days.</p></div><Link href="/admin/payouts" className="text-xs font-semibold text-amber-300">Open payouts →</Link></div></div>}
+
+          <div className="mt-6 rounded-xl border border-zinc-900 bg-black/20 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><p className="text-xs uppercase tracking-wide text-zinc-500">Commercial recommendations</p><h3 className="mt-1 font-semibold">What SafariPlug should do next</h3><p className="mt-1 text-xs leading-5 text-zinc-500">Deterministic recommendations from current operational evidence. Review before taking action.</p></div>
+              <span className="rounded-full border border-zinc-800 px-2.5 py-1 text-[10px] uppercase text-zinc-400">{growthRecommendations.length} recommendation{growthRecommendations.length === 1 ? "" : "s"}</span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {growthRecommendations.length ? growthRecommendations.map((item) => <div key={item.key} className="rounded-xl border border-zinc-800 p-4">
+                <div className="flex items-start justify-between gap-3"><p className="font-medium">{item.title}</p><span className={"rounded-full border px-2 py-0.5 text-[10px] uppercase " + (item.priority === "high" ? "border-red-800 text-red-300" : item.priority === "growth" ? "border-emerald-800 text-emerald-300" : "border-amber-800 text-amber-300")}>{item.priority}</span></div>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">{item.detail}</p>
+              </div>) : <p className="text-sm text-zinc-500">No immediate growth or recovery recommendation is supported by the current data.</p>}
+            </div>
+          </div>
         </section>}
 
         <SupplierFollowupPanel
