@@ -62,6 +62,7 @@ export default async function AISalesPage({
     { count: signupStarted },
     invitationLinks,
     prospectQuery,
+    scoutJobsQuery,
   ] = await Promise.all([
     supabaseAdmin.from("ai_sales_prospects").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("ai_sales_prospects").select("*", { count: "exact", head: true }).eq("review_status", "pending_review"),
@@ -74,6 +75,11 @@ export default async function AISalesPage({
       .select("id,business_name,category,city,opportunity_score,status,review_status,contact_email,phone,website,instagram,facebook,source_url,source_name,created_at")
       .order("created_at", { ascending: false })
       .limit(500),
+    supabaseAdmin
+      .from("supplier_scout_jobs")
+      .select("id,city,category,status,created_at,queued_at,completed_at,last_error,qualified_count,contact_ready_count,inserted_count")
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   const allProspects = (prospectQuery.data || []) as Prospect[];
@@ -107,6 +113,26 @@ export default async function AISalesPage({
   const approvedUninvited = allProspects.filter((p) => p.review_status === "approved" && p.status !== "rejected" && !invitedProspectIds.has(p.id));
   const outreachReady = approvedUninvited.filter((p) => Boolean(p.contact_email)).length;
   const contactReviewNeeded = approvedUninvited.filter((p) => !p.contact_email).length;
+  const supplierScoutAutomationEnabled = process.env.SUPPLIER_SCOUT_AUTOMATION_ENABLED === "true";
+  const supplierScoutWorkerConfigured = Boolean(process.env.CRON_SECRET?.trim());
+  const scoutJobs = (scoutJobsQuery.data || []) as Array<{
+    id: string;
+    city: string;
+    category: string;
+    status: string;
+    created_at: string;
+    queued_at: string | null;
+    completed_at: string | null;
+    last_error: string | null;
+    qualified_count: number | null;
+    contact_ready_count: number | null;
+    inserted_count: number | null;
+  }>;
+  const latestScoutJob = scoutJobs[0] || null;
+  const activeScoutJobs = scoutJobs.filter((job) => ["queued", "running"].includes(job.status)).length;
+  const failedScoutJobs = scoutJobs.filter((job) => job.status === "failed").length;
+  const completedScoutJobs = scoutJobs.filter((job) => job.status === "completed").length;
+  const supplierScoutHealthy = supplierScoutAutomationEnabled && supplierScoutWorkerConfigured && !scoutJobsQuery.error;
 
   return (
     <main className="min-h-screen bg-gray-50 p-5 md:p-8">
@@ -142,6 +168,42 @@ export default async function AISalesPage({
               </div>
             ))}
           </div>
+
+          <section className={`mt-8 rounded-xl border p-5 ${supplierScoutHealthy ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[.16em] text-gray-500">AI supplier engine health</p>
+                <h2 className="mt-1 text-xl font-semibold">{supplierScoutHealthy ? "Autonomous Supplier Scout is ready" : "Supplier Scout needs attention"}</h2>
+                <p className="mt-2 max-w-3xl text-sm text-gray-600">
+                  {supplierScoutHealthy
+                    ? "Scheduled discovery can queue trip-ready suppliers and the worker credential is configured. Human approval is still required before outreach."
+                    : !supplierScoutAutomationEnabled
+                      ? "Scheduled supplier discovery is paused. Set SUPPLIER_SCOUT_AUTOMATION_ENABLED=true in the hosting environment to resume autonomous scouting."
+                      : !supplierScoutWorkerConfigured
+                        ? "CRON_SECRET is not configured, so scheduled Supplier Scout and worker calls cannot authenticate."
+                        : "Supplier Scout job health could not be loaded. Check the database connection and recent worker logs."}
+                </p>
+              </div>
+              <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold uppercase ${supplierScoutHealthy ? "bg-emerald-600 text-white" : "bg-amber-500 text-black"}`}>
+                {supplierScoutHealthy ? "Ready" : "Attention"}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-lg bg-white/80 p-3"><p className="text-xs text-gray-500">Active jobs</p><p className="mt-1 text-xl font-bold">{activeScoutJobs}</p></div>
+              <div className="rounded-lg bg-white/80 p-3"><p className="text-xs text-gray-500">Completed (recent)</p><p className="mt-1 text-xl font-bold">{completedScoutJobs}</p></div>
+              <div className="rounded-lg bg-white/80 p-3"><p className="text-xs text-gray-500">Failed (recent)</p><p className="mt-1 text-xl font-bold">{failedScoutJobs}</p></div>
+              <div className="rounded-lg bg-white/80 p-3"><p className="text-xs text-gray-500">Automation</p><p className="mt-1 text-sm font-bold">{supplierScoutAutomationEnabled ? "Enabled" : "Paused"}</p></div>
+            </div>
+            {latestScoutJob ? (
+              <div className="mt-3 rounded-lg bg-white/80 p-3 text-sm text-gray-600">
+                Latest: <strong>{latestScoutJob.city} · {latestScoutJob.category}</strong> · {latestScoutJob.status.replaceAll("_", " ")}
+                {latestScoutJob.status === "completed" ? ` · ${latestScoutJob.inserted_count ?? 0} new prospects` : ""}
+                {latestScoutJob.last_error ? <span className="block mt-1 text-red-700">{latestScoutJob.last_error}</span> : null}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-gray-500">No Supplier Scout job history is available yet.</p>
+            )}
+          </section>
 
           <section className="mt-8 grid gap-3 md:grid-cols-3">
             <Link href="#scout" className="rounded-xl border p-5 hover:border-black">
