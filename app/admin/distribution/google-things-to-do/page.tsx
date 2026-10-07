@@ -81,7 +81,7 @@ export default async function GoogleThingsToDoReadinessPage() {
           {blocked.length ? blocked.slice(0,30).map((item)=><article key={item.id} className="border-t border-zinc-900 py-4">
             <p className="font-semibold">{item.product.title || "Untitled offering"}</p>
             <p className="mt-1 text-xs text-zinc-500">{item.product.operator.name || "Operator missing"}</p>
-            <div className="mt-3 space-y-1">{item.blockers.slice(0,4).map((blocker)=><p key={blocker} className="text-xs leading-5 text-red-300/80">• {blocker}</p>)}</div>
+            <div className="mt-3 space-y-1">{item.blockers.slice(0,4).map((blocker: string)=><p key={blocker} className="text-xs leading-5 text-red-300/80">• {blocker}</p>)}</div>
           </article>) : <Empty text="No blocked candidates."/>}
         </Panel>
       </section>
