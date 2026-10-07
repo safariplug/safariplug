@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import PrepareSupplierRecoveryButton from "./PrepareSupplierRecoveryButton";
 
 export const dynamic = "force-dynamic";
 
@@ -222,7 +223,10 @@ export default async function ServiceOperationsPage(){
             <h2 className="mt-1 text-xl font-semibold">Live supplier health</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">Derived from current bookability plus the last 30 days of service appointments. This view flags operational risk for review; it does not suspend suppliers or close inventory automatically.</p>
           </div>
-          <Link href="/admin/ai-sales/partners" className="rounded-xl border border-zinc-800 px-4 py-2 text-xs font-semibold text-amber-400">Open Partner CRM →</Link>
+          <div className="flex flex-wrap items-start gap-2">
+            <PrepareSupplierRecoveryButton />
+            <Link href="/admin/ai-sales/partners" className="rounded-xl border border-zinc-800 px-4 py-2 text-xs font-semibold text-amber-400">Open Partner CRM →</Link>
+          </div>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <Metric label="Healthy live suppliers" value={supplierQuality.filter((row:any)=>!row.issues.length).length}/>
