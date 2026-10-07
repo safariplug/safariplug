@@ -50,7 +50,7 @@ export async function POST(request:Request){
   }
 
   const {data:ledger,error:ledgerError}=await supabaseAdmin.from(tableFor(product))
-    .select("id,customer_user_id,payment_status,booking_status,metadata")
+    .select("id,customer_user_id,provider,payment_status,booking_status,metadata")
     .eq("id",sourceId)
     .eq("customer_user_id",user.id)
     .maybeSingle();
@@ -64,7 +64,7 @@ export async function POST(request:Request){
   });
   if(!eligibility.eligible)return NextResponse.json({error:eligibility.reason},{status:409});
 
-  const identity=travelReviewProductIdentity(product,(ledger.metadata||{}) as Record<string,unknown>);
+  const identity=travelReviewProductIdentity(product,{...((ledger.metadata||{}) as Record<string,unknown>),provider:ledger.provider||undefined});
   const title=typeof body?.title==="string"?body.title.trim().slice(0,120):"";
   const reviewBody=typeof body?.body==="string"?body.body.trim().slice(0,4000):"";
   const {data:review,error}=await supabaseAdmin.from("traveler_reviews").upsert({
