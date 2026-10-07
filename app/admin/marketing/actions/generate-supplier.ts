@@ -20,7 +20,7 @@ export async function generateSupplierMarketingDraft({
 
   const { data: supplier, error: supplierError } = await supabaseAdmin
     .from("supplier_accounts")
-    .select("id,user_id,business_id,prospect_id,onboarding_status,businesses!inner(id,name,description,status,website_url,instagram_url,service_profiles(id,status,booking_status,service_offerings(id,name,status,price,currency,duration_minutes),service_staff(id,status,service_staff_availability(id,is_active))))")
+    .select("id,user_id,business_id,prospect_id,onboarding_status,businesses!inner(id,name,description,status,website_url,instagram_url,slug,service_profiles(id,status,booking_status,service_offerings(id,name,status,price,currency,duration_minutes),service_staff(id,status,service_staff_availability(id,is_active))))")
     .eq("id", supplierId)
     .maybeSingle();
 
