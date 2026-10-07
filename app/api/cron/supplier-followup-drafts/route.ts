@@ -99,7 +99,7 @@ export async function GET(request: Request) {
     for (const [supplierId, previous] of candidates) {
       const { data: supplier, error } = await supabaseAdmin
         .from("supplier_accounts")
-        .select("id,user_id,business_id,contact_name,onboarding_status,completion_percent,review_items,businesses!inner(id,name,email,service_profiles(id,service_staff(id)))")
+        .select("id,user_id,business_id,prospect_id,contact_name,onboarding_status,completion_percent,review_items,businesses!inner(id,name,email,service_profiles(id,service_staff(id)))")
         .eq("id", supplierId)
         .maybeSingle();
       if (error || !supplier || !["draft","onboarding","in_progress","changes_requested"].includes(String(supplier.onboarding_status || ""))) { skipped++; continue; }
@@ -114,11 +114,71 @@ export async function GET(request: Request) {
       const workflowItems = readiness.ready && ["draft", "onboarding"].includes(String(supplier.onboarding_status || ""))
         ? ["Submit your onboarding for SafariPlug staff review"]
         : [];
+      const supplierIssues = readiness.issues.filter((item) => item.owner === "supplier").map((item) => item.label);
+      const platformIssues = readiness.issues.filter((item) => item.owner === "platform").map((item) => item.label);
       const missing = [...new Set([
-        ...readiness.issues.filter((item) => item.owner === "supplier").map((item) => item.label),
+        ...supplierIssues,
         ...reviewRequested,
         ...workflowItems,
       ])].slice(0, 20);
+
+      // If the supplier has finished everything they control, stop preparing reminder emails.
+      // Convert the blocker into an internal CRM follow-up for SafariPlug instead.
+      if (!missing.length && platformIssues.length) {
+        const { data: existingPrepared } = await supabaseAdmin
+          .from("supplier_onboarding_followup_drafts")
+          .select("id")
+          .eq("supplier_id", supplierId)
+          .eq("status", "prepared")
+          .maybeSingle();
+        if (existingPrepared) {
+          const { error: supersedeError } = await supabaseAdmin
+            .from("supplier_onboarding_followup_drafts")
+            .update({ status: "superseded", updated_at: now })
+            .eq("id", existingPrepared.id);
+          if (supersedeError) throw supersedeError;
+        }
+
+        if (supplier.prospect_id) {
+          const { data: existingInternal, error: internalLookupError } = await supabaseAdmin
+            .from("crm_followups")
+            .select("id")
+            .eq("prospect_id", supplier.prospect_id)
+            .eq("status", "open")
+            .ilike("title", "SafariPlug action:%")
+            .limit(1)
+            .maybeSingle();
+          if (internalLookupError) throw internalLookupError;
+
+          const details = `Platform-owned supplier blockers: ${platformIssues.join("; ")}`;
+          if (existingInternal) {
+            const { error: internalUpdateError } = await supabaseAdmin
+              .from("crm_followups")
+              .update({
+                title: "SafariPlug action: complete supplier activation setup",
+                priority: "high",
+                due_at: now,
+                notes: details,
+                updated_at: now,
+              })
+              .eq("id", existingInternal.id);
+            if (internalUpdateError) throw internalUpdateError;
+          } else {
+            const { error: internalInsertError } = await supabaseAdmin.from("crm_followups").insert({
+              prospect_id: supplier.prospect_id,
+              title: "SafariPlug action: complete supplier activation setup",
+              priority: "high",
+              due_at: now,
+              notes: details,
+            });
+            if (internalInsertError) throw internalInsertError;
+          }
+        }
+
+        skipped++;
+        continue;
+      }
+
       const previousRequirements = previous && Array.isArray(previous.missing_requirements) ? previous.missing_requirements.map(String) : [];
       const comparison = previous ? {
         previousSentAt: previous.sent_at,
