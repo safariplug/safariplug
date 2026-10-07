@@ -11,9 +11,11 @@ function record(value: unknown): Metadata {
 
 export function travelReviewProductIdentity(product: TravelReviewProduct, metadata: Metadata) {
   if (product === "hotel") {
-    const productRef = String(metadata.hotelCode || metadata.hotelId || metadata.propertyId || metadata.hotel_id || "").trim() || null;
     const productName = String(metadata.hotelName || metadata.propertyName || "").trim() || null;
-    const provider = String(metadata.provider || "hotel").trim().toLowerCase() || null;
+    const provider = String(metadata.provider || "hotel").trim().toLowerCase() || "hotel";
+    const explicit = String(metadata.hotelCode || metadata.hotelId || metadata.propertyId || metadata.hotel_id || "").trim();
+    const fallback = productName ? provider + ":name:" + productName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "";
+    const productRef = explicit || fallback || null;
     return { productRef, productName, provider };
   }
   if (product === "activity") {
