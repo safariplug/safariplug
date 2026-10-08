@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import DiscoverySwitcher from "@/components/DiscoverySwitcher";
+import MarketplaceViewTracker from "@/components/MarketplaceViewTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function RestaurantsPage({ searchParams }: { searchParams: 
     return [restaurant.name, restaurant.description].filter(Boolean).join(" ").toLowerCase().includes(term);
   });
 
-  return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
+  return <main className="min-h-screen bg-[#f7f7f4] text-[#111]"><MarketplaceViewTracker surface="restaurants" />
     <section className="bg-[#111] text-white">
       <div className="mx-auto max-w-7xl px-6 pb-16 pt-12 sm:px-10 sm:pb-20 sm:pt-16">
         <div className="max-w-4xl">
