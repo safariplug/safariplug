@@ -54,6 +54,8 @@ async function waitForProduction() {
   throw new Error(`Production did not become ready: ${lastError}`);
 }
 
+const homepageMarkers = ["One SafariPlug. Your whole trip.", "SafariPlug — One place for your whole trip across Africa"];
+
 const routeMarkers = new Map([
   ["/contact", ["info@safariplug.com", "+254 768 240 096"]],
   ["/about", ["One place to put the whole trip together"]],
@@ -78,7 +80,7 @@ async function checkPublicRoutes() {
         failures.push(`${path}: expected usable HTML 200, received ${response.status} ${contentType}`);
         continue;
       }
-      const markers = routeMarkers.get(path) || [];
+      const markers = path === "/" ? homepageMarkers : (routeMarkers.get(path) || []);
       for (const marker of markers) {
         if (!body.includes(marker)) failures.push(`${path}: missing expected production marker "${marker}"`);
       }
