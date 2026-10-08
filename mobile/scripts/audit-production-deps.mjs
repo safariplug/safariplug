@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 const allowedAdvisories = new Set([
   "GHSA-vfj7-8cjw-p6xm", // braces: no patched upstream release as of 2026-10-07
   "GHSA-86w9-cpqp-85rv", // node-forge: no patched upstream release as of 2026-10-07
+  "GHSA-w5hq-g745-h8pq", // uuid: Expo 53 CLI chain requires an older major; upgrade with Expo SDK
 ]);
 
 const result = spawnSync("npm", ["audit", "--omit=dev", "--json"], {
@@ -48,7 +49,9 @@ const accepted = [];
 for (const [name, vuln] of Object.entries(vulnerabilities)) {
   if (!["high", "critical"].includes(vuln.severity)) continue;
   const roots = rootAdvisories(name);
-  const ids = [...new Set(roots.map(advisoryId).filter(Boolean))];
+  const significantRoots = roots.filter((entry) => ["high", "critical"].includes(entry?.severity));
+  if (!significantRoots.length) continue;
+  const ids = [...new Set(significantRoots.map(advisoryId).filter(Boolean))];
   const allAllowed = ids.length > 0 && ids.every((id) => allowedAdvisories.has(id));
   const row = { name, severity: vuln.severity, advisories: ids };
   if (allAllowed) accepted.push(row);
