@@ -21,8 +21,7 @@ jobs:
     timeout-minutes: 15
     env:
       PROJECT_REF: safcizxahjqassrwhrup
-      SUPABASE_ACCESS_TOKEN: \${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: \${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_DISABLE_TELEMETRY: "1"
       NO_COLOR: "1"
 
@@ -41,25 +40,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$SUPABASE_ACCESS_TOKEN"
           test -n "$SUPABASE_DB_PASSWORD"
           test "$PROJECT_REF" = "safcizxahjqassrwhrup"
           test -f supabase/migrations/20261008005000_production_payment_proofs.sql
           test -f supabase/migrations/20261008012000_production_launch_checks.sql
           npm run validate:migrations
 
-      - name: Link to SafariPlug production
+      - name: Build direct production database URL
         shell: bash
         run: |
           set -euo pipefail
-          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          encoded_password="$(python -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')"
+          echo "::add-mask::$encoded_password"
+          echo "DB_URL=postgresql://postgres:${encoded_password}@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require" >> "$GITHUB_ENV"
 
       - name: Preflight target objects
         shell: bash
         run: |
           set -euo pipefail
-          supabase db query --linked -p "$SUPABASE_DB_PASSWORD" \
-            "select to_regclass('public.production_payment_proofs') as payment_proofs, to_regclass('public.production_launch_checks') as launch_checks;"
+          supabase db query --db-url "$DB_URL" "select to_regclass('public.production_payment_proofs') as payment_proofs, to_regclass('public.production_launch_checks') as launch_checks;"
 
       - name: Apply only launch-control schema
         shell: bash
@@ -71,7 +70,7 @@ jobs:
           do
             echo "Applying $file"
             sql="$(cat "$file")"
-            supabase db query --linked -p "$SUPABASE_DB_PASSWORD" "$sql"
+            supabase db query --db-url "$DB_URL" "$sql"
           done
 
       - name: Normalize only these two migration history entries
@@ -81,17 +80,14 @@ jobs:
           supabase migration repair \
             20261008005000 \
             20261008012000 \
+            --db-url "$DB_URL" \
             --status applied
 
       - name: Verify launch-control schema
         shell: bash
         run: |
           set -euo pipefail
-          output="$(supabase db query --linked -p "$SUPABASE_DB_PASSWORD" \
-            "select
-               to_regclass('public.production_payment_proofs') is not null as payment_proofs_exists,
-               to_regclass('public.production_launch_checks') is not null as launch_checks_exists,
-               (select count(*) from public.production_launch_checks) as launch_check_rows;")"
+          output="$(supabase db query --db-url "$DB_URL" "select to_regclass('public.production_payment_proofs') is not null as payment_proofs_exists, to_regclass('public.production_launch_checks') is not null as launch_checks_exists, (select count(*) from public.production_launch_checks) as launch_check_rows;")"
           printf '%s\n' "$output"
           printf '%s\n' "$output" | grep -q "true"
           printf '%s\n' "$output" | grep -Eq '(^|[^0-9])6([^0-9]|$)'
@@ -100,6 +96,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase migration list --linked | tee migration-list.txt
+          supabase migration list --db-url "$DB_URL" | tee migration-list.txt
           grep -q "20261008005000" migration-list.txt
           grep -q "20261008012000" migration-list.txt
