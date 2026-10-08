@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { authorizedCronRequest } from "@/lib/auth/cron-request";
 import {
   supplierQualityDueAt,
   supplierQualityRecovery,
@@ -9,11 +10,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  return Boolean(secret && request.headers.get("authorization") === `Bearer ${secret}`);
-}
 
 type ProfileIssue = {
   profileId: string;
@@ -252,7 +248,7 @@ async function reconcileRecoveryTasks() {
 }
 
 export async function GET(request: Request) {
-  if (!authorized(request)) {
+  if (!(await authorizedCronRequest(request))) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
