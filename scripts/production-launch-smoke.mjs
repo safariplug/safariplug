@@ -10,7 +10,7 @@ const expectedRoutes = [
   "/restaurants",
   "/services",
   "/plan",
-  "/ask",
+  "/concierge",
   "/destinations",
   "/about",
   "/contact",
@@ -64,8 +64,8 @@ const routeMarkers = new Map([
   ["/privacy", ["Privacy Policy"]],
   ["/terms", ["Terms of Use"]],
   ["/destinations", ["Start with a destination"]],
-  ["/plan", ["trip"]],
-  ["/ask", ["SafariPlug"]],
+  ["/plan", ["Plan the whole journey."]],
+  ["/concierge", ["SafariPlug"]],
 ]);
 
 async function checkPublicRoutes() {
@@ -145,4 +145,4 @@ if (failures.length) {
 }
 
 console.log("\nSafariPlug production smoke PASSED.");
-console.log("Verified core marketplace routes, Trips/Plan, Ask AI, trust/legal pages, destination discovery, public contact markers, unauthenticated traveler redirect, and version endpoint.");
+console.log("Verified core marketplace routes, Trips/Plan, AI Concierge, trust/legal pages, destination discovery, public contact markers, unauthenticated traveler redirect, and version endpoint.");
