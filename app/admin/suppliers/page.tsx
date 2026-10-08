@@ -29,7 +29,7 @@ type Supplier = {
   businesses?: Business | Business[] | null;
   activation_readiness?: SupplierReadiness | null;
 };
-type Filter = "attention" | "ready" | "platform" | "supplier" | "staff" | "active" | "all";
+type Filter = "today" | "attention" | "ready" | "platform" | "supplier" | "staff" | "active" | "all";
 
 const REVIEW_OPTIONS = [
   ["business_details", "Business details"],
@@ -119,7 +119,7 @@ export default function SuppliersAdminPage() {
   const [message, setMessage] = useState("");
   const [reviewing, setReviewing] = useState("");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("attention");
+  const [filter, setFilter] = useState<Filter>("today");
   const [feedbackSupplier, setFeedbackSupplier] = useState<Supplier | null>(null);
   const [reviewItems, setReviewItems] = useState<string[]>([]);
   const [reviewNote, setReviewNote] = useState("");
@@ -154,11 +154,28 @@ export default function SuppliersAdminPage() {
         earlyReviewWaiting:Boolean(s.review_requested_at&&["draft","onboarding","in_progress"].includes(s.onboarding_status)),
       }).key==="overdue";
     }).length,
+    today: suppliers.filter((s) => {
+      const blockers=readinessBreakdown(s);
+      const sla=supplierActivationSla({
+        onboardingStatus:s.onboarding_status,
+        submittedAt:s.submitted_at,
+        reviewRequestedAt:s.review_requested_at,
+        updatedAt:s.updated_at,
+        hasPlatformOnlyBlockers:blockers.platform.length>0&&blockers.supplier.length===0,
+        earlyReviewWaiting:Boolean(s.review_requested_at&&["draft","onboarding","in_progress"].includes(s.onboarding_status)),
+      });
+      return guidance(s).owner==="staff" && ["overdue","due_soon","on_track"].includes(sla.key);
+    }).length,
   }), [suppliers]);
 
   const visible = useMemo(() => suppliers
     .filter((supplier) => {
       const g = guidance(supplier);
+      if (filter === "today") {
+        const blockers=readinessBreakdown(supplier);
+        const sla=supplierActivationSla({onboardingStatus:supplier.onboarding_status,submittedAt:supplier.submitted_at,reviewRequestedAt:supplier.review_requested_at,updatedAt:supplier.updated_at,hasPlatformOnlyBlockers:blockers.platform.length>0&&blockers.supplier.length===0,earlyReviewWaiting:Boolean(supplier.review_requested_at&&["draft","onboarding","in_progress"].includes(supplier.onboarding_status))});
+        if (!(guidance(supplier).owner==="staff" && ["overdue","due_soon","on_track"].includes(sla.key))) return false;
+      }
       if (filter === "ready" && !(supplier.onboarding_status === "submitted" && supplier.activation_readiness?.ready)) return false;
       if (filter === "platform") {
         const blockers = readinessBreakdown(supplier);
@@ -172,7 +189,10 @@ export default function SuppliersAdminPage() {
       const haystack = `${business?.name || ""} ${supplier.contact_name || ""} ${business?.email || ""} ${business?.phone || ""}`.toLowerCase();
       return haystack.includes(query.trim().toLowerCase());
     })
-    .sort((a, b) => guidance(a).priority - guidance(b).priority || activationScore(b).percent - activationScore(a).percent || (b.completion_percent || 0) - (a.completion_percent || 0)), [suppliers, filter, query]);
+    .sort((a, b) => {
+      const slaRank=(s:Supplier)=>{const blockers=readinessBreakdown(s);const sla=supplierActivationSla({onboardingStatus:s.onboarding_status,submittedAt:s.submitted_at,reviewRequestedAt:s.review_requested_at,updatedAt:s.updated_at,hasPlatformOnlyBlockers:blockers.platform.length>0&&blockers.supplier.length===0,earlyReviewWaiting:Boolean(s.review_requested_at&&["draft","onboarding","in_progress"].includes(s.onboarding_status))});return sla.key==="overdue"?0:sla.key==="due_soon"?1:2;};
+      return slaRank(a)-slaRank(b) || guidance(a).priority-guidance(b).priority || activationScore(b).percent-activationScore(a).percent || (b.completion_percent||0)-(a.completion_percent||0);
+    }), [suppliers, filter, query]);
 
   async function review(supplierId: string, action: "approve" | "reject" | "profile_reviewed", extra?: Record<string, unknown>) {
     setReviewing(supplierId); setMessage("");
@@ -213,9 +233,10 @@ export default function SuppliersAdminPage() {
   }
 
   return <main className="mx-auto max-w-7xl px-6 py-10">
-    <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">Admin · Partner CRM</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Supplier onboarding</h1><p className="mt-2 max-w-2xl text-black/55">Start with the suppliers who need attention. Everything else can stay out of the way.</p></div><div className="flex flex-wrap gap-2"><Link href="/admin/suppliers/invite" className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white">+ Invite supplier manually</Link><button onClick={() => void loadReviews()} className="rounded-full border border-black/15 px-4 py-2 text-sm">Refresh</button></div></div>
+    <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-black/40">Admin · Partner CRM</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Supplier onboarding</h1><p className="mt-2 max-w-2xl text-black/55">Start with today\'s staff-owned activation work: overdue first, then due-soon, then the suppliers closest to live.</p></div><div className="flex flex-wrap gap-2"><Link href="/admin/suppliers/invite" className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white">+ Invite supplier manually</Link><button onClick={() => void loadReviews()} className="rounded-full border border-black/15 px-4 py-2 text-sm">Refresh</button></div></div>
 
-    <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+    <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+      <Metric label="Today\'s staff queue" value={counts.today} active={filter === "today"} onClick={() => setFilter("today")} />
       <Metric label="Ready to approve" value={counts.ready} active={filter === "ready"} onClick={() => setFilter("ready")} />
       <Metric label="SafariPlug blockers" value={counts.platform} active={filter === "platform"} onClick={() => setFilter("platform")} />
       <Metric label="Waiting on supplier" value={counts.supplier} active={filter === "supplier"} onClick={() => setFilter("supplier")} />
