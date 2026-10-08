@@ -4,6 +4,7 @@ import EventFilters from "@/app/events/components/EventFilters";
 import EventSearch from "@/app/events/components/EventSearch";
 import { EVENT_CATEGORIES } from "@/lib/constants/events";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import MarketplaceViewTracker from "@/components/MarketplaceViewTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,7 @@ export default async function EventsPage({
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white md:px-8 md:py-12">
+      <MarketplaceViewTracker surface="events" />
       <div className="mx-auto max-w-7xl">
         <header className="mb-8">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
