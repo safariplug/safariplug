@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
 import { runScheduledSalesScout } from "@/app/admin/ai-sales/actions/run-sales-scout";
+import { authorizedCronRequest } from "@/lib/auth/cron-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function authorized(request: Request) {
-  const configured = process.env.CRON_SECRET?.trim();
-  if (!configured) return false;
-
-  const authorization = request.headers.get("authorization");
-  return authorization === `Bearer ${configured}`;
-}
-
 export async function GET(request: Request) {
-  if (!authorized(request)) {
+  if (!(await authorizedCronRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

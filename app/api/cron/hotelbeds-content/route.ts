@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
 import { syncOneHotelbedsContentPage } from "@/lib/integrations/hotels/hotelbeds-content-sync";
+import { authorizedCronRequest } from "@/lib/auth/cron-request";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
 
-function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) return false;
-  return request.headers.get("authorization") === `Bearer ${secret}`;
-}
-
 export async function POST(request: Request) {
-  if (!authorized(request)) {
+  if (!(await authorizedCronRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

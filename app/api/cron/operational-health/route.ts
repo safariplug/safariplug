@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { loadProductionOpsSnapshot } from "@/lib/ops/production-ops";
+import { authorizedCronRequest } from "@/lib/auth/cron-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function authorized(request: NextRequest) {
-  const secret = process.env.CRON_SECRET?.trim();
-  return Boolean(secret && request.headers.get("authorization") === "Bearer " + secret);
-}
 
 function ageMinutes(value: string | null) {
   if (!value) return null;
@@ -17,7 +13,7 @@ function ageMinutes(value: string | null) {
 }
 
 export async function GET(request: NextRequest) {
-  if (!authorized(request)) {
+  if (!(await authorizedCronRequest(request))) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
