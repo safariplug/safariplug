@@ -1,0 +1,24 @@
+name: SafariPlug Operational Health
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  operational-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check live operational health
+        env:
+          SAFARIPLUG_CRON_SECRET: \${{ secrets.SAFARIPLUG_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$SAFARIPLUG_CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --max-time 60 \
+            -H "Authorization: Bearer \${SAFARIPLUG_CRON_SECRET}" \
+            "https://safariplug.com/api/cron/operational-health" | tee operational-health.json
