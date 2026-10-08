@@ -8,7 +8,8 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { fetchEvent } from "../../src/api/catalog";
-import { API_BASE_URL, ApiError } from "../../src/api/client";
+import { ApiError } from "../../src/api/client";
+import { API_BASE_URL } from "../../src/config";
 import { supabase } from "../../src/auth";
 import { EventImage } from "../../src/components/EventImage";
 import { PriceLabel } from "../../src/components/PriceLabel";
@@ -71,7 +72,7 @@ export default function EventDetailScreen() {
   const bookingUrl = event.booking_url;
 
   async function addToTrip() {
-    if (!tripId || adding) return;
+    if (!tripId || adding || !event) return;
     setAdding(true);
     setTripMessage("");
     try {

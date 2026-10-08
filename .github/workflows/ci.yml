@@ -44,3 +44,31 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+
+  mobile:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      EXPO_PUBLIC_API_BASE_URL: https://www.safariplug.com
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install mobile dependencies
+        run: npm install
+
+      - name: Mobile typecheck
+        run: npm run typecheck
+
+      - name: Mobile tests
+        run: npm test

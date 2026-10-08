@@ -77,7 +77,7 @@ export default function NotificationsScreen() {
             table: "service_appointment_notifications",
             filter: `user_id=eq.${session.user.id}`,
           },
-          (payload) => {
+          (payload: { new: unknown }) => {
             const notification = payload.new as NotificationItem;
             setItems((current) => [notification, ...current.filter((item) => item.id !== notification.id)].slice(0, 100));
           },
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.textMuted },
   unreadDot: { backgroundColor: colors.gold },
   time: { color: colors.textMuted, fontSize: 11 },
-  cardTitle: { color: colors.text, fontSize: 17, fontWeight: "750", marginTop: 11 },
+  cardTitle: { color: colors.text, fontSize: 17, fontWeight: "700", marginTop: 11 },
   body: { color: colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 6 },
   appointment: { color: colors.goldSoft, fontSize: 11, fontWeight: "700", marginTop: 12, textTransform: "capitalize" },
   center: { paddingVertical: 80, alignItems: "center", gap: 12 },

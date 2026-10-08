@@ -4,6 +4,7 @@ import { colors } from "../src/theme";
 import { useEffect } from "react";
 import { registerForPushNotifications } from "../src/notifications";
 import { supabase } from "../src/auth";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -13,7 +14,7 @@ export default function RootLayout() {
       if (active && session?.user && !session.user.is_anonymous) await registerForPushNotifications();
     };
     register().catch(() => undefined);
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       if (session?.user && !session.user.is_anonymous) registerForPushNotifications().catch(() => undefined);
     });
     return () => { active = false; listener.subscription.unsubscribe(); };

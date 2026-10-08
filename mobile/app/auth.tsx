@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { supabase, hasMobileSupabaseConfig } from "../src/auth";
+import { supabase, hasMobileSupabaseConfig, type AuthSession } from "../src/auth";
 import { colors } from "../src/theme";
 
 export default function AuthScreen() {
@@ -15,7 +15,7 @@ export default function AuthScreen() {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data }: { data: { session: AuthSession | null } }) => {
       if (active && data.session) router.replace(next as never);
     });
     return () => { active = false; };
