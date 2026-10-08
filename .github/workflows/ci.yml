@@ -59,11 +59,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
 
       - name: Install mobile dependencies
-        run: npm ci
+        run: npm install
 
       - name: Mobile typecheck
         run: npm run typecheck
