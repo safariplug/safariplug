@@ -85,8 +85,7 @@ jobs:
             supabase/migrations/20261008012000_production_launch_checks.sql
           do
             echo "Applying $file"
-            sql="$(cat "$file")"
-            supabase db query --db-url "$DB_URL" "$sql"
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$file"
           done
 
       - name: Normalize only these two migration history entries
