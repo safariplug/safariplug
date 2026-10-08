@@ -1,0 +1,26 @@
+name: SafariPlug Supplier Scout Worker
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: safariplug-supplier-scout-worker
+  cancel-in-progress: false
+
+jobs:
+  supplier-scout-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Process Supplier Scout worker queue
+        env:
+          SAFARIPLUG_CRON_SECRET: ${{ secrets.SAFARIPLUG_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$SAFARIPLUG_CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --max-time 60 \
+            -H "Authorization: Bearer ${SAFARIPLUG_CRON_SECRET}" \
+            "https://safariplug.com/api/cron/supplier-scout/worker"
