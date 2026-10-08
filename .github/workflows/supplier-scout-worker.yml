@@ -5,6 +5,10 @@ on:
     - cron: "*/10 * * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write
+
 concurrency:
   group: safariplug-supplier-scout-worker
   cancel-in-progress: false
@@ -14,13 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Process Supplier Scout worker queue
-        env:
-          SAFARIPLUG_CRON_SECRET: ${{ secrets.SAFARIPLUG_CRON_SECRET }}
+      - name: Call SafariPlug with GitHub OIDC
         run: |
           set -euo pipefail
-          test -n "$SAFARIPLUG_CRON_SECRET"
+          token="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https%3A%2F%2Fsafariplug.com" | jq -r '.value')"
+          test -n "$token"
+          test "$token" != "null"
+          echo "::add-mask::$token"
           curl --fail-with-body --silent --show-error \
             --max-time 60 \
-            -H "Authorization: Bearer ${SAFARIPLUG_CRON_SECRET}" \
+            -H "Authorization: Bearer $token" \
             "https://safariplug.com/api/cron/supplier-scout/worker"
