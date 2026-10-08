@@ -1,0 +1,105 @@
+name: Apply SafariPlug Launch-Control Migrations
+
+on:
+  push:
+    branches:
+      - ops/apply-launch-control-migrations
+    paths:
+      - ".github/workflows/apply-launch-control-migrations.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: safariplug-production-launch-control-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROJECT_REF: safcizxahjqassrwhrup
+      SUPABASE_ACCESS_TOKEN: \${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: \${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DISABLE_TELEMETRY: "1"
+      NO_COLOR: "1"
+
+    steps:
+      - name: Check out exact migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: ops/apply-launch-control-migrations
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Validate production inputs and exact files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_DB_PASSWORD"
+          test "$PROJECT_REF" = "safcizxahjqassrwhrup"
+          test -f supabase/migrations/20261008005000_production_payment_proofs.sql
+          test -f supabase/migrations/20261008012000_production_launch_checks.sql
+          npm run validate:migrations
+
+      - name: Link to SafariPlug production
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Preflight target objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db query --linked -p "$SUPABASE_DB_PASSWORD" \
+            "select to_regclass('public.production_payment_proofs') as payment_proofs, to_regclass('public.production_launch_checks') as launch_checks;"
+
+      - name: Apply only launch-control schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            supabase/migrations/20261008005000_production_payment_proofs.sql \
+            supabase/migrations/20261008012000_production_launch_checks.sql
+          do
+            echo "Applying $file"
+            sql="$(cat "$file")"
+            supabase db query --linked -p "$SUPABASE_DB_PASSWORD" "$sql"
+          done
+
+      - name: Normalize only these two migration history entries
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration repair \
+            20261008005000 \
+            20261008012000 \
+            --status applied
+
+      - name: Verify launch-control schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(supabase db query --linked -p "$SUPABASE_DB_PASSWORD" \
+            "select
+               to_regclass('public.production_payment_proofs') is not null as payment_proofs_exists,
+               to_regclass('public.production_launch_checks') is not null as launch_checks_exists,
+               (select count(*) from public.production_launch_checks) as launch_check_rows;")"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -q "true"
+          printf '%s\n' "$output" | grep -Eq '(^|[^0-9])6([^0-9]|$)'
+
+      - name: Verify remote migration history contains target versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --linked | tee migration-list.txt
+          grep -q "20261008005000" migration-list.txt
+          grep -q "20261008012000" migration-list.txt
