@@ -1,4 +1,5 @@
 const base = (process.env.SAFARIPLUG_BASE_URL || "https://www.safariplug.com").replace(/\/$/, "");
+const expectedCommit = (process.env.SAFARIPLUG_EXPECTED_COMMIT || "").trim();
 const expectedRoutes = [
   "/",
   "/hotels",
@@ -123,6 +124,9 @@ async function checkVersion() {
 
     if (!response.ok || body?.service !== "SafariPlug") {
       return [`/api/version: expected SafariPlug JSON response, received HTTP ${response.status}`];
+    }
+    if (expectedCommit && (typeof body.commit !== "string" || body.commit !== expectedCommit)) {
+      return [`/api/version: deployed commit ${JSON.stringify(body.commit)} does not match expected ${expectedCommit}`];
     }
     return [];
   } catch (error) {
