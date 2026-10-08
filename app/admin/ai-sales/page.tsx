@@ -7,6 +7,7 @@ import { approveSelectedSalesProspects } from "./bulk-review";
 import { salesProspectQualityIssues } from "@/lib/services/sales-prospect-quality";
 import { BulkReviewSelectionControls } from "./bulk-review-selection-controls";
 import { citySupplySummary, supplyAcquisitionPriority, supplyGapPriority, supplyMarketReadiness } from "@/lib/services/supply-market-readiness";
+import { rankMarketLaunchScores } from "@/lib/services/market-launch-score";
 
 type SearchParams = {
   stage?: string;
@@ -109,6 +110,7 @@ export default async function AISalesPage({
   const topSupplyGaps = supplyGapPriority(supplyRows).slice(0, 8);
   const topAcquisitionGaps = supplyAcquisitionPriority(supplyRows).slice(0, 8);
   const pipelineCoveredMarkets = supplyCities.filter((market) => market.status === "pipeline_covered").length;
+  const launchScores = rankMarketLaunchScores(supplyRows);
 
   const hasAnyContact = (p: Prospect) => Boolean(p.contact_email || p.phone || p.website || p.instagram || p.facebook);
   let filtered = allProspects.filter((p) => {
@@ -196,16 +198,16 @@ export default async function AISalesPage({
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.16em] text-amber-300/70">Supply Command Center</p>
-                <h2 className="mt-1 text-2xl font-semibold">Destination launch readiness</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">Tracks direct SafariPlug partner density across the trip-critical categories. This is a supply-acquisition signal, not a claim that external hotel/activity inventory is unavailable.</p>
+                <h2 className="mt-1 text-2xl font-semibold">Market Launch Score</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">One 0–100 operating score per destination using live direct partner coverage, pipeline coverage and penalties for zero-live core categories. External supplier inventory is intentionally excluded from the direct-market score.</p>
               </div>
               <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/60">{activatedPartners.length} activated direct partner{activatedPartners.length===1?"":"s"} linked to Scout prospects</span>
             </div>
             <div className="mt-5 grid gap-3 md:grid-cols-3">
-              {supplyCities.slice(0,9).map((market) => <div key={market.city} className="rounded-xl border border-white/10 bg-white/[.04] p-4">
-                <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{market.city}</p><p className="mt-1 text-xs text-white/40">{market.pipeline} pipeline prospect{market.pipeline===1?"":"s"} · {market.uncoveredGap} uncovered gap</p></div><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold uppercase "+(market.status==="launch_ready"?"bg-emerald-500/20 text-emerald-300":market.status==="pipeline_covered"?"bg-blue-500/20 text-blue-300":market.status==="building"?"bg-amber-500/20 text-amber-300":"bg-red-500/20 text-red-300")}>{market.status.replaceAll("_"," ")}</span></div>
-                <div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-amber-300" style={{width:`${market.readiness}%`}} /></div><strong className="text-sm">{market.readiness}%</strong></div>
-              </div>)}
+              {launchScores.slice(0,9).map((launch) => { const market=supplyCities.find((item)=>item.city===launch.city); return <div key={launch.city} className="rounded-xl border border-white/10 bg-white/[.04] p-4">
+                <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{launch.city}</p><p className="mt-1 text-xs text-white/40">{market?.pipeline||0} pipeline prospect{(market?.pipeline||0)===1?"":"s"} · {market?.uncoveredGap||0} uncovered gap</p></div><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold uppercase "+(launch.status==="launch_ready"?"bg-emerald-500/20 text-emerald-300":launch.status==="nearly_ready"?"bg-blue-500/20 text-blue-300":launch.status==="building"?"bg-amber-500/20 text-amber-300":"bg-red-500/20 text-red-300")}>{launch.status.replaceAll("_"," ")}</span></div>
+                <div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-amber-300" style={{width:`${launch.score}%`}} /></div><strong className="text-sm">{launch.score}</strong></div><div className="mt-3 grid grid-cols-2 gap-2 text-[10px] text-white/40"><span>Live {launch.liveCoverage}%</span><span>Pipeline {launch.pipelineCoverage}%</span><span>{launch.zeroLiveCategories} zero-live core</span><span>Weakest: {launch.weakestCategory||"—"}</span></div>
+              </div>})}
             </div>
             <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-white/35">Autonomous acquisition priorities</p><p className="mt-1 text-sm text-white/55">Scout now ignores gaps already covered by enough active prospects and concentrates discovery on uncovered launch targets.</p></div><div className="flex items-center gap-3"><span className="text-xs text-blue-300">{pipelineCoveredMarkets} market{pipelineCoveredMarkets===1?"":"s"} pipeline-covered</span><Link href="#scout" className="text-xs font-semibold text-amber-300">Open Scout →</Link></div></div>
