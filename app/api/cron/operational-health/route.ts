@@ -12,6 +12,14 @@ function ageMinutes(value: string | null) {
   return Number.isFinite(ms) ? Math.max(0, Math.floor(ms / 60000)) : null;
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message || "Unknown structured error");
+  }
+  return String(error || "Unknown error");
+}
+
 export async function GET(request: NextRequest) {
   if (!(await authorizedCronRequest(request))) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -19,7 +27,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const [ops, aiScout, supplierScout, proofs, launchChecks, followups] = await Promise.all([
-      loadProductionOpsSnapshot(),
+      loadProductionOpsSnapshot().catch((error) => {
+        throw new Error("production_ops: " + errorMessage(error));
+      }),
       supabaseAdmin
         .from("ai_scout_runs")
         .select("id,status,queued_at,started_at,completed_at,last_error")
@@ -53,7 +63,7 @@ export async function GET(request: NextRequest) {
       launchChecks.error,
       followups.error,
     ].filter(Boolean);
-    if (dbErrors.length) throw dbErrors[0];
+    if (dbErrors.length) throw new Error("database: " + errorMessage(dbErrors[0]));
 
     const staleThresholdMinutes = 30;
     const aiRows = aiScout.data || [];
@@ -122,7 +132,7 @@ export async function GET(request: NextRequest) {
     console.error("OPERATIONAL HEALTH PROBE ERROR", error);
     return NextResponse.json({
       ok: false,
-      error: error instanceof Error ? error.message : "Operational health probe failed",
+      error: errorMessage(error),
     }, { status: 500 });
   }
 }
