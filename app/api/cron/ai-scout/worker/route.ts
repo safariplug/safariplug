@@ -7,6 +7,7 @@ import {
 } from "@/app/admin/ai-scout/actions/process-queued-scout-background";
 import type { QueuedScoutJob } from "@/app/admin/ai-scout/actions/process-queued-scout";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { authorizedCronRequest } from "@/lib/auth/cron-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,9 +53,7 @@ function transientProviderError(message: string) {
 }
 
 async function authorized(request: NextRequest) {
-  const authorization = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authorization === `Bearer ${cronSecret}`) return true;
+  if (await authorizedCronRequest(request)) return true;
 
   const vaultToken = request.headers.get("x-scout-worker-token");
   if (!vaultToken) return false;
