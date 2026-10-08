@@ -5,13 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "node scripts/generate-pwa-icons.mjs",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test lib/api/v1/*.test.ts lib/integrations/**/*.test.ts lib/services/**/*.test.ts",
     "validate:migrations": "node scripts/validate-supabase-migrations.mjs",
     "compare:supabase-baseline": "node scripts/compare-supabase-baseline.mjs",
-    "smoke:production": "node scripts/production-launch-smoke.mjs"
+    "smoke:production": "node scripts/production-launch-smoke.mjs",
+    "build:turbopack": "next build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
