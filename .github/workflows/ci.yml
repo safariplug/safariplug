@@ -74,8 +74,7 @@ jobs:
         run: npm run doctor
 
       - name: Audit production mobile dependencies
-        run: npm audit --omit=dev --audit-level=high
-        continue-on-error: true
+        run: npm run audit:production
 
       - name: Mobile typecheck
         run: npm run typecheck
