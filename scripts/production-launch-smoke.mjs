@@ -9,6 +9,11 @@ const expectedRoutes = [
   "/drivers",
   "/restaurants",
   "/services",
+  "/destinations",
+  "/about",
+  "/contact",
+  "/privacy",
+  "/terms",
 ];
 
 const waitAttempts = Number(process.env.SMOKE_WAIT_ATTEMPTS || 20);
@@ -49,6 +54,14 @@ async function waitForProduction() {
   throw new Error(`Production did not become ready: ${lastError}`);
 }
 
+const routeMarkers = new Map([
+  ["/contact", ["info@safariplug.com", "+254 768 240 096"]],
+  ["/about", ["One place to put the whole trip together"]],
+  ["/privacy", ["Privacy Policy"]],
+  ["/terms", ["Terms of Use"]],
+  ["/destinations", ["Start with a destination"]],
+]);
+
 async function checkPublicRoutes() {
   const failures = [];
 
@@ -63,6 +76,11 @@ async function checkPublicRoutes() {
 
       if (!response.ok || !usableHtml) {
         failures.push(`${path}: expected usable HTML 200, received ${response.status} ${contentType}`);
+        continue;
+      }
+      const markers = routeMarkers.get(path) || [];
+      for (const marker of markers) {
+        if (!body.includes(marker)) failures.push(`${path}: missing expected production marker "${marker}"`);
       }
     } catch (error) {
       failures.push(`${path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -121,4 +139,4 @@ if (failures.length) {
 }
 
 console.log("\nSafariPlug production smoke PASSED.");
-console.log("Verified public launch routes, unauthenticated traveler redirect, and version endpoint.");
+console.log("Verified core marketplace routes, trust/legal pages, destination discovery, public contact markers, unauthenticated traveler redirect, and version endpoint.");
