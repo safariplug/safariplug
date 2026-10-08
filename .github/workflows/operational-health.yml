@@ -1,0 +1,45 @@
+name: SafariPlug Operational Health
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  operational-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wait for production deployment
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 20); do
+            body="$(curl --silent --show-error --max-time 20 https://safariplug.com/api/version || true)"
+            if printf '%s' "$body" | grep -q "$GITHUB_SHA"; then
+              echo "Production is serving $GITHUB_SHA"
+              ready=1
+              break
+            fi
+            echo "Production has not reached $GITHUB_SHA yet (attempt $attempt/20)"
+            sleep 15
+          done
+          test "$ready" -eq 1
+
+      - name: Check live operational health
+        env:
+          SAFARIPLUG_CRON_SECRET: \${{ secrets.SAFARIPLUG_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$SAFARIPLUG_CRON_SECRET"
+          status="$(curl --silent --show-error \
+            --max-time 60 \
+            -o operational-health.json \
+            -w "%{http_code}" \
+            -H "Authorization: Bearer \${SAFARIPLUG_CRON_SECRET}" \
+            "https://safariplug.com/api/cron/operational-health")"
+          cat operational-health.json
+          test "$status" -ge 200
+          test "$status" -lt 300
