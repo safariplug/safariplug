@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import DiscoverySwitcher from "@/components/DiscoverySwitcher";
 import { verifiedServiceProviderUserIds } from "@/lib/services/provider-bookability";
+import MarketplaceViewTracker from "@/components/MarketplaceViewTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
   const services = (rawServices ?? []).filter((s: any) => verifiedOwners.has(String(s.businesses?.owner_id||"")) && (!term || [s.businesses?.name, s.businesses?.description, s.service_categories?.name, ...(s.service_offerings ?? []).map((x:any)=>x.name)].filter(Boolean).join(" ").toLowerCase().includes(term)));
   const activeCategory = (categories ?? []).find((c: any) => c.slug === category);
 
-  return <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
+  return <main className="min-h-screen bg-[#f7f7f4] text-[#111]"><MarketplaceViewTracker surface="services" />
     <section className="relative overflow-hidden bg-[#111] text-white"><div className="mx-auto max-w-7xl px-6 pb-16 pt-12 sm:px-10 sm:pb-20 sm:pt-16"><div className="max-w-4xl"><p className="text-[11px] font-semibold uppercase tracking-[.28em] text-[#c9a86a]">SafariPlug / Local Services</p><h1 className="mt-5 text-5xl font-semibold tracking-[-.045em] sm:text-7xl">Book the person you need.<br/><span className="text-white/45">Without hunting around town.</span></h1><p className="mt-6 max-w-2xl text-base leading-7 text-white/60 sm:text-lg">Massage, barbers, nails, tattoo artists, trainers, water-sports instructors and more. SafariPlug only shows providers whose profiles and booking status are live.</p><form action="/services" className="mt-8 flex max-w-2xl gap-2 rounded-2xl bg-white p-2">{tripId&&<input type="hidden" name="tripId" value={tripId}/>}<input name="q" defaultValue={q} placeholder="Try ‘massage’, ‘barber’ or ‘diving’" className="min-w-0 flex-1 rounded-xl px-4 py-3 text-sm text-black outline-none"/><button className="rounded-xl bg-black px-5 py-3 text-sm font-bold text-white">Find a service</button></form></div></div></section>
     <DiscoverySwitcher current="/services" />
     {tripId&&<section className="mx-auto max-w-7xl px-6 pt-6 sm:px-10"><div className="rounded-2xl border border-black/8 bg-white px-5 py-4 text-sm text-black/55">Choose a service for your selected SafariPlug trip. The trip stays attached through provider selection and booking.</div></section>}
