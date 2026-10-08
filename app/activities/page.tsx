@@ -1,5 +1,6 @@
 import Link from "next/link";
 import ActivitySearchClient from "./ActivitySearchClient";
+import MarketplaceViewTracker from "@/components/MarketplaceViewTracker";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -11,6 +12,7 @@ export const metadata = {
 export default function ActivitiesPage() {
   return (
     <main className="min-h-screen bg-[#f7f7f4] text-[#111]">
+      <MarketplaceViewTracker surface="activities" />
       <section className="bg-[#070708] text-white">
         <div className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-24">
           <p className="text-xs font-black uppercase tracking-[0.28em] text-[#c9a86a]">SafariPlug Activities</p>
