@@ -2,14 +2,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { AdminAuthError, requireAdmin } from "@/lib/auth/require-admin";
 import { getSupplierActivationReadiness } from "@/lib/suppliers/readiness";
+import { authorizedCronRequest } from "@/lib/auth/cron-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  return Boolean(secret && request.headers.get("authorization") === `Bearer ${secret}`);
-}
 
 function clean(value: unknown, max = 4000) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -54,7 +50,7 @@ function draftMessage(input: { name: string; businessName: string; completion: n
 }
 
 export async function GET(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!(await authorizedCronRequest(request))) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   const startedAt = new Date().toISOString();
   try {
     const now = new Date().toISOString();
