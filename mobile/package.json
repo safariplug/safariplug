@@ -13,7 +13,7 @@
     "validate:release": "node scripts/validate-release-config.mjs"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-async-storage/async-storage": "2.1.2",
     "@supabase/supabase-js": "^2.112.4",
     "expo": "~53.0.22",
     "expo-constants": "~17.1.7",
@@ -24,15 +24,15 @@
     "expo-notifications": "~0.31.4",
     "expo-router": "~5.1.8",
     "expo-status-bar": "~2.2.3",
-    "react": "^19.0.0",
+    "react": "19.0.0",
     "react-native": "0.79.6",
     "react-native-gesture-handler": "~2.24.0",
-    "react-native-safe-area-context": "^5.4.0",
+    "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1"
   },
   "devDependencies": {
     "@types/react": "~19.0.10",
     "tsx": "^4.23.13",
-    "typescript": "^5.9.3"
+    "typescript": "~5.8.3"
   }
 }
