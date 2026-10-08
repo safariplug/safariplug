@@ -57,7 +57,7 @@ export async function loadProductionOpsSnapshot() {
 
   const telemetryIssues=(telemetry.data||[]).filter((row:any)=>/unmatched|failed|timeout|error/i.test(String(row.action_type||"")));
 
-  const alerts:OpsAlert[]=[
+  const alertCandidates:OpsAlert[]=[
     {severity:"critical",area:"Payments",title:"Failed travel payments",detail:"Hotel/activity/transfer ledger payments failed in the last 24h.",count:paymentFailed.length,href:"/admin/integrations/reconciliation"},
     {severity:"critical",area:"Bookings",title:"Failed travel bookings",detail:"Connected travel bookings marked failed in the last 24h.",count:bookingFailed.length,href:"/admin/integrations/reconciliation"},
     {severity:"critical",area:"Reconciliation",title:"Paid but not confirmed",detail:"Paid travel ledgers still not confirmed after 15 minutes.",count:paidNotConfirmed.length,href:"/admin/integrations/reconciliation"},
@@ -67,7 +67,8 @@ export async function loadProductionOpsSnapshot() {
     {severity:"critical",area:"Food",title:"Failed food payments",detail:"Restaurant order payments failed in the last 24h.",count:foodFailed.length,href:"/admin/restaurants"},
     {severity:"warning",area:"Food",title:"Stale food payments",detail:"Restaurant payments pending more than 30 minutes.",count:foodStale.length,href:"/admin/restaurants"},
     {severity:"warning",area:"Integrations",title:"Unmatched/error telemetry",detail:"Operational telemetry requiring review in the last 24h.",count:telemetryIssues.length,href:"/admin/integrations"},
-  ].filter((alert)=>alert.count>0);
+  ];
+  const alerts=alertCandidates.filter((alert)=>alert.count>0);
 
   const travelVolume=ledgers.length;
   const confirmedTravel=ledgers.filter((row:any)=>row.booking_status==="confirmed").length;
