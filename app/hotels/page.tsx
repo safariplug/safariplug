@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import DiscoverySwitcher from "@/components/DiscoverySwitcher";
 import TravelReviewSignal from "@/components/TravelReviewSignal";
+import MarketplaceViewTracker from "@/components/MarketplaceViewTracker";
 
 type SupplierContext = {
   search_key?: string;
