@@ -20,10 +20,8 @@ export async function POST(request:Request){
     const notes=typeof body?.notes==="string"?body.notes.trim().slice(0,2000):"";
     if(!["hotel","activity","transfer","service"].includes(product)||!sourceId)return NextResponse.json({error:"Product and source are required."},{status:400});
     const cfg=config(product);
-    const select=product==="service"
-      ?"id,payment_status,status,payment_reference,paid_at,currency,customer_total_amount,price"
-      :"id,payment_status,booking_status,payment_provider,payment_reference,paid_at,confirmed_at,customer_currency,currency,customer_retail_amount,retail_amount";
-    const {data:row,error}=await supabaseAdmin.from(cfg.table).select(select).eq("id",sourceId).maybeSingle();
+    const {data:rawRow,error}=await supabaseAdmin.from(cfg.table).select("*").eq("id",sourceId).maybeSingle();
+    const row:any=rawRow;
     if(error)return NextResponse.json({error:error.message},{status:500});
     if(!row)return NextResponse.json({error:"Payment record not found."},{status:404});
     if(row.payment_status!=="paid"||!row.payment_reference||!row.paid_at)return NextResponse.json({error:"Proof requires a paid record with provider payment reference and paid_at evidence."},{status:409});
