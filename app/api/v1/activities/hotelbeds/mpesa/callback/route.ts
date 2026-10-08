@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     const { data: ledger } = await supabaseAdmin
       .from("activity_booking_pricing_ledger")
-      .select("id,metadata,payment_status,booking_status")
+      .select("id,metadata,payment_status,booking_status,retail_amount,customer_currency")
       .eq("payment_provider", "mpesa")
       .eq("payment_reference", checkoutRequestId)
       .maybeSingle();
@@ -43,27 +43,34 @@ export async function POST(request: Request) {
         .filter(([key]) => Boolean(key))
     );
 
+    const callbackAmount = Number(metadataMap.Amount);
+    const expectedAmount = Number(ledger.retail_amount);
+    const receipt = String(metadataMap.MpesaReceiptNumber || "").trim();
+    const amountMatches = Number.isFinite(callbackAmount) && Number.isFinite(expectedAmount)
+      && Math.round(callbackAmount) === Math.round(expectedAmount);
     const success = resultCode === 0;
+    const verifiedSuccess = success && amountMatches && Boolean(receipt);
+
+    const callbackRecord = {
+      resultCode,
+      resultDescription: callback?.ResultDesc || null,
+      receipt: receipt || null,
+      amount: Number.isFinite(callbackAmount) ? callbackAmount : null,
+      expectedAmount: Number.isFinite(expectedAmount) ? expectedAmount : null,
+      amountMatches,
+      phone: metadataMap.PhoneNumber || null,
+      transactionDate: metadataMap.TransactionDate || null,
+      receivedAt: new Date().toISOString(),
+    };
+    const update = verifiedSuccess
+      ? { payment_status: "paid", booking_status: "payment_pending", paid_at: new Date().toISOString(), metadata: { ...metadata, mpesaCallback: callbackRecord } }
+      : success
+        ? { payment_status: "pending", booking_status: "payment_pending", paid_at: null, metadata: { ...metadata, mpesaCallbackRejected: callbackRecord } }
+        : { payment_status: "failed", booking_status: "failed", paid_at: null, metadata: { ...metadata, mpesaCallback: callbackRecord } };
 
     await supabaseAdmin
       .from("activity_booking_pricing_ledger")
-      .update({
-        payment_status: success ? "paid" : "failed",
-        booking_status: success ? "payment_pending" : "failed",
-        paid_at: success ? new Date().toISOString() : null,
-        metadata: {
-          ...metadata,
-          mpesaCallback: {
-            resultCode,
-            resultDescription: callback?.ResultDesc || null,
-            receipt: metadataMap.MpesaReceiptNumber || null,
-            amount: metadataMap.Amount || null,
-            phone: metadataMap.PhoneNumber || null,
-            transactionDate: metadataMap.TransactionDate || null,
-            receivedAt: new Date().toISOString(),
-          },
-        },
-      })
+      .update(update)
       .eq("id", ledger.id)
       .eq("payment_provider", "mpesa")
       .eq("payment_reference", checkoutRequestId);
