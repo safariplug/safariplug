@@ -67,6 +67,15 @@ jobs:
       - name: Install mobile dependencies
         run: npm install
 
+      - name: Validate mobile release configuration
+        run: npm run validate:release
+
+      - name: Expo Doctor
+        run: npm run doctor
+
+      - name: Audit production mobile dependencies
+        run: npm run audit:production
+
       - name: Mobile typecheck
         run: npm run typecheck
 
