@@ -1,0 +1,22 @@
+name: SafariPlug Supplier Follow-up Drafts
+
+on:
+  schedule:
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  supplier-followup-drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Prepare governed supplier follow-up drafts
+        env:
+          SAFARIPLUG_CRON_SECRET: ${{ secrets.SAFARIPLUG_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$SAFARIPLUG_CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --max-time 120 \
+            -H "Authorization: Bearer ${SAFARIPLUG_CRON_SECRET}" \
+            "https://safariplug.com/api/cron/supplier-followup-drafts"
