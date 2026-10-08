@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { API_BASE_URL } from "../../src/api/client";
+import { API_BASE_URL } from "../../src/config";
 import { supabase } from "../../src/auth";
 import { colors } from "../../src/theme";
 
