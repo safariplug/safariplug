@@ -10,7 +10,8 @@
     "test": "tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "doctor": "npx expo-doctor",
-    "validate:release": "node scripts/validate-release-config.mjs"
+    "validate:release": "node scripts/validate-release-config.mjs",
+    "audit:production": "node scripts/audit-production-deps.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
@@ -34,5 +35,8 @@
     "@types/react": "~19.0.10",
     "tsx": "^4.23.13",
     "typescript": "~5.8.3"
+  },
+  "overrides": {
+    "image-size": "2.0.4"
   }
 }
