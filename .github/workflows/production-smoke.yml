@@ -32,4 +32,5 @@ jobs:
           SAFARIPLUG_BASE_URL: https://www.safariplug.com
           SMOKE_WAIT_ATTEMPTS: "20"
           SMOKE_WAIT_MS: "15000"
+          EXPECTED_COMMIT_SHA: ${{ github.sha }}
         run: node scripts/production-launch-smoke.mjs
