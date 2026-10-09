@@ -42,7 +42,21 @@ export default function HotelsPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setTripId(params.get("tripId") || "");
+    const requestedTripId = params.get("tripId") || "";
+    setTripId(requestedTripId);
+    if (!requestedTripId) return;
+    const controller = new AbortController();
+    void fetch("/api/trips/" + encodeURIComponent(requestedTripId), { signal: controller.signal, cache: "no-store" })
+      .then(async response => response.ok ? response.json() : null)
+      .then(body => {
+        if (!body?.trip || controller.signal.aborted) return;
+        const trip = body.trip;
+        if (trip.destination) setDestination(String(trip.destination));
+        if (trip.start_on && trip.start_on >= isoDate(0)) setCheckIn(String(trip.start_on));
+        if (trip.end_on && trip.end_on > (trip.start_on || isoDate(0))) setCheckOut(String(trip.end_on));
+      })
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   async function search(event: FormEvent) {
