@@ -377,17 +377,25 @@ export class LockTripHotelAdapter implements HotelAdapter {
         if ((result.searchStatus || "").toUpperCase() === "COMPLETED") break;
       }
       const rawHotels = result.hotels || [];
-      // Supplier region searches can include Mombasa city even for a Diani-specific query.
-      // Exclude only unambiguous Mombasa CBD matches, never coastal locations merely
-      // because their postal address includes "Mombasa".
+      // A supplier region can span both Diani and central Mombasa. For an
+      // explicitly specific Diani search, only show properties with evidence
+      // of being near Diani. A generic Mombasa postal address is not evidence.
       const dianiSpecific = request.location_scope === "specific" && /^(diani|diani beach|ukunda)$/i.test(request.destination.trim());
       const locationCandidates = dianiSpecific ? rawHotels.filter(hotel => {
-        const address = (hotel.address || "").toLowerCase();
-        const name = (hotel.name || "").toLowerCase();
-        if (/diani|ukunda|kwale|mwisho wa lami|lunga lunga|likoni/.test(address + " " + name)) return true;
-        if (/\b(moi ave|moi avenue|tononoka|ganjoni|maalim juma|chief ali bin naam)\b/.test(address)) return false;
-        if (/^mombasa\s*$/.test(address)) return false;
-        return true;
+        // Check coordinates first if the supplier supplies a plausible pair.
+        const lat = hotel.latitude;
+        const lon = hotel.longitude;
+        if (typeof lat === "number" && typeof lon === "number" &&
+            Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0) {
+          const rad = Math.PI / 180;
+          const dLat = (lat - (-4.2796)) * rad;
+          const dLon = (lon - 39.5947) * rad;
+          const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(-4.2796 * rad) * Math.cos(lat * rad) * Math.sin(dLon / 2) ** 2;
+          return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(a))) <= 25;
+        }
+        const evidence = `${hotel.name || ""} ${hotel.address || ""}`.toLowerCase();
+        return /\b(diani|ukunda|mwisho wa lami)\b/.test(evidence);
       }) : rawHotels;
       let bookableHotels = locationCandidates;
       if (request.bookable_only !== false && locationCandidates.length) {
