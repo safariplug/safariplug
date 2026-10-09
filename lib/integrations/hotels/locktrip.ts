@@ -432,6 +432,25 @@ export class LockTripHotelAdapter implements HotelAdapter {
           .map((entry) => entry.hotel);
       }
 
+      // Search results may lack photos that the supplier hotel detail endpoint provides.
+      const withoutImages = bookableHotels.filter(hotel => !(hotel.images || []).some(Boolean) && hotel.hotelId != null).slice(0, 10);
+      let imageCursor = 0;
+      async function enrichImages(adapter: LockTripHotelAdapter) {
+        while (imageCursor < withoutImages.length) {
+          const hotel = withoutImages[imageCursor++];
+          try {
+            const details = await adapter.getHotelDetails(String(hotel.hotelId), true, 5);
+            const urls = [...(details.hotel?.hotelPhotos || []), ...(details.additionalImages || [])]
+              .map(photo => photo.url)
+              .filter((url): url is string => typeof url === "string" && url.startsWith("https://"));
+            if (urls.length) hotel.images = urls.slice(0, 5);
+          } catch {
+            // Missing supplier photos must never prevent live booking results.
+          }
+        }
+      }
+      await Promise.all(Array.from({length: Math.min(4, withoutImages.length)}, () => enrichImages(this)));
+
       const target = customerCurrency(request.currency);
       const hotels = await Promise.all(bookableHotels.map(async (hotel) => {
         const supplier = hotel.currency || supplierCurrency;
