@@ -377,13 +377,25 @@ export class LockTripHotelAdapter implements HotelAdapter {
         if ((result.searchStatus || "").toUpperCase() === "COMPLETED") break;
       }
       const rawHotels = result.hotels || [];
-      let bookableHotels = rawHotels;
-      if (request.bookable_only !== false && rawHotels.length) {
+      // Supplier region searches can include Mombasa city even for a Diani-specific query.
+      // Exclude only unambiguous Mombasa CBD matches, never coastal locations merely
+      // because their postal address includes "Mombasa".
+      const dianiSpecific = request.location_scope === "specific" && /^(diani|diani beach|ukunda)$/i.test(request.destination.trim());
+      const locationCandidates = dianiSpecific ? rawHotels.filter(hotel => {
+        const address = (hotel.address || "").toLowerCase();
+        const name = (hotel.name || "").toLowerCase();
+        if (/diani|ukunda|kwale|mwisho wa lami|lunga lunga|likoni/.test(address + " " + name)) return true;
+        if (/\b(moi ave|moi avenue|tononoka|ganjoni|maalim juma|chief ali bin naam)\b/.test(address)) return false;
+        if (/^mombasa\s*$/.test(address)) return false;
+        return true;
+      }) : rawHotels;
+      let bookableHotels = locationCandidates;
+      if (request.bookable_only !== false && locationCandidates.length) {
         const configuredLimit = Number(env("SAFARIPLUG_HOTEL_LOCKTRIP_BOOKABLE_CHECK_LIMIT") || "18");
         const checkLimit = Number.isFinite(configuredLimit)
           ? Math.max(1, Math.min(30, Math.floor(configuredLimit)))
           : 18;
-        const candidates = rawHotels.slice(0, checkLimit);
+        const candidates = locationCandidates.slice(0, checkLimit);
         const verified: Array<{ index: number; hotel: NonNullable<SearchResults["hotels"]>[number] }> = [];
         let cursor = 0;
         let completedChecks = 0;
