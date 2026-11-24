@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   pollBackgroundScout,
+  runGeminiScout,
+  scoutGeminiPreferred,
+  isScoutCreditExhaustion,
   processBackgroundScoutOutput,
   startBackgroundScout,
   type BackgroundScoutResult,
@@ -97,7 +100,7 @@ async function finishJob(
   }
 
   const effectiveAttempts = preserveAttempt ? Math.max(0, job.attempt_count - 1) : job.attempt_count;
-  const retry = preserveAttempt || effectiveAttempts < job.max_attempts;
+  const retry = !isScoutCreditExhaustion(errorMessage) && (preserveAttempt || effectiveAttempts < job.max_attempts);
 
   await supabaseAdmin
     .from("ai_scout_runs")
@@ -276,6 +279,15 @@ async function claimAndStartOne() {
   if (!job) return null;
 
   try {
+    if (scoutGeminiPreferred()) {
+      const output = await runGeminiScout(job);
+      const result = await processBackgroundScoutOutput(job, output);
+      await finishJob(job, result);
+      return {
+        job_id: job.id, location: job.location, category: job.category,
+        attempt: job.attempt_count, provider_status: "completed",
+      };
+    }
     const provider = await startBackgroundScout(job);
     const providerStatus = provider.status || "queued";
     await supabaseAdmin
@@ -299,7 +311,7 @@ async function claimAndStartOne() {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not start AI Scout background response";
     await finishJob(job, undefined, message, transientProviderError(message));
-    return null;
+    return isScoutCreditExhaustion(message) ? "quota_exhausted" as const : null;
   }
 }
 
@@ -309,7 +321,7 @@ async function fillOpenSlots() {
 
   while (active < MAX_CONCURRENT_SCOUTS) {
     const next = await claimAndStartOne();
-    if (!next) break;
+    if (!next || next === "quota_exhausted") break;
     started.push(next);
     active++;
   }
