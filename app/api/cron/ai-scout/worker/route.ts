@@ -100,7 +100,8 @@ async function finishJob(
   }
 
   const effectiveAttempts = preserveAttempt ? Math.max(0, job.attempt_count - 1) : job.attempt_count;
-  const retry = !isScoutCreditExhaustion(errorMessage) && (preserveAttempt || effectiveAttempts < job.max_attempts);
+  const nonRetryable = isScoutCreditExhaustion(errorMessage) || (errorMessage || "").includes("Gemini Scout provider is not configured");
+  const retry = !nonRetryable && (preserveAttempt || effectiveAttempts < job.max_attempts);
 
   await supabaseAdmin
     .from("ai_scout_runs")
@@ -311,7 +312,7 @@ async function claimAndStartOne() {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not start AI Scout background response";
     await finishJob(job, undefined, message, transientProviderError(message));
-    return isScoutCreditExhaustion(message) ? "quota_exhausted" as const : null;
+    return isScoutCreditExhaustion(message) || message.includes("Gemini Scout provider is not configured") ? "provider_unavailable" as const : null;
   }
 }
 
@@ -321,9 +322,9 @@ async function fillOpenSlots() {
 
   while (active < MAX_CONCURRENT_SCOUTS) {
     const next = await claimAndStartOne();
-    if (!next || next === "quota_exhausted") break;
+    if (!next || next === "provider_unavailable") break;
     started.push(next);
-    active++;
+    if (next.provider_status !== "completed") active++;
   }
 
   return { active, started };
