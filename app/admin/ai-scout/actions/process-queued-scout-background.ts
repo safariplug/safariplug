@@ -374,7 +374,7 @@ export async function runGeminiScout(job: QueuedScoutJob): Promise<string> {
         "You are SafariPlug AI Scout. Use Google Search grounding to find current public event sources.",
         "Return JSON only, with no code fences or commentary. Never invent URLs, events or dates.",
         prompt(job.location, job.category),
-      ].join("\\n") }] }],
+      ].join("\n") }] }],
       tools: [{ google_search: {} }],
       generationConfig: { temperature: 0.2, maxOutputTokens: MAX_OUTPUT_TOKENS },
     }),
@@ -398,10 +398,10 @@ export async function runGeminiScout(job: QueuedScoutJob): Promise<string> {
   const raw = parts
     .filter((part): part is Record<string, unknown> => Boolean(part && typeof part === "object"))
     .map((part) => typeof part.text === "string" ? part.text : "")
-    .join("\\n")
+    .join("\n")
     .trim();
   if (!raw) throw new Error("Gemini Scout response contains no event JSON.");
-  const cleaned = raw.replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/i, "").trim();
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   // Reject malformed outputs rather than silently publishing uncertain discoveries.
   const parsed: unknown = JSON.parse(cleaned);
   if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as Record<string, unknown>).events)) {
