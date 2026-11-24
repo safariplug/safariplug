@@ -3,6 +3,7 @@ import {
   pollBackgroundScout,
   runGeminiScout,
   scoutGeminiPreferred,
+  scoutGeminiConfigured,
   isScoutCreditExhaustion,
   processBackgroundScoutOutput,
   startBackgroundScout,
@@ -311,6 +312,28 @@ async function claimAndStartOne() {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not start AI Scout background response";
+
+    // Only retry the whole mission with Gemini when OpenAI explicitly reports
+    // exhausted credits. Never trigger a second billed provider for generic errors.
+    if (!scoutGeminiPreferred() && isScoutCreditExhaustion(message) && scoutGeminiConfigured()) {
+      try {
+        const output = await runGeminiScout(job);
+        const result = await processBackgroundScoutOutput(job, output);
+        await finishJob(job, result);
+        return {
+          job_id: job.id, location: job.location, category: job.category,
+          attempt: job.attempt_count, provider_status: "completed",
+        };
+      } catch (fallbackError) {
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "Gemini fallback failed";
+        // A quota failure in either provider must not consume worker loops.
+        await finishJob(job, undefined,
+          `OpenAI credits exhausted; Gemini fallback failed: ${fallbackMessage}`,
+          false);
+        return "provider_unavailable" as const;
+      }
+    }
+
     await finishJob(job, undefined, message, transientProviderError(message));
     return isScoutCreditExhaustion(message) || message.includes("Gemini Scout provider is not configured") ? "provider_unavailable" as const : null;
   }
