@@ -335,6 +335,81 @@ function openAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
+// Gemini is opt-in so existing production credentials and billing behavior remain unchanged.
+// Search-grounded results still pass the same independent source verification as OpenAI results.
+export function scoutGeminiConfigured() {
+  return Boolean(process.env.GEMINI_API_KEY?.trim());
+}
+
+export function scoutGeminiPreferred() {
+  return process.env.SCOUT_AI_PROVIDER?.trim().toLowerCase() === "gemini";
+}
+
+export function isScoutCreditExhaustion(error: unknown) {
+  const value = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  return value.includes("no credits remaining")
+    || value.includes("credits exhausted")
+    || value.includes("insufficient_quota")
+    || value.includes("exceeded your current quota, please check your plan")
+    || value.includes("billing hard limit");
+}
+
+export async function runGeminiScout(job: QueuedScoutJob): Promise<string> {
+  if (!scoutGeminiConfigured()) throw new Error("Gemini Scout provider is not configured (GEMINI_API_KEY missing).");
+  if (!EVENT_CATEGORIES.includes(job.category as (typeof EVENT_CATEGORIES)[number])) {
+    throw new Error(`Unsupported Scout category: ${job.category}`);
+  }
+  const model = process.env.SCOUT_GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  // Do not allow arbitrary env values to alter the endpoint path.
+  if (!/^[a-zA-Z0-9._-]+$/.test(model)) throw new Error("Invalid Gemini Scout model configuration.");
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": process.env.GEMINI_API_KEY!,
+    },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: [
+        "You are SafariPlug AI Scout. Use Google Search grounding to find current public event sources.",
+        "Return JSON only, with no code fences or commentary. Never invent URLs, events or dates.",
+        prompt(job.location, job.category),
+      ].join("\n") }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: MAX_OUTPUT_TOKENS },
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(30000),
+  });
+  const payload: unknown = await response.json();
+  const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  if (!response.ok) {
+    const issue = body.error && typeof body.error === "object"
+      ? (body.error as Record<string, unknown>).message
+      : null;
+    throw new Error(`Gemini Scout HTTP ${response.status}: ${typeof issue === "string" ? issue.slice(0, 300) : "provider request failed"}`);
+  }
+  const candidates = Array.isArray(body.candidates) ? body.candidates : [];
+  const first = candidates[0] && typeof candidates[0] === "object"
+    ? candidates[0] as Record<string, unknown> : {};
+  const content = first.content && typeof first.content === "object"
+    ? first.content as Record<string, unknown> : {};
+  const parts = Array.isArray(content.parts) ? content.parts : [];
+  const raw = parts
+    .filter((part): part is Record<string, unknown> => Boolean(part && typeof part === "object"))
+    .map((part) => typeof part.text === "string" ? part.text : "")
+    .join("\n")
+    .trim();
+  if (!raw) throw new Error("Gemini Scout response contains no event JSON.");
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  // Reject malformed outputs rather than silently publishing uncertain discoveries.
+  const parsed: unknown = JSON.parse(cleaned);
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as Record<string, unknown>).events)) {
+    throw new Error("Gemini Scout response has no events array.");
+  }
+  return cleaned;
+}
+
 export async function startBackgroundScout(job: QueuedScoutJob) {
   if (!EVENT_CATEGORIES.includes(job.category as (typeof EVENT_CATEGORIES)[number])) {
     throw new Error(`Unsupported Scout category: ${job.category}`);

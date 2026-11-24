@@ -177,9 +177,9 @@ export default async function AIScoutPage() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.18em] text-emerald-700">Autonomous schedule</p>
                 <h2 className="mt-1 text-xl font-semibold text-emerald-950">Monday · Wednesday · Friday at 06:00 Nairobi time</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-900/70">Supabase queues one rotating Africa-wide Scout mission on each scheduled day. The existing background worker processes the queue independently of your browser, so n8n is not required for AI Scout scheduling.</p>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-900/70">The Monday/Wednesday/Friday schedule is managed in Supabase and may be paused when the AI provider is unavailable. The background worker processes queued jobs independently of your browser; n8n is not required. Check Supabase cron status before treating the schedule as active.</p>
               </div>
-              <span className="rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800">ACTIVE</span>
+              <span className="rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800">MANAGED IN SUPABASE</span>
             </div>
             <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-[.16em] text-gray-400">Latest autonomous mission</p>
@@ -188,7 +188,7 @@ export default async function AIScoutPage() {
                   <div><p className="font-semibold">{lastScheduled.location} · {lastScheduled.category}</p><p className="mt-1 text-sm text-gray-500">{lastScheduled.queued_at ? new Date(lastScheduled.queued_at).toLocaleString("en-US", { timeZone: "Africa/Nairobi", timeZoneName: "short" }) : "Queued time unavailable"} · {String(lastScheduled.status).replaceAll("_"," ")}</p></div>
                   <div className="text-sm text-gray-600">Candidates <strong>{lastScheduled.discoveries_found ?? 0}</strong> · Review <strong>{lastScheduled.sent_for_review ?? lastScheduled.events_found ?? 0}</strong></div>
                 </div>
-              ) : <p className="mt-2 text-sm text-gray-500">No autonomous mission has run yet. The next scheduled day will create the first mission automatically.</p>}
+              ) : <p className="mt-2 text-sm text-gray-500">No autonomous mission is recorded yet. A new mission will be created on the next scheduled day only if the Supabase schedule is enabled.</p>}
             </div>
           </section>
 
